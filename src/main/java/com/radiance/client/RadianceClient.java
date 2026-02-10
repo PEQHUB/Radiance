@@ -21,6 +21,10 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import com.radiance.client.input.KeyInputHandler;
+import javax.swing.JEditorPane;
+import javax.swing.JOptionPane;
+import javax.swing.event.HyperlinkEvent;
 import net.fabricmc.api.ClientModInitializer;
 import net.minecraft.client.MinecraftClient;
 import org.slf4j.Logger;
@@ -58,7 +62,11 @@ public class RadianceClient implements ClientModInitializer {
             Path dlssDTargetPath = radianceDir.resolve("nvngx_dlssd.dll");
 
             if (!Files.exists(dlssTargetPath) || !Files.exists(dlssDTargetPath)) {
-                throw new RuntimeException("DLSS runtime libraries not found!");
+                showMissingDllDialog(
+                    "nvngx_dlss.dll", "nvngx_dlssd.dll",
+                    "https://github.com/NVIDIA/DLSS/tree/v310.5.3/lib/Windows_x86_64/rel",
+                    radianceDir.toAbsolutePath().toString()
+                );
             }
         } else if (osName.toLowerCase().contains("linux")) {
             Path soTargetPath = radianceDir.resolve("libcore.so");
@@ -71,7 +79,11 @@ public class RadianceClient implements ClientModInitializer {
             Path dlssDTargetPath = radianceDir.resolve("libnvidia-ngx-dlssd.so.310.5.3");
 
             if (!Files.exists(dlssTargetPath) || !Files.exists(dlssDTargetPath)) {
-                throw new RuntimeException("DLSS runtime libraries not found!");
+                showMissingDllDialog(
+                    "libnvidia-ngx-dlss.so.310.5.3", "libnvidia-ngx-dlssd.so.310.5.3",
+                    "https://github.com/NVIDIA/DLSS/tree/v310.5.3/lib/Linux_x86_64/rel",
+                    radianceDir.toAbsolutePath().toString()
+                );
             }
         } else {
             throw new RuntimeException("The OS " + osName + " is not supported");
@@ -93,6 +105,8 @@ public class RadianceClient implements ClientModInitializer {
         Options.readOptions();
 
         Pipeline.reloadAllModuleEntries();
+
+        KeyInputHandler.register();
     }
 
     public void copyFileFromResource(Path targetPath, Path resourcePath) {
@@ -169,5 +183,30 @@ public class RadianceClient implements ClientModInitializer {
                 copyFileFromResource(targetFile, childResourcePath);
             });
         }
+    }
+
+    private void showMissingDllDialog(String file1, String file2, String url, String destFolder) {
+        LOGGER.error("Missing DLSS runtime libraries: {} and/or {}", file1, file2);
+        try {
+            String html = "<html><body style='width:400px;font-family:sans-serif;'>"
+                + "<b>Radiance - Missing DLSS Libraries</b><br><br>"
+                + "Could not find <code>" + file1 + "</code> and/or <code>" + file2 + "</code><br><br>"
+                + "Download them from:<br>"
+                + "<a href=\"" + url + "\">" + url + "</a><br><br>"
+                + "Place the files in:<br><code>" + destFolder + "</code>"
+                + "</body></html>";
+            JEditorPane pane = new JEditorPane("text/html", html);
+            pane.setEditable(false);
+            pane.setOpaque(false);
+            pane.addHyperlinkListener(e -> {
+                if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+                    try { java.awt.Desktop.getDesktop().browse(e.getURL().toURI()); } catch (Exception ignored) {}
+                }
+            });
+            JOptionPane.showMessageDialog(null, pane, "Radiance", JOptionPane.ERROR_MESSAGE);
+        } catch (Exception e) {
+            LOGGER.error("Failed to show dialog", e);
+        }
+        throw new RuntimeException("DLSS runtime libraries not found. See log for download instructions.");
     }
 }

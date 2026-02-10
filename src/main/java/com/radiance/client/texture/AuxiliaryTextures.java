@@ -22,14 +22,20 @@ public enum AuxiliaryTextures {
         String path = identifier.getPath();
         String[] pathComponents = path.split("/");
         String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String specularFileName = String.join("",
+        String suffixedFileName = String.join("",
             new String[]{fileNameComponents[0], "_s.", fileNameComponents[1]});
 
-        pathComponents[pathComponents.length - 1] = specularFileName;
-        String specularPath = String.join("/", pathComponents)
-            .replace("textures/", "textures/specular/");
-        Identifier specularIdentifier = Identifier.of(namespace, specularPath);
-        return List.of(specularIdentifier);
+        // Primary: same-directory LabPBR layout (e.g. textures/block/stone_s.png)
+        String[] sameDir = pathComponents.clone();
+        sameDir[sameDir.length - 1] = suffixedFileName;
+        String sameDirPath = String.join("/", sameDir);
+        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
+
+        // Fallback: separate subfolder layout (e.g. textures/specular/block/stone_s.png)
+        String subfolderPath = sameDirPath.replace("textures/", "textures/specular/");
+        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
+
+        return List.of(sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getSpecularNativeImage,
         INativeImageExt::neoVoxelRT$setSpecularNativeImage,
         TextureTracker.GLID2SpecularGLID), NORMAL("normal", "_n", (identifier, source) -> {
@@ -37,14 +43,20 @@ public enum AuxiliaryTextures {
         String path = identifier.getPath();
         String[] pathComponents = path.split("/");
         String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String normalFileName = String.join("",
+        String suffixedFileName = String.join("",
             new String[]{fileNameComponents[0], "_n.", fileNameComponents[1]});
 
-        pathComponents[pathComponents.length - 1] = normalFileName;
-        String normalPath = String.join("/", pathComponents)
-            .replace("textures/", "textures/normal/");
-        Identifier normalIdentifier = Identifier.of(namespace, normalPath);
-        return List.of(normalIdentifier);
+        // Primary: same-directory LabPBR layout (e.g. textures/block/stone_n.png)
+        String[] sameDir = pathComponents.clone();
+        sameDir[sameDir.length - 1] = suffixedFileName;
+        String sameDirPath = String.join("/", sameDir);
+        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
+
+        // Fallback: separate subfolder layout (e.g. textures/normal/block/stone_n.png)
+        String subfolderPath = sameDirPath.replace("textures/", "textures/normal/");
+        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
+
+        return List.of(sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getNormalNativeImage,
         INativeImageExt::neoVoxelRT$setNormalNativeImage, TextureTracker.GLID2NormalGLID), FLAG(
         "flag", "_f", (identifier, source) -> {
@@ -52,14 +64,20 @@ public enum AuxiliaryTextures {
         String path = identifier.getPath();
         String[] pathComponents = path.split("/");
         String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String flagFileName = String.join("",
+        String suffixedFileName = String.join("",
             new String[]{fileNameComponents[0], "_f.", fileNameComponents[1]});
 
-        pathComponents[pathComponents.length - 1] = flagFileName;
-        String flagPath = String.join("/", pathComponents)
-            .replace("textures/", "textures/flag/");
-        Identifier flagIdentifier = Identifier.of(namespace, flagPath);
-        return List.of(flagIdentifier);
+        // Primary: same-directory layout (e.g. textures/block/stone_f.png)
+        String[] sameDir = pathComponents.clone();
+        sameDir[sameDir.length - 1] = suffixedFileName;
+        String sameDirPath = String.join("/", sameDir);
+        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
+
+        // Fallback: separate subfolder layout (e.g. textures/flag/block/stone_f.png)
+        String subfolderPath = sameDirPath.replace("textures/", "textures/flag/");
+        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
+
+        return List.of(sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getFlagNativeImage,
         INativeImageExt::neoVoxelRT$setFlagNativeImage, TextureTracker.GLID2FlagGLID);
 
