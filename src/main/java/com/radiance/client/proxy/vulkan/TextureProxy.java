@@ -36,19 +36,19 @@ public class TextureProxy {
         switch (internalFormat) {
             case RGBA:
                 prepareImage(id, mipLevels, width, height,
-                    VulkanConstants.VkFormat.VK_FORMAT_R8G8B8A8_UNORM);
+                    VulkanConstants.VkFormat.VK_FORMAT_R8G8B8A8_SRGB);
                 break;
             case RGB:
                 prepareImage(id, mipLevels, width, height,
-                    VulkanConstants.VkFormat.VK_FORMAT_R8G8B8_UNORM);
+                    VulkanConstants.VkFormat.VK_FORMAT_R8G8B8_SRGB);
                 break;
             case RG:
                 prepareImage(id, mipLevels, width, height,
-                    VulkanConstants.VkFormat.VK_FORMAT_R8G8_UNORM);
+                    VulkanConstants.VkFormat.VK_FORMAT_R8G8_SRGB);
                 break;
             case RED:
                 prepareImage(id, mipLevels, width, height,
-                    VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM);
+                    VulkanConstants.VkFormat.VK_FORMAT_R8_SRGB);
                 break;
         }
     }
