@@ -21,6 +21,10 @@ loom {
 
 tasks.named("runClient", JavaExec) {
     args "--width", "1920", "--height", "1080"
+    // Force Java 21 for runtime — LWJGL 3.3.3 is incompatible with Java 25
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 repositories {
