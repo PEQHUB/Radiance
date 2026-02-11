@@ -36,7 +36,12 @@ public class Options {
     public static final String TONEMAP_MODE_LOTTES = "options.video.tonemap_mode.lottes";
     public static final String TONEMAP_MODE_FROSTBITE = "options.video.tonemap_mode.frostbite";
     public static final String TONEMAP_MODE_UNCHARTED2 = "options.video.tonemap_mode.uncharted2";
+    public static final String TONEMAP_MODE_GT = "options.video.tonemap_mode.gt";
+    public static final String MIN_EXPOSURE_KEY = "options.video.min_exposure";
     public static final String MAX_EXPOSURE_KEY = "options.video.max_exposure";
+    public static final String EXPOSURE_COMPENSATION_KEY = "options.video.exposure_compensation";
+    public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
+    public static final String LWHITE_KEY = "options.video.lwhite";
 
     // Upscaler (Off / FSR3 / DLSS SR)
     public static final String UPSCALER_MODE_KEY = "options.video.upscaler_mode";
@@ -75,7 +80,11 @@ public class Options {
     public static int chunkBuildingBatchSize = 2;
     public static int chunkBuildingTotalBatches = 4;
     public static int tonemappingMode = 1; // default: Reinhard Extended
+    public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
     public static int maxExposure = 2;
+    public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
+    public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
+    public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int upscalerPreset = 5; // DLSS: 4=D, 5=E (default). Generic for future upscalers.
 
     // Debounce for DLSS quality changes (500ms)
@@ -126,6 +135,7 @@ public class Options {
                 props.getProperty("dlssQuality", String.valueOf(upscalerQuality))));
             nativeSetDlssQuality(upscalerQuality, false);
 
+            setMinExposure(Integer.parseInt(props.getProperty("minExposureTenK", String.valueOf(minExposureTenK))), false);
             setMaxExposure(Integer.parseInt(props.getProperty("maxExposure", String.valueOf(maxExposure))), false);
 
             upscalerPreset = Integer.parseInt(props.getProperty("upscalerPreset",
@@ -134,6 +144,16 @@ public class Options {
 
             rayBounces = Integer.parseInt(props.getProperty("rayBounces", String.valueOf(rayBounces)));
             nativeSetRayBounces(rayBounces, false);
+
+            exposureCompensation = Integer.parseInt(props.getProperty(
+                "exposureCompensation", String.valueOf(exposureCompensation)));
+            middleGreyPercent = Integer.parseInt(props.getProperty(
+                "middleGreyPercent", String.valueOf(middleGreyPercent)));
+            LwhiteTenths = Integer.parseInt(props.getProperty(
+                "LwhiteTenths", String.valueOf(LwhiteTenths)));
+            nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
+            nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
+            nativeSetLwhite(LwhiteTenths / 10.0f, false);
 
             overwriteConfig();
         } catch (IOException e) {
@@ -154,7 +174,11 @@ public class Options {
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
+        props.setProperty("minExposureTenK", String.valueOf(minExposureTenK));
         props.setProperty("maxExposure", String.valueOf(maxExposure));
+        props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
+        props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
+        props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("upscalerPreset", String.valueOf(upscalerPreset));
 
         try {
@@ -270,6 +294,17 @@ public class Options {
         }
     }
 
+    // --- Min Exposure ---
+    public native static void nativeSetMinExposure(float minExposure, boolean write);
+
+    public static void setMinExposure(int tenK, boolean write) {
+        Options.minExposureTenK = tenK;
+        nativeSetMinExposure(tenK / 10000.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
     public native static void nativeSetMaxExposure(int maxExposure, boolean write);
 
     public static void setMaxExposure(int maxExposure, boolean write) {
@@ -289,6 +324,39 @@ public class Options {
         if (upscalerPresetTask != null) upscalerPresetTask.cancel(false);
         upscalerPresetTask = scheduler.schedule(() -> nativeSetDlssPreset(preset, write),
             500, TimeUnit.MILLISECONDS);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Exposure Compensation (float EV offset) ---
+    public native static void nativeSetExposureCompensation(float ec, boolean write);
+
+    public static void setExposureCompensation(int tenths, boolean write) {
+        Options.exposureCompensation = tenths;
+        nativeSetExposureCompensation(tenths / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Middle Grey ---
+    public native static void nativeSetMiddleGrey(float mg, boolean write);
+
+    public static void setMiddleGrey(int percent, boolean write) {
+        Options.middleGreyPercent = percent;
+        nativeSetMiddleGrey(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Lwhite (Reinhard white point) ---
+    public native static void nativeSetLwhite(float lw, boolean write);
+
+    public static void setLwhite(int tenths, boolean write) {
+        Options.LwhiteTenths = tenths;
+        nativeSetLwhite(tenths / 10.0f, write);
         if (write) {
             overwriteConfig();
         }

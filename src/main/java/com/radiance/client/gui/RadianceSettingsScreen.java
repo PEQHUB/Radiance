@@ -7,16 +7,24 @@ import com.mojang.serialization.Codec;
 import com.radiance.client.option.Options;
 import com.radiance.client.option.TonemappingMode;
 import com.radiance.client.util.CategoryVideoOptionEntry;
+import java.util.List;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
+import net.minecraft.client.gui.widget.OptionListWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
 public class RadianceSettingsScreen extends GameOptionsScreen {
 
+    private final Screen parentScreen;
+
     public RadianceSettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options, Text.translatable("radiance.settings.title"));
+        this.parentScreen = parent;
     }
 
     @Override
@@ -26,7 +34,7 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_TONEMAPPING), body));
 
-        String[] tonemapModes = {"PBR Neutral", "Reinhard Extended", "ACES", "AgX", "Lottes", "Frostbite", "Uncharted 2"};
+        String[] tonemapModes = {"PBR Neutral", "Reinhard Extended", "ACES", "AgX", "Lottes", "Frostbite", "Uncharted 2", "GT"};
         SimpleOption<Integer> tonemapMode = new SimpleOption<>(
             Options.TONEMAP_MODE_KEY,
             SimpleOption.emptyTooltip(),
@@ -35,8 +43,22 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             new SimpleOption.ValidatingIntSliderCallbacks(0, tonemapModes.length - 1),
             Codec.intRange(0, tonemapModes.length - 1),
             Options.tonemappingMode,
-            value -> Options.setTonemappingMode(value, true));
+            value -> {
+                Options.setTonemappingMode(value, true);
+                // Rebuild the screen so exposure sliders pick up the new preset values
+                MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(parentScreen));
+            });
         this.body.addSingleOptionEntry(tonemapMode);
+
+        // Min Exposure: 0.0001 to 1.0 (stored as ten-thousandths 1-10000)
+        ResettableSliderWidget minExpSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 10000, Options.minExposureTenK, 1,
+            v -> getGenericValueText(
+                Text.translatable(Options.MIN_EXPOSURE_KEY),
+                Text.literal(String.format("%.4f", v / 10000.0))),
+            v -> Options.setMinExposure(v, true));
+        this.body.addEntry(new SliderEntry(minExpSlider, body));
 
         SimpleOption<Integer> maxExposure = new SimpleOption<>(
             Options.MAX_EXPOSURE_KEY,
@@ -48,6 +70,40 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             Options.maxExposure,
             value -> Options.setMaxExposure(value, true));
         this.body.addSingleOptionEntry(maxExposure);
+
+        int mode = Options.tonemappingMode;
+
+        // Exposure Compensation: -3.0 to +3.0 EV (stored as tenths, slider 0-60 offset by 30)
+        ResettableSliderWidget ecSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            0, 60, Options.exposureCompensation + 30, 0 + 30,
+            v -> getGenericValueText(
+                Text.translatable(Options.EXPOSURE_COMPENSATION_KEY),
+                Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
+            v -> Options.setExposureCompensation(v - 30, true));
+        this.body.addEntry(new SliderEntry(ecSlider, body));
+
+        // Middle Grey: 0.01 to 0.50 (stored as percent 1-50)
+        ResettableSliderWidget mgSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 50, Options.middleGreyPercent, 18,
+            v -> getGenericValueText(
+                Text.translatable(Options.MIDDLE_GREY_KEY),
+                Text.literal(String.format("%.2f", v / 100.0))),
+            v -> Options.setMiddleGrey(v, true));
+        this.body.addEntry(new SliderEntry(mgSlider, body));
+
+        // White Point (Lwhite): only shown for Reinhard Extended (mode 1)
+        if (mode == 1) {
+            ResettableSliderWidget lwSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                10, 200, Options.LwhiteTenths, 40,
+                v -> getGenericValueText(
+                    Text.translatable(Options.LWHITE_KEY),
+                    Text.literal(String.format("%.1f", v / 10.0))),
+                v -> Options.setLwhite(v, true));
+            this.body.addEntry(new SliderEntry(lwSlider, body));
+        }
 
         // === Upscaler ===
         this.body.addEntry(
@@ -188,5 +244,37 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             value -> MinecraftClient.getInstance().setScreen(new RenderPipelineScreen(this)));
         this.body.addSingleOptionEntry(pipelineSettings);
 
+    }
+
+    /** WidgetEntry that holds a single ResettableSliderWidget, centered like SimpleOption entries. */
+    private static class SliderEntry extends OptionListWidget.WidgetEntry {
+        private final ResettableSliderWidget slider;
+        private final OptionListWidget parent;
+
+        SliderEntry(ResettableSliderWidget slider, OptionListWidget parent) {
+            super(ImmutableList.of(slider), null);
+            this.slider = slider;
+            this.parent = parent;
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth,
+            int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            // Center the slider like SimpleOption entries do
+            slider.setX(x + entryWidth / 2 - 75);
+            slider.setY(y);
+            slider.setWidth(150);
+            slider.render(context, mouseX, mouseY, tickDelta);
+        }
+
+        @Override
+        public List<? extends Element> children() {
+            return ImmutableList.of(slider);
+        }
+
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return ImmutableList.of(slider);
+        }
     }
 }

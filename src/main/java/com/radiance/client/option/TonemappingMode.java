@@ -7,6 +7,7 @@ import static com.radiance.client.option.Options.TONEMAP_MODE_AGX;
 import static com.radiance.client.option.Options.TONEMAP_MODE_LOTTES;
 import static com.radiance.client.option.Options.TONEMAP_MODE_FROSTBITE;
 import static com.radiance.client.option.Options.TONEMAP_MODE_UNCHARTED2;
+import static com.radiance.client.option.Options.TONEMAP_MODE_GT;
 
 import com.mojang.serialization.Codec;
 import net.minecraft.util.StringIdentifiable;
@@ -19,7 +20,8 @@ public enum TonemappingMode implements TranslatableOption, StringIdentifiable {
     AGX(3, "agx", TONEMAP_MODE_AGX),
     LOTTES(4, "lottes", TONEMAP_MODE_LOTTES),
     FROSTBITE(5, "frostbite", TONEMAP_MODE_FROSTBITE),
-    UNCHARTED2(6, "uncharted2", TONEMAP_MODE_UNCHARTED2);
+    UNCHARTED2(6, "uncharted2", TONEMAP_MODE_UNCHARTED2),
+    GT(7, "gt", TONEMAP_MODE_GT);
 
     public static final Codec<TonemappingMode> Codec =
         StringIdentifiable.createCodec(TonemappingMode::values);
