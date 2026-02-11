@@ -1,0 +1,128 @@
+name: Build Linux JAR
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Radiance
+        uses: actions/checkout@v4
+        with:
+          path: Radiance
+
+      - name: Checkout MCVR
+        uses: actions/checkout@v4
+        with:
+          repository: PEQHUB/MCVR
+          path: MCVR
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            cmake \
+            build-essential \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libwayland-dev \
+            libxkbcommon-dev
+
+      - name: Install Vulkan SDK
+        run: |
+          wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          sudo apt-get update
+          sudo apt-get install -y vulkan-sdk
+          echo "Vulkan SDK installed"
+          glslangValidator --version
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build MCVR native library and shaders
+        run: |
+          cd MCVR
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DJAVA_PROJECT_ROOT_DIR=${{ github.workspace }}/Radiance \
+            -DUSE_AMD=ON \
+            -DMCVR_ENABLE_NRD=ON \
+            -DMCVR_ENABLE_FFX_UPSCALER=ON
+          cmake --build build --parallel $(nproc)
+          cmake --install build
+
+      - name: Verify shaders and native library were installed
+        run: |
+          echo "=== Checking shaders ==="
+          find ${{ github.workspace }}/Radiance/src/main/resources/shaders -name '*.spv' | head -20
+          SHADER_COUNT=$(find ${{ github.workspace }}/Radiance/src/main/resources/shaders -name '*.spv' | wc -l)
+          echo "Total SPIR-V shaders: $SHADER_COUNT"
+          if [ "$SHADER_COUNT" -eq 0 ]; then
+            echo "ERROR: No shaders were compiled!"
+            exit 1
+          fi
+          echo ""
+          echo "=== Checking native library ==="
+          ls -la ${{ github.workspace }}/Radiance/src/main/resources/libcore.so
+          if [ ! -f "${{ github.workspace }}/Radiance/src/main/resources/libcore.so" ]; then
+            echo "ERROR: libcore.so not found!"
+            exit 1
+          fi
+
+      - name: Move native library to platform directory
+        run: |
+          mkdir -p ${{ github.workspace }}/Radiance/natives/linux
+          mv ${{ github.workspace }}/Radiance/src/main/resources/libcore.so \
+             ${{ github.workspace }}/Radiance/natives/linux/libcore.so
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Radiance Linux JAR
+        run: |
+          cd ${{ github.workspace }}/Radiance
+          chmod +x gradlew
+          ./gradlew build -Pplatform=linux --no-daemon
+
+      - name: Verify JAR contents
+        run: |
+          JAR_FILE=$(find ${{ github.workspace }}/Radiance/build/libs -name '*linux.jar' -not -name '*sources*' -not -name '*dev*' | head -1)
+          echo "Built JAR: $JAR_FILE"
+          echo ""
+          echo "=== Checking for shaders in JAR ==="
+          jar tf "$JAR_FILE" | grep -c '\.spv$' || true
+          SHADER_COUNT=$(jar tf "$JAR_FILE" | grep -c '\.spv$' || echo "0")
+          echo "SPIR-V shaders in JAR: $SHADER_COUNT"
+          if [ "$SHADER_COUNT" -eq 0 ]; then
+            echo "ERROR: No shaders found in JAR!"
+            exit 1
+          fi
+          echo ""
+          echo "=== Checking for libcore.so in JAR ==="
+          jar tf "$JAR_FILE" | grep 'libcore.so' || { echo "ERROR: libcore.so not in JAR!"; exit 1; }
+          echo ""
+          echo "=== Checking for modules in JAR ==="
+          jar tf "$JAR_FILE" | grep 'modules/' | head -10
+          echo ""
+          echo "=== Full resource listing ==="
+          jar tf "$JAR_FILE" | grep -E '(shaders/|modules/|\.so$|\.dll$)' | sort
+
+      - name: Upload Linux JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: Radiance-linux
+          path: Radiance/build/libs/*linux.jar
+          if-no-files-found: error
