@@ -1,11 +1,12 @@
 name: Build Linux JAR
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  release:
+    types: [ published ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-linux:
@@ -133,7 +134,29 @@ jobs:
           echo "=== Full resource listing ==="
           jar tf "$JAR_FILE" | grep -E '(shaders/|modules/|\.so$|\.dll$)' | sort
 
-      - name: Upload Linux JAR
+      - name: Upload Linux JAR to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          JAR_FILE=$(find ${{ github.workspace }}/Radiance/build/libs -name '*linux.jar' -not -name '*sources*' -not -name '*dev*' | head -1)
+          JAR_NAME=$(basename "$JAR_FILE")
+          TAG="${{ github.event.release.tag_name }}"
+          echo "Uploading $JAR_NAME to release $TAG"
+
+          # Delete existing Linux JAR asset if present
+          EXISTING=$(gh release view "$TAG" --repo ${{ github.repository }} --json assets --jq '.assets[] | select(.name | test("linux\\.jar$")) | .name' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            echo "Deleting existing asset: $EXISTING"
+            gh release delete-asset "$TAG" "$EXISTING" --repo ${{ github.repository }} --yes
+          fi
+
+          # Upload the new JAR
+          gh release upload "$TAG" "$JAR_FILE" --repo ${{ github.repository }} --clobber
+          echo "Uploaded $JAR_NAME to release $TAG"
+
+      - name: Upload Linux JAR as artifact
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: Radiance-linux
