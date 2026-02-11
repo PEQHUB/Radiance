@@ -53,6 +53,23 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate JNI headers
+        run: |
+          cd ${{ github.workspace }}/Radiance
+          chmod +x gradlew
+          ./gradlew compileJava --no-daemon
+          echo "=== Verifying JNI headers ==="
+          ls ${{ github.workspace }}/Radiance/src/main/native/include/
+          HEADER_COUNT=$(find ${{ github.workspace }}/Radiance/src/main/native/include -name '*.h' | wc -l)
+          echo "Generated $HEADER_COUNT JNI headers"
+          if [ "$HEADER_COUNT" -eq 0 ]; then
+            echo "ERROR: No JNI headers generated!"
+            exit 1
+          fi
+
       - name: Build MCVR native library and shaders
         run: |
           cd MCVR
@@ -88,13 +105,9 @@ jobs:
           mv ${{ github.workspace }}/Radiance/src/main/resources/libcore.so \
              ${{ github.workspace }}/Radiance/natives/linux/libcore.so
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
-
       - name: Build Radiance Linux JAR
         run: |
           cd ${{ github.workspace }}/Radiance
-          chmod +x gradlew
           ./gradlew build -Pplatform=linux --no-daemon
 
       - name: Verify JAR contents
