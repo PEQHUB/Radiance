@@ -124,3 +124,8 @@ core.lib
 libnvidia-ngx-dlss*
 include/
 shaders/
+
+# Native binaries (large, platform-specific)
+natives/windows/*.dll
+natives/windows/*.lib
+natives/linux/*.so
