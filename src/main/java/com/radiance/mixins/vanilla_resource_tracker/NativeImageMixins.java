@@ -29,6 +29,15 @@ public abstract class NativeImageMixins implements INativeImageExt {
     @Unique
     private NativeImage flagImage = null;
 
+    @Unique
+    private int specularUploadedLevelsMask = 0;
+
+    @Unique
+    private int normalUploadedLevelsMask = 0;
+
+    @Unique
+    private int flagUploadedLevelsMask = 0;
+
     @Inject(method = "read(Lnet/minecraft/client/texture/NativeImage$Format;Ljava/io/InputStream;)"
         +
         "Lnet/minecraft/client/texture/NativeImage;", at = @At(value = "RETURN"), cancellable = true)
@@ -73,6 +82,7 @@ public abstract class NativeImageMixins implements INativeImageExt {
     @Override
     public void neoVoxelRT$setSpecularNativeImage(NativeImage image) {
         this.specularImage = image;
+        this.specularUploadedLevelsMask = 0;
     }
 
     @Override
@@ -83,6 +93,7 @@ public abstract class NativeImageMixins implements INativeImageExt {
     @Override
     public void neoVoxelRT$setNormalNativeImage(NativeImage image) {
         this.normalImage = image;
+        this.normalUploadedLevelsMask = 0;
     }
 
     @Override
@@ -93,5 +104,36 @@ public abstract class NativeImageMixins implements INativeImageExt {
     @Override
     public void neoVoxelRT$setFlagNativeImage(NativeImage image) {
         this.flagImage = image;
+        this.flagUploadedLevelsMask = 0;
+    }
+
+    @Override
+    public int neoVoxelRT$getSpecularUploadedLevelsMask() {
+        return specularUploadedLevelsMask;
+    }
+
+    @Override
+    public void neoVoxelRT$setSpecularUploadedLevelsMask(int uploadedLevelsMask) {
+        this.specularUploadedLevelsMask = uploadedLevelsMask;
+    }
+
+    @Override
+    public int neoVoxelRT$getNormalUploadedLevelsMask() {
+        return normalUploadedLevelsMask;
+    }
+
+    @Override
+    public void neoVoxelRT$setNormalUploadedLevelsMask(int uploadedLevelsMask) {
+        this.normalUploadedLevelsMask = uploadedLevelsMask;
+    }
+
+    @Override
+    public int neoVoxelRT$getFlagUploadedLevelsMask() {
+        return flagUploadedLevelsMask;
+    }
+
+    @Override
+    public void neoVoxelRT$setFlagUploadedLevelsMask(int uploadedLevelsMask) {
+        this.flagUploadedLevelsMask = uploadedLevelsMask;
     }
 }

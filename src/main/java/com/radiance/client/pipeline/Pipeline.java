@@ -146,36 +146,53 @@ public class Pipeline {
                 }
             }
 
-            // HDR10: override output formats for tone mapping and post render modules
-            // This is additive — when hdrEnabled is false, formats remain R8G8B8A8_UNORM
-            if (Options.hdrEnabled) {
+            Map<ImageConfig, String> effectiveFormats = new HashMap<>();
+            for (Module module : sortedModules) {
+                for (ImageConfig inputConf : module.inputImageConfigs) {
+                    effectiveFormats.put(inputConf, inputConf.format);
+                }
+                for (ImageConfig outputConf : module.outputImageConfigs) {
+                    effectiveFormats.put(outputConf, outputConf.format);
+                }
+            }
+            effectiveFormats.put(finalOutputConfig, finalOutputConfig.format);
+
+            // HDR10: override output formats when HDR is requested and supported.
+            boolean hdrFormatsEnabled = Options.hdrEnabled && Options.isHdrSupported();
+            if (hdrFormatsEnabled) {
                 String hdrFormat = "A2B10G10R10_UNORM_PACK32";
                 for (Module m : sortedModules) {
-                    // Override tone_mapping output and post_render input/output to HDR10 format
+                    // Override tone_mapping output and post_render input/output to HDR10 format.
                     if (m.name.contains("tone_mapping") || m.name.contains("post_render")) {
                         for (ImageConfig outConfig : m.outputImageConfigs) {
                             if ("R8G8B8A8_UNORM".equals(outConfig.format)) {
-                                outConfig.format = hdrFormat;
+                                effectiveFormats.put(outConfig, hdrFormat);
                             }
                         }
                         for (ImageConfig inConfig : m.inputImageConfigs) {
                             if ("R8G8B8A8_UNORM".equals(inConfig.format)) {
-                                inConfig.format = hdrFormat;
+                                effectiveFormats.put(inConfig, hdrFormat);
                             }
                         }
                     }
                 }
-                // Also override the final output config
+                // Also override the final output config.
                 if ("R8G8B8A8_UNORM".equals(finalOutputConfig.format)) {
-                    finalOutputConfig.format = hdrFormat;
+                    effectiveFormats.put(finalOutputConfig, hdrFormat);
                 }
+            } else if (Options.hdrEnabled) {
+                RadianceClient.LOGGER.warn(
+                    "HDR is requested but not supported on this platform/display; using SDR-safe pipeline formats.");
             }
 
             // image list
             List<Integer> imageFormatList = new ArrayList<>();
             Map<ImageConfig, Integer> configToImageIdMap = new HashMap<>();
 
-            int finalFmtId = VulkanConstants.VkFormat.getVkFormatByName(finalOutputConfig.format);
+            int
+                finalFmtId =
+                VulkanConstants.VkFormat.getVkFormatByName(
+                    effectiveFormats.getOrDefault(finalOutputConfig, finalOutputConfig.format));
             imageFormatList.add(finalFmtId);
             configToImageIdMap.put(finalOutputConfig, 0);
 
@@ -190,8 +207,10 @@ public class Pipeline {
                         }
                     } else {
                         imgId = imageFormatList.size();
+                        String outFormat = effectiveFormats.getOrDefault(outConfig,
+                            outConfig.format);
                         imageFormatList.add(
-                            VulkanConstants.VkFormat.getVkFormatByName(outConfig.format));
+                            VulkanConstants.VkFormat.getVkFormatByName(outFormat));
                         configToImageIdMap.put(outConfig, imgId);
                     }
 

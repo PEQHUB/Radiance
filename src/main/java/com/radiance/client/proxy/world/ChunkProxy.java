@@ -136,6 +136,10 @@ public class ChunkProxy {
         int importantTaskCount = 0;
 
         for (ChunkBuilder.BuiltChunk builtChunk : rebuildQueue.values()) {
+            if (builtChunk == null) {
+                continue;
+            }
+
             if (builtChunk.needsRebuild() && builtChunk.shouldBuild()) {
                 builtChunk.cancelRebuild();
 
