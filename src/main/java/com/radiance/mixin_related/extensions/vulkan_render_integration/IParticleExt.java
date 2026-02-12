@@ -7,4 +7,16 @@ public interface IParticleExt {
     double neoVoxelRT$getY();
 
     double neoVoxelRT$getZ();
+
+    float neoVoxelRT$getRed();
+
+    float neoVoxelRT$getGreen();
+
+    float neoVoxelRT$getBlue();
+
+    float neoVoxelRT$getAlpha();
+
+    float neoVoxelRT$getAngle();
+
+    float neoVoxelRT$getPrevAngle();
 }

@@ -55,6 +55,12 @@ public class ChunkProxy {
     private static final List<Future<?>> rebuildTasks = new ArrayList<>();
     private static final int numNormalChunkRebuildThreads = 1;
     private static final int numImportantChunkRebuildThreads = 1;
+    private static final long worldLoadSmoothDurationNanos = TimeUnit.SECONDS.toNanos(15);
+    private static final int maxImportantTasksPerFrameWarmup = 0;
+    private static final int maxImportantTasksPerFrameNormal = 1;
+    private static final double importantDistanceSqWarmup = 256.0;
+    private static final double importantDistanceSqNormal = 768.0;
+    private static volatile long smoothImportantUntilNanos = 0L;
     private static final ExecutorService
         importantChunkRebuildExecutor =
         Executors.newFixedThreadPool(numImportantChunkRebuildThreads, r -> {
@@ -77,7 +83,16 @@ public class ChunkProxy {
 
     public static void init(int numChunks) {
         clear();
+        resetWorldLoadSmoothing();
         initNative(numChunks);
+    }
+
+    private static void resetWorldLoadSmoothing() {
+        smoothImportantUntilNanos = System.nanoTime() + worldLoadSmoothDurationNanos;
+    }
+
+    private static boolean inWorldLoadSmoothingWindow() {
+        return System.nanoTime() < smoothImportantUntilNanos;
     }
 
     public static AutoCloseable scopedBlockBufferAllocatorStorage() {
@@ -113,6 +128,13 @@ public class ChunkProxy {
     public static void rebuild(Camera camera) {
 
         BlockPos blockPos = camera.getBlockPos();
+        boolean smoothing = inWorldLoadSmoothingWindow();
+        int maxImportantTasksPerFrame = smoothing ?
+            maxImportantTasksPerFrameWarmup :
+            maxImportantTasksPerFrameNormal;
+        double importantDistanceSq = smoothing ? importantDistanceSqWarmup : importantDistanceSqNormal;
+        int importantTaskCount = 0;
+
         for (ChunkBuilder.BuiltChunk builtChunk : rebuildQueue.values()) {
             if (builtChunk.needsRebuild() && builtChunk.shouldBuild()) {
                 builtChunk.cancelRebuild();
@@ -121,14 +143,20 @@ public class ChunkProxy {
                     chunkCenterPos =
                     builtChunk.getOrigin()
                         .add(8, 8, 8);
-                boolean isImportant = chunkCenterPos.getSquaredDistance(blockPos) < 768.0
-                    || builtChunk.needsImportantRebuild();
+                boolean shouldPrioritize = chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
+                if (!smoothing) {
+                    shouldPrioritize = shouldPrioritize || builtChunk.needsImportantRebuild();
+                }
+
+                boolean isImportant = shouldPrioritize &&
+                    importantTaskCount < maxImportantTasksPerFrame;
 
                 if (isImportant) {
                     Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
                         rebuildSingle(builtChunk, true);
                     });
                     rebuildTasks.add(rebuildTask);
+                    importantTaskCount++;
                 } else {
                     backgroundChunkRebuildExecutor.execute(() -> {
                         rebuildSingle(builtChunk, false);
