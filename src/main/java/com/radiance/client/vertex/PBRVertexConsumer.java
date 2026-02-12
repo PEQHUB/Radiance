@@ -58,6 +58,7 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float baseX = 0;
     private float baseY = 0;
     private float baseZ = 0;
+    private float pendingEmission = 0.0f;
 
     public PBRVertexConsumer(BufferAllocator allocator, RenderLayer renderLayer) {
         this(allocator, VertexFormat.DrawMode.QUADS, PBRVertexFormats.PBR_TRIANGLE, renderLayer);
@@ -275,6 +276,10 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutFloat(p + 8L, z);
         }
 
+        if (pendingEmission > 0.0f) {
+            albedoEmission(pendingEmission);
+        }
+
         return this;
     }
 
@@ -293,6 +298,10 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutFloat(p, x);
             MemoryUtil.memPutFloat(p + 4L, y);
             MemoryUtil.memPutFloat(p + 8L, z);
+        }
+
+        if (pendingEmission > 0.0f) {
+            albedoEmission(pendingEmission);
         }
 
         return this;
@@ -382,6 +391,10 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutFloat(p, emission);
         }
         return this;
+    }
+
+    public void setPendingEmission(float emission) {
+        this.pendingEmission = Math.max(0.0f, emission);
     }
 
     public static class GLint implements VertexConsumer {

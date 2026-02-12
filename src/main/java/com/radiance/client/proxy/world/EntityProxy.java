@@ -25,7 +25,6 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.block.entity.BlockEntity;
@@ -82,6 +81,8 @@ import org.lwjgl.system.MemoryUtil;
 public class EntityProxy {
 
     public static final ConcurrentMap<Class<? extends Particle>, AtomicInteger> PARTICLE_COUNTERS = new ConcurrentHashMap<>();
+    private static final int DEFAULT_WORLD_ENTITY_BUFFER_SIZE = 786432;
+    private static final int BLOCK_CRUMBLING_BUFFER_SIZE = 65536;
 
     private static final Identifier SUN_TEXTURE = Identifier.ofVanilla(
         "textures/environment/sun.png");
@@ -210,7 +211,7 @@ public class EntityProxy {
             }
 
             StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                786432);
+                DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
             entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
 
             VertexConsumerProvider vertexConsumerProvider;
@@ -300,12 +301,9 @@ public class EntityProxy {
             if (!list.isEmpty()) {
                 for (BlockEntity blockEntity : list) {
                     StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                        786432);
+                        DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
                     entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
-                    StorageVertexConsumerProvider crumblingStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                        0);
-                    crumblingStorageVertexConsumerProviders.add(
-                        crumblingStorageVertexConsumerProvider);
+                    StorageVertexConsumerProvider crumblingStorageVertexConsumerProvider = null;
 
                     VertexConsumerProvider vertexConsumerProvider = entityStorageVertexConsumerProvider;
 
@@ -322,10 +320,15 @@ public class EntityProxy {
                             stage =
                             sortedSet.last()
                                 .getStage();
-                        if (stage >= 0) {
+                        if (stage >= 0 && stage < ModelBaker.BLOCK_DESTRUCTION_RENDER_LAYERS.size()) {
+                            crumblingStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
+                                BLOCK_CRUMBLING_BUFFER_SIZE);
+                            crumblingStorageVertexConsumerProviders.add(
+                                crumblingStorageVertexConsumerProvider);
+
                             MatrixStack.Entry entry = matrixStack.peek();
                             VertexConsumer
-                                vertexConsumer =
+                                crumblingConsumer =
                                 new OverlayVertexConsumer(
                                     crumblingStorageVertexConsumerProvider.getBuffer(
                                         ModelBaker.BLOCK_DESTRUCTION_RENDER_LAYERS.get(
@@ -334,7 +337,7 @@ public class EntityProxy {
                                 VertexConsumer vertexConsumer2 = entityStorageVertexConsumerProvider.getBuffer(
                                     renderLayer);
                                 return renderLayer.hasCrumbling() ? VertexConsumers.union(
-                                    vertexConsumer,
+                                    crumblingConsumer,
                                     vertexConsumer2) :
                                     vertexConsumer2;
                             };
@@ -353,21 +356,23 @@ public class EntityProxy {
                         Constants.RayTracingFlags.WORLD,
                         true,
                         entityRenderDataList);
-                    processWorldEntityRenderData(crumblingStorageVertexConsumerProvider,
-                        System.identityHashCode(blockEntity) + 1,
-                        entityPosX,
-                        entityPosY,
-                        entityPosZ,
-                        Constants.RayTracingFlags.WORLD,
-                        true,
-                        crumblingRenderDataList);
+                    if (crumblingStorageVertexConsumerProvider != null) {
+                        processWorldEntityRenderData(crumblingStorageVertexConsumerProvider,
+                            System.identityHashCode(blockEntity) + 1,
+                            entityPosX,
+                            entityPosY,
+                            entityPosZ,
+                            Constants.RayTracingFlags.WORLD,
+                            true,
+                            crumblingRenderDataList);
+                    }
                 }
             }
         }
 
         for (BlockEntity blockEntity : noCullingBlockEntities) {
             StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                786432);
+                DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
             entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
 
             BlockPos blockPos = blockEntity.getPos();
@@ -401,8 +406,14 @@ public class EntityProxy {
         ClientWorld world,
         List<StorageVertexConsumerProvider> crumblingStorageVertexConsumerProviders,
         EntityRenderDataList crumblingRenderDataList) {
+        if (crumblingStorageVertexConsumerProviders.isEmpty() && blockBreakingProgressions.isEmpty()) {
+            return;
+        }
+
         MatrixStack matrixStack = new MatrixStack();
-        List<StorageVertexConsumerProvider> blockCrumblingStorageVertexConsumerProviders = new ArrayList<>();
+        List<StorageVertexConsumerProvider>
+            blockCrumblingStorageVertexConsumerProviders =
+            new ArrayList<>(Math.max(1, blockBreakingProgressions.size()));
         EntityRenderDataList blockCrumblingRenderDataList = new EntityRenderDataList();
 
         Vec3d vec3d = camera.getPos();
@@ -424,9 +435,12 @@ public class EntityProxy {
                         stage =
                         sortedSet.last()
                             .getStage();
+                    if (stage < 0 || stage >= ModelBaker.BLOCK_DESTRUCTION_RENDER_LAYERS.size()) {
+                        continue;
+                    }
 
                     StorageVertexConsumerProvider blockCrumblingStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                        786432);
+                        BLOCK_CRUMBLING_BUFFER_SIZE);
                     blockCrumblingStorageVertexConsumerProviders.add(
                         blockCrumblingStorageVertexConsumerProvider);
 
@@ -456,15 +470,19 @@ public class EntityProxy {
 
         List<StorageVertexConsumerProvider>
             storageVertexConsumerProviders =
-            Stream.concat(crumblingStorageVertexConsumerProviders.stream(),
-                    blockCrumblingStorageVertexConsumerProviders.stream())
-                .toList();
+            new ArrayList<>(
+                crumblingStorageVertexConsumerProviders.size() +
+                    blockCrumblingStorageVertexConsumerProviders.size());
+        storageVertexConsumerProviders.addAll(crumblingStorageVertexConsumerProviders);
+        storageVertexConsumerProviders.addAll(blockCrumblingStorageVertexConsumerProviders);
 
-        EntityRenderDataList
-            renderDataList =
-            Stream.concat(crumblingRenderDataList.stream(), blockCrumblingRenderDataList.stream())
-                .collect(EntityRenderDataList::new, EntityRenderDataList::add,
-                    EntityRenderDataList::addAll);
+        EntityRenderDataList renderDataList = new EntityRenderDataList();
+        for (EntityRenderData entityRenderData : crumblingRenderDataList) {
+            renderDataList.add(entityRenderData);
+        }
+        for (EntityRenderData entityRenderData : blockCrumblingRenderDataList) {
+            renderDataList.add(entityRenderData);
+        }
 
         queueBuild(storageVertexConsumerProviders, renderDataList, 0.0f,
             Constants.Coordinates.WORLD,
