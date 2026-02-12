@@ -82,7 +82,9 @@ public class EntityProxy {
 
     public static final ConcurrentMap<Class<? extends Particle>, AtomicInteger> PARTICLE_COUNTERS = new ConcurrentHashMap<>();
     private static final int DEFAULT_WORLD_ENTITY_BUFFER_SIZE = 786432;
+    private static final int BLOCK_ENTITY_BUFFER_SIZE = 131072;
     private static final int BLOCK_CRUMBLING_BUFFER_SIZE = 65536;
+    private static final double BLOCK_ENTITY_RENDER_DISTANCE_SQ = 96.0 * 96.0;
 
     private static final Identifier SUN_TEXTURE = Identifier.ofVanilla(
         "textures/environment/sun.png");
@@ -282,6 +284,7 @@ public class EntityProxy {
     }
 
     public static synchronized Pair<List<StorageVertexConsumerProvider>, EntityRenderDataList> queueBlockEntitiesRebuild(
+        Camera camera,
         BuiltChunkStorage chunks,
         Set<BlockEntity> noCullingBlockEntities,
         Long2ObjectMap<SortedSet<BlockBreakingInfo>> blockBreakingProgressions,
@@ -293,21 +296,41 @@ public class EntityProxy {
 
         List<StorageVertexConsumerProvider> crumblingStorageVertexConsumerProviders = new ArrayList<>();
         EntityRenderDataList crumblingRenderDataList = new EntityRenderDataList();
+
+        Vec3d cameraPos = camera.getPos();
+        BlockPos cameraBlockPos = camera.getBlockPos();
+        double cameraX = cameraPos.getX();
+        double cameraY = cameraPos.getY();
+        double cameraZ = cameraPos.getZ();
         for (ChunkBuilder.BuiltChunk builtChunk : chunks.chunks) {
+            if (builtChunk == null) {
+                continue;
+            }
+
+            BlockPos chunkCenterPos = builtChunk.getOrigin().add(8, 8, 8);
+            if (chunkCenterPos.getSquaredDistance(cameraBlockPos) > BLOCK_ENTITY_RENDER_DISTANCE_SQ) {
+                continue;
+            }
+
             List<BlockEntity>
                 list =
                 builtChunk.getData()
                     .getBlockEntities();
             if (!list.isEmpty()) {
                 for (BlockEntity blockEntity : list) {
+                    BlockPos blockPos = blockEntity.getPos();
+                    if (blockPos.getSquaredDistanceFromCenter(cameraX, cameraY, cameraZ)
+                        > BLOCK_ENTITY_RENDER_DISTANCE_SQ) {
+                        continue;
+                    }
+
                     StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                        DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
+                        BLOCK_ENTITY_BUFFER_SIZE);
                     entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
                     StorageVertexConsumerProvider crumblingStorageVertexConsumerProvider = null;
 
                     VertexConsumerProvider vertexConsumerProvider = entityStorageVertexConsumerProvider;
 
-                    BlockPos blockPos = blockEntity.getPos();
                     double entityPosX = blockPos.getX();
                     double entityPosY = blockPos.getY();
                     double entityPosZ = blockPos.getZ();
@@ -371,11 +394,16 @@ public class EntityProxy {
         }
 
         for (BlockEntity blockEntity : noCullingBlockEntities) {
+            BlockPos blockPos = blockEntity.getPos();
+            if (blockPos.getSquaredDistanceFromCenter(cameraX, cameraY, cameraZ)
+                > BLOCK_ENTITY_RENDER_DISTANCE_SQ) {
+                continue;
+            }
+
             StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-                DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
+                BLOCK_ENTITY_BUFFER_SIZE);
             entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
 
-            BlockPos blockPos = blockEntity.getPos();
             double entityPosX = blockPos.getX();
             double entityPosY = blockPos.getY();
             double entityPosZ = blockPos.getZ();
@@ -713,6 +741,13 @@ public class EntityProxy {
         float lineWidth,
         Constants.Coordinates coordinate,
         boolean normalOffset) {
+        if (entityRenderDataList.isEmpty()) {
+            for (StorageVertexConsumerProvider storageVertexConsumerProvider : storageVertexConsumerProviders) {
+                storageVertexConsumerProvider.close();
+            }
+            return;
+        }
+
         TextureManager
             textureManager =
             MinecraftClient.getInstance()

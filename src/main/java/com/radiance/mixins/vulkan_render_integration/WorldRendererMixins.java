@@ -317,7 +317,7 @@ public abstract class WorldRendererMixins {
             tickCounter, canDrawEntityOutlines());
 
         Pair<List<StorageVertexConsumerProvider>, EntityProxy.EntityRenderDataList> crumblingRenderData = EntityProxy.queueBlockEntitiesRebuild(
-            chunks, this.noCullingBlockEntities, blockBreakingProgressions,
+            camera, chunks, this.noCullingBlockEntities, blockBreakingProgressions,
             blockEntityRenderDispatcher, tickDelta);
         EntityProxy.queueCrumblingRebuild(camera, blockBreakingProgressions,
             this.client.getBlockRenderManager(), this.world, crumblingRenderData.getLeft(),

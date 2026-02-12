@@ -141,4 +141,9 @@ public class WindowMixins {
     public void framebufferSizeChanged(long window, int width, int height, CallbackInfo ci) {
         WindowProxy.onFramebufferSizeChanged();
     }
+
+    @Redirect(method = "setVsync(Z)V",
+        at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwSwapInterval(I)V", remap = false))
+    public void cancelGlfwSwapInterval(int interval) {
+    }
 }

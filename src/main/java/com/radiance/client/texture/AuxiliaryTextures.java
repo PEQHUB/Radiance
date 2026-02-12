@@ -38,6 +38,8 @@ public enum AuxiliaryTextures {
         return List.of(sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getSpecularNativeImage,
         INativeImageExt::neoVoxelRT$setSpecularNativeImage,
+        INativeImageExt::neoVoxelRT$getSpecularUploadedLevelsMask,
+        INativeImageExt::neoVoxelRT$setSpecularUploadedLevelsMask,
         TextureTracker.GLID2SpecularGLID), NORMAL("normal", "_n", (identifier, source) -> {
         String namespace = identifier.getNamespace();
         String path = identifier.getPath();
@@ -58,7 +60,10 @@ public enum AuxiliaryTextures {
 
         return List.of(sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getNormalNativeImage,
-        INativeImageExt::neoVoxelRT$setNormalNativeImage, TextureTracker.GLID2NormalGLID), FLAG(
+        INativeImageExt::neoVoxelRT$setNormalNativeImage,
+        INativeImageExt::neoVoxelRT$getNormalUploadedLevelsMask,
+        INativeImageExt::neoVoxelRT$setNormalUploadedLevelsMask,
+        TextureTracker.GLID2NormalGLID), FLAG(
         "flag", "_f", (identifier, source) -> {
         String namespace = identifier.getNamespace();
         String path = identifier.getPath();
@@ -79,7 +84,10 @@ public enum AuxiliaryTextures {
 
         return List.of(sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getFlagNativeImage,
-        INativeImageExt::neoVoxelRT$setFlagNativeImage, TextureTracker.GLID2FlagGLID);
+        INativeImageExt::neoVoxelRT$setFlagNativeImage,
+        INativeImageExt::neoVoxelRT$getFlagUploadedLevelsMask,
+        INativeImageExt::neoVoxelRT$setFlagUploadedLevelsMask,
+        TextureTracker.GLID2FlagGLID);
 
     private static final List<AuxiliaryTextures> ALL_TEXTURES = Collections.unmodifiableList(
         Arrays.stream(values()).collect(Collectors.toList()));
@@ -87,18 +95,33 @@ public enum AuxiliaryTextures {
     private final IdentifierCandidateProvider identifierCandidateProvider;
     private final Getter getter;
     private final Setter setter;
+    private final IntGetter uploadedLevelsMaskGetter;
+    private final IntSetter uploadedLevelsMaskSetter;
     private final String name;
     private final Map<Integer, Integer> GLIDMapping;
 
     AuxiliaryTextures(String name, String suffix,
         IdentifierCandidateProvider identifierCandidateProvider, Getter getter, Setter setter,
+        IntGetter uploadedLevelsMaskGetter, IntSetter uploadedLevelsMaskSetter,
         Map<Integer, Integer> GLIDMapping) {
         this.suffix = suffix;
         this.identifierCandidateProvider = identifierCandidateProvider;
         this.getter = getter;
         this.setter = setter;
+        this.uploadedLevelsMaskGetter = uploadedLevelsMaskGetter;
+        this.uploadedLevelsMaskSetter = uploadedLevelsMaskSetter;
         this.name = name;
         this.GLIDMapping = GLIDMapping;
+    }
+
+    private static int getLevelBit(int level) {
+        if (level <= 0) {
+            return 1;
+        }
+        if (level >= 30) {
+            return 1 << 30;
+        }
+        return 1 << level;
     }
 
     public static void loadAndUpload(NativeImage source, INativeImageExt sourceExt, int level,
@@ -120,8 +143,17 @@ public enum AuxiliaryTextures {
                 return;
             }
 
+            int levelBit = getLevelBit(level);
             for (AuxiliaryTextures auxiliaryTexture : ALL_TEXTURES) {
                 NativeImage auxiliaryTemplateImage = auxiliaryTexture.getter.get(sourceExt);
+                int uploadedLevelsMask = auxiliaryTexture.uploadedLevelsMaskGetter.get(sourceExt);
+
+                if (auxiliaryTemplateImage != null
+                    && (uploadedLevelsMask & levelBit) != 0
+                    && auxiliaryTexture.GLIDMapping.containsKey(targetId)) {
+                    continue;
+                }
+
                 int auxiliaryTargetId;
 
                 // ensure the texture exists
@@ -204,6 +236,8 @@ public enum AuxiliaryTextures {
                     auxiliaryImage.upload(level, offsetX, offsetY, unpackSkipPixels, unpackSkipRows,
                         regionWidth, regionHeight, blur);
                     auxiliaryTexture.setter.set(sourceExt, auxiliaryImage);
+                    auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
+                        uploadedLevelsMask | levelBit);
                 }
             }
         }
@@ -222,5 +256,15 @@ public enum AuxiliaryTextures {
     public interface Setter {
 
         void set(INativeImageExt nativeImageExt, NativeImage nativeImage);
+    }
+
+    public interface IntGetter {
+
+        int get(INativeImageExt nativeImageExt);
+    }
+
+    public interface IntSetter {
+
+        void set(INativeImageExt nativeImageExt, int value);
     }
 }

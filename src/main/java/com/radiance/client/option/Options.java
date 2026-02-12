@@ -1,6 +1,7 @@
 package com.radiance.client.option;
 
 import com.radiance.client.RadianceClient;
+import com.radiance.client.pipeline.Pipeline;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -15,6 +16,9 @@ import java.util.concurrent.TimeUnit;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
+    public static final int CURRENT_OPTIONS_VERSION = 3;
+    public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
+    public static final int SATURATION_DEFAULT_PERCENT = 130;
 
     public static final String CATEGORY_GAMEPLAY = "options.video.category.gameplay";
     public static final String CATEGORY_WINDOW = "options.video.category.window";
@@ -84,6 +88,7 @@ public class Options {
     public static final String PIPELINE_SETUP_KEY = "options.video.pipeline_setup";
 
     // Fields
+    public static int optionsVersion = CURRENT_OPTIONS_VERSION;
     public static int maxFps = 260;
     public static int inactivityFpsLimit = 260;
     public static boolean vsync = true;
@@ -93,13 +98,14 @@ public class Options {
     public static int rayBounces = 4;
     public static int chunkBuildingBatchSize = 2;
     public static int chunkBuildingTotalBatches = 4;
-    public static int tonemappingMode = 1; // default: Reinhard Extended
+    public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
+    public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
     public static int maxExposure = 2;
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
-    public static int saturationPercent = 100;  // 0-200 → 0.0 to 2.0 (default 1.0)
+    public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
     public static int upscalerPreset = 5; // DLSS: 4=D, 5=E (default). Generic for future upscalers.
 
     // HDR10 output (default: disabled, pure SDR)
@@ -159,6 +165,10 @@ public class Options {
         try (InputStream in = Files.newInputStream(path)) {
             props.load(in);
 
+            int loadedOptionsVersion = Integer.parseInt(
+                props.getProperty("optionsVersion", "0"));
+            optionsVersion = loadedOptionsVersion;
+
             setMaxFps(Integer.parseInt(props.getProperty("maxFps", String.valueOf(maxFps))), false);
             setInactivityFpsLimit(Integer.parseInt(
                     props.getProperty("inactivityFpsLimit", String.valueOf(inactivityFpsLimit))),
@@ -171,9 +181,11 @@ public class Options {
             setChunkBuildingTotalBatches(
                 Integer.parseInt(props.getProperty("chunkBuildingTotalBatches",
                     String.valueOf(chunkBuildingTotalBatches))), false);
-            setTonemappingMode(
-                Integer.parseInt(props.getProperty("tonemappingMode",
-                    String.valueOf(tonemappingMode))), false);
+            tonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
+                "tonemappingMode", String.valueOf(tonemappingMode))));
+            sdrTonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
+                "sdrTonemappingMode", String.valueOf(tonemappingMode))));
+            nativeSetTonemappingMode(tonemappingMode, false);
 
             upscalerMode = Integer.parseInt(props.getProperty("upscalerMode", String.valueOf(upscalerMode)));
 
@@ -221,6 +233,22 @@ public class Options {
             hdrUiBrightnessNits = Integer.parseInt(props.getProperty("hdrUiBrightnessNits", String.valueOf(hdrUiBrightnessNits)));
             nativeSetHdrUiBrightnessNits(hdrUiBrightnessNits, false);
 
+            if (loadedOptionsVersion < 2) {
+                saturationPercent = SATURATION_DEFAULT_PERCENT;
+                nativeSetSaturation(saturationPercent / 100.0f, false);
+            }
+
+            if (loadedOptionsVersion < 3) {
+                if (hdrEnabled && !props.containsKey("sdrTonemappingMode")) {
+                    sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
+                }
+
+                tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
+                nativeSetTonemappingMode(tonemappingMode, false);
+            }
+
+            optionsVersion = CURRENT_OPTIONS_VERSION;
+
             // Emission
             emissionLava = Float.parseFloat(props.getProperty("emissionLava", String.valueOf(emissionLava)));
             emissionFire = Float.parseFloat(props.getProperty("emissionFire", String.valueOf(emissionFire)));
@@ -262,6 +290,7 @@ public class Options {
         Path path = RadianceClient.radianceDir.resolve(OPTION_PROPERTIES);
         Properties props = new Properties();
         props.setProperty("maxFps", String.valueOf(maxFps));
+        props.setProperty("optionsVersion", String.valueOf(optionsVersion));
         props.setProperty("inactivityFpsLimit", String.valueOf(inactivityFpsLimit));
         props.setProperty("vsync", String.valueOf(vsync));
         props.setProperty("upscalerMode", String.valueOf(upscalerMode));
@@ -271,6 +300,7 @@ public class Options {
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
+        props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
         props.setProperty("minExposureTenK", String.valueOf(minExposureTenK));
         props.setProperty("maxExposure", String.valueOf(maxExposure));
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
@@ -382,8 +412,10 @@ public class Options {
     public native static void nativeSetTonemappingMode(int mode, boolean write);
 
     public static void setTonemappingMode(int mode, boolean write) {
-        Options.tonemappingMode = mode;
-        nativeSetTonemappingMode(mode, write);
+        int clampedMode = clampTonemappingMode(mode);
+        Options.tonemappingMode = clampedMode;
+        Options.sdrTonemappingMode = clampedMode;
+        nativeSetTonemappingMode(clampedMode, write);
         if (write) {
             overwriteConfig();
         }
@@ -508,9 +540,28 @@ public class Options {
     public native static void nativeSetHdrEnabled(boolean enabled, boolean write);
 
     public static void setHdrEnabled(boolean enabled, boolean write) {
+        if (enabled) {
+            sdrTonemappingMode = clampTonemappingMode(tonemappingMode);
+        }
+
         Options.hdrEnabled = enabled;
-        nativeSetHdrEnabled(enabled, write);
+        nativeSetHdrEnabled(enabled, false);
+
+        if (!enabled) {
+            tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
+            nativeSetTonemappingMode(tonemappingMode, false);
+        }
+
         if (write) {
+            try {
+                Pipeline.loadPipeline();
+                Pipeline.build();
+            } catch (Exception e) {
+                RadianceClient.LOGGER.error("Failed to rebuild pipeline after HDR toggle.",
+                    e);
+            }
+
+            nativeSetHdrEnabled(enabled, true);
             overwriteConfig();
         }
     }
@@ -545,5 +596,33 @@ public class Options {
         }
     }
 
+    public native static boolean nativeIsHdrActive();
+
+    public native static boolean nativeIsHdrSupported();
+
+    public static boolean isHdrActive() {
+        if (!hdrEnabled) {
+            return false;
+        }
+
+        try {
+            return nativeIsHdrActive();
+        } catch (UnsatisfiedLinkError e) {
+            return false;
+        }
+    }
+
+    public static boolean isHdrSupported() {
+        try {
+            return nativeIsHdrSupported();
+        } catch (UnsatisfiedLinkError e) {
+            return false;
+        }
+    }
+
     public native static void nativeRebuildChunks();
+
+    private static int clampTonemappingMode(int mode) {
+        return Math.max(0, Math.min(7, mode));
+    }
 }
