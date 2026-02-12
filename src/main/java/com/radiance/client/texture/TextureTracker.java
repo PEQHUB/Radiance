@@ -43,10 +43,10 @@ public class TextureTracker {
         private static VulkanConstants.VkFormat getFormat(
             NativeImage.InternalFormat internalFormat) {
             return switch (internalFormat) {
-                case RGBA -> VulkanConstants.VkFormat.VK_FORMAT_R8G8B8A8_UNORM;
-                case RGB -> VulkanConstants.VkFormat.VK_FORMAT_R8G8B8_UNORM;
-                case RG -> VulkanConstants.VkFormat.VK_FORMAT_R8G8_UNORM;
-                case RED -> VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM;
+                case RGBA -> VulkanConstants.VkFormat.VK_FORMAT_R8G8B8A8_SRGB;
+                case RGB -> VulkanConstants.VkFormat.VK_FORMAT_R8G8B8_SRGB;
+                case RG -> VulkanConstants.VkFormat.VK_FORMAT_R8G8_SRGB;
+                case RED -> VulkanConstants.VkFormat.VK_FORMAT_R8_SRGB;
             };
         }
     }
