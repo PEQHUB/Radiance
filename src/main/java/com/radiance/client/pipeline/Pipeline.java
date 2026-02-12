@@ -2,6 +2,7 @@ package com.radiance.client.pipeline;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.constant.VulkanConstants;
+import com.radiance.client.option.Options;
 import com.radiance.client.pipeline.config.AttributeConfig;
 import com.radiance.client.pipeline.config.ImageConfig;
 import java.io.IOException;
@@ -85,8 +86,11 @@ public class Pipeline {
     }
 
     public static void connectOutput(ImageConfig src) {
-        if (!Objects.equals(src.format, "R8G8B8A8_UNORM")) {
-            throw new RuntimeException("Invalid output format.");
+        // HDR10: allow A2B10G10R10_UNORM_PACK32 when HDR is enabled, otherwise SDR only
+        boolean validFormat = Objects.equals(src.format, "R8G8B8A8_UNORM")
+            || Objects.equals(src.format, "A2B10G10R10_UNORM_PACK32");
+        if (!validFormat) {
+            throw new RuntimeException("Invalid output format: " + src.format);
         }
         src.finalOutput = true;
     }
@@ -139,6 +143,31 @@ public class Pipeline {
                         throw new RuntimeException(
                             "Module '" + m.name + "' has unconnected input: " + inputConf.name);
                     }
+                }
+            }
+
+            // HDR10: override output formats for tone mapping and post render modules
+            // This is additive — when hdrEnabled is false, formats remain R8G8B8A8_UNORM
+            if (Options.hdrEnabled) {
+                String hdrFormat = "A2B10G10R10_UNORM_PACK32";
+                for (Module m : sortedModules) {
+                    // Override tone_mapping output and post_render input/output to HDR10 format
+                    if (m.name.contains("tone_mapping") || m.name.contains("post_render")) {
+                        for (ImageConfig outConfig : m.outputImageConfigs) {
+                            if ("R8G8B8A8_UNORM".equals(outConfig.format)) {
+                                outConfig.format = hdrFormat;
+                            }
+                        }
+                        for (ImageConfig inConfig : m.inputImageConfigs) {
+                            if ("R8G8B8A8_UNORM".equals(inConfig.format)) {
+                                inConfig.format = hdrFormat;
+                            }
+                        }
+                    }
+                }
+                // Also override the final output config
+                if ("R8G8B8A8_UNORM".equals(finalOutputConfig.format)) {
+                    finalOutputConfig.format = hdrFormat;
                 }
             }
 

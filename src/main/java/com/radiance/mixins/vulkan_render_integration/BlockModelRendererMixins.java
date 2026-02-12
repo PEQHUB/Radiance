@@ -1,6 +1,9 @@
 package com.radiance.mixins.vulkan_render_integration;
 
+import com.radiance.client.util.EmissiveBlock;
+import com.radiance.client.vertex.EmissiveDelegatingVertexConsumer;
 import com.radiance.client.vertex.PBRVertexConsumer;
+
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IBlockColorsExt;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.color.block.BlockColors;
@@ -68,7 +71,16 @@ public class BlockModelRendererMixins {
             emission = 0.0F;
         }
 
-        vertexConsumer.quad(matrixEntry,
+        if (EmissiveBlock.isEmissive(state.getBlock())) {
+            emission = Math.max(emission, EmissiveBlock.getEmission(state.getBlock()));
+        }
+
+        VertexConsumer activeConsumer = vertexConsumer;
+        if (emission > 0.0f && vertexConsumer instanceof PBRVertexConsumer) {
+            activeConsumer = new EmissiveDelegatingVertexConsumer(vertexConsumer, emission);
+        }
+
+        activeConsumer.quad(matrixEntry,
             quad,
             new float[]{brightness0, brightness1, brightness2, brightness3},
             f,
@@ -78,10 +90,6 @@ public class BlockModelRendererMixins {
             new int[]{light0, light1, light2, light3},
             overlay,
             true);
-
-        if (vertexConsumer instanceof PBRVertexConsumer pbrVertexConsumer) {
-            pbrVertexConsumer.albedoEmission(emission);
-        }
 
         ci.cancel();
     }
