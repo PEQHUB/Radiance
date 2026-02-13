@@ -153,11 +153,17 @@ jobs:
           Set-Location "$env:GITHUB_WORKSPACE\MCVR"
           $javaRoot = "$env:GITHUB_WORKSPACE\Radiance" -replace '\\', '/'
 
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release `
-            -DJAVA_PROJECT_ROOT_DIR=$javaRoot `
-            -DUSE_AMD=ON `
-            -DMCVR_ENABLE_NRD=ON `
-            -DMCVR_ENABLE_FFX_UPSCALER=ON
+          $cmakeArgs = @(
+            "-S", ".",
+            "-B", "build",
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DJAVA_PROJECT_ROOT_DIR=$javaRoot",
+            "-DUSE_AMD=ON",
+            "-DMCVR_ENABLE_NRD=ON",
+            "-DMCVR_ENABLE_FFX_UPSCALER=ON"
+          )
+
+          cmake @cmakeArgs
 
           cmake --build build --config Release --parallel
           cmake --install build --config Release
