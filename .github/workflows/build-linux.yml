@@ -69,7 +69,7 @@ jobs:
           }
 
           if ($sdkRoots.Count -eq 0) {
-              winget install --id LunarG.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements
+              winget install --id KhronosGroup.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements
 
               if (Test-Path "C:\VulkanSDK") {
                   $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory
