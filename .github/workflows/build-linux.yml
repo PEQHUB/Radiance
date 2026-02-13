@@ -62,9 +62,25 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
-          choco install vulkan-sdk --yes --no-progress
+          $sdkRoots = @()
 
-          $vkRoot = Get-ChildItem "C:\VulkanSDK" -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if (Test-Path "C:\VulkanSDK") {
+              $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory
+          }
+
+          if ($sdkRoots.Count -eq 0) {
+              winget install --id LunarG.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements
+
+              if (Test-Path "C:\VulkanSDK") {
+                  $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory
+              }
+
+              if (Test-Path "C:\Program Files\VulkanSDK") {
+                  $sdkRoots += Get-ChildItem "C:\Program Files\VulkanSDK" -Directory
+              }
+          }
+
+          $vkRoot = $sdkRoots | Sort-Object Name -Descending | Select-Object -First 1
           if (-not $vkRoot) {
               throw "Vulkan SDK installation directory was not found"
           }
