@@ -56,7 +56,7 @@ jobs:
           sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
           sudo apt-get update
           sudo apt-get install -y vulkan-sdk
-          & $validator --version
+          glslangValidator --version
 
       - name: Install Vulkan SDK (Windows)
         if: matrix.platform == 'windows'
@@ -95,7 +95,7 @@ jobs:
           "VULKAN_SDK=$($vkRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VK_SDK_PATH=$($vkRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
-          glslangValidator --version
+          & $validator --version
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
