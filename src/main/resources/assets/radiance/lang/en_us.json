@@ -5,6 +5,7 @@
   "options.video.category.upscaler": "Upscaler",
   "options.video.category.terrain": "Terrain Build",
   "options.video.category.pipeline": "Pipeline Setup",
+  "options.video.category.environment": "Environmental Settings",
   "options.video.ray_bounces": "Ray Bounces",
   "options.video.chunk_building_batch_size": "Amount of chunks to build in a single submit",
   "options.video.chunk_building_total_batches": "Amount of building chunk batches",
@@ -130,4 +131,38 @@
   "options.video.emission.sculk_shrieker": "Sculk Shrieker",
   "options.video.emission.brewing_stand": "Brewing Stand",
   "options.video.emission.end_portal": "End Portal"
+  ,"options.video.environment_settings": "Environmental Settings..."
+  ,"options.video.environment.dimension": "Dimension"
+  ,"options.video.environment.dimension.overworld": "Overworld"
+  ,"options.video.environment.dimension.nether": "Nether"
+  ,"options.video.environment.dimension.end": "End"
+  ,"radiance.settings.environment.title": "Environmental Settings"
+  ,"radiance.settings.environment.sky.title": "Sky Settings"
+  ,"radiance.settings.environment.clouds.title": "Cloud Settings"
+  ,"radiance.settings.environment.water.title": "Water Settings"
+  ,"radiance.settings.environment.sun.title": "Sun Settings"
+  ,"radiance.settings.environment.moon.title": "Moon Settings"
+  ,"options.video.environment.sky_settings": "Sky Settings..."
+  ,"options.video.environment.cloud_settings": "Cloud Settings..."
+  ,"options.video.environment.water_settings": "Water Settings..."
+  ,"options.video.environment.sun_settings": "Sun Settings..."
+  ,"options.video.environment.moon_settings": "Moon Settings..."
+  ,"options.video.environment.sky.category": "Sky"
+  ,"options.video.environment.clouds.category": "Clouds"
+  ,"options.video.environment.water.category": "Water"
+  ,"options.video.environment.sun.category": "Sun"
+  ,"options.video.environment.moon.category": "Moon"
+  ,"options.video.environment.sky_brightness": "Sky Brightness"
+  ,"options.video.environment.rain_blend": "Rain Blend Strength"
+  ,"options.video.environment.cloud_brightness": "Cloud Brightness"
+  ,"options.video.environment.cloud_alpha": "Cloud Alpha"
+  ,"options.video.environment.cloud_height_offset": "Cloud Height Offset"
+  ,"options.video.environment.water_tint_r": "Water Tint Red"
+  ,"options.video.environment.water_tint_g": "Water Tint Green"
+  ,"options.video.environment.water_tint_b": "Water Tint Blue"
+  ,"options.video.environment.water_fog_strength": "Water Fog Strength"
+  ,"options.video.environment.sun_size": "Sun Size"
+  ,"options.video.environment.sun_intensity": "Sun Intensity"
+  ,"options.video.environment.moon_size": "Moon Size"
+  ,"options.video.environment.moon_intensity": "Moon Intensity"
 }

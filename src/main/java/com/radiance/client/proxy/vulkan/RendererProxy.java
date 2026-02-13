@@ -3,10 +3,12 @@ package com.radiance.client.proxy.vulkan;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.constant.Constants;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt;
+import java.nio.ByteBuffer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.Window;
+import org.lwjgl.system.MemoryUtil;
 
 public class RendererProxy {
 
@@ -59,6 +61,41 @@ public class RendererProxy {
 
     public static native void takeScreenshot(boolean withUI, int width, int height, int channel,
         long pointer);
+
+    public static native int takeScreenshotRawHdrPacked(boolean withUI, int width, int height,
+        long pointer, int byteSize);
+
+    public record HdrPackedScreenshot(int width, int height, int vkFormat, byte[] packedPixels) {
+    }
+
+    public static HdrPackedScreenshot takeScreenshotHdrPacked(boolean withUI) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        int width = mc.getWindow().getWidth();
+        int height = mc.getWindow().getHeight();
+
+        int byteSize;
+        try {
+            byteSize = Math.multiplyExact(Math.multiplyExact(width, height), 4);
+        } catch (ArithmeticException e) {
+            return null;
+        }
+
+        ByteBuffer raw = MemoryUtil.memAlloc(byteSize);
+        try {
+            int format = takeScreenshotRawHdrPacked(withUI, width, height, MemoryUtil.memAddress(raw),
+                byteSize);
+            if (format == 0) {
+                return null;
+            }
+
+            byte[] packed = new byte[byteSize];
+            raw.position(0);
+            raw.get(packed);
+            return new HdrPackedScreenshot(width, height, format, packed);
+        } finally {
+            MemoryUtil.memFree(raw);
+        }
+    }
 
     public static NativeImage takeScreenshotWithoutUI() {
         MinecraftClient mc = MinecraftClient.getInstance();

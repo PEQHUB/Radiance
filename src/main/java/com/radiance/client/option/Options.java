@@ -12,11 +12,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import net.minecraft.client.world.ClientWorld;
 
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 3;
+    public static final int CURRENT_OPTIONS_VERSION = 4;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
 
@@ -28,11 +29,28 @@ public class Options {
     public static final String CATEGORY_TERRAIN = "options.video.category.terrain";
     public static final String CATEGORY_HDR = "options.video.category.hdr";
     public static final String CATEGORY_PIPELINE = "options.video.category.pipeline";
+    public static final String CATEGORY_ENVIRONMENT = "options.video.category.environment";
 
     public static final String KEY_RADIANCE_SETTINGS = "key.radiance.settings";
     public static final String KEY_CATEGORY_RADIANCE = "key.category.radiance";
 
     public static final String CATEGORY_EMISSION = "options.video.category.emission";
+
+    public static final String ENVIRONMENT_SETTINGS_KEY = "options.video.environment_settings";
+    public static final String ENVIRONMENT_DIMENSION_KEY = "options.video.environment.dimension";
+    public static final String ENVIRONMENT_DIMENSION_OVERWORLD = "options.video.environment.dimension.overworld";
+    public static final String ENVIRONMENT_DIMENSION_NETHER = "options.video.environment.dimension.nether";
+    public static final String ENVIRONMENT_DIMENSION_END = "options.video.environment.dimension.end";
+
+    public static final int DIM_OVERWORLD = 0;
+    public static final int DIM_NETHER = 1;
+    public static final int DIM_END = 2;
+    public static final int DIM_COUNT = 3;
+
+    public static final int PERCENT_DEFAULT = 100;
+    public static final int WATER_TINT_R_DEFAULT = 0;
+    public static final int WATER_TINT_G_DEFAULT = 48;
+    public static final int WATER_TINT_B_DEFAULT = 65;
 
     // Tonemapping
     public static final String TONEMAP_MODE_KEY = "options.video.tonemap_mode";
@@ -144,6 +162,22 @@ public class Options {
     public static float emissionSculkShrieker = 0.5f;
     public static float emissionBrewingStand = 0.5f;
     public static float emissionEndPortal = 1.0f;
+
+    // Environmental settings (per dimension: overworld/nether/end)
+    public static int environmentEditingDimension = DIM_OVERWORLD;
+    public static final int[] skyBrightnessPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] rainBlendPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] cloudBrightnessPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] cloudAlphaPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] cloudHeightOffset = new int[]{0, 0, 0};
+    public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
+    public static final int[] waterTintG = new int[]{WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT};
+    public static final int[] waterTintB = new int[]{WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT};
+    public static final int[] waterFogStrengthPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] sunSizePercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] sunIntensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] moonSizePercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] moonIntensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
 
     // Debounce for DLSS quality changes (500ms)
     private static ScheduledFuture<?> dlssRebuildTask;
@@ -280,6 +314,8 @@ public class Options {
             emissionBrewingStand = Float.parseFloat(props.getProperty("emissionBrewingStand", String.valueOf(emissionBrewingStand)));
             emissionEndPortal = Float.parseFloat(props.getProperty("emissionEndPortal", String.valueOf(emissionEndPortal)));
 
+            readEnvironmentSettings(props, loadedOptionsVersion);
+
             overwriteConfig();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -341,6 +377,22 @@ public class Options {
         props.setProperty("emissionSculkShrieker", String.valueOf(emissionSculkShrieker));
         props.setProperty("emissionBrewingStand", String.valueOf(emissionBrewingStand));
         props.setProperty("emissionEndPortal", String.valueOf(emissionEndPortal));
+        props.setProperty("environmentEditingDimension", String.valueOf(environmentEditingDimension));
+        for (int dim = 0; dim < DIM_COUNT; dim++) {
+            props.setProperty("env.skyBrightnessPercent." + dim, String.valueOf(skyBrightnessPercent[dim]));
+            props.setProperty("env.rainBlendPercent." + dim, String.valueOf(rainBlendPercent[dim]));
+            props.setProperty("env.cloudBrightnessPercent." + dim, String.valueOf(cloudBrightnessPercent[dim]));
+            props.setProperty("env.cloudAlphaPercent." + dim, String.valueOf(cloudAlphaPercent[dim]));
+            props.setProperty("env.cloudHeightOffset." + dim, String.valueOf(cloudHeightOffset[dim]));
+            props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
+            props.setProperty("env.waterTintG." + dim, String.valueOf(waterTintG[dim]));
+            props.setProperty("env.waterTintB." + dim, String.valueOf(waterTintB[dim]));
+            props.setProperty("env.waterFogStrengthPercent." + dim, String.valueOf(waterFogStrengthPercent[dim]));
+            props.setProperty("env.sunSizePercent." + dim, String.valueOf(sunSizePercent[dim]));
+            props.setProperty("env.sunIntensityPercent." + dim, String.valueOf(sunIntensityPercent[dim]));
+            props.setProperty("env.moonSizePercent." + dim, String.valueOf(moonSizePercent[dim]));
+            props.setProperty("env.moonIntensityPercent." + dim, String.valueOf(moonIntensityPercent[dim]));
+        }
 
         try {
             Files.createDirectories(path.getParent());
@@ -352,6 +404,249 @@ public class Options {
             props.store(out, "Options");
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static void readEnvironmentSettings(Properties props, int loadedOptionsVersion) {
+        if (loadedOptionsVersion < 4) {
+            setEnvironmentDefaults();
+            return;
+        }
+
+        environmentEditingDimension = clampDimIndex(Integer.parseInt(
+            props.getProperty("environmentEditingDimension", String.valueOf(environmentEditingDimension))));
+
+        for (int dim = 0; dim < DIM_COUNT; dim++) {
+            skyBrightnessPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.skyBrightnessPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            rainBlendPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.rainBlendPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            cloudBrightnessPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.cloudBrightnessPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            cloudAlphaPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.cloudAlphaPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            cloudHeightOffset[dim] = Math.max(-64, Math.min(64, Integer.parseInt(
+                props.getProperty("env.cloudHeightOffset." + dim, "0"))));
+            waterTintR[dim] = clampColorChannel(Integer.parseInt(
+                props.getProperty("env.waterTintR." + dim, String.valueOf(WATER_TINT_R_DEFAULT))));
+            waterTintG[dim] = clampColorChannel(Integer.parseInt(
+                props.getProperty("env.waterTintG." + dim, String.valueOf(WATER_TINT_G_DEFAULT))));
+            waterTintB[dim] = clampColorChannel(Integer.parseInt(
+                props.getProperty("env.waterTintB." + dim, String.valueOf(WATER_TINT_B_DEFAULT))));
+            waterFogStrengthPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.waterFogStrengthPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            sunSizePercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.sunSizePercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            sunIntensityPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.sunIntensityPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            moonSizePercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.moonSizePercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            moonIntensityPercent[dim] = clampPercent(Integer.parseInt(
+                props.getProperty("env.moonIntensityPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+        }
+    }
+
+    private static void setEnvironmentDefaults() {
+        environmentEditingDimension = DIM_OVERWORLD;
+        for (int dim = 0; dim < DIM_COUNT; dim++) {
+            skyBrightnessPercent[dim] = PERCENT_DEFAULT;
+            rainBlendPercent[dim] = PERCENT_DEFAULT;
+            cloudBrightnessPercent[dim] = PERCENT_DEFAULT;
+            cloudAlphaPercent[dim] = PERCENT_DEFAULT;
+            cloudHeightOffset[dim] = 0;
+            waterTintR[dim] = WATER_TINT_R_DEFAULT;
+            waterTintG[dim] = WATER_TINT_G_DEFAULT;
+            waterTintB[dim] = WATER_TINT_B_DEFAULT;
+            waterFogStrengthPercent[dim] = PERCENT_DEFAULT;
+            sunSizePercent[dim] = PERCENT_DEFAULT;
+            sunIntensityPercent[dim] = PERCENT_DEFAULT;
+            moonSizePercent[dim] = PERCENT_DEFAULT;
+            moonIntensityPercent[dim] = PERCENT_DEFAULT;
+        }
+    }
+
+    private static int clampDimIndex(int dim) {
+        return Math.max(0, Math.min(DIM_COUNT - 1, dim));
+    }
+
+    private static int clampPercent(int value) {
+        return Math.max(0, Math.min(300, value));
+    }
+
+    private static int clampColorChannel(int value) {
+        return Math.max(0, Math.min(100, value));
+    }
+
+    public static int getEnvironmentDimensionIndex(ClientWorld world) {
+        if (world == null || world.getRegistryKey() == null || world.getRegistryKey().getValue() == null) {
+            return DIM_OVERWORLD;
+        }
+
+        String path = world.getRegistryKey().getValue().getPath();
+        if ("the_nether".equals(path)) {
+            return DIM_NETHER;
+        }
+        if ("the_end".equals(path)) {
+            return DIM_END;
+        }
+        return DIM_OVERWORLD;
+    }
+
+    public static int getEnvironmentEditingDimension() {
+        return environmentEditingDimension;
+    }
+
+    public static void setEnvironmentEditingDimension(int dim, boolean write) {
+        environmentEditingDimension = clampDimIndex(dim);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static int[] getDimensionValues(int[] values) {
+        return values;
+    }
+
+    public static float getSkyBrightness(int dim) {
+        return skyBrightnessPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setSkyBrightnessPercent(int dim, int value, boolean write) {
+        skyBrightnessPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getRainBlendStrength(int dim) {
+        return rainBlendPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setRainBlendPercent(int dim, int value, boolean write) {
+        rainBlendPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudBrightness(int dim) {
+        return cloudBrightnessPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudBrightnessPercent(int dim, int value, boolean write) {
+        cloudBrightnessPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudAlpha(int dim) {
+        return cloudAlphaPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudAlphaPercent(int dim, int value, boolean write) {
+        cloudAlphaPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static int getCloudHeightOffset(int dim) {
+        return cloudHeightOffset[clampDimIndex(dim)];
+    }
+
+    public static void setCloudHeightOffset(int dim, int value, boolean write) {
+        cloudHeightOffset[clampDimIndex(dim)] = Math.max(-64, Math.min(64, value));
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getWaterTintR(int dim) {
+        return waterTintR[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static float getWaterTintG(int dim) {
+        return waterTintG[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static float getWaterTintB(int dim) {
+        return waterTintB[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setWaterTintRPercent(int dim, int value, boolean write) {
+        waterTintR[clampDimIndex(dim)] = clampColorChannel(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setWaterTintGPercent(int dim, int value, boolean write) {
+        waterTintG[clampDimIndex(dim)] = clampColorChannel(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setWaterTintBPercent(int dim, int value, boolean write) {
+        waterTintB[clampDimIndex(dim)] = clampColorChannel(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getWaterFogStrength(int dim) {
+        return waterFogStrengthPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setWaterFogStrengthPercent(int dim, int value, boolean write) {
+        waterFogStrengthPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getSunSizeMultiplier(int dim) {
+        return sunSizePercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setSunSizePercent(int dim, int value, boolean write) {
+        sunSizePercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getSunIntensityMultiplier(int dim) {
+        return sunIntensityPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setSunIntensityPercent(int dim, int value, boolean write) {
+        sunIntensityPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getMoonSizeMultiplier(int dim) {
+        return moonSizePercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setMoonSizePercent(int dim, int value, boolean write) {
+        moonSizePercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getMoonIntensityMultiplier(int dim) {
+        return moonIntensityPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setMoonIntensityPercent(int dim, int value, boolean write) {
+        moonIntensityPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
         }
     }
 

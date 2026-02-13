@@ -282,9 +282,13 @@ public class BufferProxy {
         float horizontalColorR, float horizontalColorG, float horizontalColorB,
         float horizontalColorA, Vector3f sunDirection, int skyType, boolean sunRisingOrSetting,
         boolean skyDark, boolean hasBlindnessOrDarkness, int submersionType, int moonPhase,
-        float rainGradient, int sunTextureID, int moonTextureID) {
+        float rainGradient, int sunTextureID, int moonTextureID,
+        float sunSizeMultiplier, float moonSizeMultiplier,
+        float sunIntensityMultiplier, float moonIntensityMultiplier,
+        float waterTintR, float waterTintG, float waterTintB, float waterFogStrength,
+        float rainBlendStrength, float skyBrightness) {
         try (MemoryStack stack = stackPush()) {
-            int size = 160;
+            int size = 208;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -341,6 +345,30 @@ public class BufferProxy {
             baseAddr += Float.BYTES * 3; // moonRadiance
             bb.putInt(baseAddr, moonTextureID);
             baseAddr += Integer.BYTES; // moonTextureID
+
+            bb.putFloat(baseAddr, sunSizeMultiplier);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, moonSizeMultiplier);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, sunIntensityMultiplier);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, moonIntensityMultiplier);
+            baseAddr += Float.BYTES;
+
+            bb.putFloat(baseAddr, waterTintR);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, waterTintG);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, waterTintB);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, waterFogStrength);
+            baseAddr += Float.BYTES;
+
+            bb.putFloat(baseAddr, skyBrightness);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, rainBlendStrength);
+            baseAddr += Float.BYTES;
+            baseAddr += Float.BYTES * 2;
 
             updateSkyUniform(addr);
         }

@@ -3,6 +3,7 @@ package com.radiance.mixins.vulkan_render_integration;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.UnsafeManager;
+import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.world.ChunkProxy;
 import com.radiance.client.proxy.world.EntityProxy;
@@ -252,19 +253,30 @@ public abstract class WorldRendererMixins {
 
         // Sky
         float tickDelta = tickCounter.getTickDelta(false);
+        int envDim = Options.getEnvironmentDimensionIndex(this.world);
+        float skyBrightness = Options.getSkyBrightness(envDim);
+        float rainBlendStrength = Options.getRainBlendStrength(envDim);
+        float sunSizeMultiplier = Options.getSunSizeMultiplier(envDim);
+        float moonSizeMultiplier = Options.getMoonSizeMultiplier(envDim);
+        float sunIntensityMultiplier = Options.getSunIntensityMultiplier(envDim);
+        float moonIntensityMultiplier = Options.getMoonIntensityMultiplier(envDim);
+        float waterTintR = Options.getWaterTintR(envDim);
+        float waterTintG = Options.getWaterTintG(envDim);
+        float waterTintB = Options.getWaterTintB(envDim);
+        float waterFogStrength = Options.getWaterFogStrength(envDim);
         float skyAngle = this.world.getSkyAngle(tickDelta);
 
         int baseColor = this.world.getSkyColor(this.client.gameRenderer.getCamera().getPos(),
             tickDelta);
-        float baseColorR = ColorHelper.getRedFloat(baseColor);
-        float baseColorG = ColorHelper.getGreenFloat(baseColor);
-        float baseColorB = ColorHelper.getBlueFloat(baseColor);
+        float baseColorR = ColorHelper.getRedFloat(baseColor) * skyBrightness;
+        float baseColorG = ColorHelper.getGreenFloat(baseColor) * skyBrightness;
+        float baseColorB = ColorHelper.getBlueFloat(baseColor) * skyBrightness;
 
         DimensionEffects dimensionEffects = this.world.getDimensionEffects();
         int horizontalColor = dimensionEffects.getSkyColor(skyAngle);
-        float horizontalColorR = ColorHelper.getRedFloat(horizontalColor);
-        float horizontalColorG = ColorHelper.getGreenFloat(horizontalColor);
-        float horizontalColorB = ColorHelper.getBlueFloat(horizontalColor);
+        float horizontalColorR = ColorHelper.getRedFloat(horizontalColor) * skyBrightness;
+        float horizontalColorG = ColorHelper.getGreenFloat(horizontalColor) * skyBrightness;
+        float horizontalColorB = ColorHelper.getBlueFloat(horizontalColor) * skyBrightness;
         float horizontalColorA = ColorHelper.getAlphaFloat(horizontalColor);
 
         MatrixStack matrixStack = new MatrixStack();
@@ -297,7 +309,9 @@ public abstract class WorldRendererMixins {
         BufferProxy.updateSkyUniform(baseColorR, baseColorG, baseColorB, horizontalColorR,
             horizontalColorG, horizontalColorB, horizontalColorA, sunDirection, skyType,
             sunRisingOrSetting, skyDark, hasBlindnessOrDarkness, submersionType, moonPhase,
-            rainGradient, sunTextureID, moonTextureID);
+            rainGradient, sunTextureID, moonTextureID, sunSizeMultiplier, moonSizeMultiplier,
+            sunIntensityMultiplier, moonIntensityMultiplier, waterTintR, waterTintG, waterTintB,
+            waterFogStrength, rainBlendStrength, skyBrightness);
 
         BufferProxy.updateMapping();
 
@@ -339,7 +353,7 @@ public abstract class WorldRendererMixins {
             if (!Float.isNaN(k)) {
                 float ticks = (float) this.ticks + f;
                 int color = this.world.getCloudsColor(f);
-                float cloudHeight = k + 0.33F;
+                float cloudHeight = k + 0.33F + Options.getCloudHeightOffset(envDim);
                 this.cloudRenderer.renderClouds(color, cloudRenderMode, cloudHeight, null, null,
                     camera.getPos(), ticks);
             }

@@ -172,9 +172,9 @@ public class MinecraftClientMixins {
     }
     //endregion
 
-    // region <scheduleStop>
-    @Inject(method = "scheduleStop()V", at = @At(value = "TAIL"))
-    public void close(CallbackInfo ci) {
+    // region <close>
+    @Inject(method = "close()V", at = @At(value = "HEAD"))
+    public void closeNativeRenderer(CallbackInfo ci) {
         RendererProxy.close();
     }
     // endregion

@@ -20,6 +20,7 @@ loom {
 }
 
 tasks.named("runClient", JavaExec) {
+    args "--gameDir", file("../mc-test/instance").absolutePath
     args "--width", "1920", "--height", "1080"
     // Force Java 21 for runtime — LWJGL 3.3.3 is incompatible with Java 25
     javaLauncher = javaToolchains.launcherFor {

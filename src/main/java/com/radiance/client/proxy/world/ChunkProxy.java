@@ -55,8 +55,8 @@ public class ChunkProxy {
     private static final List<Future<?>> rebuildTasks = new ArrayList<>();
     private static final int numNormalChunkRebuildThreads = 1;
     private static final int numImportantChunkRebuildThreads = 1;
-    private static final long worldLoadSmoothDurationNanos = TimeUnit.SECONDS.toNanos(15);
-    private static final int maxImportantTasksPerFrameWarmup = 0;
+    private static final long worldLoadSmoothDurationNanos = TimeUnit.SECONDS.toNanos(4);
+    private static final int maxImportantTasksPerFrameWarmup = 1;
     private static final int maxImportantTasksPerFrameNormal = 1;
     private static final double importantDistanceSqWarmup = 256.0;
     private static final double importantDistanceSqNormal = 768.0;
@@ -147,13 +147,12 @@ public class ChunkProxy {
                     chunkCenterPos =
                     builtChunk.getOrigin()
                         .add(8, 8, 8);
-                boolean shouldPrioritize = chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
-                if (!smoothing) {
-                    shouldPrioritize = shouldPrioritize || builtChunk.needsImportantRebuild();
-                }
+                boolean forceImportant = builtChunk.needsImportantRebuild();
+                boolean shouldPrioritize = forceImportant ||
+                    chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
 
                 boolean isImportant = shouldPrioritize &&
-                    importantTaskCount < maxImportantTasksPerFrame;
+                    (forceImportant || importantTaskCount < maxImportantTasksPerFrame);
 
                 if (isImportant) {
                     Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {

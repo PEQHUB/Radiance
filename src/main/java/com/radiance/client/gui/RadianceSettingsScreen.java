@@ -138,6 +138,20 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             value -> MinecraftClient.getInstance().setScreen(new EmissiveBlockSettingsScreen(this)));
         this.body.addSingleOptionEntry(emissionSettings);
 
+        // === Environment ===
+        this.body.addEntry(
+            new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_ENVIRONMENT), body));
+
+        SimpleOption<Boolean> environmentSettings = new SimpleOption<>(
+            Options.ENVIRONMENT_SETTINGS_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> optionText,
+            new PotentialValuesBasedCallbacksNoValue<>(
+                ImmutableList.of(Boolean.TRUE, Boolean.FALSE), Codec.BOOL),
+            false,
+            value -> MinecraftClient.getInstance().setScreen(new EnvironmentalSettingsScreen(this)));
+        this.body.addSingleOptionEntry(environmentSettings);
+
         // === HDR10 Output ===
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_HDR), body));

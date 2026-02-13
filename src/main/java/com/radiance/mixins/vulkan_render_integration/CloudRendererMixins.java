@@ -2,11 +2,13 @@ package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.UnsafeManager;
 import com.radiance.client.constant.Constants;
+import com.radiance.client.option.Options;
 import com.radiance.client.proxy.world.EntityProxy;
 import com.radiance.client.vertex.PBRVertexConsumer;
 import com.radiance.client.vertex.StorageVertexConsumerProvider;
 import net.minecraft.client.gl.GlUsage;
 import net.minecraft.client.gl.VertexBuffer;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.CloudRenderMode;
 import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.CloudRenderer;
@@ -153,13 +155,19 @@ public class CloudRendererMixins {
     @Unique
     private void tessellateClouds(int color, int x, int z, CloudRenderMode renderMode,
         CloudRenderer.ViewMode viewMode, RenderLayer layer) {
-        float red = ColorHelper.getRedFloat(color);
-        float green = ColorHelper.getGreenFloat(color);
-        float blue = ColorHelper.getBlueFloat(color);
-        int i = ColorHelper.fromFloats(0.8F, red, green, blue);
-        int j = ColorHelper.fromFloats(0.8F, 0.9F * red, 0.9F * green, 0.9F * blue);
-        int k = ColorHelper.fromFloats(0.8F, 0.7F * red, 0.7F * green, 0.7F * blue);
-        int l = ColorHelper.fromFloats(0.8F, 0.8F * red, 0.8F * green, 0.8F * blue);
+        int envDim = Options.getEnvironmentDimensionIndex(MinecraftClient.getInstance().world);
+        float cloudBrightness = Options.getCloudBrightness(envDim);
+        float cloudAlpha = Options.getCloudAlpha(envDim);
+
+        float red = MathHelper.clamp(ColorHelper.getRedFloat(color) * cloudBrightness, 0.0F, 1.0F);
+        float green = MathHelper.clamp(ColorHelper.getGreenFloat(color) * cloudBrightness, 0.0F,
+            1.0F);
+        float blue = MathHelper.clamp(ColorHelper.getBlueFloat(color) * cloudBrightness, 0.0F, 1.0F);
+        float alpha = MathHelper.clamp(0.8F * cloudAlpha, 0.0F, 1.0F);
+        int i = ColorHelper.fromFloats(alpha, red, green, blue);
+        int j = ColorHelper.fromFloats(alpha, 0.9F * red, 0.9F * green, 0.9F * blue);
+        int k = ColorHelper.fromFloats(alpha, 0.7F * red, 0.7F * green, 0.7F * blue);
+        int l = ColorHelper.fromFloats(alpha, 0.8F * red, 0.8F * green, 0.8F * blue);
 
         if (storageVertexConsumerProvider != null) {
             for (EntityProxy.EntityRenderData entityRenderData : entityRenderDataList) {
