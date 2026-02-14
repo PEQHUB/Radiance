@@ -1,6 +1,9 @@
 name: Build Platform JARs
 
 on:
+  push:
+    branches:
+      - '**'
   release:
     types: [published]
   workflow_dispatch:
