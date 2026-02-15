@@ -286,9 +286,17 @@ public class BufferProxy {
         float sunSizeMultiplier, float moonSizeMultiplier,
         float sunIntensityMultiplier, float moonIntensityMultiplier,
         float waterTintR, float waterTintG, float waterTintB, float waterFogStrength,
-        float rainBlendStrength, float skyBrightness) {
+        float rainBlendStrength, float skyBrightness,
+        float cloudBaseHeight, float cloudThickness,
+        float cloudDensityScale, float cloudAlbedoScale,
+        int cloudTileTextureID, int cloudCenterX, int cloudCenterZ,
+        float cloudPeriodX, float cloudPeriodZ, float cloudTicks,
+        float cloudPuffiness, float cloudDetailScale, float cloudDetailStrength,
+        float cloudAnisotropy,
+        float cloudShadowStrength, float cloudAmbientStrength, float cloudSunOcclusionStrength,
+        float cloudNoiseAffectsShadows) {
         try (MemoryStack stack = stackPush()) {
-            int size = 208;
+            int size = 288;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -369,6 +377,56 @@ public class BufferProxy {
             bb.putFloat(baseAddr, rainBlendStrength);
             baseAddr += Float.BYTES;
             baseAddr += Float.BYTES * 2;
+
+            // envCloud
+            bb.putFloat(baseAddr, cloudBaseHeight);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudThickness);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudDensityScale);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudAlbedoScale);
+            baseAddr += Float.BYTES;
+
+            // cloudTile
+            bb.putInt(baseAddr, cloudTileTextureID);
+            baseAddr += Integer.BYTES;
+            bb.putInt(baseAddr, cloudCenterX);
+            baseAddr += Integer.BYTES;
+            bb.putInt(baseAddr, cloudCenterZ);
+            baseAddr += Integer.BYTES;
+            bb.putInt(baseAddr, 0);
+            baseAddr += Integer.BYTES;
+
+            // cloudWrap
+            bb.putFloat(baseAddr, cloudPeriodX);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudPeriodZ);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudTicks);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.0f);
+            baseAddr += Float.BYTES;
+
+            // cloudShape
+            bb.putFloat(baseAddr, cloudPuffiness);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudDetailScale);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudDetailStrength);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudAnisotropy);
+            baseAddr += Float.BYTES;
+
+            // cloudLighting
+            bb.putFloat(baseAddr, cloudShadowStrength);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudAmbientStrength);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudSunOcclusionStrength);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, cloudNoiseAffectsShadows);
+            baseAddr += Float.BYTES;
 
             updateSkyUniform(addr);
         }

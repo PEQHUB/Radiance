@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.UnsafeManager;
 import com.radiance.client.option.Options;
+import com.radiance.client.cloud.CloudTileManager;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.world.ChunkProxy;
 import com.radiance.client.proxy.world.EntityProxy;
@@ -306,12 +307,30 @@ public abstract class WorldRendererMixins {
 
         int moonTextureID = textureManager.getTexture(SkyRendering.MOON_PHASES_TEXTURE).getGlId();
 
-        BufferProxy.updateSkyUniform(baseColorR, baseColorG, baseColorB, horizontalColorR,
-            horizontalColorG, horizontalColorB, horizontalColorA, sunDirection, skyType,
-            sunRisingOrSetting, skyDark, hasBlindnessOrDarkness, submersionType, moonPhase,
-            rainGradient, sunTextureID, moonTextureID, sunSizeMultiplier, moonSizeMultiplier,
-            sunIntensityMultiplier, moonIntensityMultiplier, waterTintR, waterTintG, waterTintB,
-            waterFogStrength, rainBlendStrength, skyBrightness);
+        CloudRenderMode cloudRenderMode = this.client.options.getCloudRenderModeValue();
+        float cloudBaseHeight = Float.NaN;
+        float cloudThickness = Options.getCloudThicknessBlocks(envDim);
+        float cloudDensityScale = 0.0F;
+        float cloudAlbedoScale = Options.getCloudBrightness(envDim);
+
+        float cloudPuffiness = Options.getCloudPuffiness(envDim);
+        float cloudDetailScale = Options.getCloudDetailScale(envDim);
+        float cloudDetailStrength = Options.getCloudDetailStrength(envDim);
+        float cloudAnisotropy = Options.getCloudAnisotropy(envDim);
+        float cloudShadowStrength = Options.getCloudShadowStrength(envDim);
+        float cloudDensity = Options.getCloudDensity(envDim);
+        float cloudNoiseAffectsShadows = Options.getCloudNoiseAffectsShadows(envDim) ? 1.0F : 0.0F;
+
+        float cloudAmbientStrength = 0.15F;
+        float cloudSunOcclusionStrength = 1.0F;
+
+        float vanillaCloudsHeight = this.world.getDimensionEffects().getCloudsHeight();
+        if (cloudRenderMode != CloudRenderMode.OFF && !Float.isNaN(vanillaCloudsHeight)) {
+            cloudBaseHeight = vanillaCloudsHeight + 0.33F + Options.getCloudHeightOffset(envDim);
+            float cloudAlpha = Options.getCloudAlpha(envDim);
+            // Extinction coefficient in "per block" units. Tuned so 100% alpha produces visible sun occlusion and ground shadows.
+            cloudDensityScale = 0.35F * cloudAlpha * cloudDensity;
+        }
 
         BufferProxy.updateMapping();
 
@@ -347,17 +366,43 @@ public abstract class WorldRendererMixins {
             camera, this.ticks, tickDelta);
 
         // clouds
-        CloudRenderMode cloudRenderMode = this.client.options.getCloudRenderModeValue();
         if (cloudRenderMode != CloudRenderMode.OFF) {
-            float k = this.world.getDimensionEffects().getCloudsHeight();
-            if (!Float.isNaN(k)) {
+            if (!Float.isNaN(vanillaCloudsHeight)) {
                 float ticks = (float) this.ticks + f;
                 int color = this.world.getCloudsColor(f);
-                float cloudHeight = k + 0.33F + Options.getCloudHeightOffset(envDim);
+                float cloudHeight = vanillaCloudsHeight + 0.33F + Options.getCloudHeightOffset(envDim);
                 this.cloudRenderer.renderClouds(color, cloudRenderMode, cloudHeight, null, null,
                     camera.getPos(), ticks);
             }
         }
+
+        int cloudTileTextureID = -1;
+        int cloudCenterX = 0;
+        int cloudCenterZ = 0;
+        float cloudOffsetX = 0.0F;
+        float cloudOffsetZ = 0.0F;
+        float cloudTicks = 0.0F;
+        if (CloudTileManager.isValid()) {
+            cloudTileTextureID = CloudTileManager.getCloudMaskTextureId();
+            cloudCenterX = CloudTileManager.getCenterCellX();
+            cloudCenterZ = CloudTileManager.getCenterCellZ();
+            cloudOffsetX = CloudTileManager.getOffsetX();
+            cloudOffsetZ = CloudTileManager.getOffsetZ();
+            cloudTicks = CloudTileManager.getTicks();
+        }
+
+        BufferProxy.updateSkyUniform(baseColorR, baseColorG, baseColorB, horizontalColorR,
+            horizontalColorG, horizontalColorB, horizontalColorA, sunDirection, skyType,
+            sunRisingOrSetting, skyDark, hasBlindnessOrDarkness, submersionType, moonPhase,
+            rainGradient, sunTextureID, moonTextureID, sunSizeMultiplier, moonSizeMultiplier,
+            sunIntensityMultiplier, moonIntensityMultiplier, waterTintR, waterTintG, waterTintB,
+            waterFogStrength, rainBlendStrength, skyBrightness,
+            cloudBaseHeight, cloudThickness, cloudDensityScale, cloudAlbedoScale,
+            cloudTileTextureID, cloudCenterX, cloudCenterZ,
+            cloudOffsetX, cloudOffsetZ, cloudTicks,
+            cloudPuffiness, cloudDetailScale, cloudDetailStrength, cloudAnisotropy,
+            cloudShadowStrength, cloudAmbientStrength, cloudSunOcclusionStrength,
+            cloudNoiseAffectsShadows);
 
         // Chunks
         ChunkProxy.rebuild(camera);

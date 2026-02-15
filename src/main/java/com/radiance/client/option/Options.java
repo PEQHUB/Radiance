@@ -17,7 +17,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 4;
+    public static final int CURRENT_OPTIONS_VERSION = 12;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
 
@@ -55,6 +55,11 @@ public class Options {
     public static final int WATER_TINT_R_DEFAULT = 0;
     public static final int WATER_TINT_G_DEFAULT = 48;
     public static final int WATER_TINT_B_DEFAULT = 65;
+
+    // Clouds
+    // Defaults are intentionally non-neutral so volumetric clouds have visible structure out of the box.
+    public static final int CLOUD_DETAIL_SCALE_DEFAULT_PERCENT = 150;
+    public static final int CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT = 150;
 
     // Tonemapping
     public static final String TONEMAP_MODE_KEY = "options.video.tonemap_mode";
@@ -178,6 +183,20 @@ public class Options {
     public static final int[] cloudBrightnessPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
     public static final int[] cloudAlphaPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
     public static final int[] cloudHeightOffset = new int[]{0, 0, 0};
+
+    // Volumetric cloud tuning (Fancy layout)
+    public static final int[] cloudPuffinessPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] cloudDetailScalePercent = new int[]{
+        CLOUD_DETAIL_SCALE_DEFAULT_PERCENT, CLOUD_DETAIL_SCALE_DEFAULT_PERCENT, CLOUD_DETAIL_SCALE_DEFAULT_PERCENT};
+    public static final int[] cloudDetailStrengthPercent = new int[]{
+        CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT, CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT, CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT};
+    // Cloud anisotropy is intentionally forced off (hidden setting).
+    public static final int[] cloudAnisotropyPercent = new int[]{0, 0, 0}; // HG g, 0-95
+    public static final int[] cloudShadowStrengthPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] cloudThicknessBlocks = new int[]{4, 4, 4};
+    public static final int[] cloudDensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    // Default: enable mottled cloud shadows in the overworld only.
+    public static final int[] cloudNoiseAffectsShadows = new int[]{1, 0, 0};
     public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
     public static final int[] waterTintG = new int[]{WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT};
     public static final int[] waterTintB = new int[]{WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT};
@@ -328,6 +347,8 @@ public class Options {
 
             readEnvironmentSettings(props, loadedOptionsVersion);
 
+            // Migrate config forward after reading.
+            optionsVersion = CURRENT_OPTIONS_VERSION;
             overwriteConfig();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -397,6 +418,14 @@ public class Options {
             props.setProperty("env.cloudBrightnessPercent." + dim, String.valueOf(cloudBrightnessPercent[dim]));
             props.setProperty("env.cloudAlphaPercent." + dim, String.valueOf(cloudAlphaPercent[dim]));
             props.setProperty("env.cloudHeightOffset." + dim, String.valueOf(cloudHeightOffset[dim]));
+            props.setProperty("env.cloudPuffinessPercent." + dim, String.valueOf(cloudPuffinessPercent[dim]));
+            props.setProperty("env.cloudDetailScalePercent." + dim, String.valueOf(cloudDetailScalePercent[dim]));
+            props.setProperty("env.cloudDetailStrengthPercent." + dim, String.valueOf(cloudDetailStrengthPercent[dim]));
+            props.setProperty("env.cloudAnisotropyPercent." + dim, String.valueOf(cloudAnisotropyPercent[dim]));
+            props.setProperty("env.cloudShadowStrengthPercent." + dim, String.valueOf(cloudShadowStrengthPercent[dim]));
+            props.setProperty("env.cloudThicknessBlocks." + dim, String.valueOf(cloudThicknessBlocks[dim]));
+            props.setProperty("env.cloudDensityPercent." + dim, String.valueOf(cloudDensityPercent[dim]));
+            props.setProperty("env.cloudNoiseAffectsShadows." + dim, String.valueOf(cloudNoiseAffectsShadows[dim]));
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
             props.setProperty("env.waterTintG." + dim, String.valueOf(waterTintG[dim]));
             props.setProperty("env.waterTintB." + dim, String.valueOf(waterTintB[dim]));
@@ -440,6 +469,64 @@ public class Options {
                 props.getProperty("env.cloudAlphaPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
             cloudHeightOffset[dim] = Math.max(-64, Math.min(64, Integer.parseInt(
                 props.getProperty("env.cloudHeightOffset." + dim, "0"))));
+
+            if (loadedOptionsVersion >= 5) {
+                cloudPuffinessPercent[dim] = clampPercent(Integer.parseInt(
+                    props.getProperty("env.cloudPuffinessPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+                cloudDetailScalePercent[dim] = clampPercent(Integer.parseInt(
+                    props.getProperty("env.cloudDetailScalePercent." + dim,
+                        String.valueOf(CLOUD_DETAIL_SCALE_DEFAULT_PERCENT))));
+                cloudDetailStrengthPercent[dim] = clampPercent(Integer.parseInt(
+                    props.getProperty("env.cloudDetailStrengthPercent." + dim,
+                        String.valueOf(CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT))));
+                cloudAnisotropyPercent[dim] = clampAnisotropyPercent(Integer.parseInt(
+                    props.getProperty("env.cloudAnisotropyPercent." + dim, "80")));
+                cloudShadowStrengthPercent[dim] = clampPercent(Integer.parseInt(
+                    props.getProperty("env.cloudShadowStrengthPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+
+                // Hidden setting: force anisotropy off.
+                cloudAnisotropyPercent[dim] = 0;
+
+                // Upgrade defaults: older configs defaulted to 100% (almost no visible breakup).
+                // If the user never touched these, bump to new defaults.
+                if (loadedOptionsVersion < 12) {
+                    if (cloudDetailScalePercent[dim] == PERCENT_DEFAULT) {
+                        cloudDetailScalePercent[dim] = CLOUD_DETAIL_SCALE_DEFAULT_PERCENT;
+                    }
+                    if (cloudDetailStrengthPercent[dim] == PERCENT_DEFAULT) {
+                        cloudDetailStrengthPercent[dim] = CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT;
+                    }
+                }
+            } else {
+                cloudPuffinessPercent[dim] = PERCENT_DEFAULT;
+                cloudDetailScalePercent[dim] = CLOUD_DETAIL_SCALE_DEFAULT_PERCENT;
+                cloudDetailStrengthPercent[dim] = CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT;
+                cloudAnisotropyPercent[dim] = 0;
+                cloudShadowStrengthPercent[dim] = PERCENT_DEFAULT;
+            }
+
+            if (loadedOptionsVersion >= 6) {
+                cloudThicknessBlocks[dim] = Math.max(1, Math.min(16, Integer.parseInt(
+                    props.getProperty("env.cloudThicknessBlocks." + dim, "4"))));
+            } else {
+                cloudThicknessBlocks[dim] = 4;
+            }
+
+            if (loadedOptionsVersion >= 9) {
+                cloudDensityPercent[dim] = clampPercent(Integer.parseInt(
+                    props.getProperty("env.cloudDensityPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+            } else {
+                cloudDensityPercent[dim] = PERCENT_DEFAULT;
+            }
+
+            if (loadedOptionsVersion >= 11) {
+                cloudNoiseAffectsShadows[dim] = Math.max(0, Math.min(1, Integer.parseInt(
+                    props.getProperty("env.cloudNoiseAffectsShadows." + dim,
+                        String.valueOf(dim == DIM_OVERWORLD ? 1 : 0)))));
+            } else {
+                cloudNoiseAffectsShadows[dim] = dim == DIM_OVERWORLD ? 1 : 0;
+            }
+
             waterTintR[dim] = clampColorChannel(Integer.parseInt(
                 props.getProperty("env.waterTintR." + dim, String.valueOf(WATER_TINT_R_DEFAULT))));
             waterTintG[dim] = clampColorChannel(Integer.parseInt(
@@ -467,6 +554,14 @@ public class Options {
             cloudBrightnessPercent[dim] = PERCENT_DEFAULT;
             cloudAlphaPercent[dim] = PERCENT_DEFAULT;
             cloudHeightOffset[dim] = 0;
+            cloudPuffinessPercent[dim] = PERCENT_DEFAULT;
+            cloudDetailScalePercent[dim] = CLOUD_DETAIL_SCALE_DEFAULT_PERCENT;
+            cloudDetailStrengthPercent[dim] = CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT;
+            cloudAnisotropyPercent[dim] = 0;
+            cloudShadowStrengthPercent[dim] = PERCENT_DEFAULT;
+            cloudThicknessBlocks[dim] = 4;
+            cloudDensityPercent[dim] = PERCENT_DEFAULT;
+            cloudNoiseAffectsShadows[dim] = dim == DIM_OVERWORLD ? 1 : 0;
             waterTintR[dim] = WATER_TINT_R_DEFAULT;
             waterTintG[dim] = WATER_TINT_G_DEFAULT;
             waterTintB[dim] = WATER_TINT_B_DEFAULT;
@@ -484,6 +579,10 @@ public class Options {
 
     private static int clampPercent(int value) {
         return Math.max(0, Math.min(300, value));
+    }
+
+    private static int clampAnisotropyPercent(int value) {
+        return Math.max(0, Math.min(95, value));
     }
 
     private static int clampColorChannel(int value) {
@@ -574,6 +673,97 @@ public class Options {
             overwriteConfig();
         }
     }
+
+    public static float getCloudPuffiness(int dim) {
+        return cloudPuffinessPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudPuffinessPercent(int dim, int value, boolean write) {
+        cloudPuffinessPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudDetailScale(int dim) {
+        return cloudDetailScalePercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudDetailScalePercent(int dim, int value, boolean write) {
+        cloudDetailScalePercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudDetailStrength(int dim) {
+        return cloudDetailStrengthPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudDetailStrengthPercent(int dim, int value, boolean write) {
+        cloudDetailStrengthPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudAnisotropy(int dim) {
+        return 0.0f;
+    }
+
+    public static void setCloudAnisotropyPercent(int dim, int value, boolean write) {
+        // Hidden setting: always force off.
+        cloudAnisotropyPercent[clampDimIndex(dim)] = 0;
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudShadowStrength(int dim) {
+        return cloudShadowStrengthPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudShadowStrengthPercent(int dim, int value, boolean write) {
+        cloudShadowStrengthPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float getCloudDensity(int dim) {
+        return cloudDensityPercent[clampDimIndex(dim)] / 100.0f;
+    }
+
+    public static void setCloudDensityPercent(int dim, int value, boolean write) {
+        cloudDensityPercent[clampDimIndex(dim)] = clampPercent(value);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static boolean getCloudNoiseAffectsShadows(int dim) {
+        return cloudNoiseAffectsShadows[clampDimIndex(dim)] != 0;
+    }
+
+    public static void setCloudNoiseAffectsShadows(int dim, boolean enabled, boolean write) {
+        cloudNoiseAffectsShadows[clampDimIndex(dim)] = enabled ? 1 : 0;
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+
+    public static int getCloudThicknessBlocks(int dim) {
+        return cloudThicknessBlocks[clampDimIndex(dim)];
+    }
+
+    public static void setCloudThicknessBlocks(int dim, int value, boolean write) {
+        cloudThicknessBlocks[clampDimIndex(dim)] = Math.max(1, Math.min(16, value));
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
 
     public static float getWaterTintR(int dim) {
         return waterTintR[clampDimIndex(dim)] / 100.0f;

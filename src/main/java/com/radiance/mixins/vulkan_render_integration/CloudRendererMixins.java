@@ -1,6 +1,7 @@
 package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.UnsafeManager;
+import com.radiance.client.cloud.CloudTileManager;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.world.EntityProxy;
@@ -98,58 +99,31 @@ public class CloudRendererMixins {
         Vec3d cameraPos,
         float ticks,
         CallbackInfo ci) {
-        if (this.cells != null) {
-            float f = (float) (cloudHeight - cameraPos.y);
-            float g = f + 4.0F;
-            CloudRenderer.ViewMode viewMode;
-            if (g < 0.0F) {
-                viewMode = CloudRenderer.ViewMode.ABOVE_CLOUDS;
-            } else if (f > 0.0F) {
-                viewMode = CloudRenderer.ViewMode.BELOW_CLOUDS;
-            } else {
-                viewMode = CloudRenderer.ViewMode.INSIDE_CLOUDS;
-            }
+        // Clouds are rendered procedurally in the ray tracing shaders.
+        // We still use vanilla Fancy CloudCells as the authoritative layout source.
+        if (cloudRenderMode == CloudRenderMode.FANCY && this.cells != null) {
+            CloudTileManager.updateFancyTile(this.cells, cameraPos, ticks);
+        } else {
+            CloudTileManager.invalidate();
+        }
 
-            double d = cameraPos.x + ticks * 0.030000001F;
-            double e = cameraPos.z + 3.96F;
-            double h = this.cells.width() * 12.0;
-            double i = this.cells.height() * 12.0;
-            d -= MathHelper.floor(d / h) * h;
-            e -= MathHelper.floor(e / i) * i;
-            int j = MathHelper.floor(d / 12.0);
-            int k = MathHelper.floor(e / 12.0);
-            float l = (float) (d - j * 12.0F);
-            float m = (float) (e - k * 12.0F);
-            RenderLayer
-                renderLayer =
-                cloudRenderMode == CloudRenderMode.FANCY ? RenderLayer.getFastClouds()
-                    : RenderLayer.getNoCullingClouds();
-
-            if (this.field_53052 || j != this.centerX || k != this.centerZ
-                || viewMode != this.viewMode ||
-                cloudRenderMode != this.renderMode) {
-                this.field_53052 = false;
-                this.centerX = j;
-                this.centerZ = k;
-                this.viewMode = viewMode;
-                this.renderMode = cloudRenderMode;
-
-                this.tessellateClouds(color, j, k, cloudRenderMode, viewMode, renderLayer);
-            }
-
-            if (storageVertexConsumerProvider != null) {
-                for (EntityProxy.EntityRenderData data : entityRenderDataList) {
-                    data.setX((float) (cameraPos.x - l));
-                    data.setY(cloudHeight);
-                    data.setZ((float) (cameraPos.z - m));
+        // Keep this mixin from building/queuing cloud geometry into the TLAS.
+        if (storageVertexConsumerProvider != null) {
+            if (entityRenderDataList != null) {
+                for (EntityProxy.EntityRenderData entityRenderData : entityRenderDataList) {
+                    for (EntityProxy.EntityRenderLayer entityRenderLayer : entityRenderData) {
+                        BuiltBuffer vertexBuffer = entityRenderLayer.builtBuffer();
+                        vertexBuffer.close();
+                    }
                 }
-
-                EntityProxy.queueBuildWithoutClose(entityRenderDataList);
             }
-
+            storageVertexConsumerProvider.close();
+            storageVertexConsumerProvider = null;
+            entityRenderDataList = null;
         }
 
         ci.cancel();
+        return;
     }
 
     @Unique

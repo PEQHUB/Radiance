@@ -753,197 +753,203 @@ public class EntityProxy {
             MinecraftClient.getInstance()
                 .getTextureManager();
 
-        int entityHashCodeSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-        ByteBuffer entityHashCodeBB = MemoryUtil.memAlloc(entityHashCodeSize);
-        long entityHashCodeAddr = memAddress(entityHashCodeBB);
-        int entityHashCodeBaseAddr = 0;
+        ByteBuffer entityHashCodeBB = null;
+        ByteBuffer entityPosXBB = null;
+        ByteBuffer entityPosYBB = null;
+        ByteBuffer entityPosZBB = null;
+        ByteBuffer entityRTFlagBB = null;
+        ByteBuffer entityPrebuiltBLASBB = null;
+        ByteBuffer entityPostBB = null;
+        ByteBuffer entityLayerCountBB = null;
+        ByteBuffer geometryTypeBB = null;
+        ByteBuffer geometryTextureBB = null;
+        ByteBuffer vertexFormatBB = null;
+        ByteBuffer indexFormatBB = null;
+        ByteBuffer vertexCountBB = null;
+        ByteBuffer verticesBB = null;
 
-        int entityPosXSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
-        ByteBuffer entityPosXBB = MemoryUtil.memAlloc(entityPosXSize);
-        long entityPosXAddr = memAddress(entityPosXBB);
-        int entityPosXBaseAddr = 0;
+        try {
+            int entityHashCodeSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
+            entityHashCodeBB = MemoryUtil.memAlloc(entityHashCodeSize);
+            long entityHashCodeAddr = memAddress(entityHashCodeBB);
+            int entityHashCodeBaseAddr = 0;
 
-        int entityPosYSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
-        ByteBuffer entityPosYBB = MemoryUtil.memAlloc(entityPosYSize);
-        long entityPosYAddr = memAddress(entityPosYBB);
-        int entityPosYBaseAddr = 0;
+            int entityPosXSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
+            entityPosXBB = MemoryUtil.memAlloc(entityPosXSize);
+            long entityPosXAddr = memAddress(entityPosXBB);
+            int entityPosXBaseAddr = 0;
 
-        int entityPosZSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
-        ByteBuffer entityPosZBB = MemoryUtil.memAlloc(entityPosZSize);
-        long entityPosZAddr = memAddress(entityPosZBB);
-        int entityPosZBaseAddr = 0;
+            int entityPosYSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
+            entityPosYBB = MemoryUtil.memAlloc(entityPosYSize);
+            long entityPosYAddr = memAddress(entityPosYBB);
+            int entityPosYBaseAddr = 0;
 
-        int entityRTFlagSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-        ByteBuffer entityRTFlagBB = MemoryUtil.memAlloc(entityRTFlagSize);
-        long entityRTFlagAddr = memAddress(entityRTFlagBB);
-        int entityRTFlagBaseAddr = 0;
+            int entityPosZSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
+            entityPosZBB = MemoryUtil.memAlloc(entityPosZSize);
+            long entityPosZAddr = memAddress(entityPosZBB);
+            int entityPosZBaseAddr = 0;
 
-        int entityPrebuiltBLASSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-        ByteBuffer entityPrebuiltBLASBB = MemoryUtil.memAlloc(entityPrebuiltBLASSize);
-        long entityPrebuiltBLASAddr = memAddress(entityPrebuiltBLASBB);
-        int entityPrebuiltBLASBaseAddr = 0;
+            int entityRTFlagSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
+            entityRTFlagBB = MemoryUtil.memAlloc(entityRTFlagSize);
+            long entityRTFlagAddr = memAddress(entityRTFlagBB);
+            int entityRTFlagBaseAddr = 0;
 
-        int entityPostSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-        ByteBuffer entityPostBB = MemoryUtil.memAlloc(entityPostSize);
-        long entityPostAddr = memAddress(entityPostBB);
-        int entityPostBaseAddr = 0;
+            int entityPrebuiltBLASSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
+            entityPrebuiltBLASBB = MemoryUtil.memAlloc(entityPrebuiltBLASSize);
+            long entityPrebuiltBLASAddr = memAddress(entityPrebuiltBLASBB);
+            int entityPrebuiltBLASBaseAddr = 0;
 
-        int entityLayerCountSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-        ByteBuffer entityLayerCountBB = MemoryUtil.memAlloc(entityLayerCountSize);
-        long entityLayerCountAddr = memAddress(entityLayerCountBB);
-        int entityLayerCountBaseAddr = 0;
+            int entityPostSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
+            entityPostBB = MemoryUtil.memAlloc(entityPostSize);
+            long entityPostAddr = memAddress(entityPostBB);
+            int entityPostBaseAddr = 0;
 
-        int geometryTypeSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-        ByteBuffer geometryTypeBB = MemoryUtil.memAlloc(geometryTypeSize);
-        long geometryTypeAddr = memAddress(geometryTypeBB);
-        int geometryTypeBaseAddr = 0;
+            int entityLayerCountSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
+            entityLayerCountBB = MemoryUtil.memAlloc(entityLayerCountSize);
+            long entityLayerCountAddr = memAddress(entityLayerCountBB);
+            int entityLayerCountBaseAddr = 0;
 
-        int geometryTextureSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-        ByteBuffer geometryTextureBB = MemoryUtil.memAlloc(geometryTextureSize);
-        long geometryTextureAddr = memAddress(geometryTextureBB);
-        int geometryTextureBaseAddr = 0;
+            int geometryTypeSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
+            geometryTypeBB = MemoryUtil.memAlloc(geometryTypeSize);
+            long geometryTypeAddr = memAddress(geometryTypeBB);
+            int geometryTypeBaseAddr = 0;
 
-        int vertexFormatSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-        ByteBuffer vertexFormatBB = MemoryUtil.memAlloc(vertexFormatSize);
-        long vertexFormatAddr = memAddress(vertexFormatBB);
-        int vertexFormatBaseAddr = 0;
+            int geometryTextureSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
+            geometryTextureBB = MemoryUtil.memAlloc(geometryTextureSize);
+            long geometryTextureAddr = memAddress(geometryTextureBB);
+            int geometryTextureBaseAddr = 0;
 
-        int indexFormatSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-        ByteBuffer indexFormatBB = MemoryUtil.memAlloc(indexFormatSize);
-        long indexFormatAddr = memAddress(indexFormatBB);
-        int indexFormatBaseAddr = 0;
+            int vertexFormatSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
+            vertexFormatBB = MemoryUtil.memAlloc(vertexFormatSize);
+            long vertexFormatAddr = memAddress(vertexFormatBB);
+            int vertexFormatBaseAddr = 0;
 
-        int vertexCountSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-        ByteBuffer vertexCountBB = MemoryUtil.memAlloc(vertexCountSize);
-        long vertexCountAddr = memAddress(vertexCountBB);
-        int vertexCountBaseAddr = 0;
+            int indexFormatSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
+            indexFormatBB = MemoryUtil.memAlloc(indexFormatSize);
+            long indexFormatAddr = memAddress(indexFormatBB);
+            int indexFormatBaseAddr = 0;
 
-        int verticesSize = entityRenderDataList.getTotalLayersCount() * Long.BYTES;
-        ByteBuffer verticesBB = MemoryUtil.memAlloc(verticesSize);
-        long verticesAddr = memAddress(verticesBB);
-        int verticesBaseAddr = 0;
+            int vertexCountSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
+            vertexCountBB = MemoryUtil.memAlloc(vertexCountSize);
+            long vertexCountAddr = memAddress(vertexCountBB);
+            int vertexCountBaseAddr = 0;
 
-        for (EntityRenderData entityRenderData : entityRenderDataList) {
-            entityHashCodeBB.putInt(entityHashCodeBaseAddr, entityRenderData.hashCode);
-            entityHashCodeBaseAddr += Integer.BYTES;
+            int verticesSize = entityRenderDataList.getTotalLayersCount() * Long.BYTES;
+            verticesBB = MemoryUtil.memAlloc(verticesSize);
+            long verticesAddr = memAddress(verticesBB);
+            int verticesBaseAddr = 0;
 
-            entityPosXBB.putDouble(entityPosXBaseAddr, entityRenderData.x);
-            entityPosXBaseAddr += Double.BYTES;
+            for (EntityRenderData entityRenderData : entityRenderDataList) {
+                entityHashCodeBB.putInt(entityHashCodeBaseAddr, entityRenderData.hashCode);
+                entityHashCodeBaseAddr += Integer.BYTES;
 
-            entityPosYBB.putDouble(entityPosYBaseAddr, entityRenderData.y);
-            entityPosYBaseAddr += Double.BYTES;
+                entityPosXBB.putDouble(entityPosXBaseAddr, entityRenderData.x);
+                entityPosXBaseAddr += Double.BYTES;
 
-            entityPosZBB.putDouble(entityPosZBaseAddr, entityRenderData.z);
-            entityPosZBaseAddr += Double.BYTES;
+                entityPosYBB.putDouble(entityPosYBaseAddr, entityRenderData.y);
+                entityPosYBaseAddr += Double.BYTES;
 
-            entityRTFlagBB.putInt(entityRTFlagBaseAddr, entityRenderData.rtFlag);
-            entityRTFlagBaseAddr += Integer.BYTES;
+                entityPosZBB.putDouble(entityPosZBaseAddr, entityRenderData.z);
+                entityPosZBaseAddr += Double.BYTES;
 
-            entityPrebuiltBLASBB.putInt(entityPrebuiltBLASBaseAddr, entityRenderData.prebuiltBLAS);
-            entityPrebuiltBLASBaseAddr += Integer.BYTES;
+                entityRTFlagBB.putInt(entityRTFlagBaseAddr, entityRenderData.rtFlag);
+                entityRTFlagBaseAddr += Integer.BYTES;
 
-            entityPostBB.putInt(entityPostBaseAddr, entityRenderData.post ? 1 : 0);
-            entityPostBaseAddr += Integer.BYTES;
+                entityPrebuiltBLASBB.putInt(entityPrebuiltBLASBaseAddr, entityRenderData.prebuiltBLAS);
+                entityPrebuiltBLASBaseAddr += Integer.BYTES;
 
-            entityLayerCountBB.putInt(entityLayerCountBaseAddr, entityRenderData.size());
-            entityLayerCountBaseAddr += Integer.BYTES;
+                entityPostBB.putInt(entityPostBaseAddr, entityRenderData.post ? 1 : 0);
+                entityPostBaseAddr += Integer.BYTES;
 
-            for (EntityRenderLayer entityRenderLayer : entityRenderData) {
-                RenderLayer renderLayer = entityRenderLayer.renderLayer;
-                BuiltBuffer vertexBuffer = entityRenderLayer.builtBuffer;
+                entityLayerCountBB.putInt(entityLayerCountBaseAddr, entityRenderData.size());
+                entityLayerCountBaseAddr += Integer.BYTES;
 
-                Identifier
-                    identifier =
-                    ((RenderLayer.MultiPhase) renderLayer).phases.texture.getId()
+                for (EntityRenderLayer entityRenderLayer : entityRenderData) {
+                    RenderLayer renderLayer = entityRenderLayer.renderLayer;
+                    BuiltBuffer vertexBuffer = entityRenderLayer.builtBuffer;
+
+                    Identifier identifier = ((RenderLayer.MultiPhase) renderLayer).phases.texture.getId()
                         .orElse(MissingSprite.getMissingSpriteId());
-                int
-                    geometryTypeID =
-                    Constants.GeometryTypes.getGeometryType(renderLayer, entityRenderLayer.reflect)
+                    int geometryTypeID = Constants.GeometryTypes.getGeometryType(renderLayer, entityRenderLayer.reflect)
                         .getValue();
-                int
-                    geometryTextureID =
-                    textureManager.getTexture(identifier)
-                        .getGlId();
-                int
-                    vertexFormatID =
-                    Constants.VertexFormats.getValue(vertexBuffer.getDrawParameters()
-                        .format());
-                int
-                    indexFormatID =
-                    Constants.DrawModes.getValue(vertexBuffer.getDrawParameters()
-                        .mode());
+                    int geometryTextureID = textureManager.getTexture(identifier).getGlId();
+                    int vertexFormatID = Constants.VertexFormats.getValue(vertexBuffer.getDrawParameters().format());
+                    int indexFormatID = Constants.DrawModes.getValue(vertexBuffer.getDrawParameters().mode());
 
-                BufferProxy.BufferInfo vertexBufferInfo = BufferProxy.getBufferInfo(
-                    vertexBuffer.getBuffer());
-                assert vertexBuffer.getDrawParameters()
-                    .indexCount() == vertexBuffer.getDrawParameters()
-                    .vertexCount() / 4 * 6;
+                    BufferProxy.BufferInfo vertexBufferInfo = BufferProxy.getBufferInfo(vertexBuffer.getBuffer());
+                    assert vertexBuffer.getDrawParameters().indexCount() == vertexBuffer.getDrawParameters().vertexCount() / 4 * 6;
 
-                geometryTypeBB.putInt(geometryTypeBaseAddr, geometryTypeID);
-                geometryTypeBaseAddr += Integer.BYTES;
+                    geometryTypeBB.putInt(geometryTypeBaseAddr, geometryTypeID);
+                    geometryTypeBaseAddr += Integer.BYTES;
 
-                geometryTextureBB.putInt(geometryTextureBaseAddr, geometryTextureID);
-                geometryTextureBaseAddr += Integer.BYTES;
+                    geometryTextureBB.putInt(geometryTextureBaseAddr, geometryTextureID);
+                    geometryTextureBaseAddr += Integer.BYTES;
 
-                vertexFormatBB.putInt(vertexFormatBaseAddr, vertexFormatID);
-                vertexFormatBaseAddr += Integer.BYTES;
+                    vertexFormatBB.putInt(vertexFormatBaseAddr, vertexFormatID);
+                    vertexFormatBaseAddr += Integer.BYTES;
 
-                indexFormatBB.putInt(indexFormatBaseAddr, indexFormatID);
-                indexFormatBaseAddr += Integer.BYTES;
+                    indexFormatBB.putInt(indexFormatBaseAddr, indexFormatID);
+                    indexFormatBaseAddr += Integer.BYTES;
 
-                vertexCountBB.putInt(vertexCountBaseAddr,
-                    vertexBuffer.getDrawParameters()
-                        .vertexCount());
-                vertexCountBaseAddr += Integer.BYTES;
+                    vertexCountBB.putInt(vertexCountBaseAddr, vertexBuffer.getDrawParameters().vertexCount());
+                    vertexCountBaseAddr += Integer.BYTES;
 
-                verticesBB.putLong(verticesBaseAddr, vertexBufferInfo.addr());
-                verticesBaseAddr += Long.BYTES;
+                    verticesBB.putLong(verticesBaseAddr, vertexBufferInfo.addr());
+                    verticesBaseAddr += Long.BYTES;
+                }
             }
-        }
 
-        queueBuild(lineWidth,
-            coordinate.getValue(),
-            normalOffset,
-            entityRenderDataList.getTotalEntityCount(),
-            entityHashCodeAddr,
-            entityPosXAddr,
-            entityPosYAddr,
-            entityPosZAddr,
-            entityRTFlagAddr,
-            entityPrebuiltBLASAddr,
-            entityPostAddr,
-            entityLayerCountAddr,
-            geometryTypeAddr,
-            geometryTextureAddr,
-            vertexFormatAddr,
-            indexFormatAddr,
-            vertexCountAddr,
-            verticesAddr);
+            queueBuild(lineWidth,
+                coordinate.getValue(),
+                normalOffset,
+                entityRenderDataList.getTotalEntityCount(),
+                entityHashCodeAddr,
+                entityPosXAddr,
+                entityPosYAddr,
+                entityPosZAddr,
+                entityRTFlagAddr,
+                entityPrebuiltBLASAddr,
+                entityPostAddr,
+                entityLayerCountAddr,
+                geometryTypeAddr,
+                geometryTextureAddr,
+                vertexFormatAddr,
+                indexFormatAddr,
+                vertexCountAddr,
+                verticesAddr);
+        } finally {
+            if (entityHashCodeBB != null) MemoryUtil.memFree(entityHashCodeBB);
+            if (entityPosXBB != null) MemoryUtil.memFree(entityPosXBB);
+            if (entityPosYBB != null) MemoryUtil.memFree(entityPosYBB);
+            if (entityPosZBB != null) MemoryUtil.memFree(entityPosZBB);
+            if (entityRTFlagBB != null) MemoryUtil.memFree(entityRTFlagBB);
+            if (entityPrebuiltBLASBB != null) MemoryUtil.memFree(entityPrebuiltBLASBB);
+            if (entityPostBB != null) MemoryUtil.memFree(entityPostBB);
+            if (entityLayerCountBB != null) MemoryUtil.memFree(entityLayerCountBB);
+            if (geometryTypeBB != null) MemoryUtil.memFree(geometryTypeBB);
+            if (geometryTextureBB != null) MemoryUtil.memFree(geometryTextureBB);
+            if (vertexFormatBB != null) MemoryUtil.memFree(vertexFormatBB);
+            if (indexFormatBB != null) MemoryUtil.memFree(indexFormatBB);
+            if (vertexCountBB != null) MemoryUtil.memFree(vertexCountBB);
+            if (verticesBB != null) MemoryUtil.memFree(verticesBB);
 
-        // free
-        MemoryUtil.memFree(entityPosXBB);
-        MemoryUtil.memFree(entityPosYBB);
-        MemoryUtil.memFree(entityPosZBB);
-        MemoryUtil.memFree(entityRTFlagBB);
-        MemoryUtil.memFree(entityPrebuiltBLASBB);
-        MemoryUtil.memFree(entityPostBB);
-        MemoryUtil.memFree(entityLayerCountBB);
-        MemoryUtil.memFree(geometryTypeBB);
-        MemoryUtil.memFree(geometryTextureBB);
-        MemoryUtil.memFree(vertexFormatBB);
-        MemoryUtil.memFree(indexFormatBB);
-        MemoryUtil.memFree(vertexCountBB);
-        MemoryUtil.memFree(verticesBB);
-
-        for (EntityRenderData entityRenderData : entityRenderDataList) {
-            for (EntityRenderLayer entityRenderLayer : entityRenderData) {
-                BuiltBuffer vertexBuffer = entityRenderLayer.builtBuffer;
-                vertexBuffer.close();
+            // Close built buffers and providers (original behavior), but don't let cleanup mask errors.
+            try {
+                for (EntityRenderData entityRenderData : entityRenderDataList) {
+                    for (EntityRenderLayer entityRenderLayer : entityRenderData) {
+                        BuiltBuffer vertexBuffer = entityRenderLayer.builtBuffer;
+                        vertexBuffer.close();
+                    }
+                }
+            } catch (Throwable ignored) {
             }
-        }
 
-        for (StorageVertexConsumerProvider storageVertexConsumerProvider : storageVertexConsumerProviders) {
-            storageVertexConsumerProvider.close();
+            try {
+                for (StorageVertexConsumerProvider storageVertexConsumerProvider : storageVertexConsumerProviders) {
+                    storageVertexConsumerProvider.close();
+                }
+            } catch (Throwable ignored) {
+            }
         }
     }
 
@@ -1128,6 +1134,7 @@ public class EntityProxy {
             verticesAddr);
 
         // free
+        MemoryUtil.memFree(entityHashCodeBB);
         MemoryUtil.memFree(entityPosXBB);
         MemoryUtil.memFree(entityPosYBB);
         MemoryUtil.memFree(entityPosZBB);

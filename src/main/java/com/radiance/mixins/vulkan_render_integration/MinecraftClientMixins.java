@@ -1,6 +1,7 @@
 package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.UnsafeManager;
+import com.radiance.client.cloud.CloudTileManager;
 import com.radiance.client.option.Options;
 import com.radiance.client.pipeline.Pipeline;
 import com.radiance.client.proxy.vulkan.RendererProxy;
@@ -175,6 +176,7 @@ public class MinecraftClientMixins {
     // region <close>
     @Inject(method = "close()V", at = @At(value = "HEAD"))
     public void closeNativeRenderer(CallbackInfo ci) {
+        CloudTileManager.shutdown();
         RendererProxy.close();
     }
     // endregion
