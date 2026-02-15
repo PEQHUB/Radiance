@@ -53,6 +53,7 @@ public class Options {
     public static final int DIM_COUNT = 3;
 
     public static final int PERCENT_DEFAULT = 100;
+    public static final int MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT = 10;
     public static final int WATER_TINT_R_DEFAULT = 0;
     public static final int WATER_TINT_G_DEFAULT = 48;
     public static final int WATER_TINT_B_DEFAULT = 65;
@@ -84,6 +85,13 @@ public class Options {
     public static final String MAX_EXPOSURE_KEY = "options.video.max_exposure";
     public static final String EXPOSURE_COMPENSATION_KEY = "options.video.exposure_compensation";
     public static final String LEGACY_EXPOSURE_KEY = "options.video.legacy_exposure";
+    public static final String EXPOSURE_UP_SPEED_KEY = "options.video.exposure_up_speed";
+    public static final String EXPOSURE_DOWN_SPEED_KEY = "options.video.exposure_down_speed";
+    public static final String EXPOSURE_BRIGHT_ADAPT_BOOST_KEY = "options.video.exposure_bright_adapt_boost";
+    public static final String EXPOSURE_HIGHLIGHT_PROTECTION_KEY = "options.video.exposure_highlight_protection";
+    public static final String EXPOSURE_HIGHLIGHT_PERCENTILE_KEY = "options.video.exposure_highlight_percentile";
+    public static final String EXPOSURE_HIGHLIGHT_SMOOTH_SPEED_KEY = "options.video.exposure_highlight_smooth_speed";
+    public static final String EXPOSURE_LOG2_MAX_KEY = "options.video.exposure_log2_max";
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
@@ -137,6 +145,15 @@ public class Options {
     public static int maxExposure = 2;
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
     public static boolean legacyExposure = false;
+    // Treat speeds as max EV change per second (rate-limited adaptation).
+    // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
+    public static int exposureUpSpeedTenths = 10;             // 1-200 → 0.1 to 20.0
+    public static int exposureDownSpeedTenths = 10;           // 1-200 → 0.1 to 20.0
+    public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0
+    public static int exposureHighlightProtectionPercent = 100; // 0-100 → 0.0 to 1.0
+    public static int exposureHighlightPercentileTenK = 9850; // 9000-9999 → 0.9000 to 0.9999
+    public static int exposureHighlightSmoothSpeedTenths = 100; // 0-300 → 0.0 to 30.0
+    public static int exposureLog2Max = 14;                   // 8-16, improved mode only
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
@@ -207,7 +224,8 @@ public class Options {
     public static final int[] sunSizePercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
     public static final int[] sunIntensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
     public static final int[] moonSizePercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
-    public static final int[] moonIntensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] moonIntensityPercent = new int[]{
+        MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT, PERCENT_DEFAULT, PERCENT_DEFAULT};
 
     // Debounce for DLSS quality changes (500ms)
     private static ScheduledFuture<?> dlssRebuildTask;
@@ -287,11 +305,42 @@ public class Options {
                 "saturationPercent", String.valueOf(saturationPercent)));
             legacyExposure = Boolean.parseBoolean(props.getProperty(
                 "legacyExposure", String.valueOf(legacyExposure)));
+
+            exposureUpSpeedTenths = Integer.parseInt(props.getProperty(
+                "exposureUpSpeedTenths", String.valueOf(exposureUpSpeedTenths)));
+            exposureDownSpeedTenths = Integer.parseInt(props.getProperty(
+                "exposureDownSpeedTenths", String.valueOf(exposureDownSpeedTenths)));
+            exposureBrightAdaptBoostTenths = Integer.parseInt(props.getProperty(
+                "exposureBrightAdaptBoostTenths", String.valueOf(exposureBrightAdaptBoostTenths)));
+            exposureHighlightProtectionPercent = Integer.parseInt(props.getProperty(
+                "exposureHighlightProtectionPercent", String.valueOf(exposureHighlightProtectionPercent)));
+            exposureHighlightPercentileTenK = Integer.parseInt(props.getProperty(
+                "exposureHighlightPercentileTenK", String.valueOf(exposureHighlightPercentileTenK)));
+            exposureHighlightSmoothSpeedTenths = Integer.parseInt(props.getProperty(
+                "exposureHighlightSmoothSpeedTenths", String.valueOf(exposureHighlightSmoothSpeedTenths)));
+            exposureLog2Max = Integer.parseInt(props.getProperty(
+                "exposureLog2Max", String.valueOf(exposureLog2Max)));
+
+            exposureUpSpeedTenths = clamp(exposureUpSpeedTenths, 1, 200);
+            exposureDownSpeedTenths = clamp(exposureDownSpeedTenths, 1, 200);
+            exposureBrightAdaptBoostTenths = clamp(exposureBrightAdaptBoostTenths, 10, 80);
+            exposureHighlightProtectionPercent = clamp(exposureHighlightProtectionPercent, 0, 100);
+            exposureHighlightPercentileTenK = clamp(exposureHighlightPercentileTenK, 9000, 9999);
+            exposureHighlightSmoothSpeedTenths = clamp(exposureHighlightSmoothSpeedTenths, 0, 300);
+            exposureLog2Max = clamp(exposureLog2Max, 8, 16);
+
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
             nativeSetSaturation(saturationPercent / 100.0f, false);
             nativeSetLegacyExposure(legacyExposure, false);
+            nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
+            nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
+            nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
+            nativeSetExposureHighlightProtection(exposureHighlightProtectionPercent / 100.0f, false);
+            nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
+            nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
+            nativeSetExposureLog2MaxImproved((float) exposureLog2Max, false);
 
             // HDR10
             hdrEnabled = Boolean.parseBoolean(props.getProperty("hdrEnabled", String.valueOf(hdrEnabled)));
@@ -381,6 +430,13 @@ public class Options {
         props.setProperty("maxExposure", String.valueOf(maxExposure));
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
         props.setProperty("legacyExposure", String.valueOf(legacyExposure));
+        props.setProperty("exposureUpSpeedTenths", String.valueOf(exposureUpSpeedTenths));
+        props.setProperty("exposureDownSpeedTenths", String.valueOf(exposureDownSpeedTenths));
+        props.setProperty("exposureBrightAdaptBoostTenths", String.valueOf(exposureBrightAdaptBoostTenths));
+        props.setProperty("exposureHighlightProtectionPercent", String.valueOf(exposureHighlightProtectionPercent));
+        props.setProperty("exposureHighlightPercentileTenK", String.valueOf(exposureHighlightPercentileTenK));
+        props.setProperty("exposureHighlightSmoothSpeedTenths", String.valueOf(exposureHighlightSmoothSpeedTenths));
+        props.setProperty("exposureLog2Max", String.valueOf(exposureLog2Max));
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
@@ -549,7 +605,8 @@ public class Options {
             moonSizePercent[dim] = clampPercent(Integer.parseInt(
                 props.getProperty("env.moonSizePercent." + dim, String.valueOf(PERCENT_DEFAULT))));
             moonIntensityPercent[dim] = clampPercent(Integer.parseInt(
-                props.getProperty("env.moonIntensityPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+                props.getProperty("env.moonIntensityPercent." + dim,
+                    String.valueOf(dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT))));
         }
     }
 
@@ -576,12 +633,16 @@ public class Options {
             sunSizePercent[dim] = PERCENT_DEFAULT;
             sunIntensityPercent[dim] = PERCENT_DEFAULT;
             moonSizePercent[dim] = PERCENT_DEFAULT;
-            moonIntensityPercent[dim] = PERCENT_DEFAULT;
+            moonIntensityPercent[dim] = dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT;
         }
     }
 
     private static int clampDimIndex(int dim) {
         return Math.max(0, Math.min(DIM_COUNT - 1, dim));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     private static int clampPercent(int value) {
@@ -1039,6 +1100,64 @@ public class Options {
         if (write) {
             overwriteConfig();
         }
+    }
+
+    // --- Exposure Speeds ---
+    public native static void nativeSetExposureUpSpeed(float speed, boolean write);
+    public native static void nativeSetExposureDownSpeed(float speed, boolean write);
+    public native static void nativeSetExposureBrightAdaptBoost(float boost, boolean write);
+    public native static void nativeSetExposureHighlightProtection(float protection, boolean write);
+    public native static void nativeSetExposureHighlightPercentile(float percentile, boolean write);
+    public native static void nativeSetExposureHighlightSmoothingSpeed(float speed, boolean write);
+    public native static void nativeSetExposureLog2MaxImproved(float log2Max, boolean write);
+
+    public static void setExposureUpSpeedTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 1, 200);
+        Options.exposureUpSpeedTenths = tenths;
+        nativeSetExposureUpSpeed(tenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setExposureDownSpeedTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 1, 200);
+        Options.exposureDownSpeedTenths = tenths;
+        nativeSetExposureDownSpeed(tenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setExposureBrightAdaptBoostTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 10, 80);
+        Options.exposureBrightAdaptBoostTenths = tenths;
+        nativeSetExposureBrightAdaptBoost(tenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setExposureHighlightProtectionPercent(int percent, boolean write) {
+        percent = clamp(percent, 0, 100);
+        Options.exposureHighlightProtectionPercent = percent;
+        nativeSetExposureHighlightProtection(percent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setExposureHighlightPercentileTenK(int tenK, boolean write) {
+        tenK = clamp(tenK, 9000, 9999);
+        Options.exposureHighlightPercentileTenK = tenK;
+        nativeSetExposureHighlightPercentile(tenK / 10000.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setExposureHighlightSmoothSpeedTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 0, 300);
+        Options.exposureHighlightSmoothSpeedTenths = tenths;
+        nativeSetExposureHighlightSmoothingSpeed(tenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setExposureLog2Max(int ev, boolean write) {
+        ev = clamp(ev, 8, 16);
+        Options.exposureLog2Max = ev;
+        nativeSetExposureLog2MaxImproved((float) ev, write);
+        if (write) overwriteConfig();
     }
 
     // --- Lwhite (Reinhard white point) ---

@@ -13,9 +13,12 @@ import net.minecraft.text.Text;
 
 public class ExposureSettingsScreen extends GameOptionsScreen {
 
+    private final Screen parentScreen;
+
     public ExposureSettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options,
             Text.translatable("radiance.settings.exposure.title"));
+        this.parentScreen = parent;
     }
 
     @Override
@@ -27,8 +30,84 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
         SimpleOption<Boolean> legacyExposure = SimpleOption.ofBoolean(
             Options.LEGACY_EXPOSURE_KEY,
             Options.legacyExposure,
-            value -> Options.setLegacyExposure(value, true));
+            value -> {
+                Options.setLegacyExposure(value, true);
+                // Rebuild screen to show/hide improved-only controls.
+                MinecraftClient.getInstance().setScreen(new ExposureSettingsScreen(parentScreen));
+            });
         this.body.addSingleOptionEntry(legacyExposure);
+
+        // Exposure Up Speed: 0.1 to 20.0 (stored as tenths 1-200)
+        ResettableSliderWidget upSpeedSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 200, Options.exposureUpSpeedTenths, 50,
+            v -> getGenericValueText(
+                Text.translatable(Options.EXPOSURE_UP_SPEED_KEY),
+                Text.literal(String.format("%.1f", v / 10.0))),
+            v -> Options.setExposureUpSpeedTenths(v, true));
+        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(upSpeedSlider, body));
+
+        // Exposure Down Speed: 0.1 to 20.0 (stored as tenths 1-200)
+        ResettableSliderWidget downSpeedSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 200, Options.exposureDownSpeedTenths, 15,
+            v -> getGenericValueText(
+                Text.translatable(Options.EXPOSURE_DOWN_SPEED_KEY),
+                Text.literal(String.format("%.1f", v / 10.0))),
+            v -> Options.setExposureDownSpeedTenths(v, true));
+        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(downSpeedSlider, body));
+
+        // Bright Adapt Boost: 1.0 to 8.0 (stored as tenths 10-80)
+        ResettableSliderWidget boostSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            10, 80, Options.exposureBrightAdaptBoostTenths, 40,
+            v -> getGenericValueText(
+                Text.translatable(Options.EXPOSURE_BRIGHT_ADAPT_BOOST_KEY),
+                Text.literal(String.format("x%.1f", v / 10.0))),
+            v -> Options.setExposureBrightAdaptBoostTenths(v, true));
+        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(boostSlider, body));
+
+        if (!Options.legacyExposure) {
+            // Histogram Max EV: 8 to 16 (controls max log2 luminance for histogram mapping)
+            ResettableSliderWidget log2MaxSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                8, 16, Options.exposureLog2Max, 14,
+                v -> getGenericValueText(
+                    Text.translatable(Options.EXPOSURE_LOG2_MAX_KEY),
+                    Text.literal(Integer.toString(v))),
+                v -> Options.setExposureLog2Max(v, true));
+            this.body.addEntry(new RadianceSettingsScreen.SliderEntry(log2MaxSlider, body));
+
+            // Highlight Protection: 0% to 100%
+            ResettableSliderWidget hpSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                0, 100, Options.exposureHighlightProtectionPercent, 100,
+                v -> getGenericValueText(
+                    Text.translatable(Options.EXPOSURE_HIGHLIGHT_PROTECTION_KEY),
+                    Text.literal(v + "%")),
+                v -> Options.setExposureHighlightProtectionPercent(v, true));
+            this.body.addEntry(new RadianceSettingsScreen.SliderEntry(hpSlider, body));
+
+            // Highlight Smoothing Speed: 0.0 to 30.0 (stored as tenths 0-300)
+            ResettableSliderWidget smoothSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                0, 300, Options.exposureHighlightSmoothSpeedTenths, 100,
+                v -> getGenericValueText(
+                    Text.translatable(Options.EXPOSURE_HIGHLIGHT_SMOOTH_SPEED_KEY),
+                    Text.literal(String.format("%.1f", v / 10.0))),
+                v -> Options.setExposureHighlightSmoothSpeedTenths(v, true));
+            this.body.addEntry(new RadianceSettingsScreen.SliderEntry(smoothSlider, body));
+
+            // Highlight Percentile: 0.9000 to 0.9999 (stored as ten-thousandths 9000-9999)
+            ResettableSliderWidget percSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                9000, 9999, Options.exposureHighlightPercentileTenK, 9990,
+                v -> getGenericValueText(
+                    Text.translatable(Options.EXPOSURE_HIGHLIGHT_PERCENTILE_KEY),
+                    Text.literal(String.format("%.2f%%", v / 100.0))),
+                v -> Options.setExposureHighlightPercentileTenK(v, true));
+            this.body.addEntry(new RadianceSettingsScreen.SliderEntry(percSlider, body));
+        }
 
         // Min Exposure: 0.0001 to 1.0 (stored as ten-thousandths 1-10000)
         ResettableSliderWidget minExpSlider = new ResettableSliderWidget(

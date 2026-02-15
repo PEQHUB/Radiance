@@ -280,13 +280,20 @@ public abstract class WorldRendererMixins {
         float horizontalColorB = ColorHelper.getBlueFloat(horizontalColor) * skyBrightness;
         float horizontalColorA = ColorHelper.getAlphaFloat(horizontalColor);
 
+        // Compute sun/moon direction from the actual day-time tick value.
+        // This keeps lighting aligned with `/time set ...` and avoids phase errors from getSkyAngle().
+        long dayTimeTicks = this.world.getTimeOfDay() % 24000L;
+        float dayFrac = (dayTimeTicks + tickDelta) / 24000.0F;
+        float skyAngleForSun = dayFrac - 0.25F;
+
         MatrixStack matrixStack = new MatrixStack();
         matrixStack.push();
         matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90.0F));
-        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(skyAngle * 360.0F));
+        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(skyAngleForSun * 360.0F));
         Matrix4f rotationMatrix = matrixStack.peek().getPositionMatrix();
-        Vector3f sunDirection = rotationMatrix.transformPosition(0, 1, 0, new Vector3f())
-            .normalize();
+        // Shaders treat sunDirection.y as elevation above the horizon.
+        // In vanilla sky rendering the sun quad starts at +Y before being rotated.
+        Vector3f sunDirection = rotationMatrix.transformPosition(0, 1, 0, new Vector3f()).normalize();
         matrixStack.pop();
 
         int skyType = dimensionEffects.getSkyType().ordinal();

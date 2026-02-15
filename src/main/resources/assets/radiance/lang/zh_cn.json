@@ -127,5 +127,12 @@
   "options.video.category.exposure": "曝光",
   "radiance.settings.exposure.title": "曝光",
   "options.video.camera_controls.exposure": "曝光...",
-  "options.video.legacy_exposure": "经典曝光 (旧版)"
+  "options.video.legacy_exposure": "经典曝光 (旧版)",
+  "options.video.exposure_up_speed": "曝光提升速度",
+  "options.video.exposure_down_speed": "曝光降低速度",
+  "options.video.exposure_bright_adapt_boost": "亮适应加速",
+  "options.video.exposure_highlight_protection": "高光保护",
+  "options.video.exposure_highlight_percentile": "高光分位数",
+  "options.video.exposure_highlight_smooth_speed": "高光平滑速度",
+  "options.video.exposure_log2_max": "直方图最大 EV"
 }
