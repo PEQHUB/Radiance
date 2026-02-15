@@ -118,5 +118,14 @@
 
   "options.video.sdr_transfer_function": "SDR 传递函数",
   "options.video.sdr_transfer_function.srgb": "sRGB",
-  "options.video.sdr_transfer_function.gamma22": "Gamma 2.2"
+  "options.video.sdr_transfer_function.gamma22": "Gamma 2.2",
+
+  "options.video.category.camera_controls": "相机控制",
+  "radiance.settings.camera_controls.title": "相机控制",
+  "options.video.camera_controls": "相机控制...",
+
+  "options.video.category.exposure": "曝光",
+  "radiance.settings.exposure.title": "曝光",
+  "options.video.camera_controls.exposure": "曝光...",
+  "options.video.legacy_exposure": "经典曝光 (旧版)"
 }

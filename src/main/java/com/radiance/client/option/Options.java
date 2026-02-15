@@ -30,6 +30,7 @@ public class Options {
     public static final String CATEGORY_RAY_TRACING = "options.video.category.ray_tracing";
     public static final String CATEGORY_UPSCALER = "options.video.category.upscaler";
     public static final String CATEGORY_TONEMAPPING = "options.video.category.tonemapping";
+    public static final String CATEGORY_CAMERA_CONTROLS = "options.video.category.camera_controls";
     public static final String CATEGORY_TERRAIN = "options.video.category.terrain";
     public static final String CATEGORY_HDR = "options.video.category.hdr";
     public static final String CATEGORY_PIPELINE = "options.video.category.pipeline";
@@ -82,6 +83,7 @@ public class Options {
     public static final String MIN_EXPOSURE_KEY = "options.video.min_exposure";
     public static final String MAX_EXPOSURE_KEY = "options.video.max_exposure";
     public static final String EXPOSURE_COMPENSATION_KEY = "options.video.exposure_compensation";
+    public static final String LEGACY_EXPOSURE_KEY = "options.video.legacy_exposure";
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
@@ -134,6 +136,7 @@ public class Options {
     public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
     public static int maxExposure = 2;
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
+    public static boolean legacyExposure = false;
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
@@ -282,10 +285,13 @@ public class Options {
                 "LwhiteTenths", String.valueOf(LwhiteTenths)));
             saturationPercent = Integer.parseInt(props.getProperty(
                 "saturationPercent", String.valueOf(saturationPercent)));
+            legacyExposure = Boolean.parseBoolean(props.getProperty(
+                "legacyExposure", String.valueOf(legacyExposure)));
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
             nativeSetSaturation(saturationPercent / 100.0f, false);
+            nativeSetLegacyExposure(legacyExposure, false);
 
             // HDR10
             hdrEnabled = Boolean.parseBoolean(props.getProperty("hdrEnabled", String.valueOf(hdrEnabled)));
@@ -374,6 +380,7 @@ public class Options {
         props.setProperty("minExposureTenK", String.valueOf(minExposureTenK));
         props.setProperty("maxExposure", String.valueOf(maxExposure));
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
+        props.setProperty("legacyExposure", String.valueOf(legacyExposure));
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
@@ -1018,6 +1025,17 @@ public class Options {
     public static void setMiddleGrey(int percent, boolean write) {
         Options.middleGreyPercent = percent;
         nativeSetMiddleGrey(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Legacy Exposure ---
+    public native static void nativeSetLegacyExposure(boolean legacyExposure, boolean write);
+
+    public static void setLegacyExposure(boolean legacyExposure, boolean write) {
+        Options.legacyExposure = legacyExposure;
+        nativeSetLegacyExposure(legacyExposure, write);
         if (write) {
             overwriteConfig();
         }
