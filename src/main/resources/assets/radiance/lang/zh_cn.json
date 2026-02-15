@@ -106,5 +106,9 @@
   "options.video.environment.sun_size": "太阳大小",
   "options.video.environment.sun_intensity": "太阳强度",
   "options.video.environment.moon_size": "月亮大小",
-  "options.video.environment.moon_intensity": "月亮强度"
+  "options.video.environment.moon_intensity": "月亮强度",
+
+  "options.video.sdr_transfer_function": "SDR 传递函数",
+  "options.video.sdr_transfer_function.srgb": "sRGB",
+  "options.video.sdr_transfer_function.gamma22": "Gamma 2.2"
 }

@@ -21,6 +21,10 @@ public class Options {
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
 
+    // SDR transfer function
+    public static final int SDR_TRANSFER_FUNCTION_GAMMA_22 = 0;
+    public static final int SDR_TRANSFER_FUNCTION_SRGB = 1;
+
     public static final String CATEGORY_GAMEPLAY = "options.video.category.gameplay";
     public static final String CATEGORY_WINDOW = "options.video.category.window";
     public static final String CATEGORY_RAY_TRACING = "options.video.category.ray_tracing";
@@ -54,6 +58,9 @@ public class Options {
 
     // Tonemapping
     public static final String TONEMAP_MODE_KEY = "options.video.tonemap_mode";
+    public static final String SDR_TRANSFER_FUNCTION_KEY = "options.video.sdr_transfer_function";
+    public static final String SDR_TRANSFER_FUNCTION_GAMMA_22_KEY = "options.video.sdr_transfer_function.gamma22";
+    public static final String SDR_TRANSFER_FUNCTION_SRGB_KEY = "options.video.sdr_transfer_function.srgb";
     public static final String TONEMAP_MODE_PBR_NEUTRAL = "options.video.tonemap_mode.pbr_neutral";
     public static final String TONEMAP_MODE_REINHARD_EXTENDED = "options.video.tonemap_mode.reinhard_extended";
     public static final String TONEMAP_MODE_ACES = "options.video.tonemap_mode.aces";
@@ -118,6 +125,7 @@ public class Options {
     public static int chunkBuildingTotalBatches = 4;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
+    public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
     public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
     public static int maxExposure = 2;
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
@@ -220,6 +228,10 @@ public class Options {
             sdrTonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
                 "sdrTonemappingMode", String.valueOf(tonemappingMode))));
             nativeSetTonemappingMode(tonemappingMode, false);
+
+            sdrTransferFunction = Math.max(0, Math.min(1, Integer.parseInt(props.getProperty(
+                "sdrTransferFunction", String.valueOf(sdrTransferFunction)))));
+            nativeSetSdrTransferFunction(sdrTransferFunction, false);
 
             upscalerMode = Integer.parseInt(props.getProperty("upscalerMode", String.valueOf(upscalerMode)));
 
@@ -337,6 +349,7 @@ public class Options {
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
+        props.setProperty("sdrTransferFunction", String.valueOf(sdrTransferFunction));
         props.setProperty("minExposureTenK", String.valueOf(minExposureTenK));
         props.setProperty("maxExposure", String.valueOf(maxExposure));
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
@@ -705,6 +718,17 @@ public class Options {
     }
 
     public native static void nativeSetTonemappingMode(int mode, boolean write);
+
+    public native static void nativeSetSdrTransferFunction(int mode, boolean write);
+
+    public static void setSdrTransferFunction(int mode, boolean write) {
+        int clamped = Math.max(0, Math.min(1, mode));
+        Options.sdrTransferFunction = clamped;
+        nativeSetSdrTransferFunction(clamped, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
 
     public static void setTonemappingMode(int mode, boolean write) {
         int clampedMode = clampTonemappingMode(mode);

@@ -5,7 +5,6 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 import com.google.common.collect.ImmutableList;
 import com.mojang.serialization.Codec;
 import com.radiance.client.option.Options;
-import com.radiance.client.option.TonemappingMode;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
@@ -34,29 +33,21 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_TONEMAPPING), body));
 
-        boolean hdrModeLocked = Options.hdrEnabled && Options.isHdrSupported();
+        // Tone mapper mode selection is intentionally hidden.
+        // SDR output is driven by the HDR pipeline tonemap for parity.
 
-        if (!hdrModeLocked) {
-            int currentMode = Math.min(Options.tonemappingMode, 7);
-            if (currentMode != Options.tonemappingMode) {
-                Options.setTonemappingMode(currentMode, true);
-            }
-
-            SimpleOption<Integer> tonemapMode = new SimpleOption<>(
-                Options.TONEMAP_MODE_KEY,
-                SimpleOption.emptyTooltip(),
-                (optionText, value) -> getGenericValueText(optionText,
-                    Text.translatable(TonemappingMode.byOrdinal(value).getTranslationKey())),
-                new SimpleOption.ValidatingIntSliderCallbacks(0, 7),
-                Codec.intRange(0, 7),
-                currentMode,
-                value -> {
-                    Options.setTonemappingMode(value, true);
-                    // Rebuild the screen so exposure sliders pick up the new preset values
-                    MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(parentScreen));
-                });
-            this.body.addSingleOptionEntry(tonemapMode);
-        }
+        SimpleOption<Integer> sdrTransferFn = new SimpleOption<>(
+            Options.SDR_TRANSFER_FUNCTION_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.translatable(value == Options.SDR_TRANSFER_FUNCTION_SRGB
+                    ? Options.SDR_TRANSFER_FUNCTION_SRGB_KEY
+                    : Options.SDR_TRANSFER_FUNCTION_GAMMA_22_KEY)),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 1),
+            Codec.intRange(0, 1),
+            Options.sdrTransferFunction,
+            value -> Options.setSdrTransferFunction(value, true));
+        this.body.addSingleOptionEntry(sdrTransferFn);
 
         // Saturation: 1.0 to 2.0 (stored as percent 100-200) - HDR-only
         ResettableSliderWidget satSlider = new ResettableSliderWidget(
@@ -89,8 +80,6 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             value -> Options.setMaxExposure(value, true));
         this.body.addSingleOptionEntry(maxExposure);
 
-        int mode = Options.tonemappingMode;
-
         // Exposure Compensation: -3.0 to +3.0 EV (stored as tenths, slider 0-60 offset by 30)
         ResettableSliderWidget ecSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
@@ -111,18 +100,7 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             v -> Options.setMiddleGrey(v, true));
         this.body.addEntry(new SliderEntry(mgSlider, body));
 
-        // White Point (Lwhite): shown only for SDR Reinhard Extended.
-        boolean showLwhite = !hdrModeLocked && mode == 1;
-        if (showLwhite) {
-            ResettableSliderWidget lwSlider = new ResettableSliderWidget(
-                0, 0, 150, 20,
-                10, 200, Options.LwhiteTenths, 40,
-                v -> getGenericValueText(
-                    Text.translatable(Options.LWHITE_KEY),
-                    Text.literal(String.format("%.1f", v / 10.0))),
-                v -> Options.setLwhite(v, true));
-            this.body.addEntry(new SliderEntry(lwSlider, body));
-        }
+        // White Point (Lwhite) slider is intentionally hidden.
 
         // === Emission ===
         this.body.addEntry(
@@ -153,19 +131,21 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         this.body.addSingleOptionEntry(environmentSettings);
 
         // === HDR10 Output ===
-        this.body.addEntry(
-            new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_HDR), body));
+        if (Options.isHdrSupported()) {
+            this.body.addEntry(
+                new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_HDR), body));
 
-        SimpleOption<Boolean> hdrEnabled = SimpleOption.ofBoolean(
-            Options.HDR_ENABLED_KEY, Options.hdrEnabled,
-            value -> {
-                Options.setHdrEnabled(value, true);
-                // Rebuild screen to show/hide HDR sliders
-                MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(parentScreen));
-            });
-        this.body.addSingleOptionEntry(hdrEnabled);
+            SimpleOption<Boolean> hdrEnabled = SimpleOption.ofBoolean(
+                Options.HDR_ENABLED_KEY, Options.hdrEnabled,
+                value -> {
+                    Options.setHdrEnabled(value, true);
+                    // Rebuild screen to show/hide HDR sliders
+                    MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(parentScreen));
+                });
+            this.body.addSingleOptionEntry(hdrEnabled);
+        }
 
-        if (Options.hdrEnabled) {
+        if (Options.isHdrSupported() && Options.hdrEnabled) {
             // Peak Brightness: 400–10000 nits (step 10)
             ResettableSliderWidget peakNitsSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
