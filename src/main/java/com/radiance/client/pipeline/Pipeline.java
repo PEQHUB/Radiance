@@ -136,6 +136,18 @@ public class Pipeline {
 
             topologicalSort(finalModule, dstTosrcMap, visited, visiting, sortedModules);
 
+            if (Options.isDevLoggingEnabled()) {
+                RadianceClient.LOGGER.info("Pipeline build: {} module(s)", sortedModules.size());
+                for (Module m : sortedModules) {
+                    RadianceClient.LOGGER.info("  module: {}", m.name);
+                    if (m.attributeConfigs != null) {
+                        for (AttributeConfig a : m.attributeConfigs) {
+                            RadianceClient.LOGGER.info("    attr: {} = {}", a.name, a.value);
+                        }
+                    }
+                }
+            }
+
             // integrity check
             for (Module m : sortedModules) {
                 for (ImageConfig inputConf : m.inputImageConfigs) {
@@ -373,9 +385,8 @@ public class Pipeline {
     public static void assembleDefault() {
         clear();
 
-        // default: RT + DLSS + ToneMapping + Post
-        // if DLSS available, otherwise NRD
-        boolean dlssAvailable = isNativeModuleAvailable("render_pipeline.module.dlss.name");
+        // Default: RT + (optional DLSS) + ToneMapping + Post
+        boolean useDlss = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
 
         Module rayTracingModule = addModule("render_pipeline.module.ray_tracing.name");
 
@@ -383,7 +394,7 @@ public class Pipeline {
 
         Module postRenderModule = addModule("render_pipeline.module.post_render.name");
 
-        if (dlssAvailable) {
+        if (useDlss) {
             Module dlssModule = addModule("render_pipeline.module.dlss.name");
 
             connect(rayTracingModule.getOutputImageConfig("radiance"),
@@ -416,67 +427,12 @@ public class Pipeline {
             connect(dlssModule.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
         } else {
-            Module denoiserModule = addModule("render_pipeline.module.nrd.name");
-            Module upscalerModule = addModule("render_pipeline.module.fsr3_upscaler.name");
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_indirect_light"),
-                denoiserModule.getInputImageConfig("diffuse_radiance"));
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_specular"),
-                denoiserModule.getInputImageConfig("specular_radiance"));
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_direct_light"),
-                denoiserModule.getInputImageConfig("direct_radiance"));
-
-            connect(rayTracingModule.getOutputImageConfig("diffuse_albedo_metallic"),
-                denoiserModule.getInputImageConfig("diffuse_albedo"));
-
-            connect(rayTracingModule.getOutputImageConfig("specular_albedo"),
-                denoiserModule.getInputImageConfig("specular_albedo"));
-
-            connect(rayTracingModule.getOutputImageConfig("normal_roughness"),
-                denoiserModule.getInputImageConfig("normal_roughness"));
-
-            connect(rayTracingModule.getOutputImageConfig("motion_vector"),
-                denoiserModule.getInputImageConfig("motion_vector"));
-
-            connect(rayTracingModule.getOutputImageConfig("linear_depth"),
-                denoiserModule.getInputImageConfig("linear_depth"));
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
-                denoiserModule.getInputImageConfig("diffuseHitDepthImage"));
-
-            connect(rayTracingModule.getOutputImageConfig("specular_hit_depth"),
-                denoiserModule.getInputImageConfig("specularHitDepthImage"));
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_clear"),
-                denoiserModule.getInputImageConfig("first_hit_clear"));
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_base_emission"),
-                denoiserModule.getInputImageConfig("first_hit_base_emission"));
-
-            connect(denoiserModule.getOutputImageConfig("denoised_radiance"),
-                upscalerModule.getInputImageConfig("color"));
-
-            connect(rayTracingModule.getOutputImageConfig("linear_depth"),
-                upscalerModule.getInputImageConfig("depth"));
-
-            connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
-                upscalerModule.getInputImageConfig("first_hit_depth"));
-
-            connect(rayTracingModule.getOutputImageConfig("motion_vector"),
-                upscalerModule.getInputImageConfig("motion_vector"));
-
-            connect(upscalerModule.getOutputImageConfig("upscaled_radiance"),
+            // DLSS disabled/unavailable: feed raw ray tracing radiance to tone mapping.
+            connect(rayTracingModule.getOutputImageConfig("radiance"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
-            connect(upscalerModule.getOutputImageConfig("upscaled_first_hit_depth"),
+
+            connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
-
-            //  connect(denoiserModule.getOutputImageConfig("denoised_radiance"),
-            //     toneMappingModule.getInputImageConfig("denoised_radiance"));
-
-            // connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
-            //     postRenderModule.getInputImageConfig("first_hit_depth"));
         }
 
         connect(toneMappingModule.getOutputImageConfig("mapped_output"),

@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.world.ClientWorld;
 
 public class Options {
@@ -31,6 +32,7 @@ public class Options {
     public static final String CATEGORY_UPSCALER = "options.video.category.upscaler";
     public static final String CATEGORY_TONEMAPPING = "options.video.category.tonemapping";
     public static final String CATEGORY_CAMERA_CONTROLS = "options.video.category.camera_controls";
+    public static final String CATEGORY_POST_PROCESSING = "options.video.category.post_processing";
     public static final String CATEGORY_TERRAIN = "options.video.category.terrain";
     public static final String CATEGORY_HDR = "options.video.category.hdr";
     public static final String CATEGORY_PIPELINE = "options.video.category.pipeline";
@@ -60,8 +62,8 @@ public class Options {
 
     // Clouds
     // Defaults are intentionally non-neutral so volumetric clouds have visible structure out of the box.
-    public static final int CLOUD_DETAIL_SCALE_DEFAULT_PERCENT = 150;
-    public static final int CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT = 150;
+    public static final int CLOUD_DETAIL_SCALE_DEFAULT_PERCENT = 100;
+    public static final int CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT = 100;
 
     // Tonemapping
     public static final String TONEMAP_MODE_KEY = "options.video.tonemap_mode";
@@ -84,6 +86,8 @@ public class Options {
     public static final String MIN_EXPOSURE_KEY = "options.video.min_exposure";
     public static final String MAX_EXPOSURE_KEY = "options.video.max_exposure";
     public static final String EXPOSURE_COMPENSATION_KEY = "options.video.exposure_compensation";
+    public static final String MANUAL_EXPOSURE_ENABLED_KEY = "options.video.manual_exposure_enabled";
+    public static final String MANUAL_EXPOSURE_KEY = "options.video.manual_exposure";
     public static final String LEGACY_EXPOSURE_KEY = "options.video.legacy_exposure";
     public static final String EXPOSURE_UP_SPEED_KEY = "options.video.exposure_up_speed";
     public static final String EXPOSURE_DOWN_SPEED_KEY = "options.video.exposure_down_speed";
@@ -95,6 +99,8 @@ public class Options {
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
+    public static final String CAS_ENABLED_KEY = "options.video.cas_enabled";
+    public static final String CAS_SHARPNESS_KEY = "options.video.cas_sharpness";
 
     // HDR10
     public static final String HDR_ENABLED_KEY = "options.video.hdr_enabled";
@@ -117,6 +123,9 @@ public class Options {
     public static final String UPSCALER_RES_OVERRIDE_KEY = "options.video.upscaler_res_override";
     public static final String UPSCALER_PRESET_KEY = "options.video.upscaler_preset";
 
+    // DLSS-D (Ray Reconstruction)
+    public static final String DLSS_D_ENABLED_KEY = "options.video.dlss_d_enabled";
+
     // Ray Tracing
     public static final String RAY_BOUNCES_KEY = "options.video.ray_bounces";
 
@@ -132,19 +141,27 @@ public class Options {
     public static int maxFps = 260;
     public static int inactivityFpsLimit = 260;
     public static boolean vsync = true;
-    public static int upscalerMode = 0; // 0=Off, 1=FSR3, 2=DLSS SR
+    // Upscaler selection (menu-facing)
+    // 0 = Off
+    // 1 = DLSS (Ray Reconstruction)
+    public static int upscalerMode = 1;
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
     public static int upscalerResOverride = 100; // 33-100%
+    public static boolean dlssDEnabled = true;
     public static int rayBounces = 4;
     public static int chunkBuildingBatchSize = 2;
     public static int chunkBuildingTotalBatches = 4;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
-    public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
+    public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
     public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
     public static int maxExposure = 2;
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
+    public static boolean manualExposureEnabled = false;
+    public static int manualExposureHundredths = 100; // hundredths: 1-2000 -> 0.01 to 20.00
     public static boolean legacyExposure = false;
+    public static boolean casEnabled = false;
+    public static int casSharpnessPercent = 50;
     // Treat speeds as max EV change per second (rate-limited adaptation).
     // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
     public static int exposureUpSpeedTenths = 10;             // 1-200 → 0.1 to 20.0
@@ -236,6 +253,31 @@ public class Options {
             return t;
         });
 
+    public static boolean isDevLoggingEnabled() {
+        try {
+            String env = System.getenv("RADIANCE_DEV_LOG");
+            if (env != null) {
+                if ("0".equals(env)) return false;
+                if ("false".equalsIgnoreCase(env)) return false;
+                return true;
+            }
+        } catch (Throwable ignored) {
+        }
+        return Boolean.getBoolean("radiance.devLog");
+    }
+
+    private static void runOnClientThread(Runnable task) {
+        try {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc != null) {
+                mc.execute(task);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+        task.run();
+    }
+
     public static void readOptions() {
         Path path = RadianceClient.radianceDir.resolve(OPTION_PROPERTIES);
         if (!Files.exists(path)) {
@@ -285,6 +327,20 @@ public class Options {
                 props.getProperty("dlssQuality", String.valueOf(upscalerQuality))));
             nativeSetDlssQuality(upscalerQuality, false);
 
+            dlssDEnabled = Boolean.parseBoolean(props.getProperty("dlssDEnabled", String.valueOf(dlssDEnabled)));
+
+            // Migration / consistency:
+            // - legacy upscalerMode values: 0=Off, 1=FSR3, 2=DLSS
+            // - new upscalerMode values:    0=Off, 1=DLSS
+            if (upscalerMode >= 2) {
+                upscalerMode = 1;
+            }
+            if (dlssDEnabled) {
+                upscalerMode = 1;
+            } else {
+                upscalerMode = 0;
+            }
+
             setMinExposure(Integer.parseInt(props.getProperty("minExposureTenK", String.valueOf(minExposureTenK))), false);
             setMaxExposure(Integer.parseInt(props.getProperty("maxExposure", String.valueOf(maxExposure))), false);
 
@@ -297,6 +353,15 @@ public class Options {
 
             exposureCompensation = Integer.parseInt(props.getProperty(
                 "exposureCompensation", String.valueOf(exposureCompensation)));
+            manualExposureEnabled = Boolean.parseBoolean(props.getProperty(
+                "manualExposureEnabled", String.valueOf(manualExposureEnabled)));
+            manualExposureHundredths = Integer.parseInt(props.getProperty(
+                "manualExposureHundredths", String.valueOf(manualExposureHundredths)));
+            manualExposureHundredths = clamp(manualExposureHundredths, 1, 2000);
+            casEnabled = Boolean.parseBoolean(props.getProperty(
+                "casEnabled", String.valueOf(casEnabled)));
+            casSharpnessPercent = clamp(Integer.parseInt(props.getProperty(
+                "casSharpnessPercent", String.valueOf(casSharpnessPercent))), 0, 100);
             middleGreyPercent = Integer.parseInt(props.getProperty(
                 "middleGreyPercent", String.valueOf(middleGreyPercent)));
             LwhiteTenths = Integer.parseInt(props.getProperty(
@@ -330,6 +395,10 @@ public class Options {
             exposureLog2Max = clamp(exposureLog2Max, 8, 16);
 
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
+            nativeSetManualExposureEnabled(manualExposureEnabled, false);
+            nativeSetManualExposure(manualExposureHundredths / 100.0f, false);
+            nativeSetCasEnabled(casEnabled, false);
+            nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
             nativeSetSaturation(saturationPercent / 100.0f, false);
@@ -420,6 +489,7 @@ public class Options {
         props.setProperty("upscalerMode", String.valueOf(upscalerMode));
         props.setProperty("upscalerQuality", String.valueOf(upscalerQuality));
         props.setProperty("upscalerResOverride", String.valueOf(upscalerResOverride));
+        props.setProperty("dlssDEnabled", String.valueOf(dlssDEnabled));
         props.setProperty("rayBounces", String.valueOf(rayBounces));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
@@ -429,6 +499,10 @@ public class Options {
         props.setProperty("minExposureTenK", String.valueOf(minExposureTenK));
         props.setProperty("maxExposure", String.valueOf(maxExposure));
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
+        props.setProperty("manualExposureEnabled", String.valueOf(manualExposureEnabled));
+        props.setProperty("manualExposureHundredths", String.valueOf(manualExposureHundredths));
+        props.setProperty("casEnabled", String.valueOf(casEnabled));
+        props.setProperty("casSharpnessPercent", String.valueOf(casSharpnessPercent));
         props.setProperty("legacyExposure", String.valueOf(legacyExposure));
         props.setProperty("exposureUpSpeedTenths", String.valueOf(exposureUpSpeedTenths));
         props.setProperty("exposureDownSpeedTenths", String.valueOf(exposureDownSpeedTenths));
@@ -998,13 +1072,61 @@ public class Options {
         }
     }
 
+    public static void setUpscalerMode(int mode, boolean write) {
+        int clamped = Math.max(0, Math.min(1, mode));
+
+        if (clamped == 1) {
+            try {
+                if (!Pipeline.isNativeModuleAvailable("render_pipeline.module.dlss.name")) {
+                    RadianceClient.LOGGER.warn(
+                        "DLSS requested but DLSS module is not available; disabling.");
+                    clamped = 0;
+                }
+            } catch (UnsatisfiedLinkError ignored) {
+                // Native not loaded yet; keep requested value.
+            }
+        }
+
+        Options.upscalerMode = clamped;
+        Options.dlssDEnabled = (clamped == 1);
+
+        if (isDevLoggingEnabled()) {
+            RadianceClient.LOGGER.info("Upscaler mode set to {} (dlssDEnabled={})", Options.upscalerMode,
+                Options.dlssDEnabled);
+        }
+
+        if (dlssRebuildTask != null) dlssRebuildTask.cancel(false);
+        if (dlssResOverrideTask != null) dlssResOverrideTask.cancel(false);
+        if (upscalerPresetTask != null) upscalerPresetTask.cancel(false);
+
+        if (write) {
+            try {
+                Pipeline.assembleDefault();
+                Pipeline.build();
+            } catch (Exception e) {
+                RadianceClient.LOGGER.error("Failed to rebuild pipeline after upscaler toggle.", e);
+            }
+            overwriteConfig();
+        }
+    }
+
     public native static void nativeSetDlssQuality(int quality, boolean write);
 
     public static void setUpscalerQuality(int quality, boolean write) {
         Options.upscalerQuality = quality;
-        if (dlssRebuildTask != null) dlssRebuildTask.cancel(false);
-        dlssRebuildTask = scheduler.schedule(() -> nativeSetDlssQuality(quality, write),
-            500, TimeUnit.MILLISECONDS);
+
+        if (isDevLoggingEnabled()) {
+            RadianceClient.LOGGER.info("Upscaler quality set to {} (mode={})", quality, Options.upscalerMode);
+        }
+
+        // DLSS: handled via native setters. When DLSS is disabled, keep the value stored.
+        if (Options.dlssDEnabled) {
+            if (dlssRebuildTask != null) dlssRebuildTask.cancel(false);
+            dlssRebuildTask = scheduler.schedule(
+                () -> runOnClientThread(() -> nativeSetDlssQuality(quality, write)),
+                500,
+                TimeUnit.MILLISECONDS);
+        }
         if (write) {
             overwriteConfig();
         }
@@ -1016,12 +1138,20 @@ public class Options {
 
     public static void setUpscalerResOverride(int resOverride, boolean write) {
         Options.upscalerResOverride = resOverride;
-        if (dlssResOverrideTask != null) dlssResOverrideTask.cancel(false);
-        dlssResOverrideTask = scheduler.schedule(() -> nativeSetDlssResOverride(resOverride, write),
-            500, TimeUnit.MILLISECONDS);
+        if (Options.dlssDEnabled) {
+            if (dlssResOverrideTask != null) dlssResOverrideTask.cancel(false);
+            dlssResOverrideTask = scheduler.schedule(
+                () -> runOnClientThread(() -> nativeSetDlssResOverride(resOverride, write)),
+                500,
+                TimeUnit.MILLISECONDS);
+        }
         if (write) {
             overwriteConfig();
         }
+    }
+
+    public static void setDlssDEnabled(boolean enabled, boolean write) {
+        setUpscalerMode(enabled ? 1 : 0, write);
     }
 
     public native static void nativeSetRayBounces(int bounces, boolean write);
@@ -1061,9 +1191,13 @@ public class Options {
 
     public static void setUpscalerPreset(int preset, boolean write) {
         Options.upscalerPreset = preset;
-        if (upscalerPresetTask != null) upscalerPresetTask.cancel(false);
-        upscalerPresetTask = scheduler.schedule(() -> nativeSetDlssPreset(preset, write),
-            500, TimeUnit.MILLISECONDS);
+        if (Options.dlssDEnabled) {
+            if (upscalerPresetTask != null) upscalerPresetTask.cancel(false);
+            upscalerPresetTask = scheduler.schedule(
+                () -> runOnClientThread(() -> nativeSetDlssPreset(preset, write)),
+                500,
+                TimeUnit.MILLISECONDS);
+        }
         if (write) {
             overwriteConfig();
         }
@@ -1071,6 +1205,48 @@ public class Options {
 
     // --- Exposure Compensation (float EV offset) ---
     public native static void nativeSetExposureCompensation(float ec, boolean write);
+
+    public native static void nativeSetManualExposureEnabled(boolean enabled, boolean write);
+
+    public static void setManualExposureEnabled(boolean enabled, boolean write) {
+        Options.manualExposureEnabled = enabled;
+        nativeSetManualExposureEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetManualExposure(float exposure, boolean write);
+
+    public static void setManualExposureHundredths(int hundredths, boolean write) {
+        hundredths = clamp(hundredths, 1, 2000);
+        Options.manualExposureHundredths = hundredths;
+        nativeSetManualExposure(hundredths / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetCasEnabled(boolean enabled, boolean write);
+
+    public static void setCasEnabled(boolean enabled, boolean write) {
+        Options.casEnabled = enabled;
+        nativeSetCasEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetCasSharpness(float sharpness, boolean write);
+
+    public static void setCasSharpnessPercent(int percent, boolean write) {
+        percent = clamp(percent, 0, 100);
+        Options.casSharpnessPercent = percent;
+        nativeSetCasSharpness(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
 
     public static void setExposureCompensation(int tenths, boolean write) {
         Options.exposureCompensation = tenths;

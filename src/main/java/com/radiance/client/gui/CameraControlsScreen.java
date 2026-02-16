@@ -25,6 +25,10 @@ public class CameraControlsScreen extends GameOptionsScreen {
         this.body.addSingleOptionEntry(openScreenOption(
             "options.video.camera_controls.exposure",
             new ExposureSettingsScreen(this)));
+
+        this.body.addSingleOptionEntry(openScreenOption(
+            "options.video.camera_controls.post_processing",
+            new PostProcessingSettingsScreen(this)));
     }
 
     private SimpleOption<Boolean> openScreenOption(String key, Screen screen) {

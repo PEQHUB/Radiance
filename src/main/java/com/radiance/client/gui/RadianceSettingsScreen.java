@@ -154,61 +154,59 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_UPSCALER), body));
 
-        String[] upscalerModes = {"Off", "FSR3", "DLSS SR"};
-        String[] upscalerModeKeys = {
-            Options.UPSCALER_MODE_OFF, Options.UPSCALER_MODE_FSR3, Options.UPSCALER_MODE_DLSS_SR
-        };
-        SimpleOption<Integer> upscalerMode = new SimpleOption<>(
-            Options.UPSCALER_MODE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(upscalerModeKeys[Math.min(value, upscalerModeKeys.length - 1)])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerModes.length - 1),
-            Codec.intRange(0, upscalerModes.length - 1),
-            Options.upscalerMode,
-            value -> { Options.upscalerMode = value; Options.overwriteConfig(); });
-        this.body.addSingleOptionEntry(upscalerMode);
+        RadianceSettingsScreen self = this;
+        SimpleOption<Boolean> dlssDEnabled = SimpleOption.ofBoolean(
+            Options.DLSS_D_ENABLED_KEY,
+            Options.dlssDEnabled,
+            value -> {
+                Options.setDlssDEnabled(value, true);
+                // Refresh this screen so DLSS-only controls appear/disappear immediately.
+                MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(self.parentScreen));
+            });
+        this.body.addSingleOptionEntry(dlssDEnabled);
 
-        // === Upscaler Quality (works with DLSS, FSR, and future upscalers) ===
-        String[] upscalerQualities = {"Performance", "Balanced", "Quality", "Native", "Custom"};
-        String[] upscalerQualityKeys = {
-            Options.UPSCALER_QUALITY_PERFORMANCE, Options.UPSCALER_QUALITY_BALANCED,
-            Options.UPSCALER_QUALITY_QUALITY, Options.UPSCALER_QUALITY_NATIVE,
-            Options.UPSCALER_QUALITY_CUSTOM
-        };
-        SimpleOption<Integer> upscalerQuality = new SimpleOption<>(
-            Options.UPSCALER_QUALITY_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(upscalerQualityKeys[Math.min(value, upscalerQualityKeys.length - 1)])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerQualities.length - 1),
-            Codec.intRange(0, upscalerQualities.length - 1),
-            Options.upscalerQuality,
-            value -> Options.setUpscalerQuality(value, true));
-        this.body.addSingleOptionEntry(upscalerQuality);
+        if (Options.dlssDEnabled) {
+            // === DLSS Quality ===
+            String[] upscalerQualities = {"Performance", "Balanced", "Quality", "Native", "Custom"};
+            String[] upscalerQualityKeys = {
+                Options.UPSCALER_QUALITY_PERFORMANCE, Options.UPSCALER_QUALITY_BALANCED,
+                Options.UPSCALER_QUALITY_QUALITY, Options.UPSCALER_QUALITY_NATIVE,
+                Options.UPSCALER_QUALITY_CUSTOM
+            };
+            SimpleOption<Integer> upscalerQuality = new SimpleOption<>(
+                Options.UPSCALER_QUALITY_KEY,
+                SimpleOption.emptyTooltip(),
+                (optionText, value) -> getGenericValueText(optionText,
+                    Text.translatable(upscalerQualityKeys[Math.min(value, upscalerQualityKeys.length - 1)])),
+                new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerQualities.length - 1),
+                Codec.intRange(0, upscalerQualities.length - 1),
+                Options.upscalerQuality,
+                value -> Options.setUpscalerQuality(value, true));
+            this.body.addSingleOptionEntry(upscalerQuality);
 
-        String[] upscalerPresets = {"D", "E"};
-        SimpleOption<Integer> upscalerPreset = new SimpleOption<>(
-            Options.UPSCALER_PRESET_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(upscalerPresets[Math.min(value, upscalerPresets.length - 1)])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerPresets.length - 1),
-            Codec.intRange(0, upscalerPresets.length - 1),
-            Options.upscalerPreset == 5 ? 1 : 0,
-            value -> Options.setUpscalerPreset(value == 0 ? 4 : 5, true));
-        this.body.addSingleOptionEntry(upscalerPreset);
+            String[] upscalerPresets = {"D", "E"};
+            SimpleOption<Integer> upscalerPreset = new SimpleOption<>(
+                Options.UPSCALER_PRESET_KEY,
+                SimpleOption.emptyTooltip(),
+                (optionText, value) -> getGenericValueText(optionText,
+                    Text.literal(upscalerPresets[Math.min(value, upscalerPresets.length - 1)])),
+                new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerPresets.length - 1),
+                Codec.intRange(0, upscalerPresets.length - 1),
+                Options.upscalerPreset == 5 ? 1 : 0,
+                value -> Options.setUpscalerPreset(value == 0 ? 4 : 5, true));
+            this.body.addSingleOptionEntry(upscalerPreset);
 
-        SimpleOption<Integer> upscalerResOverride = new SimpleOption<>(
-            Options.UPSCALER_RES_OVERRIDE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(value + "%")),
-            new SimpleOption.ValidatingIntSliderCallbacks(33, 100),
-            Codec.intRange(33, 100),
-            Options.upscalerResOverride,
-            value -> Options.setUpscalerResOverride(value, true));
-        this.body.addSingleOptionEntry(upscalerResOverride);
+            SimpleOption<Integer> upscalerResOverride = new SimpleOption<>(
+                Options.UPSCALER_RES_OVERRIDE_KEY,
+                SimpleOption.emptyTooltip(),
+                (optionText, value) -> getGenericValueText(optionText,
+                    Text.literal(value + "%")),
+                new SimpleOption.ValidatingIntSliderCallbacks(33, 100),
+                Codec.intRange(33, 100),
+                Options.upscalerResOverride,
+                value -> Options.setUpscalerResOverride(value, true));
+            this.body.addSingleOptionEntry(upscalerResOverride);
+        }
 
         // === Ray Tracing ===
         this.body.addEntry(

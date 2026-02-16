@@ -13,6 +13,10 @@ import net.minecraft.text.Text;
 
 public class ExposureSettingsScreen extends GameOptionsScreen {
 
+    private static final int MANUAL_EXPOSURE_LOG_STEPS = 1000;
+    private static final double MANUAL_EXPOSURE_MIN = 0.01;
+    private static final double MANUAL_EXPOSURE_MAX = 20.0;
+
     private final Screen parentScreen;
 
     public ExposureSettingsScreen(Screen parent) {
@@ -25,6 +29,29 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
     protected void addOptions() {
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable("options.video.category.exposure"), body));
+
+        SimpleOption<Boolean> manualExposure = SimpleOption.ofBoolean(
+            Options.MANUAL_EXPOSURE_ENABLED_KEY,
+            Options.manualExposureEnabled,
+            value -> {
+                Options.setManualExposureEnabled(value, true);
+                MinecraftClient.getInstance().setScreen(new ExposureSettingsScreen(parentScreen));
+            });
+        this.body.addSingleOptionEntry(manualExposure);
+
+        if (Options.manualExposureEnabled) {
+            int currentLogStep = manualExposureToLogStep(Options.manualExposureHundredths);
+            int defaultLogStep = manualExposureToLogStep(100);
+            ResettableSliderWidget manualSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                0, MANUAL_EXPOSURE_LOG_STEPS, currentLogStep, defaultLogStep,
+                v -> getGenericValueText(
+                    Text.translatable(Options.MANUAL_EXPOSURE_KEY),
+                    Text.literal(formatManualExposure(logStepToManualExposure(v) / 100.0))),
+                v -> Options.setManualExposureHundredths(logStepToManualExposure(v), true));
+            this.body.addEntry(new RadianceSettingsScreen.SliderEntry(manualSlider, body));
+            return;
+        }
 
         // Legacy Exposure toggle: preserves the original failure modes by disabling highlight protection.
         SimpleOption<Boolean> legacyExposure = SimpleOption.ofBoolean(
@@ -148,5 +175,26 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
                 Text.literal(String.format("%.2f", v / 100.0))),
             v -> Options.setMiddleGrey(v, true));
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(mgSlider, body));
+    }
+
+    private static int manualExposureToLogStep(int hundredths) {
+        double exposure = Math.max(MANUAL_EXPOSURE_MIN, Math.min(MANUAL_EXPOSURE_MAX, hundredths / 100.0));
+        double t = (Math.log(exposure) - Math.log(MANUAL_EXPOSURE_MIN)) /
+            (Math.log(MANUAL_EXPOSURE_MAX) - Math.log(MANUAL_EXPOSURE_MIN));
+        return Math.max(0, Math.min(MANUAL_EXPOSURE_LOG_STEPS, (int) Math.round(t * MANUAL_EXPOSURE_LOG_STEPS)));
+    }
+
+    private static int logStepToManualExposure(int logStep) {
+        double t = Math.max(0.0, Math.min(1.0, logStep / (double) MANUAL_EXPOSURE_LOG_STEPS));
+        double exposure = Math.exp(Math.log(MANUAL_EXPOSURE_MIN) + t *
+            (Math.log(MANUAL_EXPOSURE_MAX) - Math.log(MANUAL_EXPOSURE_MIN)));
+        return Math.max(1, Math.min(2000, (int) Math.round(exposure * 100.0)));
+    }
+
+    private static String formatManualExposure(double exposure) {
+        if (exposure < 0.1) {
+            return String.format("%.3f", exposure);
+        }
+        return String.format("%.2f", exposure);
     }
 }

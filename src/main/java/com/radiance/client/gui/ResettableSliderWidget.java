@@ -2,6 +2,7 @@ package com.radiance.client.gui;
 
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
@@ -50,6 +51,16 @@ public class ResettableSliderWidget extends SliderWidget {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button == 0 && Screen.hasControlDown() && this.isMouseOver(mouseX, mouseY)) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            Screen parent = mc.currentScreen;
+            mc.setScreen(new NumericSliderInputScreen(parent, this.getMessage(), current(), min, max, value -> {
+                setCurrentValue(value);
+                onChange.accept(value);
+            }));
+            return true;
+        }
+
         if (button == 0 && Screen.hasShiftDown() && this.isMouseOver(mouseX, mouseY)) {
             // Reset to stock default
             this.value = (max == min) ? 0.0
