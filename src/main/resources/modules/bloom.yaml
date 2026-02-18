@@ -1,0 +1,7 @@
+name: "render_pipeline.module.bloom.name"
+inputImageConfigs:
+  - name: "hdr_input"
+    format: "R16G16B16A16_SFLOAT"
+outputImageConfigs:
+  - name: "hdr_output"
+    format: "R16G16B16A16_SFLOAT"

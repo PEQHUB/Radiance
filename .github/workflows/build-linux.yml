@@ -2,8 +2,7 @@ name: Build Platform JARs
 
 on:
   push:
-    branches:
-      - '**'
+    branches: ['**']
   release:
     types: [published]
   workflow_dispatch:
@@ -21,8 +20,12 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
+            native_lib: libcore.so
+            cmake_extra: ""
           - os: windows-latest
             platform: windows
+            native_lib: core.dll
+            cmake_extra: "--config Release"
 
     steps:
       - name: Checkout Radiance
@@ -37,69 +40,40 @@ jobs:
           path: MCVR
           submodules: recursive
 
-      - name: Install system dependencies (Linux)
-        if: matrix.platform == 'linux'
+      # ── Vulkan SDK ──────────────────────────────────────────────
+      - name: Install Vulkan SDK + deps (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            cmake \
-            build-essential \
-            libx11-dev \
-            libxrandr-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxi-dev \
-            libwayland-dev \
-            libxkbcommon-dev
-
-      - name: Install Vulkan SDK (Linux)
-        if: matrix.platform == 'linux'
-        run: |
+          sudo apt-get install -y cmake build-essential \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libwayland-dev libxkbcommon-dev
           wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo tee /etc/apt/trusted.gpg.d/lunarg.asc
-          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
-          sudo apt-get update
-          sudo apt-get install -y vulkan-sdk
+          sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list \
+            https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list
+          sudo apt-get update && sudo apt-get install -y vulkan-sdk
           glslangValidator --version
 
       - name: Install Vulkan SDK (Windows)
-        if: matrix.platform == 'windows'
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $sdkRoots = @()
-
-          if (Test-Path "C:\VulkanSDK") {
-              $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory
-          }
-
+          if (Test-Path "C:\VulkanSDK") { $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory }
           if ($sdkRoots.Count -eq 0) {
-              winget install --id KhronosGroup.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements
-
-              if (Test-Path "C:\VulkanSDK") {
-                  $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory
-              }
-
-              if (Test-Path "C:\Program Files\VulkanSDK") {
-                  $sdkRoots += Get-ChildItem "C:\Program Files\VulkanSDK" -Directory
-              }
+            winget install --id KhronosGroup.VulkanSDK --exact --silent --accept-package-agreements --accept-source-agreements
+            if (Test-Path "C:\VulkanSDK") { $sdkRoots += Get-ChildItem "C:\VulkanSDK" -Directory }
+            if (Test-Path "C:\Program Files\VulkanSDK") { $sdkRoots += Get-ChildItem "C:\Program Files\VulkanSDK" -Directory }
           }
-
           $vkRoot = $sdkRoots | Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $vkRoot) {
-              throw "Vulkan SDK installation directory was not found"
-          }
-
+          if (-not $vkRoot) { throw "Vulkan SDK not found" }
           $vkBin = Join-Path $vkRoot.FullName "Bin"
-          $validator = Join-Path $vkBin "glslangValidator.exe"
-          if (-not (Test-Path $validator)) {
-              throw "glslangValidator.exe was not found at $validator"
-          }
+          if (-not (Test-Path (Join-Path $vkBin "glslangValidator.exe"))) { throw "glslangValidator.exe not found" }
+          $vkBin >> $env:GITHUB_PATH
+          "VULKAN_SDK=$($vkRoot.FullName)" >> $env:GITHUB_ENV
+          & (Join-Path $vkBin "glslangValidator.exe") --version
 
-          $vkBin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          "VULKAN_SDK=$($vkRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "VK_SDK_PATH=$($vkRoot.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-
-          & $validator --version
-
+      # ── Java + Gradle ──────────────────────────────────────────
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
@@ -109,170 +83,104 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Generate JNI headers (Linux)
-        if: matrix.platform == 'linux'
+      # ── Fix gradle.properties for CI ────────────────────────────
+      - name: Patch gradle.properties for CI
+        working-directory: Radiance
+        shell: bash
         run: |
-          cd "${{ github.workspace }}/Radiance"
-          chmod +x gradlew
+          # Remove local-only tmpdir setting that doesn't exist on CI runners
+          sed -i.bak 's/-Djava.io.tmpdir=C:\/tmp//' gradle.properties
+          echo "gradle.properties after patch:"
+          cat gradle.properties
+
+      # ── JNI headers ────────────────────────────────────────────
+      - name: Generate JNI headers
+        working-directory: Radiance
+        shell: bash
+        run: |
+          chmod +x gradlew 2>/dev/null || true
           ./gradlew compileJava --no-daemon
+          count=$(find src/main/native/include -name '*.h' 2>/dev/null | wc -l)
+          echo "Generated $count JNI headers"
+          [[ "$count" -gt 0 ]] || { echo "ERROR: No JNI headers generated"; exit 1; }
 
-          HEADER_COUNT=$(find "${{ github.workspace }}/Radiance/src/main/native/include" -name '*.h' | wc -l)
-          echo "Generated $HEADER_COUNT JNI headers"
-          if [ "$HEADER_COUNT" -eq 0 ]; then
-            echo "ERROR: No JNI headers generated"
-            exit 1
-          fi
-
-      - name: Generate JNI headers (Windows)
-        if: matrix.platform == 'windows'
-        shell: pwsh
+      # ── Build MCVR native library + shaders ────────────────────
+      - name: Build MCVR (Linux)
+        if: runner.os == 'Linux'
+        working-directory: MCVR
         run: |
-          New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null
-          Set-Location "$env:GITHUB_WORKSPACE\Radiance"
-          .\gradlew.bat compileJava --no-daemon
-
-          $headers = Get-ChildItem "$env:GITHUB_WORKSPACE\Radiance\src\main\native\include" -Filter *.h -Recurse
-          $headerCount = $headers.Count
-          Write-Host "Generated $headerCount JNI headers"
-          if ($headerCount -eq 0) {
-              throw "No JNI headers generated"
-          }
-
-      - name: Build MCVR native library and shaders (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          cd "${{ github.workspace }}/MCVR"
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
             -DJAVA_PROJECT_ROOT_DIR="${{ github.workspace }}/Radiance" \
-            -DUSE_AMD=ON \
-            -DMCVR_ENABLE_NRD=ON \
-            -DMCVR_ENABLE_FFX_UPSCALER=ON
-          cmake --build build --parallel "$(nproc)"
+            -DUSE_AMD=ON -DMCVR_ENABLE_NRD=ON -DMCVR_ENABLE_FFX_UPSCALER=ON
+          cmake --build build --parallel $(nproc)
           cmake --install build
 
-      - name: Build MCVR native library and shaders (Windows)
-        if: matrix.platform == 'windows'
+      - name: Build MCVR (Windows)
+        if: runner.os == 'Windows'
+        working-directory: MCVR
         shell: pwsh
         run: |
-          Set-Location "$env:GITHUB_WORKSPACE\MCVR"
-          $javaRoot = "$env:GITHUB_WORKSPACE\Radiance" -replace '\\', '/'
-
-          $cmakeArgs = @(
-            "-S", ".",
-            "-B", "build",
-            "-DCMAKE_BUILD_TYPE=Release",
-            "-DJAVA_PROJECT_ROOT_DIR=$javaRoot",
-            "-DUSE_AMD=ON",
-            "-DMCVR_ENABLE_NRD=ON",
-            "-DMCVR_ENABLE_FFX_UPSCALER=ON"
-          )
-
-          cmake @cmakeArgs
-
+          $javaRoot = ("${{ github.workspace }}\Radiance") -replace '\\','/'
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release `
+            "-DJAVA_PROJECT_ROOT_DIR=$javaRoot" `
+            -DUSE_AMD=ON -DMCVR_ENABLE_NRD=ON -DMCVR_ENABLE_FFX_UPSCALER=ON
           cmake --build build --config Release --parallel
           cmake --install build --config Release
 
-      - name: Verify and stage natives (Linux)
-        if: matrix.platform == 'linux'
+      # ── Stage native artifacts ─────────────────────────────────
+      - name: Stage natives
+        shell: bash
         run: |
-          SHADER_COUNT=$(find "${{ github.workspace }}/Radiance/src/main/resources/shaders" -name '*.spv' | wc -l)
-          echo "Total SPIR-V shaders: $SHADER_COUNT"
-          if [ "$SHADER_COUNT" -eq 0 ]; then
-            echo "ERROR: No shaders were compiled"
-            exit 1
+          RES="Radiance/src/main/resources"
+          DEST="Radiance/natives/${{ matrix.platform }}"
+          mkdir -p "$DEST"
+
+          # Verify shaders
+          count=$(find "$RES/shaders" -name '*.spv' 2>/dev/null | wc -l)
+          echo "SPIR-V shaders: $count"
+          [[ "$count" -gt 0 ]] || { echo "ERROR: No shaders compiled"; exit 1; }
+
+          # Move native lib
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            [[ -f "$RES/libcore.so" ]] || { echo "ERROR: libcore.so not found"; exit 1; }
+            mv "$RES/libcore.so" "$DEST/"
+          else
+            [[ -f "$RES/core.dll" ]] || { echo "ERROR: core.dll not found"; exit 1; }
+            [[ -f "$RES/core.lib" ]] || { echo "ERROR: core.lib not found"; exit 1; }
+            mv "$RES/core.dll" "$RES/core.lib" "$DEST/"
           fi
 
-          if [ ! -f "${{ github.workspace }}/Radiance/src/main/resources/libcore.so" ]; then
-            echo "ERROR: libcore.so not found"
-            exit 1
+      # ── Build JAR ──────────────────────────────────────────────
+      - name: Build Radiance JAR
+        working-directory: Radiance
+        shell: bash
+        run: |
+          chmod +x gradlew 2>/dev/null || true
+          ./gradlew build -Pplatform=${{ matrix.platform }} --no-daemon
+
+      # ── Verify JAR ─────────────────────────────────────────────
+      - name: Verify JAR
+        shell: bash
+        run: |
+          JAR=$(find Radiance/build/libs -name "*${{ matrix.platform }}.jar" \
+            ! -name '*sources*' ! -name '*dev*' | head -1)
+          [[ -n "$JAR" ]] || { echo "ERROR: JAR not found"; exit 1; }
+          echo "JAR: $JAR"
+
+          spv=$(jar tf "$JAR" | grep -c '\.spv$' || echo 0)
+          echo "Shaders in JAR: $spv"
+          [[ "$spv" -gt 0 ]] || { echo "ERROR: No shaders in JAR"; exit 1; }
+
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            jar tf "$JAR" | grep -q 'libcore\.so' || { echo "ERROR: libcore.so missing from JAR"; exit 1; }
+          else
+            jar tf "$JAR" | grep -q 'core\.dll' || { echo "ERROR: core.dll missing from JAR"; exit 1; }
+            jar tf "$JAR" | grep -q 'core\.lib' || { echo "ERROR: core.lib missing from JAR"; exit 1; }
           fi
+          echo "JAR verified OK"
 
-          mkdir -p "${{ github.workspace }}/Radiance/natives/linux"
-          mv "${{ github.workspace }}/Radiance/src/main/resources/libcore.so" \
-             "${{ github.workspace }}/Radiance/natives/linux/libcore.so"
-
-      - name: Verify and stage natives (Windows)
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          $resourceDir = "$env:GITHUB_WORKSPACE\Radiance\src\main\resources"
-          $shaderCount = (Get-ChildItem "$resourceDir\shaders" -Filter *.spv -Recurse | Measure-Object).Count
-          Write-Host "Total SPIR-V shaders: $shaderCount"
-          if ($shaderCount -eq 0) {
-              throw "No shaders were compiled"
-          }
-
-          $dllPath = Join-Path $resourceDir "core.dll"
-          $libPath = Join-Path $resourceDir "core.lib"
-          if (-not (Test-Path $dllPath)) {
-              throw "core.dll was not found in $resourceDir"
-          }
-          if (-not (Test-Path $libPath)) {
-              throw "core.lib was not found in $resourceDir"
-          }
-
-          $nativeDir = "$env:GITHUB_WORKSPACE\Radiance\natives\windows"
-          New-Item -ItemType Directory -Path $nativeDir -Force | Out-Null
-          Move-Item -Path $dllPath -Destination (Join-Path $nativeDir "core.dll") -Force
-          Move-Item -Path $libPath -Destination (Join-Path $nativeDir "core.lib") -Force
-
-      - name: Build Radiance JAR (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          cd "${{ github.workspace }}/Radiance"
-          ./gradlew build -Pplatform=linux --no-daemon
-
-      - name: Build Radiance JAR (Windows)
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null
-          Set-Location "$env:GITHUB_WORKSPACE\Radiance"
-          .\gradlew.bat build -Pplatform=windows --no-daemon
-
-      - name: Verify JAR contents (Linux)
-        if: matrix.platform == 'linux'
-        run: |
-          JAR_FILE=$(find "${{ github.workspace }}/Radiance/build/libs" -name '*linux.jar' -not -name '*sources*' -not -name '*dev*' | head -1)
-          if [ -z "$JAR_FILE" ]; then
-            echo "ERROR: Linux JAR not found"
-            exit 1
-          fi
-
-          SHADER_COUNT=$(jar tf "$JAR_FILE" | grep -c '\.spv$' || echo "0")
-          if [ "$SHADER_COUNT" -eq 0 ]; then
-            echo "ERROR: No shaders found in Linux JAR"
-            exit 1
-          fi
-
-          jar tf "$JAR_FILE" | grep 'libcore.so' >/dev/null || { echo "ERROR: libcore.so not in Linux JAR"; exit 1; }
-
-      - name: Verify JAR contents (Windows)
-        if: matrix.platform == 'windows'
-        shell: pwsh
-        run: |
-          $jarFile = Get-ChildItem "$env:GITHUB_WORKSPACE\Radiance\build\libs\*windows.jar" |
-            Where-Object { $_.Name -notmatch 'sources|dev' } |
-            Select-Object -First 1
-
-          if (-not $jarFile) {
-              throw "Windows JAR not found"
-          }
-
-          $entries = & jar tf $jarFile.FullName
-          $shaderCount = ($entries | Where-Object { $_ -match '\.spv$' } | Measure-Object).Count
-          if ($shaderCount -eq 0) {
-              throw "No shaders found in Windows JAR"
-          }
-
-          if (-not ($entries | Where-Object { $_ -match 'core\.dll$' })) {
-              throw "core.dll not found in Windows JAR"
-          }
-          if (-not ($entries | Where-Object { $_ -match 'core\.lib$' })) {
-              throw "core.lib not found in Windows JAR"
-          }
-
-      - name: Upload platform JAR artifact
+      # ── Upload artifact ────────────────────────────────────────
+      - name: Upload JAR
         uses: actions/upload-artifact@v4
         with:
           name: Radiance-${{ matrix.platform }}
@@ -284,38 +192,24 @@ jobs:
     if: github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
-
     steps:
-      - name: Download built JAR artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: Radiance-*
           path: release-assets
           merge-multiple: true
 
-      - name: Upload JARs to GitHub release
+      - name: Upload to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
-          REPO="${{ github.repository }}"
           TAG="${{ github.event.release.tag_name }}"
-
-          if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
-            echo "Release $TAG not found, creating one from tag"
-            gh release create "$TAG" --repo "$REPO" --title "$TAG" --generate-notes
-          fi
-
           shopt -s nullglob
           JARS=(release-assets/*linux.jar release-assets/*windows.jar)
-          if [ ${#JARS[@]} -eq 0 ]; then
-            echo "ERROR: No platform JARs found to upload"
-            exit 1
-          fi
-
-          for JAR_FILE in "${JARS[@]}"; do
-            JAR_NAME=$(basename "$JAR_FILE")
-            echo "Uploading $JAR_NAME to release $TAG"
-            gh release upload "$TAG" "$JAR_FILE" --repo "$REPO" --clobber
+          [[ ${#JARS[@]} -gt 0 ]] || { echo "ERROR: No JARs found"; exit 1; }
+          for f in "${JARS[@]}"; do
+            echo "Uploading $(basename "$f")"
+            gh release upload "$TAG" "$f" --repo "${{ github.repository }}" --clobber
           done
