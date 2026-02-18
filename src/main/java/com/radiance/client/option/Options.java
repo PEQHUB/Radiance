@@ -165,7 +165,7 @@ public class Options {
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
     public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
-    public static int maxExposure = 2;
+    public static int maxExposure = 8;          // raised from 2 — allows ~3 EV boost for dark scenes
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
     public static boolean manualExposureEnabled = false;
     public static int manualExposureHundredths = 100; // hundredths: 1-2000 -> 0.01 to 20.00
@@ -178,7 +178,7 @@ public class Options {
     public static int exposureDownSpeedTenths = 10;           // 1-200 → 0.1 to 20.0
     public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0
     public static int exposureHighlightProtectionPercent = 100; // 0-100 → 0.0 to 1.0
-    public static int exposureHighlightPercentileTenK = 9850; // 9000-9999 → 0.9000 to 0.9999
+    public static int exposureHighlightPercentileTenK = 9500; // 9000-9999 → 0.9000 to 0.9999 (was 9850, now 95th percentile)
     public static int exposureHighlightSmoothSpeedTenths = 100; // 0-300 → 0.0 to 30.0
     public static int exposureLog2Max = 14;                   // 8-16, improved mode only
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
