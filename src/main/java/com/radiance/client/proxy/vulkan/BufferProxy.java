@@ -280,7 +280,8 @@ public class BufferProxy {
 
     public static void updateSkyUniform(float baseColorR, float baseColorG, float baseColorB,
         float horizontalColorR, float horizontalColorG, float horizontalColorB,
-        float horizontalColorA, Vector3f sunDirection, int skyType, boolean sunRisingOrSetting,
+        float horizontalColorA, Vector3f sunDirection, Vector3f moonDirection,
+        int skyType, boolean sunRisingOrSetting,
         boolean skyDark, boolean hasBlindnessOrDarkness, int submersionType, int moonPhase,
         float rainGradient, int sunTextureID, int moonTextureID,
         float sunSizeMultiplier, float moonSizeMultiplier,
@@ -296,7 +297,7 @@ public class BufferProxy {
         float cloudShadowStrength, float cloudAmbientStrength, float cloudSunOcclusionStrength,
         float cloudNoiseAffectsShadows) {
         try (MemoryStack stack = stackPush()) {
-            int size = 288;
+            int size = 304;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -327,6 +328,14 @@ public class BufferProxy {
             baseAddr += Float.BYTES;
             bb.putInt(baseAddr, sunRisingOrSetting ? 1 : 0);
             baseAddr += Integer.BYTES;
+
+            bb.putFloat(baseAddr, moonDirection.x);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, moonDirection.y);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, moonDirection.z);
+            baseAddr += Float.BYTES;
+            baseAddr += Float.BYTES; // moonDirPad
 
             bb.putInt(baseAddr, skyDark ? 1 : 0);
             baseAddr += Integer.BYTES;

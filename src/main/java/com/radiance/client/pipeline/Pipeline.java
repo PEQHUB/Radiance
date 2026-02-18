@@ -445,6 +445,8 @@ public class Pipeline {
 
     public static native void collectNativeModules();
 
+    public static native void recollectNativeModules();
+
     public static native boolean isNativeModuleAvailable(String name);
 
     public static void savePipeline() {

@@ -286,15 +286,59 @@ public abstract class WorldRendererMixins {
         float dayFrac = (dayTimeTicks + tickDelta) / 24000.0F;
         float skyAngleForSun = dayFrac - 0.25F;
 
-        MatrixStack matrixStack = new MatrixStack();
-        matrixStack.push();
-        matrixStack.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90.0F));
-        matrixStack.multiply(RotationAxis.POSITIVE_X.rotationDegrees(skyAngleForSun * 360.0F));
-        Matrix4f rotationMatrix = matrixStack.peek().getPositionMatrix();
-        // Shaders treat sunDirection.y as elevation above the horizon.
-        // In vanilla sky rendering the sun quad starts at +Y before being rotated.
-        Vector3f sunDirection = rotationMatrix.transformPosition(0, 1, 0, new Vector3f()).normalize();
-        matrixStack.pop();
+        Vector3f sunDirection;
+        Vector3f moonDirection;
+
+        if (Options.sunPathMode == 1) {
+            // Physical mode: apply inclination (axial tilt) and azimuth offset
+            float inclDeg = (float) Options.sunInclinationDeg;
+            float azOffDeg = (float) Options.sunAzimuthOffsetDeg;
+
+            MatrixStack ms = new MatrixStack();
+            ms.push();
+            // 1. Base Y rotation (vanilla baseline) + azimuth offset
+            ms.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90.0F + azOffDeg));
+            // 2. Tilt the orbital plane by inclination (Z-axis rotation tilts the orbit)
+            ms.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(inclDeg));
+            // 3. Rotate sun around the tilted orbital plane
+            ms.multiply(RotationAxis.POSITIVE_X.rotationDegrees(skyAngleForSun * 360.0F));
+            Matrix4f rot = ms.peek().getPositionMatrix();
+            sunDirection = rot.transformPosition(0, 1, 0, new Vector3f()).normalize();
+            ms.pop();
+
+            // Moon direction
+            float moonInclDeg, moonAzOffDeg;
+            if (Options.moonFollowSun) {
+                moonInclDeg = inclDeg;
+                moonAzOffDeg = azOffDeg;
+            } else {
+                moonInclDeg = (float) Options.moonInclinationDeg;
+                moonAzOffDeg = (float) Options.moonAzimuthOffsetDeg;
+            }
+            MatrixStack moonMs = new MatrixStack();
+            moonMs.push();
+            moonMs.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90.0F + moonAzOffDeg));
+            moonMs.multiply(RotationAxis.POSITIVE_Z.rotationDegrees(moonInclDeg));
+            // Moon is 180deg opposite the sun in its orbit
+            moonMs.multiply(RotationAxis.POSITIVE_X.rotationDegrees((skyAngleForSun + 0.5F) * 360.0F));
+            Matrix4f moonRot = moonMs.peek().getPositionMatrix();
+            moonDirection = moonRot.transformPosition(0, 1, 0, new Vector3f()).normalize();
+            moonMs.pop();
+        } else {
+            // Legacy mode: vanilla-style overhead arc (current behavior)
+            MatrixStack ms = new MatrixStack();
+            ms.push();
+            ms.multiply(RotationAxis.POSITIVE_Y.rotationDegrees(-90.0F));
+            ms.multiply(RotationAxis.POSITIVE_X.rotationDegrees(skyAngleForSun * 360.0F));
+            Matrix4f rot = ms.peek().getPositionMatrix();
+            // Shaders treat sunDirection.y as elevation above the horizon.
+            // In vanilla sky rendering the sun quad starts at +Y before being rotated.
+            sunDirection = rot.transformPosition(0, 1, 0, new Vector3f()).normalize();
+            ms.pop();
+
+            // Moon opposite sun in legacy mode
+            moonDirection = new Vector3f(-sunDirection.x, -sunDirection.y, -sunDirection.z);
+        }
 
         int skyType = dimensionEffects.getSkyType().ordinal();
 
@@ -322,7 +366,10 @@ public abstract class WorldRendererMixins {
 
         float cloudPuffiness = Options.getCloudPuffiness(envDim);
         float cloudDetailScale = Options.getCloudDetailScale(envDim);
-        float cloudDetailStrength = Options.getCloudDetailStrength(envDim);
+        // Fast = analytic flat slab (detailStrength=0); Fancy = 3D FBM stepped volumetric.
+        float cloudDetailStrength = (cloudRenderMode == CloudRenderMode.FANCY)
+            ? Options.getCloudDetailStrength(envDim)
+            : 0.0f;
         float cloudAnisotropy = Options.getCloudAnisotropy(envDim);
         float cloudShadowStrength = Options.getCloudShadowStrength(envDim);
         float cloudDensity = Options.getCloudDensity(envDim);
@@ -399,12 +446,12 @@ public abstract class WorldRendererMixins {
         }
 
         BufferProxy.updateSkyUniform(baseColorR, baseColorG, baseColorB, horizontalColorR,
-            horizontalColorG, horizontalColorB, horizontalColorA, sunDirection, skyType,
-            sunRisingOrSetting, skyDark, hasBlindnessOrDarkness, submersionType, moonPhase,
-            rainGradient, sunTextureID, moonTextureID, sunSizeMultiplier, moonSizeMultiplier,
-            sunIntensityMultiplier, moonIntensityMultiplier, waterTintR, waterTintG, waterTintB,
-            waterFogStrength, rainBlendStrength, skyBrightness,
-            cloudBaseHeight, cloudThickness, cloudDensityScale, cloudAlbedoScale,
+            horizontalColorG, horizontalColorB, horizontalColorA, sunDirection, moonDirection,
+            skyType, sunRisingOrSetting, skyDark, hasBlindnessOrDarkness, submersionType,
+            moonPhase, rainGradient, sunTextureID, moonTextureID, sunSizeMultiplier,
+            moonSizeMultiplier, sunIntensityMultiplier, moonIntensityMultiplier,
+            waterTintR, waterTintG, waterTintB, waterFogStrength, rainBlendStrength,
+            skyBrightness, cloudBaseHeight, cloudThickness, cloudDensityScale, cloudAlbedoScale,
             cloudTileTextureID, cloudCenterX, cloudCenterZ,
             cloudOffsetX, cloudOffsetZ, cloudTicks,
             cloudPuffiness, cloudDetailScale, cloudDetailStrength, cloudAnisotropy,

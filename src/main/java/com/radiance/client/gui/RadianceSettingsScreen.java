@@ -4,6 +4,7 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.serialization.Codec;
+import com.radiance.client.RadianceClient;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import java.util.List;
@@ -13,9 +14,11 @@ import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.OptionListWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
+import net.minecraft.util.Formatting;
 
 public class RadianceSettingsScreen extends GameOptionsScreen {
 
@@ -24,6 +27,57 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     public RadianceSettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options, Text.translatable("radiance.settings.title"));
         this.parentScreen = parent;
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+
+        // Shift the body list down to make room for the hint lines below the title
+        this.body.setY(this.body.getY() + 22);
+        this.body.setHeight(this.body.getHeight() - 22);
+
+        // "Reset to Defaults" button — top-right corner
+        int btnW = 110;
+        int btnH = 18;
+        int btnX = this.width - btnW - 6;
+        int btnY = 6;
+        this.addDrawableChild(ButtonWidget.builder(
+            Text.translatable("radiance.settings.reset_defaults"),
+            btn -> {
+                Options.resetAllToDefaults();
+                MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(parentScreen));
+            })
+            .dimensions(btnX, btnY, btnW, btnH)
+            .build());
+
+        // "Welcome Message: On/Off" toggle button — top-left corner
+        this.addDrawableChild(ButtonWidget.builder(
+            Text.translatable(Options.showWelcomeMessage
+                ? "radiance.settings.welcome_message.on"
+                : "radiance.settings.welcome_message.off"),
+            btn -> {
+                Options.showWelcomeMessage = !Options.showWelcomeMessage;
+                Options.overwriteConfig();
+                btn.setMessage(Text.translatable(Options.showWelcomeMessage
+                    ? "radiance.settings.welcome_message.on"
+                    : "radiance.settings.welcome_message.off"));
+            })
+            .dimensions(6, btnY, btnW, btnH)
+            .build());
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.render(context, mouseX, mouseY, delta);
+
+        // Hint lines below the title, above the body list
+        int hintY = 26;
+        int centerX = this.width / 2;
+        context.drawCenteredTextWithShadow(
+            this.textRenderer,
+            Text.literal(Formatting.GRAY + "Ctrl+Click a slider to type a value  \u2502  Shift+Click to reset to default"),
+            centerX, hintY, 0xFFFFFF);
     }
 
     @Override
@@ -153,6 +207,18 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         // === Upscaler ===
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_UPSCALER), body));
+
+        if (RadianceClient.dlssMissing) {
+            SimpleOption<Boolean> dlssWarning = new SimpleOption<>(
+                "options.video.dlss_missing_warning",
+                SimpleOption.emptyTooltip(),
+                (optionText, value) -> optionText,
+                new PotentialValuesBasedCallbacksNoValue<>(
+                    ImmutableList.of(Boolean.TRUE, Boolean.FALSE), Codec.BOOL),
+                false,
+                value -> MinecraftClient.getInstance().setScreen(new DlssMissingScreen(this)));
+            this.body.addSingleOptionEntry(dlssWarning);
+        }
 
         RadianceSettingsScreen self = this;
         SimpleOption<Boolean> dlssDEnabled = SimpleOption.ofBoolean(
@@ -287,6 +353,33 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             value -> MinecraftClient.getInstance().setScreen(new RenderPipelineScreen(this)));
         this.body.addSingleOptionEntry(pipelineSettings);
 
+    }
+
+    /** WidgetEntry that renders a single centered text label with no interactive widgets. */
+    static class WarningLabelEntry extends OptionListWidget.WidgetEntry {
+        private final Text label;
+
+        WarningLabelEntry(Text label, OptionListWidget parent) {
+            super(ImmutableList.of(), null);
+            this.label = label;
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth,
+            int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+            context.drawCenteredTextWithShadow(mc.textRenderer, label, x + entryWidth / 2, y + 6, 0xFFFFFF);
+        }
+
+        @Override
+        public List<? extends Element> children() {
+            return ImmutableList.of();
+        }
+
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return ImmutableList.of();
+        }
     }
 
     /** WidgetEntry that holds a single ResettableSliderWidget, centered like SimpleOption entries. */

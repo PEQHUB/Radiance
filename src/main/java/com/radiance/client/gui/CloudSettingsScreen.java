@@ -50,14 +50,6 @@ public class CloudSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.environment.clouds.volumetric.category"), body));
 
-        ResettableSliderWidget cloudPuffinessSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            0, 200, Options.cloudPuffinessPercent[dim], Options.PERCENT_DEFAULT,
-            v -> getGenericValueText(Text.translatable("options.video.environment.cloud_puffiness"),
-                Text.literal(v + "%")),
-            v -> Options.setCloudPuffinessPercent(dim, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(cloudPuffinessSlider, body));
-
         ResettableSliderWidget cloudDetailScaleSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
             25, 300, Options.cloudDetailScalePercent[dim], Options.CLOUD_DETAIL_SCALE_DEFAULT_PERCENT,

@@ -126,6 +126,16 @@ public class Options {
     // DLSS-D (Ray Reconstruction)
     public static final String DLSS_D_ENABLED_KEY = "options.video.dlss_d_enabled";
 
+    // Sun/Moon orbit
+    public static final String SUN_PATH_MODE_KEY = "options.video.environment.sun_path_mode";
+    public static final String SUN_PATH_MODE_LEGACY = "options.video.environment.sun_path_mode.legacy";
+    public static final String SUN_PATH_MODE_PHYSICAL = "options.video.environment.sun_path_mode.physical";
+    public static final String SUN_INCLINATION_KEY = "options.video.environment.sun_inclination";
+    public static final String SUN_AZIMUTH_OFFSET_KEY = "options.video.environment.sun_azimuth_offset";
+    public static final String MOON_FOLLOW_SUN_KEY = "options.video.environment.moon_follow_sun";
+    public static final String MOON_INCLINATION_KEY = "options.video.environment.moon_inclination";
+    public static final String MOON_AZIMUTH_OFFSET_KEY = "options.video.environment.moon_azimuth_offset";
+
     // Ray Tracing
     public static final String RAY_BOUNCES_KEY = "options.video.ray_bounces";
 
@@ -181,6 +191,23 @@ public class Options {
     public static int hdrPeakNits = 1000;          // 400–10000 nits
     public static int hdrPaperWhiteNits = 203;     // 80–500 nits, ITU-R BT.2408 reference white
     public static int hdrUiBrightnessNits = 100;   // 50–300 nits, UI brightness in HDR mode
+
+    // Sun/Moon orbit (Overworld-only, not per-dimension)
+    public static int sunPathMode = 1;         // 0=Legacy, 1=Physical
+    public static int sunInclinationDeg = 23;  // 0–90 degrees (Earth-like tilt)
+    public static int sunAzimuthOffsetDeg = 0; // -180 to +180 degrees
+    public static boolean moonFollowSun = true;
+    public static int moonInclinationDeg = 23;
+    public static int moonAzimuthOffsetDeg = 0;
+
+    // Persistent UI state (not reset by Reset to Defaults)
+    public static boolean showWelcomeMessage = true;
+
+    public static final int SUN_PATH_MODE_DEFAULT = 1;
+    public static final int SUN_INCLINATION_DEFAULT = 23;
+    public static final int SUN_AZIMUTH_OFFSET_DEFAULT = 0;
+    public static final int MOON_INCLINATION_DEFAULT = 23;
+    public static final int MOON_AZIMUTH_OFFSET_DEFAULT = 0;
 
     // Emission
     public static float emissionLava = 1.0f;
@@ -573,6 +600,17 @@ public class Options {
             props.setProperty("env.moonIntensityPercent." + dim, String.valueOf(moonIntensityPercent[dim]));
         }
 
+        // Sun/Moon orbit (Overworld-only)
+        props.setProperty("sunPathMode", String.valueOf(sunPathMode));
+        props.setProperty("sunInclinationDeg", String.valueOf(sunInclinationDeg));
+        props.setProperty("sunAzimuthOffsetDeg", String.valueOf(sunAzimuthOffsetDeg));
+        props.setProperty("moonFollowSun", String.valueOf(moonFollowSun));
+        props.setProperty("moonInclinationDeg", String.valueOf(moonInclinationDeg));
+        props.setProperty("moonAzimuthOffsetDeg", String.valueOf(moonAzimuthOffsetDeg));
+
+        // Persistent UI state
+        props.setProperty("showWelcomeMessage", String.valueOf(showWelcomeMessage));
+
         try {
             Files.createDirectories(path.getParent());
         } catch (IOException e) {
@@ -682,6 +720,24 @@ public class Options {
                 props.getProperty("env.moonIntensityPercent." + dim,
                     String.valueOf(dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT))));
         }
+
+        // Sun/Moon orbit (Overworld-only, not per-dimension)
+        sunPathMode = Math.max(0, Math.min(1, Integer.parseInt(
+            props.getProperty("sunPathMode", String.valueOf(SUN_PATH_MODE_DEFAULT)))));
+        sunInclinationDeg = Math.max(0, Math.min(90, Integer.parseInt(
+            props.getProperty("sunInclinationDeg", String.valueOf(SUN_INCLINATION_DEFAULT)))));
+        sunAzimuthOffsetDeg = Math.max(-180, Math.min(180, Integer.parseInt(
+            props.getProperty("sunAzimuthOffsetDeg", String.valueOf(SUN_AZIMUTH_OFFSET_DEFAULT)))));
+        moonFollowSun = Boolean.parseBoolean(
+            props.getProperty("moonFollowSun", "true"));
+        moonInclinationDeg = Math.max(0, Math.min(90, Integer.parseInt(
+            props.getProperty("moonInclinationDeg", String.valueOf(MOON_INCLINATION_DEFAULT)))));
+        moonAzimuthOffsetDeg = Math.max(-180, Math.min(180, Integer.parseInt(
+            props.getProperty("moonAzimuthOffsetDeg", String.valueOf(MOON_AZIMUTH_OFFSET_DEFAULT)))));
+
+        // Persistent UI state
+        showWelcomeMessage = Boolean.parseBoolean(
+            props.getProperty("showWelcomeMessage", "true"));
     }
 
     private static void setEnvironmentDefaults() {
@@ -709,6 +765,14 @@ public class Options {
             moonSizePercent[dim] = PERCENT_DEFAULT;
             moonIntensityPercent[dim] = dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT;
         }
+
+        // Sun/Moon orbit defaults
+        sunPathMode = SUN_PATH_MODE_DEFAULT;
+        sunInclinationDeg = SUN_INCLINATION_DEFAULT;
+        sunAzimuthOffsetDeg = SUN_AZIMUTH_OFFSET_DEFAULT;
+        moonFollowSun = true;
+        moonInclinationDeg = MOON_INCLINATION_DEFAULT;
+        moonAzimuthOffsetDeg = MOON_AZIMUTH_OFFSET_DEFAULT;
     }
 
     private static int clampDimIndex(int dim) {
@@ -817,7 +881,8 @@ public class Options {
     }
 
     public static float getCloudPuffiness(int dim) {
-        return cloudPuffinessPercent[clampDimIndex(dim)] / 100.0f;
+        // Locked to 3% — higher values cause visible corner artifacts at concave cloud edges.
+        return 0.03f;
     }
 
     public static void setCloudPuffinessPercent(int dim, int value, boolean write) {
@@ -993,6 +1058,79 @@ public class Options {
         if (write) {
             overwriteConfig();
         }
+    }
+
+    // --- Reset all options to defaults ---
+
+    public static void resetAllToDefaults() {
+        // Global options
+        maxFps = 260;
+        vsync = true;
+        dlssDEnabled = true;
+        rayBounces = 4;
+        chunkBuildingBatchSize = 2;
+        chunkBuildingTotalBatches = 4;
+        sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
+        saturationPercent = SATURATION_DEFAULT_PERCENT;
+        upscalerQuality = 2;
+        upscalerResOverride = 100;
+        upscalerPreset = 5;
+        hdrEnabled = false;
+        hdrPeakNits = 1000;
+        hdrPaperWhiteNits = 203;
+        hdrUiBrightnessNits = 100;
+        minExposureTenK = 1;
+        maxExposure = 2;
+        exposureCompensation = 0;
+        manualExposureEnabled = false;
+        manualExposureHundredths = 100;
+        legacyExposure = false;
+        casEnabled = false;
+        casSharpnessPercent = 50;
+        exposureUpSpeedTenths = 10;
+        exposureDownSpeedTenths = 10;
+        exposureBrightAdaptBoostTenths = 10;
+        exposureHighlightProtectionPercent = 100;
+        exposureHighlightPercentileTenK = 9850;
+        exposureHighlightSmoothSpeedTenths = 100;
+        exposureLog2Max = 14;
+        middleGreyPercent = 18;
+        LwhiteTenths = 40;
+        // Environment + orbit
+        setEnvironmentDefaults();
+        overwriteConfig();
+    }
+
+    // --- Sun/Moon orbit setters ---
+
+    public static void setSunPathMode(int mode, boolean write) {
+        sunPathMode = Math.max(0, Math.min(1, mode));
+        if (write) overwriteConfig();
+    }
+
+    public static void setSunInclinationDeg(int deg, boolean write) {
+        sunInclinationDeg = Math.max(0, Math.min(90, deg));
+        if (write) overwriteConfig();
+    }
+
+    public static void setSunAzimuthOffsetDeg(int deg, boolean write) {
+        sunAzimuthOffsetDeg = Math.max(-180, Math.min(180, deg));
+        if (write) overwriteConfig();
+    }
+
+    public static void setMoonFollowSun(boolean follow, boolean write) {
+        moonFollowSun = follow;
+        if (write) overwriteConfig();
+    }
+
+    public static void setMoonInclinationDeg(int deg, boolean write) {
+        moonInclinationDeg = Math.max(0, Math.min(90, deg));
+        if (write) overwriteConfig();
+    }
+
+    public static void setMoonAzimuthOffsetDeg(int deg, boolean write) {
+        moonAzimuthOffsetDeg = Math.max(-180, Math.min(180, deg));
+        if (write) overwriteConfig();
     }
 
     // === Native methods ===
