@@ -83,16 +83,6 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # ── Fix gradle.properties for CI ────────────────────────────
-      - name: Patch gradle.properties for CI
-        working-directory: Radiance
-        shell: bash
-        run: |
-          # Remove local-only tmpdir setting that doesn't exist on CI runners
-          sed -i.bak 's/-Djava.io.tmpdir=C:\/tmp//' gradle.properties
-          echo "gradle.properties after patch:"
-          cat gradle.properties
-
       # ── JNI headers ────────────────────────────────────────────
       - name: Generate JNI headers
         working-directory: Radiance
