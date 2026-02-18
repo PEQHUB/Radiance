@@ -82,27 +82,30 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
-
-      # ── Ensure tmpdir exists (Gradle cache may reference C:/tmp) ─
-      - name: Create tmpdir
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            mkdir -p "C:/tmp"
-          else
-            mkdir -p /tmp
-          fi
+        with:
+          cache-overwrite-existing: true
+          cache-cleanup: always
 
       # ── JNI headers ────────────────────────────────────────────
-      - name: Generate JNI headers
+      - name: Generate JNI headers (Linux)
+        if: runner.os == 'Linux'
         working-directory: Radiance
-        shell: bash
         run: |
-          chmod +x gradlew 2>/dev/null || true
+          chmod +x gradlew
           ./gradlew compileJava --no-daemon
-          count=$(find src/main/native/include -name '*.h' 2>/dev/null | wc -l)
+          count=$(find src/main/native/include -name '*.h' | wc -l)
           echo "Generated $count JNI headers"
           [[ "$count" -gt 0 ]] || { echo "ERROR: No JNI headers generated"; exit 1; }
+
+      - name: Generate JNI headers (Windows)
+        if: runner.os == 'Windows'
+        working-directory: Radiance
+        shell: pwsh
+        run: |
+          .\gradlew.bat compileJava --no-daemon
+          $headers = Get-ChildItem "src\main\native\include" -Filter *.h -Recurse
+          Write-Host "Generated $($headers.Count) JNI headers"
+          if ($headers.Count -eq 0) { throw "No JNI headers generated" }
 
       # ── Build MCVR native library + shaders ────────────────────
       - name: Build MCVR (Linux)
@@ -151,12 +154,18 @@ jobs:
           fi
 
       # ── Build JAR ──────────────────────────────────────────────
-      - name: Build Radiance JAR
+      - name: Build Radiance JAR (Linux)
+        if: runner.os == 'Linux'
         working-directory: Radiance
-        shell: bash
         run: |
-          chmod +x gradlew 2>/dev/null || true
-          ./gradlew build -Pplatform=${{ matrix.platform }} --no-daemon
+          ./gradlew build -Pplatform=linux --no-daemon
+
+      - name: Build Radiance JAR (Windows)
+        if: runner.os == 'Windows'
+        working-directory: Radiance
+        shell: pwsh
+        run: |
+          .\gradlew.bat build -Pplatform=windows --no-daemon
 
       # ── Verify JAR ─────────────────────────────────────────────
       - name: Verify JAR
