@@ -127,6 +127,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null
           Set-Location "$env:GITHUB_WORKSPACE\Radiance"
           .\gradlew.bat compileJava --no-daemon
 
@@ -225,6 +226,7 @@ jobs:
         if: matrix.platform == 'windows'
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Path "C:\tmp" -Force | Out-Null
           Set-Location "$env:GITHUB_WORKSPACE\Radiance"
           .\gradlew.bat build -Pplatform=windows --no-daemon
 
