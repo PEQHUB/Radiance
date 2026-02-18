@@ -18,7 +18,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 12;
+    public static final int CURRENT_OPTIONS_VERSION = 13;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
 
@@ -461,6 +461,17 @@ public class Options {
 
                 tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
                 nativeSetTonemappingMode(tonemappingMode, false);
+            }
+
+            if (loadedOptionsVersion < 13) {
+                // Reset auto-exposure parameters to industry-standard defaults.
+                // Histogram trim changed to 10%/90% (was ~0.5%/99.9%) and highlight
+                // cap moved to 95th percentile (was 98.5th) to prevent blown highlights.
+                // maxExposure raised to 8 (was 2) for proper dark-scene brightening.
+                maxExposure = 8;
+                nativeSetMaxExposure(maxExposure, false);
+                exposureHighlightPercentileTenK = 9500;
+                nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
             }
 
             optionsVersion = CURRENT_OPTIONS_VERSION;
