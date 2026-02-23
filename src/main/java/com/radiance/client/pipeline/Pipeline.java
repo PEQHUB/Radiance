@@ -652,10 +652,11 @@ public class Pipeline {
                 continue;
             }
 
-            if (!isNativeModuleAvailable("render_pipeline.module.dlss.name")) {
+            if ("render_pipeline.module.dlss.name".equals(storedModule.entryName)
+                    && !(Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name"))) {
                 assembleDefault();
                 savePipeline();
-                RadianceClient.LOGGER.error("DLSS is not available. Use NRD!");
+                RadianceClient.LOGGER.error("DLSS is not available or disabled. Rebuilding default pipeline.");
                 return;
             }
         }
