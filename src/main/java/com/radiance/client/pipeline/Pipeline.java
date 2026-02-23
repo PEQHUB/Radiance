@@ -385,14 +385,10 @@ public class Pipeline {
     public static void assembleDefault() {
         clear();
 
-        // Default: RT + (optional DLSS) + bloom + motion_blur + dof + ToneMapping + Post
+        // Default: RT + (optional DLSS) + ToneMapping + Post
         boolean useDlss = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
 
         Module rayTracingModule = addModule("render_pipeline.module.ray_tracing.name");
-
-        Module bloomModule = addModule("render_pipeline.module.bloom.name");
-        Module motionBlurModule = addModule("render_pipeline.module.motion_blur.name");
-        Module dofModule = addModule("render_pipeline.module.dof.name");
 
         Module toneMappingModule = addModule("render_pipeline.module.tone_mapping.name");
 
@@ -425,46 +421,19 @@ public class Pipeline {
             connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
                 dlssModule.getInputImageConfig("first_hit_depth"));
 
-            // DLSS processed HDR → bloom → motion_blur → dof → tone_mapping
             connect(dlssModule.getOutputImageConfig("processed"),
-                bloomModule.getInputImageConfig("hdr_input"));
+                toneMappingModule.getInputImageConfig("denoised_radiance"));
 
             connect(dlssModule.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
-
-            // Motion blur needs motion vectors from ray tracing
-            connect(rayTracingModule.getOutputImageConfig("motion_vector"),
-                motionBlurModule.getInputImageConfig("motion_vector"));
-
-            // DoF needs depth from ray tracing
-            connect(rayTracingModule.getOutputImageConfig("linear_depth"),
-                dofModule.getInputImageConfig("linear_depth"));
         } else {
-            // DLSS disabled/unavailable: feed raw ray tracing radiance through post-processing chain.
+            // DLSS disabled/unavailable: feed raw ray tracing radiance to tone mapping.
             connect(rayTracingModule.getOutputImageConfig("radiance"),
-                bloomModule.getInputImageConfig("hdr_input"));
+                toneMappingModule.getInputImageConfig("denoised_radiance"));
 
             connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
-
-            // Motion blur needs motion vectors from ray tracing
-            connect(rayTracingModule.getOutputImageConfig("motion_vector"),
-                motionBlurModule.getInputImageConfig("motion_vector"));
-
-            // DoF needs depth from ray tracing
-            connect(rayTracingModule.getOutputImageConfig("linear_depth"),
-                dofModule.getInputImageConfig("linear_depth"));
         }
-
-        // Chain: bloom → motion_blur → dof → tone_mapping
-        connect(bloomModule.getOutputImageConfig("hdr_output"),
-            motionBlurModule.getInputImageConfig("hdr_input"));
-
-        connect(motionBlurModule.getOutputImageConfig("hdr_output"),
-            dofModule.getInputImageConfig("hdr_input"));
-
-        connect(dofModule.getOutputImageConfig("hdr_output"),
-            toneMappingModule.getInputImageConfig("denoised_radiance"));
 
         connect(toneMappingModule.getOutputImageConfig("mapped_output"),
             postRenderModule.getInputImageConfig("ldr_input"));

@@ -126,22 +126,6 @@
   "options.video.hdr_peak_nits": "Peak Brightness",
   "options.video.hdr_paper_white_nits": "Paper White",
   "options.video.hdr_ui_brightness_nits": "UI Brightness",
-
-  "options.video.bloom_enabled": "Bloom",
-  "options.video.bloom_threshold": "Bloom Threshold",
-  "options.video.bloom_strength": "Bloom Strength",
-  "options.video.bloom_radius": "Bloom Radius",
-
-  "options.video.motion_blur_enabled": "Motion Blur",
-  "options.video.motion_blur_strength": "Blur Strength",
-  "options.video.motion_blur_samples": "Blur Samples",
-
-  "options.video.dof_enabled": "Depth of Field",
-  "options.video.dof_auto_focus": "Auto Focus",
-  "options.video.dof_focal_distance": "Focal Distance",
-  "options.video.dof_aperture": "Aperture",
-  "options.video.dof_max_radius": "Max Blur Radius",
-
   "options.video.category.emission": "Emission Settings",
   "options.video.emission_settings": "Emission Settings...",
   "radiance.settings.emission.title": "Emission Settings",

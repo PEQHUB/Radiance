@@ -1,9 +1,0 @@
-name: "render_pipeline.module.motion_blur.name"
-inputImageConfigs:
-  - name: "hdr_input"
-    format: "R16G16B16A16_SFLOAT"
-  - name: "motion_vector"
-    format: "R16G16_SFLOAT"
-outputImageConfigs:
-  - name: "hdr_output"
-    format: "R16G16B16A16_SFLOAT"

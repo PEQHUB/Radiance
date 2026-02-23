@@ -1,9 +1,0 @@
-name: "render_pipeline.module.dof.name"
-inputImageConfigs:
-  - name: "hdr_input"
-    format: "R16G16B16A16_SFLOAT"
-  - name: "linear_depth"
-    format: "R16_SFLOAT"
-outputImageConfigs:
-  - name: "hdr_output"
-    format: "R16G16B16A16_SFLOAT"

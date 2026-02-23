@@ -18,7 +18,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 14;
+    public static final int CURRENT_OPTIONS_VERSION = 13;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
 
@@ -107,24 +107,6 @@ public class Options {
     public static final String HDR_PEAK_NITS_KEY = "options.video.hdr_peak_nits";
     public static final String HDR_PAPER_WHITE_NITS_KEY = "options.video.hdr_paper_white_nits";
 
-    // Post-processing — Bloom
-    public static final String BLOOM_ENABLED_KEY          = "options.video.bloom_enabled";
-    public static final String BLOOM_THRESHOLD_KEY        = "options.video.bloom_threshold";
-    public static final String BLOOM_STRENGTH_KEY         = "options.video.bloom_strength";
-    public static final String BLOOM_RADIUS_KEY           = "options.video.bloom_radius";
-
-    // Post-processing — Motion Blur
-    public static final String MOTION_BLUR_ENABLED_KEY   = "options.video.motion_blur_enabled";
-    public static final String MOTION_BLUR_STRENGTH_KEY  = "options.video.motion_blur_strength";
-    public static final String MOTION_BLUR_SAMPLES_KEY   = "options.video.motion_blur_samples";
-
-    // Post-processing — Depth of Field
-    public static final String DOF_ENABLED_KEY           = "options.video.dof_enabled";
-    public static final String DOF_AUTO_FOCUS_KEY        = "options.video.dof_auto_focus";
-    public static final String DOF_FOCAL_DISTANCE_KEY    = "options.video.dof_focal_distance";
-    public static final String DOF_APERTURE_KEY          = "options.video.dof_aperture";
-    public static final String DOF_MAX_RADIUS_KEY        = "options.video.dof_max_radius";
-
     // Upscaler (Off / FSR3 / DLSS SR)
     public static final String UPSCALER_MODE_KEY = "options.video.upscaler_mode";
     public static final String UPSCALER_MODE_OFF = "options.video.upscaler_mode.off";
@@ -209,24 +191,6 @@ public class Options {
     public static int hdrPeakNits = 1000;          // 400–10000 nits
     public static int hdrPaperWhiteNits = 203;     // 80–500 nits, ITU-R BT.2408 reference white
     public static int hdrUiBrightnessNits = 100;   // 50–300 nits, UI brightness in HDR mode
-
-    // Post-processing — Bloom
-    public static boolean bloomEnabled         = false;
-    public static int     bloomThresholdTenths = 10;  // 1–50 → 0.1 to 5.0 (1.0 = paper white)
-    public static int     bloomStrengthTenths  = 1;   // 0–20 → 0.00 to 2.00 (default 0.08 ≈ 1 tenth)
-    public static int     bloomRadius          = 4;   // 1–16 pixels
-
-    // Post-processing — Motion Blur
-    public static boolean motionBlurEnabled          = false;
-    public static int     motionBlurStrengthTenths   = 10; // 1–20 → 0.1 to 2.0 (1.0 = full velocity)
-    public static int     motionBlurSamples          = 8;  // 4–16 samples
-
-    // Post-processing — Depth of Field
-    public static boolean dofEnabled          = false;
-    public static boolean dofAutoFocus        = true;
-    public static int     dofFocalDistanceDm  = 160; // decimetres: 10–500 → 1.0 to 50.0 world units
-    public static int     dofApertureHundredths = 5; // hundredths: 1–50 → 0.01 to 0.50
-    public static int     dofMaxRadius        = 12;  // 1–32 pixels
 
     // Sun/Moon orbit (Overworld-only, not per-dimension)
     public static int sunPathMode = 1;         // 0=Legacy, 1=Physical
@@ -485,36 +449,6 @@ public class Options {
             hdrUiBrightnessNits = Integer.parseInt(props.getProperty("hdrUiBrightnessNits", String.valueOf(hdrUiBrightnessNits)));
             nativeSetHdrUiBrightnessNits(hdrUiBrightnessNits, false);
 
-            // Post-processing — Bloom
-            bloomEnabled           = Boolean.parseBoolean(props.getProperty("bloomEnabled", String.valueOf(bloomEnabled)));
-            bloomThresholdTenths   = Integer.parseInt(props.getProperty("bloomThresholdTenths", String.valueOf(bloomThresholdTenths)));
-            bloomStrengthTenths    = Integer.parseInt(props.getProperty("bloomStrengthTenths", String.valueOf(bloomStrengthTenths)));
-            bloomRadius            = Integer.parseInt(props.getProperty("bloomRadius", String.valueOf(bloomRadius)));
-            nativeSetBloomEnabled(bloomEnabled, false);
-            nativeSetBloomThreshold(bloomThresholdTenths / 10.0f, false);
-            nativeSetBloomStrength(bloomStrengthTenths / 100.0f, false);
-            nativeSetBloomRadius((float) bloomRadius, false);
-
-            // Post-processing — Motion Blur
-            motionBlurEnabled        = Boolean.parseBoolean(props.getProperty("motionBlurEnabled", String.valueOf(motionBlurEnabled)));
-            motionBlurStrengthTenths = Integer.parseInt(props.getProperty("motionBlurStrengthTenths", String.valueOf(motionBlurStrengthTenths)));
-            motionBlurSamples        = Integer.parseInt(props.getProperty("motionBlurSamples", String.valueOf(motionBlurSamples)));
-            nativeSetMotionBlurEnabled(motionBlurEnabled, false);
-            nativeSetMotionBlurStrength(motionBlurStrengthTenths / 10.0f, false);
-            nativeSetMotionBlurSamples((float) motionBlurSamples, false);
-
-            // Post-processing — Depth of Field
-            dofEnabled             = Boolean.parseBoolean(props.getProperty("dofEnabled", String.valueOf(dofEnabled)));
-            dofAutoFocus           = Boolean.parseBoolean(props.getProperty("dofAutoFocus", String.valueOf(dofAutoFocus)));
-            dofFocalDistanceDm     = Integer.parseInt(props.getProperty("dofFocalDistanceDm", String.valueOf(dofFocalDistanceDm)));
-            dofApertureHundredths  = Integer.parseInt(props.getProperty("dofApertureHundredths", String.valueOf(dofApertureHundredths)));
-            dofMaxRadius           = Integer.parseInt(props.getProperty("dofMaxRadius", String.valueOf(dofMaxRadius)));
-            nativeSetDofEnabled(dofEnabled, false);
-            nativeSetDofAutoFocus(dofAutoFocus, false);
-            nativeSetDofFocalDistance(dofFocalDistanceDm / 10.0f, false);
-            nativeSetDofAperture(dofApertureHundredths / 100.0f, false);
-            nativeSetDofMaxRadius((float) dofMaxRadius, false);
-
             if (loadedOptionsVersion < 2) {
                 saturationPercent = SATURATION_DEFAULT_PERCENT;
                 nativeSetSaturation(saturationPercent / 100.0f, false);
@@ -623,19 +557,6 @@ public class Options {
         props.setProperty("hdrPeakNits", String.valueOf(hdrPeakNits));
         props.setProperty("hdrPaperWhiteNits", String.valueOf(hdrPaperWhiteNits));
         props.setProperty("hdrUiBrightnessNits", String.valueOf(hdrUiBrightnessNits));
-        // Post-processing
-        props.setProperty("bloomEnabled", String.valueOf(bloomEnabled));
-        props.setProperty("bloomThresholdTenths", String.valueOf(bloomThresholdTenths));
-        props.setProperty("bloomStrengthTenths", String.valueOf(bloomStrengthTenths));
-        props.setProperty("bloomRadius", String.valueOf(bloomRadius));
-        props.setProperty("motionBlurEnabled", String.valueOf(motionBlurEnabled));
-        props.setProperty("motionBlurStrengthTenths", String.valueOf(motionBlurStrengthTenths));
-        props.setProperty("motionBlurSamples", String.valueOf(motionBlurSamples));
-        props.setProperty("dofEnabled", String.valueOf(dofEnabled));
-        props.setProperty("dofAutoFocus", String.valueOf(dofAutoFocus));
-        props.setProperty("dofFocalDistanceDm", String.valueOf(dofFocalDistanceDm));
-        props.setProperty("dofApertureHundredths", String.valueOf(dofApertureHundredths));
-        props.setProperty("dofMaxRadius", String.valueOf(dofMaxRadius));
         props.setProperty("emissionLava", String.valueOf(emissionLava));
         props.setProperty("emissionFire", String.valueOf(emissionFire));
         props.setProperty("emissionSoulFire", String.valueOf(emissionSoulFire));
@@ -1671,96 +1592,6 @@ public class Options {
     }
 
     public native static void nativeRebuildChunks();
-
-    // --- Post-processing: Bloom ---
-    public native static void nativeSetBloomEnabled(boolean enabled, boolean write);
-    public native static void nativeSetBloomThreshold(float threshold, boolean write);
-    public native static void nativeSetBloomStrength(float strength, boolean write);
-    public native static void nativeSetBloomRadius(float radius, boolean write);
-
-    public static void setBloomEnabled(boolean enabled, boolean write) {
-        Options.bloomEnabled = enabled;
-        nativeSetBloomEnabled(enabled, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setBloomThreshold(int tenths, boolean write) {
-        Options.bloomThresholdTenths = tenths;
-        nativeSetBloomThreshold(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setBloomStrength(int tenths, boolean write) {
-        Options.bloomStrengthTenths = tenths;
-        nativeSetBloomStrength(tenths / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setBloomRadius(int pixels, boolean write) {
-        Options.bloomRadius = pixels;
-        nativeSetBloomRadius((float) pixels, write);
-        if (write) overwriteConfig();
-    }
-
-    // --- Post-processing: Motion Blur ---
-    public native static void nativeSetMotionBlurEnabled(boolean enabled, boolean write);
-    public native static void nativeSetMotionBlurStrength(float strength, boolean write);
-    public native static void nativeSetMotionBlurSamples(float samples, boolean write);
-
-    public static void setMotionBlurEnabled(boolean enabled, boolean write) {
-        Options.motionBlurEnabled = enabled;
-        nativeSetMotionBlurEnabled(enabled, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setMotionBlurStrength(int tenths, boolean write) {
-        Options.motionBlurStrengthTenths = tenths;
-        nativeSetMotionBlurStrength(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setMotionBlurSamples(int samples, boolean write) {
-        Options.motionBlurSamples = samples;
-        nativeSetMotionBlurSamples((float) samples, write);
-        if (write) overwriteConfig();
-    }
-
-    // --- Post-processing: Depth of Field ---
-    public native static void nativeSetDofEnabled(boolean enabled, boolean write);
-    public native static void nativeSetDofAutoFocus(boolean autoFocus, boolean write);
-    public native static void nativeSetDofFocalDistance(float distance, boolean write);
-    public native static void nativeSetDofAperture(float aperture, boolean write);
-    public native static void nativeSetDofMaxRadius(float maxRadius, boolean write);
-
-    public static void setDofEnabled(boolean enabled, boolean write) {
-        Options.dofEnabled = enabled;
-        nativeSetDofEnabled(enabled, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setDofAutoFocus(boolean autoFocus, boolean write) {
-        Options.dofAutoFocus = autoFocus;
-        nativeSetDofAutoFocus(autoFocus, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setDofFocalDistance(int dm, boolean write) {
-        Options.dofFocalDistanceDm = dm;
-        nativeSetDofFocalDistance(dm / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setDofAperture(int hundredths, boolean write) {
-        Options.dofApertureHundredths = hundredths;
-        nativeSetDofAperture(hundredths / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setDofMaxRadius(int pixels, boolean write) {
-        Options.dofMaxRadius = pixels;
-        nativeSetDofMaxRadius((float) pixels, write);
-        if (write) overwriteConfig();
-    }
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(7, mode));
