@@ -645,6 +645,8 @@ public class Pipeline {
             return;
         }
 
+        boolean dlssAvailable = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
+        boolean savedPipelineHasDlss = false;
         for (int index = 0; index < pipelineStorage.modules.size(); index++) {
             StoredModule storedModule = pipelineStorage.modules.get(index);
 
@@ -652,13 +654,19 @@ public class Pipeline {
                 continue;
             }
 
-            if ("render_pipeline.module.dlss.name".equals(storedModule.entryName)
-                    && !(Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name"))) {
-                assembleDefault();
-                savePipeline();
-                RadianceClient.LOGGER.error("DLSS is not available or disabled. Rebuilding default pipeline.");
-                return;
+            if ("render_pipeline.module.dlss.name".equals(storedModule.entryName)) {
+                savedPipelineHasDlss = true;
+                break;
             }
+        }
+
+        if (savedPipelineHasDlss != dlssAvailable) {
+            assembleDefault();
+            savePipeline();
+            RadianceClient.LOGGER.error(
+                "Saved pipeline DLSS state ({}) does not match current DLSS availability ({}). Rebuilding default pipeline.",
+                savedPipelineHasDlss, dlssAvailable);
+            return;
         }
 
         clear();
