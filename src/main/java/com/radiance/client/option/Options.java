@@ -122,6 +122,7 @@ public class Options {
     public static final String UPSCALER_QUALITY_CUSTOM = "options.video.upscaler_quality.custom";
     public static final String UPSCALER_RES_OVERRIDE_KEY = "options.video.upscaler_res_override";
     public static final String UPSCALER_PRESET_KEY = "options.video.upscaler_preset";
+    public static final String OUTPUT_SCALE_2X_KEY = "options.video.output_scale_2x";
 
     // DLSS-D (Ray Reconstruction)
     public static final String DLSS_D_ENABLED_KEY = "options.video.dlss_d_enabled";
@@ -138,6 +139,9 @@ public class Options {
 
     // Ray Tracing
     public static final String RAY_BOUNCES_KEY = "options.video.ray_bounces";
+    public static final String OMM_ENABLED_KEY = "options.video.omm_enabled";
+    public static final String OMM_BAKER_LEVEL_KEY = "options.video.omm_baker_level";
+    public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
 
     // Terrain
     public static final String CHUNK_BUILDING_BATCH_SIZE_KEY = "options.video.chunk_building_batch_size";
@@ -159,6 +163,10 @@ public class Options {
     public static int upscalerResOverride = 100; // 33-100%
     public static boolean dlssDEnabled = true;
     public static int rayBounces = 4;
+    public static boolean ommEnabled = false;
+    public static int ommBakerLevel = 4;
+    public static boolean simplifiedIndirect = false;
+    public static boolean outputScale2x = false;
     public static int chunkBuildingBatchSize = 2;
     public static int chunkBuildingTotalBatches = 4;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
@@ -378,6 +386,18 @@ public class Options {
             rayBounces = Integer.parseInt(props.getProperty("rayBounces", String.valueOf(rayBounces)));
             nativeSetRayBounces(rayBounces, false);
 
+            ommEnabled = Boolean.parseBoolean(props.getProperty("ommEnabled", String.valueOf(ommEnabled)));
+            nativeSetOMMEnabled(ommEnabled, false);
+
+            ommBakerLevel = clamp(Integer.parseInt(props.getProperty("ommBakerLevel", String.valueOf(ommBakerLevel))), 1, 8);
+            nativeSetOMMBakerLevel(ommBakerLevel, false);
+
+            simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
+            nativeSetSimplifiedIndirect(simplifiedIndirect, false);
+
+            outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
+            nativeSetOutputScale2x(outputScale2x, false);
+
             exposureCompensation = Integer.parseInt(props.getProperty(
                 "exposureCompensation", String.valueOf(exposureCompensation)));
             manualExposureEnabled = Boolean.parseBoolean(props.getProperty(
@@ -529,6 +549,10 @@ public class Options {
         props.setProperty("upscalerResOverride", String.valueOf(upscalerResOverride));
         props.setProperty("dlssDEnabled", String.valueOf(dlssDEnabled));
         props.setProperty("rayBounces", String.valueOf(rayBounces));
+        props.setProperty("ommEnabled", String.valueOf(ommEnabled));
+        props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
+        props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
+        props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
@@ -1079,6 +1103,10 @@ public class Options {
         vsync = true;
         dlssDEnabled = true;
         rayBounces = 4;
+        ommEnabled = false;
+        ommBakerLevel = 4;
+        simplifiedIndirect = false;
+        outputScale2x = false;
         chunkBuildingBatchSize = 2;
         chunkBuildingTotalBatches = 4;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
@@ -1308,6 +1336,50 @@ public class Options {
     public static void setRayBounces(int bounces, boolean write) {
         Options.rayBounces = bounces;
         nativeSetRayBounces(bounces, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- OMM ---
+    public native static void nativeSetOMMEnabled(boolean enabled, boolean write);
+
+    public static void setOMMEnabled(boolean enabled, boolean write) {
+        Options.ommEnabled = enabled;
+        nativeSetOMMEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- OMM Baker Level ---
+    public native static void nativeSetOMMBakerLevel(int level, boolean write);
+
+    public static void setOMMBakerLevel(int level, boolean write) {
+        Options.ommBakerLevel = Math.max(1, Math.min(8, level));
+        nativeSetOMMBakerLevel(Options.ommBakerLevel, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Simplified Indirect ---
+    public native static void nativeSetSimplifiedIndirect(boolean enabled, boolean write);
+
+    public static void setSimplifiedIndirect(boolean enabled, boolean write) {
+        Options.simplifiedIndirect = enabled;
+        nativeSetSimplifiedIndirect(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Output Scale 2x ---
+    public native static void nativeSetOutputScale2x(boolean enabled, boolean write);
+
+    public static void setOutputScale2x(boolean enabled, boolean write) {
+        Options.outputScale2x = enabled;
+        nativeSetOutputScale2x(enabled, write);
         if (write) {
             overwriteConfig();
         }

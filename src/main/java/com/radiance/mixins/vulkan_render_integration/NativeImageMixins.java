@@ -56,6 +56,12 @@ public abstract class NativeImageMixins implements
 
             TextureProxy.queueUpload(pointer, (int) sizeBytes, width, targetId, unpackSkipPixels,
                 unpackSkipRows, offsetX, offsetY, regionWidth, regionHeight, level);
+
+            // OMM: classify texture alpha at base mip level
+            if (level == 0 && this.format.hasAlpha() && this.format.getChannelCount() == 4) {
+                int alphaClass = classifyAlpha(pointer, width, height);
+                TextureProxy.setTextureAlphaClass(targetId, alphaClass);
+            }
         } finally {
             if (blur) {
                 this.close();
@@ -126,6 +132,29 @@ public abstract class NativeImageMixins implements
     @Override
     public long neoVoxelRT$getPointer() {
         return pointer;
+    }
+
+    /**
+     * Scan RGBA pixel data to classify the texture's alpha channel.
+     * Returns: 0 = FULLY_OPAQUE, 1 = FULLY_TRANSPARENT, 2 = MIXED
+     */
+    private static int classifyAlpha(long pointer, int width, int height) {
+        boolean hasOpaque = false;
+        boolean hasTransparent = false;
+        int totalPixels = width * height;
+        for (int i = 0; i < totalPixels; i++) {
+            byte alpha = MemoryUtil.memGetByte(pointer + (long) i * 4 + 3);
+            if ((alpha & 0xFF) == 255) {
+                hasOpaque = true;
+            } else {
+                hasTransparent = true;
+            }
+            if (hasOpaque && hasTransparent) {
+                return 2; // MIXED - early exit
+            }
+        }
+        if (hasOpaque) return 0; // FULLY_OPAQUE
+        return 1; // FULLY_TRANSPARENT
     }
 
     @Shadow

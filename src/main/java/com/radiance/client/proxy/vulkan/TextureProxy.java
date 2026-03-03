@@ -31,6 +31,9 @@ public class TextureProxy {
         int height,
         int level);
 
+    // OMM: 0 = FULLY_OPAQUE, 1 = FULLY_TRANSPARENT, 2 = MIXED
+    public synchronized static native void setTextureAlphaClass(int id, int alphaClass);
+
     public static void prepareImage(NativeImage.InternalFormat internalFormat, int id,
         int mipLevels, int width, int height) {
         switch (internalFormat) {

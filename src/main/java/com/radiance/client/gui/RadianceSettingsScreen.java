@@ -274,6 +274,11 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             this.body.addSingleOptionEntry(upscalerResOverride);
         }
 
+        SimpleOption<Boolean> outputScale2x = SimpleOption.ofBoolean(
+            Options.OUTPUT_SCALE_2X_KEY, Options.outputScale2x,
+            value -> Options.setOutputScale2x(value, true));
+        this.body.addSingleOptionEntry(outputScale2x);
+
         // === Ray Tracing ===
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_RAY_TRACING), body));
@@ -288,6 +293,29 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             Options.rayBounces,
             value -> Options.setRayBounces(value, true));
         this.body.addSingleOptionEntry(rayBounces);
+
+        SimpleOption<Boolean> ommEnabled = SimpleOption.ofBoolean(
+            Options.OMM_ENABLED_KEY,
+            Options.ommEnabled,
+            value -> Options.setOMMEnabled(value, true));
+        this.body.addSingleOptionEntry(ommEnabled);
+
+        SimpleOption<Integer> ommBakerLevel = new SimpleOption<>(
+            Options.OMM_BAKER_LEVEL_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(Integer.toString(value))),
+            new SimpleOption.ValidatingIntSliderCallbacks(1, 8),
+            Codec.intRange(1, 8),
+            Options.ommBakerLevel,
+            value -> Options.setOMMBakerLevel(value, true));
+        this.body.addSingleOptionEntry(ommBakerLevel);
+
+        SimpleOption<Boolean> simplifiedIndirect = SimpleOption.ofBoolean(
+            Options.SIMPLIFIED_INDIRECT_KEY,
+            Options.simplifiedIndirect,
+            value -> Options.setSimplifiedIndirect(value, true));
+        this.body.addSingleOptionEntry(simplifiedIndirect);
 
         // === Window ===
         this.body.addEntry(
