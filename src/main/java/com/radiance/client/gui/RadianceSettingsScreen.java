@@ -279,6 +279,32 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             value -> Options.setOutputScale2x(value, true));
         this.body.addSingleOptionEntry(outputScale2x);
 
+        // --- NVIDIA Reflex ---
+        if (Options.isReflexSupported()) {
+            SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
+                Options.REFLEX_ENABLED_KEY,
+                Options.reflexEnabled,
+                value -> {
+                    Options.setReflexEnabled(value, true);
+                    MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(this.parentScreen));
+                });
+            this.body.addSingleOptionEntry(reflexEnabled);
+
+            if (Options.reflexEnabled) {
+                SimpleOption<Boolean> reflexBoost = SimpleOption.ofBoolean(
+                    Options.REFLEX_BOOST_KEY,
+                    Options.reflexBoost,
+                    value -> Options.setReflexBoost(value, true));
+                this.body.addSingleOptionEntry(reflexBoost);
+
+                SimpleOption<Boolean> vrrMode = SimpleOption.ofBoolean(
+                    Options.VRR_MODE_KEY,
+                    Options.vrrMode,
+                    value -> Options.setVrrMode(value, true));
+                this.body.addSingleOptionEntry(vrrMode);
+            }
+        }
+
         // === Ray Tracing ===
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_RAY_TRACING), body));

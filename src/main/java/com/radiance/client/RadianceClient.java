@@ -60,6 +60,19 @@ public class RadianceClient implements ClientModInitializer {
             Path dllResourcePath = Path.of("core.dll");
             copyFileFromResource(dllTargetPath, dllResourcePath);
 
+            // Extract Streamline SDK DLLs (Reflex, DLSS-G) next to core.dll.
+            // These are optional — if missing, Reflex simply won't be available.
+            for (String slDll : new String[]{
+                    "sl.interposer.dll", "sl.common.dll", "sl.reflex.dll",
+                    "sl.pcl.dll", "NvLowLatencyVk.dll"}) {
+                try {
+                    copyFileFromResource(radianceDir.resolve(slDll), Path.of(slDll));
+                } catch (RuntimeException e) {
+                    LOGGER.warn("Streamline DLL not found in JAR: {} (Reflex will be unavailable)", slDll);
+                    break; // If one is missing, they're all missing
+                }
+            }
+
             System.load(dllTargetPath.toAbsolutePath().toString());
 
             dlssDownloadUrl = "https://github.com/NVIDIA/DLSS/tree/main/lib/Windows_x86_64/rel";

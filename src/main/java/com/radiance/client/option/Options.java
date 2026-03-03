@@ -124,6 +124,11 @@ public class Options {
     public static final String UPSCALER_PRESET_KEY = "options.video.upscaler_preset";
     public static final String OUTPUT_SCALE_2X_KEY = "options.video.output_scale_2x";
 
+    // NVIDIA Reflex
+    public static final String REFLEX_ENABLED_KEY = "options.video.reflex_enabled";
+    public static final String REFLEX_BOOST_KEY = "options.video.reflex_boost";
+    public static final String VRR_MODE_KEY = "options.video.vrr_mode";
+
     // DLSS-D (Ray Reconstruction)
     public static final String DLSS_D_ENABLED_KEY = "options.video.dlss_d_enabled";
 
@@ -167,6 +172,9 @@ public class Options {
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
     public static boolean outputScale2x = false;
+    public static boolean reflexEnabled = false;
+    public static boolean reflexBoost = false;
+    public static boolean vrrMode = false;
     public static int chunkBuildingBatchSize = 2;
     public static int chunkBuildingTotalBatches = 4;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
@@ -398,6 +406,13 @@ public class Options {
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 
+            reflexEnabled = Boolean.parseBoolean(props.getProperty("reflexEnabled", String.valueOf(reflexEnabled)));
+            nativeSetReflexEnabled(reflexEnabled, false);
+            reflexBoost = Boolean.parseBoolean(props.getProperty("reflexBoost", String.valueOf(reflexBoost)));
+            nativeSetReflexBoost(reflexBoost, false);
+            vrrMode = Boolean.parseBoolean(props.getProperty("vrrMode", String.valueOf(vrrMode)));
+            nativeSetVrrMode(vrrMode, false);
+
             exposureCompensation = Integer.parseInt(props.getProperty(
                 "exposureCompensation", String.valueOf(exposureCompensation)));
             manualExposureEnabled = Boolean.parseBoolean(props.getProperty(
@@ -553,6 +568,9 @@ public class Options {
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
+        props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
+        props.setProperty("reflexBoost", String.valueOf(reflexBoost));
+        props.setProperty("vrrMode", String.valueOf(vrrMode));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
@@ -1107,6 +1125,9 @@ public class Options {
         ommBakerLevel = 4;
         simplifiedIndirect = false;
         outputScale2x = false;
+        reflexEnabled = false;
+        reflexBoost = false;
+        vrrMode = false;
         chunkBuildingBatchSize = 2;
         chunkBuildingTotalBatches = 4;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
@@ -1383,6 +1404,49 @@ public class Options {
         if (write) {
             overwriteConfig();
         }
+    }
+
+    // --- NVIDIA Reflex ---
+    public native static void nativeSetReflexEnabled(boolean enabled, boolean write);
+    public native static void nativeSetReflexBoost(boolean enabled, boolean write);
+    public native static boolean nativeIsReflexSupported();
+
+    public static boolean isReflexSupported() {
+        try { return nativeIsReflexSupported(); }
+        catch (UnsatisfiedLinkError e) { return false; }
+    }
+
+    public static void setReflexEnabled(boolean enabled, boolean write) {
+        Options.reflexEnabled = enabled;
+        nativeSetReflexEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setReflexBoost(boolean enabled, boolean write) {
+        Options.reflexBoost = enabled;
+        nativeSetReflexBoost(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- VRR Mode (Reflex frame cap) ---
+    public native static void nativeSetVrrMode(boolean enabled, boolean write);
+    public native static int nativeGetDisplayRefreshRate();
+
+    public static void setVrrMode(boolean enabled, boolean write) {
+        Options.vrrMode = enabled;
+        nativeSetVrrMode(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static int getDisplayRefreshRate() {
+        try { return nativeGetDisplayRefreshRate(); }
+        catch (UnsatisfiedLinkError e) { return 0; }
     }
 
     // --- Min Exposure ---

@@ -125,6 +125,10 @@
 
   "options.video.dlss_d_enabled": "DLSS-D (Ray Reconstruction)",
 
+  "options.video.reflex_enabled": "NVIDIA Reflex",
+  "options.video.reflex_boost": "Reflex Boost",
+  "options.video.vrr_mode": "VRR Frame Cap",
+
   "options.video.category.hdr": "HDR Output",
   "options.video.hdr_enabled": "HDR10 Output",
   "options.video.hdr_peak_nits": "Peak Brightness",
