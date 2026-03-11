@@ -421,6 +421,12 @@ public class Pipeline {
             connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
                 dlssModule.getInputImageConfig("first_hit_depth"));
 
+            connect(rayTracingModule.getOutputImageConfig("diffuse_ray_dir_hit_dist"),
+                dlssModule.getInputImageConfig("diffuse_ray_dir_hit_dist"));
+
+            connect(rayTracingModule.getOutputImageConfig("specular_ray_dir_hit_dist"),
+                dlssModule.getInputImageConfig("specular_ray_dir_hit_dist"));
+
             connect(dlssModule.getOutputImageConfig("processed"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
 
@@ -735,6 +741,26 @@ public class Pipeline {
                     storedConnection.dstImageName);
 
                 connect(srcImageConfig, dstImageConfig);
+            }
+        }
+
+        // Validate that all module inputs are connected (detect stale saved configs)
+        Map<ImageConfig, ImageConfig> dstToSrcCheck = new HashMap<>();
+        for (Map.Entry<ImageConfig, List<ImageConfig>> entry : INSTANCE.moduleConnections.entrySet()) {
+            for (ImageConfig dest : entry.getValue()) {
+                dstToSrcCheck.put(dest, entry.getKey());
+            }
+        }
+        for (Module m : INSTANCE.modules) {
+            for (ImageConfig inputConf : m.inputImageConfigs) {
+                if (!dstToSrcCheck.containsKey(inputConf)) {
+                    RadianceClient.LOGGER.warn(
+                        "Saved pipeline has unconnected input '{}' on module '{}'. Rebuilding default pipeline.",
+                        inputConf.name, m.name);
+                    assembleDefault();
+                    savePipeline();
+                    return;
+                }
             }
         }
 

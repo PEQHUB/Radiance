@@ -203,6 +203,7 @@ public enum AuxiliaryTextures {
                                 optionalResource.get().getInputStream())) {
                                 auxiliaryTemplateImage = MipmapUtil.getSpecificMipmapLevelImage(
                                     tmpImage, level);
+
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
                             }

@@ -29,6 +29,10 @@ outputImageConfigs:
     format: "R16G16B16A16_SFLOAT"
   - name: "direct_light_depth"
     format: "R16_SFLOAT"
+  - name: "diffuse_ray_dir_hit_dist"
+    format: "R16G16B16A16_SFLOAT"
+  - name: "specular_ray_dir_hit_dist"
+    format: "R16G16B16A16_SFLOAT"
 attributeConfigs:
   - name: "render_pipeline.module.ray_tracing.attribute.num_ray_bounces"
     type: "int_range:1-12"

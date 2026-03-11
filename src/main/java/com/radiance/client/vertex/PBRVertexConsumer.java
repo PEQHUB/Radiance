@@ -397,6 +397,10 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.pendingEmission = Math.max(0.0f, emission);
     }
 
+    public int getTextureID() {
+        return this.textureID;
+    }
+
     public static class GLint implements VertexConsumer {
 
         private final PBRVertexConsumer delegate;

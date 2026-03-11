@@ -7,6 +7,7 @@ import static org.lwjgl.system.MemoryUtil.memAddress;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.proxy.vulkan.BufferProxy;
+import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderBuiltChunkExt;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderExt;
 import java.nio.ByteBuffer;
@@ -232,12 +233,14 @@ public class ChunkProxy {
                 (float) (vec3d.z - builtChunk.getOrigin()
                     .getZ()));
 
+        ChunkLightCollector.begin();
         SectionBuilder.RenderData renderData;
         synchronized (ChunkBuilder.class) {
             renderData =
                 ((IChunkBuilderExt) chunkBuilder).neoVoxelRT$getSectionBuilder()
                     .build(chunkSectionPos, chunkRendererRegion, vertexSorter, storage);
         }
+        Map<BlockPos, ChunkLightCollector.LightEntry> collectedLights = ChunkLightCollector.end();
 
         Map<RenderLayer, BuiltBuffer> buffers = renderData.buffers;
         builtChunk.setNoCullingBlockEntities(renderData.noCullingBlockEntities);
@@ -263,6 +266,7 @@ public class ChunkProxy {
             builtChunkNum++;
 
             invalidateSingle(builtChunk.index);
+            setChunkLights(builtChunk.index, 0, 0);
         } else {
             ChunkBuilder.ChunkData chunkData = new ChunkBuilder.ChunkData() {
                 @Override
@@ -372,6 +376,27 @@ public class ChunkProxy {
                     verticesAddr,
                     important);
             }
+
+            // Pack and transmit collected light sources for this chunk
+            if (!collectedLights.isEmpty()) {
+                int lightCount = collectedLights.size();
+                // 16 bytes per light: float x, float y, float z, int typeId
+                int dataSize = lightCount * 16;
+                try (MemoryStack lightStack = stackPush()) {
+                    ByteBuffer lightBuf = lightStack.malloc(dataSize);
+                    int offset = 0;
+                    for (ChunkLightCollector.LightEntry entry : collectedLights.values()) {
+                        lightBuf.putFloat(offset, entry.worldX);
+                        lightBuf.putFloat(offset + 4, entry.worldY);
+                        lightBuf.putFloat(offset + 8, entry.worldZ);
+                        lightBuf.putInt(offset + 12, entry.typeId);
+                        offset += 16;
+                    }
+                    setChunkLights(builtChunk.index, lightCount, memAddress(lightBuf));
+                }
+            } else {
+                setChunkLights(builtChunk.index, 0, 0);
+            }
         }
 
         for (Map.Entry<RenderLayer, BuiltBuffer> entry : buffers.entrySet()) {
@@ -399,4 +424,6 @@ public class ChunkProxy {
     }
 
     public static native void invalidateSingle(long index);
+
+    private static native void setChunkLights(long chunkIndex, int lightCount, long lightDataPtr);
 }

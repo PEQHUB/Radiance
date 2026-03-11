@@ -15,6 +15,7 @@ import net.minecraft.client.gui.Selectable;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.OptionListWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
@@ -129,6 +130,24 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
 
         // White Point (Lwhite) slider is intentionally hidden.
 
+        // PsychoV tonemapper toggle
+        SimpleOption<Boolean> psychoToggle = SimpleOption.ofBoolean(
+            Options.PSYCHO_ENABLED_KEY,
+            Options.psychoEnabled,
+            value -> Options.setPsychoEnabled(value, true));
+        this.body.addSingleOptionEntry(psychoToggle);
+
+        // PsychoV settings submenu button
+        SimpleOption<Boolean> psychoSettings = new SimpleOption<>(
+            Options.CATEGORY_PSYCHO,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> optionText,
+            new PotentialValuesBasedCallbacksNoValue<>(
+                ImmutableList.of(Boolean.TRUE, Boolean.FALSE), Codec.BOOL),
+            false,
+            value -> MinecraftClient.getInstance().setScreen(new PsychoVSettingsScreen(this)));
+        this.body.addSingleOptionEntry(psychoSettings);
+
         // === Emission ===
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_EMISSION), body));
@@ -142,6 +161,26 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             false,
             value -> MinecraftClient.getInstance().setScreen(new EmissiveBlockSettingsScreen(this)));
         this.body.addSingleOptionEntry(emissionSettings);
+
+        // === Area Lights ===
+        this.body.addEntry(
+            new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_AREA_LIGHTS), body));
+
+        SimpleOption<Boolean> areaLightsEnabled = SimpleOption.ofBoolean(
+            Options.AREA_LIGHTS_ENABLED_KEY,
+            Options.areaLightsEnabled,
+            value -> Options.setAreaLightsEnabled(value, true));
+        this.body.addSingleOptionEntry(areaLightsEnabled);
+
+        SimpleOption<Boolean> areaLightSettings = new SimpleOption<>(
+            Options.AREA_LIGHT_SETTINGS_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> optionText,
+            new PotentialValuesBasedCallbacksNoValue<>(
+                ImmutableList.of(Boolean.TRUE, Boolean.FALSE), Codec.BOOL),
+            false,
+            value -> MinecraftClient.getInstance().setScreen(new AreaLightSettingsScreen(this)));
+        this.body.addSingleOptionEntry(areaLightSettings);
 
         // === Environment ===
         this.body.addEntry(
@@ -291,12 +330,6 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             this.body.addSingleOptionEntry(reflexEnabled);
 
             if (Options.reflexEnabled) {
-                SimpleOption<Boolean> reflexBoost = SimpleOption.ofBoolean(
-                    Options.REFLEX_BOOST_KEY,
-                    Options.reflexBoost,
-                    value -> Options.setReflexBoost(value, true));
-                this.body.addSingleOptionEntry(reflexBoost);
-
                 SimpleOption<Boolean> vrrMode = SimpleOption.ofBoolean(
                     Options.VRR_MODE_KEY,
                     Options.vrrMode,
@@ -314,8 +347,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             SimpleOption.emptyTooltip(),
             (optionText, value) -> getGenericValueText(optionText,
                 Text.literal(Integer.toString(value))),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 16),
-            Codec.intRange(0, 16),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 32),
+            Codec.intRange(0, 32),
             Options.rayBounces,
             value -> Options.setRayBounces(value, true));
         this.body.addSingleOptionEntry(rayBounces);
@@ -465,6 +498,80 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public List<? extends Selectable> selectableChildren() {
             return ImmutableList.of(slider);
+        }
+    }
+
+    /** WidgetEntry that renders two ResettableSliderWidgets side by side. */
+    static class TwoColumnSliderEntry extends OptionListWidget.WidgetEntry {
+        private final ResettableSliderWidget left;
+        private final ResettableSliderWidget right; // nullable
+
+        TwoColumnSliderEntry(ResettableSliderWidget left, ResettableSliderWidget right, OptionListWidget parent) {
+            super(right != null ? ImmutableList.of(left, right) : ImmutableList.of(left), null);
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth,
+            int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            left.setX(x + entryWidth / 4 - 75);
+            left.setY(y);
+            left.setWidth(150);
+            left.render(context, mouseX, mouseY, tickDelta);
+            if (right != null) {
+                right.setX(x + 3 * entryWidth / 4 - 75);
+                right.setY(y);
+                right.setWidth(150);
+                right.render(context, mouseX, mouseY, tickDelta);
+            }
+        }
+
+        @Override
+        public List<? extends Element> children() {
+            return right != null ? ImmutableList.of(left, right) : ImmutableList.of(left);
+        }
+
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return right != null ? ImmutableList.of(left, right) : ImmutableList.of(left);
+        }
+    }
+
+    /** WidgetEntry that renders two ClickableWidgets (buttons/toggles) side by side. */
+    static class TwoColumnOptionEntry extends OptionListWidget.WidgetEntry {
+        private final ClickableWidget left;
+        private final ClickableWidget right; // nullable
+
+        TwoColumnOptionEntry(ClickableWidget left, ClickableWidget right, OptionListWidget parent) {
+            super(right != null ? ImmutableList.of(left, right) : ImmutableList.of(left), null);
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth,
+            int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            left.setX(x + entryWidth / 4 - 75);
+            left.setY(y);
+            left.setWidth(150);
+            left.render(context, mouseX, mouseY, tickDelta);
+            if (right != null) {
+                right.setX(x + 3 * entryWidth / 4 - 75);
+                right.setY(y);
+                right.setWidth(150);
+                right.render(context, mouseX, mouseY, tickDelta);
+            }
+        }
+
+        @Override
+        public List<? extends Element> children() {
+            return right != null ? ImmutableList.of(left, right) : ImmutableList.of(left);
+        }
+
+        @Override
+        public List<? extends Selectable> selectableChildren() {
+            return right != null ? ImmutableList.of(left, right) : ImmutableList.of(left);
         }
     }
 }

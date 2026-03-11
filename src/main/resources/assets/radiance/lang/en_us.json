@@ -11,6 +11,9 @@
   "options.video.omm_enabled": "Opacity Micro Maps (OMM)",
   "options.video.omm_baker_level": "OMM Subdivision Level",
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
+  "options.video.area_lights_enabled": "Area Lights",
+  "options.video.area_light_intensity": "Area Light Intensity",
+  "options.video.area_light_range": "Area Light Range",
   "options.video.output_scale_2x": "Output Scale 2x",
   "options.video.chunk_building_batch_size": "Amount of chunks to build in a single submit",
   "options.video.chunk_building_total_batches": "Amount of building chunk batches",
@@ -100,6 +103,18 @@
   "options.video.exposure_log2_max": "Histogram Max EV",
   "options.video.middle_grey": "Middle Grey",
   "options.video.lwhite": "White Point",
+  "options.video.psycho.enabled": "PsychoV Tonemapper",
+  "options.video.psycho.category": "PsychoV Settings...",
+  "options.video.psycho.highlights": "Highlights",
+  "options.video.psycho.shadows": "Shadows",
+  "options.video.psycho.contrast": "Contrast",
+  "options.video.psycho.purity": "Purity (Saturation)",
+  "options.video.psycho.bleaching": "Bleaching",
+  "options.video.psycho.clip_point": "Clip Point",
+  "options.video.psycho.hue_restore": "Hue Restore",
+  "options.video.psycho.adapt_contrast": "Adaptation Contrast",
+  "options.video.psycho.white_curve": "White Curve",
+  "options.video.psycho.cone_exponent": "Cone Exponent",
   "key.radiance.settings": "Radiance Settings",
   "key.category.radiance": "Radiance",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode": "Tonemapping Mode",
@@ -136,7 +151,7 @@
   "options.video.hdr_ui_brightness_nits": "UI Brightness",
   "options.video.category.emission": "Emission Settings",
   "options.video.emission_settings": "Emission Settings...",
-  "radiance.settings.emission.title": "Emission Settings",
+"radiance.settings.emission.title": "Emission Settings",
   "options.video.emission.lava": "Lava",
   "options.video.emission.fire": "Fire",
   "options.video.emission.soul_fire": "Soul Fire",
@@ -165,7 +180,18 @@
   "options.video.emission.sculk": "Sculk",
   "options.video.emission.sculk_shrieker": "Sculk Shrieker",
   "options.video.emission.brewing_stand": "Brewing Stand",
-  "options.video.emission.end_portal": "End Portal"
+  "options.video.emission.end_portal": "End Portal",
+  "options.video.emission.redstone_torch": "Redstone Torch",
+  "options.video.emission.redstone_lamp": "Redstone Lamp",
+  "options.video.emission.candle": "Candle",
+  "options.video.emission.cave_vines": "Cave Vines",
+  "options.video.emission.glow_lichen": "Glow Lichen",
+  "options.video.emission.furnace": "Furnace",
+  "options.video.emission.blast_furnace": "Blast Furnace",
+  "options.video.emission.smoker": "Smoker",
+  "options.video.emission.ender_chest": "Ender Chest",
+  "options.video.emission.copper_bulb": "Copper Bulb",
+  "options.video.emission.enchanting_table": "Enchanting Table"
   ,"options.video.environment_settings": "Environmental Settings..."
   ,"options.video.environment.dimension": "Dimension"
   ,"options.video.environment.dimension.overworld": "Overworld"
@@ -232,6 +258,78 @@
   ,"options.video.environment.moon_follow_sun": "Follow Sun"
   ,"options.video.environment.moon_inclination": "Inclination"
   ,"options.video.environment.moon_azimuth_offset": "Azimuth Offset"
+
+  ,"options.video.category.area_lights": "Area Lights"
+  ,"options.video.area_light_settings": "Area Light Settings..."
+  ,"options.video.area_light_shadow_softness": "Shadow Softness"
+  ,"options.video.area_light.restir": "ReSTIR DI"
+  ,"options.video.category.restir": "ReSTIR Tuning"
+  ,"options.video.restir_candidates": "RIS Candidates"
+  ,"options.video.restir_temporal_m_clamp": "Temporal M Clamp"
+  ,"options.video.restir_w_clamp": "Weight Clamp"
+  ,"options.video.restir_spatial_taps": "Spatial Taps"
+  ,"options.video.restir_spatial_radius": "Spatial Radius"
+  ,"options.video.category.restir_performance": "ReSTIR Performance"
+  ,"options.video.restir_simplified_brdf": "Simplified BRDF"
+  ,"options.video.restir_spatial_enabled": "Spatial Reuse"
+  ,"options.video.restir_bounce_enabled": "Bounce ReSTIR"
+  ,"radiance.settings.area_lights.title": "Area Light Settings"
+  ,"options.video.area_light.global_category": "Global Controls"
+  ,"options.video.area_light.per_block_category": "Per-Block Settings"
+  ,"options.video.area_light.block.torch": "Torch"
+  ,"options.video.area_light.block.soul_torch": "Soul Torch"
+  ,"options.video.area_light.block.lantern": "Lantern"
+  ,"options.video.area_light.block.soul_lantern": "Soul Lantern"
+  ,"options.video.area_light.block.campfire": "Campfire"
+  ,"options.video.area_light.block.soul_campfire": "Soul Campfire"
+  ,"options.video.area_light.block.glowstone": "Glowstone"
+  ,"options.video.area_light.block.sea_lantern": "Sea Lantern"
+  ,"options.video.area_light.block.shroomlight": "Shroomlight"
+  ,"options.video.area_light.block.jack_o_lantern": "Jack o'Lantern"
+  ,"options.video.area_light.block.end_rod": "End Rod"
+  ,"options.video.area_light.block.beacon": "Beacon"
+  ,"options.video.area_light.block.ochre_froglight": "Ochre Froglight"
+  ,"options.video.area_light.block.verdant_froglight": "Verdant Froglight"
+  ,"options.video.area_light.block.pearl_froglight": "Pearl Froglight"
+  ,"options.video.area_light.block.redstone_torch": "Redstone Torch"
+  ,"options.video.area_light.block.redstone_lamp": "Redstone Lamp"
+  ,"options.video.area_light.block.candle": "Candle"
+  ,"options.video.area_light.block.cave_vines": "Cave Vines"
+  ,"options.video.area_light.block.glow_lichen": "Glow Lichen"
+  ,"options.video.area_light.block.furnace": "Furnace"
+  ,"options.video.area_light.block.blast_furnace": "Blast Furnace"
+  ,"options.video.area_light.block.smoker": "Smoker"
+  ,"options.video.area_light.block.ender_chest": "Ender Chest"
+  ,"options.video.area_light.block.crying_obsidian": "Crying Obsidian"
+  ,"options.video.area_light.block.nether_portal": "Nether Portal"
+  ,"options.video.area_light.block.conduit": "Conduit"
+  ,"options.video.area_light.block.respawn_anchor_1": "Respawn Anchor (1 Charge)"
+  ,"options.video.area_light.block.respawn_anchor_2": "Respawn Anchor (2 Charges)"
+  ,"options.video.area_light.block.respawn_anchor_3": "Respawn Anchor (3 Charges)"
+  ,"options.video.area_light.block.respawn_anchor_4": "Respawn Anchor (4 Charges)"
+  ,"options.video.area_light.block.amethyst_cluster": "Amethyst Cluster"
+  ,"options.video.area_light.block.large_amethyst_bud": "Large Amethyst Bud"
+  ,"options.video.area_light.block.copper_bulb": "Copper Bulb"
+  ,"options.video.area_light.block.enchanting_table": "Enchanting Table"
+  ,"options.video.area_light.block.lava": "Lava"
+  ,"options.video.area_light.block.fire": "Fire"
+  ,"options.video.area_light.block.soul_fire": "Soul Fire"
+  ,"options.video.area_light.block.magma_block": "Magma Block"
+  ,"options.video.area_light.block.sculk_sensor": "Sculk Sensor"
+  ,"options.video.area_light.block.sculk_catalyst": "Sculk Catalyst"
+  ,"options.video.area_light.block.sculk_vein": "Sculk Vein"
+  ,"options.video.area_light.block.sculk": "Sculk"
+  ,"options.video.area_light.block.sculk_shrieker": "Sculk Shrieker"
+  ,"options.video.area_light.block.brewing_stand": "Brewing Stand"
+  ,"options.video.area_light.block.end_portal": "End Portal"
+  ,"options.video.area_light.block.end_portal_frame": "End Portal Frame"
+  ,"options.video.area_light.block.light_mode": "Light Mode"
+  ,"options.video.area_light.block.intensity": "Intensity"
+  ,"options.video.area_light.block.scale": "Scale"
+  ,"options.video.area_light.block.y_offset": "Y Offset"
+  ,"options.video.area_light.block.color_r": "Color Red"
+  ,"options.video.area_light.block.color_g": "Color Green"
+  ,"options.video.area_light.block.color_b": "Color Blue"
 
   ,"radiance.settings.reset_defaults": "Reset to Defaults"
   ,"radiance.settings.welcome_message.on": "Welcome Message: On"

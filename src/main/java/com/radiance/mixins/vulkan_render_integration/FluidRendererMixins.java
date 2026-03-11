@@ -1,6 +1,9 @@
 package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.option.Options;
+import com.radiance.client.util.ChunkLightCollector;
+import com.radiance.client.util.LightSourceDef;
+import com.radiance.client.util.LightSourceRegistry;
 import com.radiance.client.vertex.PBRVertexConsumer;
 import static net.minecraft.client.render.block.FluidRenderer.shouldRenderSide;
 
@@ -135,6 +138,32 @@ public abstract class FluidRendererMixins {
         Sprite[] fluidSprites = isLava ? this.lavaSprites : this.waterSprites;
         int tintColor = isLava ? 16777215 : BiomeColors.getWaterColor(world, pos);
         float emission = isLava ? Options.emissionLava : 0.0F;
+
+        // --- Resolve light mode for lava (same logic as BlockModelRendererMixins) ---
+        if (isLava) {
+            LightSourceDef lightDef = LightSourceRegistry.getLightSource(blockState);
+            if (lightDef != null && lightDef.typeId >= 0 && lightDef.typeId < Options.AREA_LIGHT_TYPE_COUNT) {
+                int configuredMode = Options.blockLightMode[lightDef.typeId];
+                int effectiveMode;
+                if (configuredMode == Options.LIGHT_MODE_FORCE_AREA) {
+                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
+                } else if (configuredMode == Options.LIGHT_MODE_FORCE_EMISSIVE) {
+                    effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
+                } else {
+                    // Auto: always prefer area light (ReSTIR handles lighting)
+                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
+                }
+
+                if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA) {
+                    // Negative emission = signal to shader to suppress bounce; abs = self-glow
+                    emission = -Math.max(emission, 0.001f);
+                    if (ChunkLightCollector.isActive()) {
+                        ChunkLightCollector.addLight(pos, lightDef);
+                    }
+                }
+            }
+        }
+
         float red = (tintColor >> 16 & 0xFF) / 255.0F;
         float green = (tintColor >> 8 & 0xFF) / 255.0F;
         float blue = (tintColor & 0xFF) / 255.0F;

@@ -40,7 +40,19 @@ public enum EmissiveBlock {
     SCULK("sculk", 0.2f, () -> Options.emissionSculk, v -> Options.emissionSculk = v),
     SCULK_SHRIEKER("sculk_shrieker", 0.5f, () -> Options.emissionSculkShrieker, v -> Options.emissionSculkShrieker = v),
     BREWING_STAND("brewing_stand", 0.5f, () -> Options.emissionBrewingStand, v -> Options.emissionBrewingStand = v),
-    END_PORTAL("end_portal", 1.0f, () -> Options.emissionEndPortal, v -> Options.emissionEndPortal = v);
+    END_PORTAL("end_portal", 1.0f, () -> Options.emissionEndPortal, v -> Options.emissionEndPortal = v),
+    // New: formerly area-light-only blocks (now get self-glow)
+    REDSTONE_TORCH("redstone_torch", 0.5f, () -> Options.emissionRedstoneTorch, v -> Options.emissionRedstoneTorch = v),
+    REDSTONE_LAMP("redstone_lamp", 1.0f, () -> Options.emissionRedstoneLamp, v -> Options.emissionRedstoneLamp = v),
+    CANDLE("candle", 0.5f, () -> Options.emissionCandle, v -> Options.emissionCandle = v),
+    CAVE_VINES("cave_vines", 0.8f, () -> Options.emissionCaveVines, v -> Options.emissionCaveVines = v),
+    GLOW_LICHEN("glow_lichen", 0.3f, () -> Options.emissionGlowLichen, v -> Options.emissionGlowLichen = v),
+    FURNACE("furnace", 0.7f, () -> Options.emissionFurnace, v -> Options.emissionFurnace = v),
+    BLAST_FURNACE("blast_furnace", 0.7f, () -> Options.emissionBlastFurnace, v -> Options.emissionBlastFurnace = v),
+    SMOKER("smoker", 0.7f, () -> Options.emissionSmoker, v -> Options.emissionSmoker = v),
+    ENDER_CHEST("ender_chest", 0.5f, () -> Options.emissionEnderChest, v -> Options.emissionEnderChest = v),
+    COPPER_BULB("copper_bulb", 1.0f, () -> Options.emissionCopperBulb, v -> Options.emissionCopperBulb = v),
+    ENCHANTING_TABLE("enchanting_table", 0.3f, () -> Options.emissionEnchantingTable, v -> Options.emissionEnchantingTable = v);
 
     private final String id;
     private final float defaultValue;
@@ -59,6 +71,7 @@ public enum EmissiveBlock {
         if (write) {
             Options.overwriteConfig();
             Options.nativeRebuildChunks();
+            Options.debouncedChunkReload();
         }
     }
 
@@ -115,6 +128,43 @@ public enum EmissiveBlock {
         register(Blocks.BREWING_STAND, BREWING_STAND);
         register(Blocks.END_PORTAL, END_PORTAL);
         register(Blocks.END_PORTAL_FRAME, END_PORTAL);
+        // New: formerly area-light-only blocks
+        register(Blocks.REDSTONE_TORCH, REDSTONE_TORCH);
+        register(Blocks.REDSTONE_WALL_TORCH, REDSTONE_TORCH);
+        register(Blocks.REDSTONE_LAMP, REDSTONE_LAMP);
+        register(Blocks.CANDLE, CANDLE);
+        register(Blocks.WHITE_CANDLE, CANDLE);
+        register(Blocks.ORANGE_CANDLE, CANDLE);
+        register(Blocks.MAGENTA_CANDLE, CANDLE);
+        register(Blocks.LIGHT_BLUE_CANDLE, CANDLE);
+        register(Blocks.YELLOW_CANDLE, CANDLE);
+        register(Blocks.LIME_CANDLE, CANDLE);
+        register(Blocks.PINK_CANDLE, CANDLE);
+        register(Blocks.GRAY_CANDLE, CANDLE);
+        register(Blocks.LIGHT_GRAY_CANDLE, CANDLE);
+        register(Blocks.CYAN_CANDLE, CANDLE);
+        register(Blocks.PURPLE_CANDLE, CANDLE);
+        register(Blocks.BLUE_CANDLE, CANDLE);
+        register(Blocks.BROWN_CANDLE, CANDLE);
+        register(Blocks.GREEN_CANDLE, CANDLE);
+        register(Blocks.RED_CANDLE, CANDLE);
+        register(Blocks.BLACK_CANDLE, CANDLE);
+        register(Blocks.CAVE_VINES, CAVE_VINES);
+        register(Blocks.CAVE_VINES_PLANT, CAVE_VINES);
+        register(Blocks.GLOW_LICHEN, GLOW_LICHEN);
+        register(Blocks.FURNACE, FURNACE);
+        register(Blocks.BLAST_FURNACE, BLAST_FURNACE);
+        register(Blocks.SMOKER, SMOKER);
+        register(Blocks.ENDER_CHEST, ENDER_CHEST);
+        register(Blocks.COPPER_BULB, COPPER_BULB);
+        register(Blocks.EXPOSED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.WEATHERED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.OXIDIZED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.WAXED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.WAXED_EXPOSED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.WAXED_WEATHERED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.WAXED_OXIDIZED_COPPER_BULB, COPPER_BULB);
+        register(Blocks.ENCHANTING_TABLE, ENCHANTING_TABLE);
     }
 
     private static void register(Block block, EmissiveBlock emissiveBlock) {

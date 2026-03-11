@@ -102,6 +102,20 @@ public class Options {
     public static final String CAS_ENABLED_KEY = "options.video.cas_enabled";
     public static final String CAS_SHARPNESS_KEY = "options.video.cas_sharpness";
 
+    // PsychoV tonemapper
+    public static final String PSYCHO_ENABLED_KEY = "options.video.psycho.enabled";
+    public static final String PSYCHO_HIGHLIGHTS_KEY = "options.video.psycho.highlights";
+    public static final String PSYCHO_SHADOWS_KEY = "options.video.psycho.shadows";
+    public static final String PSYCHO_CONTRAST_KEY = "options.video.psycho.contrast";
+    public static final String PSYCHO_PURITY_KEY = "options.video.psycho.purity";
+    public static final String PSYCHO_BLEACHING_KEY = "options.video.psycho.bleaching";
+    public static final String PSYCHO_CLIP_POINT_KEY = "options.video.psycho.clip_point";
+    public static final String PSYCHO_HUE_RESTORE_KEY = "options.video.psycho.hue_restore";
+    public static final String PSYCHO_ADAPT_CONTRAST_KEY = "options.video.psycho.adapt_contrast";
+    public static final String PSYCHO_WHITE_CURVE_KEY = "options.video.psycho.white_curve";
+    public static final String PSYCHO_CONE_EXPONENT_KEY = "options.video.psycho.cone_exponent";
+    public static final String CATEGORY_PSYCHO = "options.video.psycho.category";
+
     // HDR10
     public static final String HDR_ENABLED_KEY = "options.video.hdr_enabled";
     public static final String HDR_PEAK_NITS_KEY = "options.video.hdr_peak_nits";
@@ -147,6 +161,27 @@ public class Options {
     public static final String OMM_ENABLED_KEY = "options.video.omm_enabled";
     public static final String OMM_BAKER_LEVEL_KEY = "options.video.omm_baker_level";
     public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
+    public static final String AREA_LIGHTS_ENABLED_KEY = "options.video.area_lights_enabled";
+    public static final String AREA_LIGHT_INTENSITY_KEY = "options.video.area_light_intensity";
+    public static final String AREA_LIGHT_RANGE_KEY = "options.video.area_light_range";
+    public static final String AREA_LIGHT_SETTINGS_KEY = "options.video.area_light_settings";
+    public static final String AREA_LIGHT_SHADOW_SOFTNESS_KEY = "options.video.area_light_shadow_softness";
+    public static final String CATEGORY_AREA_LIGHTS = "options.video.category.area_lights";
+    public static final int AREA_LIGHT_TYPE_COUNT = 50;
+
+    // ReSTIR DI Tuning
+    public static final String RESTIR_CANDIDATES_KEY = "options.video.restir_candidates";
+    public static final String RESTIR_TEMPORAL_M_CLAMP_KEY = "options.video.restir_temporal_m_clamp";
+    public static final String RESTIR_W_CLAMP_KEY = "options.video.restir_w_clamp";
+    public static final String RESTIR_SPATIAL_TAPS_KEY = "options.video.restir_spatial_taps";
+    public static final String RESTIR_SPATIAL_RADIUS_KEY = "options.video.restir_spatial_radius";
+    public static final String CATEGORY_RESTIR = "options.video.category.restir";
+
+    // ReSTIR DI Performance
+    public static final String RESTIR_SIMPLIFIED_BRDF_KEY = "options.video.restir_simplified_brdf";
+    public static final String RESTIR_SPATIAL_ENABLED_KEY = "options.video.restir_spatial_enabled";
+    public static final String RESTIR_BOUNCE_ENABLED_KEY = "options.video.restir_bounce_enabled";
+    public static final String CATEGORY_RESTIR_PERFORMANCE = "options.video.category.restir_performance";
 
     // Terrain
     public static final String CHUNK_BUILDING_BATCH_SIZE_KEY = "options.video.chunk_building_batch_size";
@@ -167,23 +202,115 @@ public class Options {
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
     public static int upscalerResOverride = 100; // 33-100%
     public static boolean dlssDEnabled = true;
-    public static int rayBounces = 4;
+    public static int rayBounces = 16;
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
+    public static boolean areaLightsEnabled = true;
+    public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
+    public static int areaLightIntensityPercent = 100;  // 0-500%
+    public static int areaLightRange = 48;   // 8-512 blocks
+    public static int shadowSoftnessPercent = 100;  // 0-200%
+    // ReSTIR DI tuning
+    public static int restirCandidates = 32;       // 8-64
+    public static int restirTemporalMClamp = 20;   // 5-50
+    public static int restirWClamp = 50;           // 10-200
+    public static int restirSpatialTaps = 5;       // 1-10
+    public static int restirSpatialRadius = 30;    // 5-60
+    // ReSTIR DI performance
+    public static boolean restirSimplifiedBRDF = false;   // Lambertian instead of Disney for area lights
+    public static boolean restirSpatialEnabled = false;   // Spatial reuse compute pass (disabled — degrades quality)
+    public static boolean restirBounceEnabled = false;    // ReSTIR on indirect bounces (1-3)
+    public static final int[] areaLightBlockIntensity = new int[AREA_LIGHT_TYPE_COUNT]; // 0-500%, default 100
+    public static final int[] areaLightBlockScale = new int[AREA_LIGHT_TYPE_COUNT];     // 10-500%, default 100
+    public static final int[] areaLightBlockYOffset = new int[AREA_LIGHT_TYPE_COUNT];   // -50 to +50 centi-blocks, default 0
+    public static final int[] areaLightBlockColorR = new int[AREA_LIGHT_TYPE_COUNT];    // 0-255
+    public static final int[] areaLightBlockColorG = new int[AREA_LIGHT_TYPE_COUNT];    // 0-255
+    public static final int[] areaLightBlockColorB = new int[AREA_LIGHT_TYPE_COUNT];    // 0-255
+
+    // Default light colors (RGB 0-255) matching LIGHT_DEFS in lights.hpp
+    public static final int[][] DEFAULT_LIGHT_COLORS = {
+        {255, 179,  77}, // 0  TORCH
+        { 77, 204, 230}, // 1  SOUL_TORCH
+        {255, 179,  77}, // 2  LANTERN
+        { 77, 204, 230}, // 3  SOUL_LANTERN
+        {255, 179,  77}, // 4  CAMPFIRE
+        { 77, 204, 230}, // 5  SOUL_CAMPFIRE
+        {255, 217, 128}, // 6  GLOWSTONE
+        {179, 217, 255}, // 7  SEA_LANTERN
+        {255, 153,  77}, // 8  SHROOMLIGHT
+        {255, 179,  77}, // 9  JACK_O_LANTERN
+        {242, 230, 255}, // 10 END_ROD
+        {230, 242, 255}, // 11 BEACON
+        {255, 230, 128}, // 12 OCHRE_FROGLIGHT
+        {102, 255, 128}, // 13 VERDANT_FROGLIGHT
+        {230, 153, 204}, // 14 PEARL_FROGLIGHT
+        {255,  51,  26}, // 15 REDSTONE_TORCH
+        {255,  51,  26}, // 16 REDSTONE_LAMP
+        {255, 191,  89}, // 17 CANDLE
+        {255, 191,  89}, // 18 (unused)
+        {255, 191,  89}, // 19 (unused)
+        {255, 191,  89}, // 20 (unused)
+        {255, 191,  89}, // 21 CAVE_VINES
+        {102, 204, 153}, // 22 GLOW_LICHEN
+        {255, 128,  51}, // 23 FURNACE
+        {255, 128,  51}, // 24 BLAST_FURNACE
+        {255, 128,  51}, // 25 SMOKER
+        { 77, 179, 128}, // 26 ENDER_CHEST
+        {153,  51, 230}, // 27 CRYING_OBSIDIAN
+        {128,  51, 204}, // 28 NETHER_PORTAL
+        {230, 242, 255}, // 29 CONDUIT
+        {255, 153,  51}, // 30 RESPAWN_ANCHOR_1
+        {255, 153,  51}, // 31 RESPAWN_ANCHOR_2
+        {255, 153,  51}, // 32 RESPAWN_ANCHOR_3
+        {255, 153,  51}, // 33 RESPAWN_ANCHOR_4
+        {179, 128, 230}, // 34 AMETHYST_CLUSTER
+        {179, 128, 230}, // 35 LARGE_AMETHYST_BUD
+        {255, 179, 102}, // 36 COPPER_BULB
+        {128, 204, 128}, // 37 ENCHANTING_TABLE
+        // --- New: formerly emissive-only blocks ---
+        {255, 102,  26}, // 38 LAVA
+        {255, 153,  51}, // 39 FIRE
+        { 77, 204, 230}, // 40 SOUL_FIRE
+        {255,  77,  26}, // 41 MAGMA_BLOCK
+        { 51, 128, 128}, // 42 SCULK_SENSOR
+        { 51, 128, 128}, // 43 SCULK_CATALYST
+        { 51, 128, 128}, // 44 SCULK_VEIN
+        { 38, 102, 102}, // 45 SCULK
+        { 51, 128, 128}, // 46 SCULK_SHRIEKER
+        {255, 153,  51}, // 47 BREWING_STAND
+        { 77,  26, 128}, // 48 END_PORTAL
+        {102, 179, 102}, // 49 END_PORTAL_FRAME
+    };
+
+    static {
+        java.util.Arrays.fill(areaLightBlockIntensity, 100);
+        java.util.Arrays.fill(areaLightBlockScale, 100);
+        java.util.Arrays.fill(areaLightBlockYOffset, 0);
+        // All per-block overrides baked into LIGHT_DEFS — sliders start neutral
+        resetLightColorsToDefaults();
+    }
+
+    private static void resetLightColorsToDefaults() {
+        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT && i < DEFAULT_LIGHT_COLORS.length; i++) {
+            areaLightBlockColorR[i] = DEFAULT_LIGHT_COLORS[i][0];
+            areaLightBlockColorG[i] = DEFAULT_LIGHT_COLORS[i][1];
+            areaLightBlockColorB[i] = DEFAULT_LIGHT_COLORS[i][2];
+        }
+    }
     public static boolean outputScale2x = false;
     public static boolean reflexEnabled = false;
     public static boolean reflexBoost = false;
     public static boolean vrrMode = false;
-    public static int chunkBuildingBatchSize = 2;
-    public static int chunkBuildingTotalBatches = 4;
+    public static int chunkBuildingBatchSize = 6;
+    public static int chunkBuildingTotalBatches = 6;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
     public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
     public static int maxExposure = 8;          // raised from 2 — allows ~3 EV boost for dark scenes
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
-    public static boolean manualExposureEnabled = false;
+    public static boolean manualExposureEnabled = true;  // auto exposure off by default
     public static int manualExposureHundredths = 100; // hundredths: 1-2000 -> 0.01 to 20.00
     public static boolean legacyExposure = false;
     public static boolean casEnabled = false;
@@ -200,7 +327,20 @@ public class Options {
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
-    public static int upscalerPreset = 5; // DLSS: 4=D, 5=E (default). Generic for future upscalers.
+    public static int upscalerPreset = 4; // DLSS: 4=D (default), 5=E. Generic for future upscalers.
+
+    // PsychoV tonemapper (stored as integer percent/tenths for slider UI)
+    public static boolean psychoEnabled = true;
+    public static int psychoHighlightsPercent = 100;     // 0-300 → 0.0 to 3.0
+    public static int psychoShadowsPercent = 100;        // 0-300 → 0.0 to 3.0
+    public static int psychoContrastPercent = 100;       // 0-300 → 0.0 to 3.0
+    public static int psychoPurityPercent = 100;         // 0-300 → 0.0 to 3.0
+    public static int psychoBleachingPercent = 0;        // 0-100 → 0.0 to 1.0
+    public static int psychoClipPointTenths = 1000;      // 10-5000 → 1.0 to 500.0
+    public static int psychoHueRestorePercent = 50;      // 0-100 → 0.0 to 1.0
+    public static int psychoAdaptContrastPercent = 100;  // 0-300 → 0.0 to 3.0
+    public static int psychoWhiteCurve = 1;              // 0 = Neutwo, 1 = Naka-Rushton
+    public static int psychoConeExponentPercent = 100;   // 10-300 → 0.1 to 3.0
 
     // HDR10 output (default: disabled, pure SDR)
     public static boolean hdrEnabled = false;
@@ -255,6 +395,24 @@ public class Options {
     public static float emissionSculkShrieker = 0.5f;
     public static float emissionBrewingStand = 0.5f;
     public static float emissionEndPortal = 1.0f;
+    // New: emission fields for formerly area-light-only blocks
+    public static float emissionRedstoneTorch = 0.5f;
+    public static float emissionRedstoneLamp = 1.0f;
+    public static float emissionCandle = 0.5f;
+    public static float emissionCaveVines = 0.8f;
+    public static float emissionGlowLichen = 0.3f;
+    public static float emissionFurnace = 0.7f;
+    public static float emissionBlastFurnace = 0.7f;
+    public static float emissionSmoker = 0.7f;
+    public static float emissionEnderChest = 0.5f;
+    public static float emissionCopperBulb = 1.0f;
+    public static float emissionEnchantingTable = 0.3f;
+
+    // Per-block light mode: 0=Auto, 1=ForceAreaLight, 2=ForceEmissive
+    public static final int LIGHT_MODE_AUTO = 0;
+    public static final int LIGHT_MODE_FORCE_AREA = 1;
+    public static final int LIGHT_MODE_FORCE_EMISSIVE = 2;
+    public static final int[] blockLightMode = new int[AREA_LIGHT_TYPE_COUNT]; // default 0 (Auto)
 
     // Environmental settings (per dimension: overworld/nether/end)
     public static int environmentEditingDimension = DIM_OVERWORLD;
@@ -291,10 +449,26 @@ public class Options {
     private static ScheduledFuture<?> dlssRebuildTask;
     private static final ScheduledExecutorService scheduler =
         Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "radiance-dlss-debounce");
+            Thread t = new Thread(r, "radiance-settings-debounce");
             t.setDaemon(true);
             return t;
         });
+
+    // Debounce for Minecraft-side chunk reload (worldRenderer.reload)
+    private static ScheduledFuture<?> chunkReloadTask;
+
+    public static void debouncedChunkReload() {
+        if (chunkReloadTask != null) chunkReloadTask.cancel(false);
+        chunkReloadTask = scheduler.schedule(
+            () -> runOnClientThread(() -> {
+                MinecraftClient mc = MinecraftClient.getInstance();
+                if (mc != null && mc.worldRenderer != null) {
+                    mc.worldRenderer.reload();
+                }
+            }),
+            500,
+            TimeUnit.MILLISECONDS);
+    }
 
     public static boolean isDevLoggingEnabled() {
         try {
@@ -403,6 +577,67 @@ public class Options {
             simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
 
+            areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled)));
+            nativeSetAreaLightsEnabled(areaLightsEnabled, false);
+
+            restirEnabled = Boolean.parseBoolean(props.getProperty("restirEnabled", String.valueOf(restirEnabled)));
+            nativeSetRestirEnabled(restirEnabled, false);
+
+            areaLightIntensityPercent = clamp(Integer.parseInt(props.getProperty("areaLightIntensityPercent", String.valueOf(areaLightIntensityPercent))), 0, 500);
+            nativeSetAreaLightIntensity(areaLightIntensityPercent / 100.0f, false);
+
+            areaLightRange = clamp(Integer.parseInt(props.getProperty("areaLightRange", String.valueOf(areaLightRange))), 8, 512);
+            nativeSetAreaLightRange(areaLightRange, false);
+
+            shadowSoftnessPercent = clamp(Integer.parseInt(props.getProperty("shadowSoftnessPercent", String.valueOf(shadowSoftnessPercent))), 0, 200);
+            nativeSetShadowSoftness(shadowSoftnessPercent / 100.0f, false);
+
+            restirCandidates = clamp(Integer.parseInt(props.getProperty("restirCandidates", String.valueOf(restirCandidates))), 8, 64);
+            nativeSetRestirCandidates(restirCandidates, false);
+
+            restirTemporalMClamp = clamp(Integer.parseInt(props.getProperty("restirTemporalMClamp", String.valueOf(restirTemporalMClamp))), 5, 50);
+            nativeSetRestirTemporalMClamp(restirTemporalMClamp, false);
+
+            restirWClamp = clamp(Integer.parseInt(props.getProperty("restirWClamp", String.valueOf(restirWClamp))), 10, 200);
+            nativeSetRestirWClamp(restirWClamp, false);
+
+            restirSpatialTaps = clamp(Integer.parseInt(props.getProperty("restirSpatialTaps", String.valueOf(restirSpatialTaps))), 1, 10);
+            nativeSetRestirSpatialTaps(restirSpatialTaps, false);
+
+            restirSpatialRadius = clamp(Integer.parseInt(props.getProperty("restirSpatialRadius", String.valueOf(restirSpatialRadius))), 5, 60);
+            nativeSetRestirSpatialRadius(restirSpatialRadius, false);
+
+            restirSimplifiedBRDF = Boolean.parseBoolean(props.getProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF)));
+            nativeSetRestirSimplifiedBRDF(restirSimplifiedBRDF, false);
+
+            restirSpatialEnabled = Boolean.parseBoolean(props.getProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled)));
+            nativeSetRestirSpatialEnabled(restirSpatialEnabled, false);
+
+            restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled)));
+            nativeSetRestirBounceEnabled(restirBounceEnabled, false);
+
+            for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
+                areaLightBlockIntensity[i] = clamp(Integer.parseInt(props.getProperty("areaLightBlock." + i, "100")), 0, 500);
+                nativeSetAreaLightBlockIntensity(i, areaLightBlockIntensity[i] / 100.0f);
+
+                areaLightBlockScale[i] = clamp(Integer.parseInt(props.getProperty("areaLightScale." + i, "100")), 10, 500);
+                nativeSetAreaLightBlockScale(i, areaLightBlockScale[i] / 100.0f);
+
+                int defR = (i < DEFAULT_LIGHT_COLORS.length) ? DEFAULT_LIGHT_COLORS[i][0] : 255;
+                int defG = (i < DEFAULT_LIGHT_COLORS.length) ? DEFAULT_LIGHT_COLORS[i][1] : 255;
+                int defB = (i < DEFAULT_LIGHT_COLORS.length) ? DEFAULT_LIGHT_COLORS[i][2] : 255;
+                areaLightBlockYOffset[i] = clamp(Integer.parseInt(props.getProperty("areaLightYOffset." + i, "0")), -50, 50);
+                nativeSetAreaLightBlockYOffset(i, areaLightBlockYOffset[i] / 100.0f);
+
+                areaLightBlockColorR[i] = clamp(Integer.parseInt(props.getProperty("areaLightColorR." + i, String.valueOf(defR))), 0, 255);
+                areaLightBlockColorG[i] = clamp(Integer.parseInt(props.getProperty("areaLightColorG." + i, String.valueOf(defG))), 0, 255);
+                areaLightBlockColorB[i] = clamp(Integer.parseInt(props.getProperty("areaLightColorB." + i, String.valueOf(defB))), 0, 255);
+                nativeSetAreaLightBlockColor(i, areaLightBlockColorR[i] / 255.0f, areaLightBlockColorG[i] / 255.0f, areaLightBlockColorB[i] / 255.0f);
+
+                blockLightMode[i] = clamp(Integer.parseInt(props.getProperty("blockLightMode." + i, "0")), 0, 2);
+                nativeSetBlockLightMode(i, blockLightMode[i]);
+            }
+
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 
@@ -430,6 +665,31 @@ public class Options {
                 "LwhiteTenths", String.valueOf(LwhiteTenths)));
             saturationPercent = Integer.parseInt(props.getProperty(
                 "saturationPercent", String.valueOf(saturationPercent)));
+
+            // PsychoV tonemapper
+            psychoEnabled = Boolean.parseBoolean(props.getProperty("psychoEnabled", "true"));
+            nativeSetPsychoEnabled(psychoEnabled, false);
+            psychoHighlightsPercent = Integer.parseInt(props.getProperty("psychoHighlightsPercent", "100"));
+            nativeSetPsychoHighlights(psychoHighlightsPercent / 100.0f, false);
+            psychoShadowsPercent = Integer.parseInt(props.getProperty("psychoShadowsPercent", "100"));
+            nativeSetPsychoShadows(psychoShadowsPercent / 100.0f, false);
+            psychoContrastPercent = Integer.parseInt(props.getProperty("psychoContrastPercent", "100"));
+            nativeSetPsychoContrast(psychoContrastPercent / 100.0f, false);
+            psychoPurityPercent = Integer.parseInt(props.getProperty("psychoPurityPercent", "100"));
+            nativeSetPsychoPurity(psychoPurityPercent / 100.0f, false);
+            psychoBleachingPercent = Integer.parseInt(props.getProperty("psychoBleachingPercent", "0"));
+            nativeSetPsychoBleaching(psychoBleachingPercent / 100.0f, false);
+            psychoClipPointTenths = Integer.parseInt(props.getProperty("psychoClipPointTenths", "1000"));
+            nativeSetPsychoClipPoint(psychoClipPointTenths / 10.0f, false);
+            psychoHueRestorePercent = Integer.parseInt(props.getProperty("psychoHueRestorePercent", "50"));
+            nativeSetPsychoHueRestore(psychoHueRestorePercent / 100.0f, false);
+            psychoAdaptContrastPercent = Integer.parseInt(props.getProperty("psychoAdaptContrastPercent", "100"));
+            nativeSetPsychoAdaptContrast(psychoAdaptContrastPercent / 100.0f, false);
+            psychoWhiteCurve = Integer.parseInt(props.getProperty("psychoWhiteCurve", "1"));
+            nativeSetPsychoWhiteCurve(psychoWhiteCurve, false);
+            psychoConeExponentPercent = Integer.parseInt(props.getProperty("psychoConeExponentPercent", "100"));
+            nativeSetPsychoConeExponent(psychoConeExponentPercent / 100.0f, false);
+
             legacyExposure = Boolean.parseBoolean(props.getProperty(
                 "legacyExposure", String.valueOf(legacyExposure)));
 
@@ -541,6 +801,17 @@ public class Options {
             emissionSculkShrieker = Float.parseFloat(props.getProperty("emissionSculkShrieker", String.valueOf(emissionSculkShrieker)));
             emissionBrewingStand = Float.parseFloat(props.getProperty("emissionBrewingStand", String.valueOf(emissionBrewingStand)));
             emissionEndPortal = Float.parseFloat(props.getProperty("emissionEndPortal", String.valueOf(emissionEndPortal)));
+            emissionRedstoneTorch = Float.parseFloat(props.getProperty("emissionRedstoneTorch", String.valueOf(emissionRedstoneTorch)));
+            emissionRedstoneLamp = Float.parseFloat(props.getProperty("emissionRedstoneLamp", String.valueOf(emissionRedstoneLamp)));
+            emissionCandle = Float.parseFloat(props.getProperty("emissionCandle", String.valueOf(emissionCandle)));
+            emissionCaveVines = Float.parseFloat(props.getProperty("emissionCaveVines", String.valueOf(emissionCaveVines)));
+            emissionGlowLichen = Float.parseFloat(props.getProperty("emissionGlowLichen", String.valueOf(emissionGlowLichen)));
+            emissionFurnace = Float.parseFloat(props.getProperty("emissionFurnace", String.valueOf(emissionFurnace)));
+            emissionBlastFurnace = Float.parseFloat(props.getProperty("emissionBlastFurnace", String.valueOf(emissionBlastFurnace)));
+            emissionSmoker = Float.parseFloat(props.getProperty("emissionSmoker", String.valueOf(emissionSmoker)));
+            emissionEnderChest = Float.parseFloat(props.getProperty("emissionEnderChest", String.valueOf(emissionEnderChest)));
+            emissionCopperBulb = Float.parseFloat(props.getProperty("emissionCopperBulb", String.valueOf(emissionCopperBulb)));
+            emissionEnchantingTable = Float.parseFloat(props.getProperty("emissionEnchantingTable", String.valueOf(emissionEnchantingTable)));
 
             readEnvironmentSettings(props, loadedOptionsVersion);
 
@@ -567,6 +838,28 @@ public class Options {
         props.setProperty("ommEnabled", String.valueOf(ommEnabled));
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
+        props.setProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled));
+        props.setProperty("restirEnabled", String.valueOf(restirEnabled));
+        props.setProperty("areaLightIntensityPercent", String.valueOf(areaLightIntensityPercent));
+        props.setProperty("areaLightRange", String.valueOf(areaLightRange));
+        props.setProperty("shadowSoftnessPercent", String.valueOf(shadowSoftnessPercent));
+        props.setProperty("restirCandidates", String.valueOf(restirCandidates));
+        props.setProperty("restirTemporalMClamp", String.valueOf(restirTemporalMClamp));
+        props.setProperty("restirWClamp", String.valueOf(restirWClamp));
+        props.setProperty("restirSpatialTaps", String.valueOf(restirSpatialTaps));
+        props.setProperty("restirSpatialRadius", String.valueOf(restirSpatialRadius));
+        props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
+        props.setProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled));
+        props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
+        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
+            props.setProperty("areaLightBlock." + i, String.valueOf(areaLightBlockIntensity[i]));
+            props.setProperty("areaLightScale." + i, String.valueOf(areaLightBlockScale[i]));
+            props.setProperty("areaLightYOffset." + i, String.valueOf(areaLightBlockYOffset[i]));
+            props.setProperty("areaLightColorR." + i, String.valueOf(areaLightBlockColorR[i]));
+            props.setProperty("areaLightColorG." + i, String.valueOf(areaLightBlockColorG[i]));
+            props.setProperty("areaLightColorB." + i, String.valueOf(areaLightBlockColorB[i]));
+            props.setProperty("blockLightMode." + i, String.valueOf(blockLightMode[i]));
+        }
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
@@ -594,6 +887,18 @@ public class Options {
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
+        // PsychoV tonemapper
+        props.setProperty("psychoEnabled", String.valueOf(psychoEnabled));
+        props.setProperty("psychoHighlightsPercent", String.valueOf(psychoHighlightsPercent));
+        props.setProperty("psychoShadowsPercent", String.valueOf(psychoShadowsPercent));
+        props.setProperty("psychoContrastPercent", String.valueOf(psychoContrastPercent));
+        props.setProperty("psychoPurityPercent", String.valueOf(psychoPurityPercent));
+        props.setProperty("psychoBleachingPercent", String.valueOf(psychoBleachingPercent));
+        props.setProperty("psychoClipPointTenths", String.valueOf(psychoClipPointTenths));
+        props.setProperty("psychoHueRestorePercent", String.valueOf(psychoHueRestorePercent));
+        props.setProperty("psychoAdaptContrastPercent", String.valueOf(psychoAdaptContrastPercent));
+        props.setProperty("psychoWhiteCurve", String.valueOf(psychoWhiteCurve));
+        props.setProperty("psychoConeExponentPercent", String.valueOf(psychoConeExponentPercent));
         props.setProperty("upscalerPreset", String.valueOf(upscalerPreset));
         props.setProperty("hdrEnabled", String.valueOf(hdrEnabled));
         props.setProperty("hdrPeakNits", String.valueOf(hdrPeakNits));
@@ -628,6 +933,17 @@ public class Options {
         props.setProperty("emissionSculkShrieker", String.valueOf(emissionSculkShrieker));
         props.setProperty("emissionBrewingStand", String.valueOf(emissionBrewingStand));
         props.setProperty("emissionEndPortal", String.valueOf(emissionEndPortal));
+        props.setProperty("emissionRedstoneTorch", String.valueOf(emissionRedstoneTorch));
+        props.setProperty("emissionRedstoneLamp", String.valueOf(emissionRedstoneLamp));
+        props.setProperty("emissionCandle", String.valueOf(emissionCandle));
+        props.setProperty("emissionCaveVines", String.valueOf(emissionCaveVines));
+        props.setProperty("emissionGlowLichen", String.valueOf(emissionGlowLichen));
+        props.setProperty("emissionFurnace", String.valueOf(emissionFurnace));
+        props.setProperty("emissionBlastFurnace", String.valueOf(emissionBlastFurnace));
+        props.setProperty("emissionSmoker", String.valueOf(emissionSmoker));
+        props.setProperty("emissionEnderChest", String.valueOf(emissionEnderChest));
+        props.setProperty("emissionCopperBulb", String.valueOf(emissionCopperBulb));
+        props.setProperty("emissionEnchantingTable", String.valueOf(emissionEnchantingTable));
         props.setProperty("environmentEditingDimension", String.valueOf(environmentEditingDimension));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.skyBrightnessPercent." + dim, String.valueOf(skyBrightnessPercent[dim]));
@@ -1120,29 +1436,58 @@ public class Options {
         maxFps = 260;
         vsync = true;
         dlssDEnabled = true;
-        rayBounces = 4;
+        rayBounces = 16;
         ommEnabled = false;
         ommBakerLevel = 4;
         simplifiedIndirect = false;
+        areaLightsEnabled = true;
+        restirEnabled = true;
+        areaLightIntensityPercent = 100;
+        areaLightRange = 48;
+        shadowSoftnessPercent = 100;
+        restirCandidates = 32;
+        restirBounceEnabled = false;
+        restirTemporalMClamp = 20;
+        restirWClamp = 50;
+        restirSpatialTaps = 5;
+        restirSpatialRadius = 30;
+        java.util.Arrays.fill(areaLightBlockIntensity, 100);
+        java.util.Arrays.fill(areaLightBlockScale, 100);
+        java.util.Arrays.fill(areaLightBlockYOffset, 0);
+        // All per-block overrides baked into LIGHT_DEFS — sliders start neutral
+        resetLightColorsToDefaults();
+        java.util.Arrays.fill(blockLightMode, LIGHT_MODE_AUTO);
+        // New emission defaults
+        emissionRedstoneTorch = 0.5f;
+        emissionRedstoneLamp = 1.0f;
+        emissionCandle = 0.5f;
+        emissionCaveVines = 0.8f;
+        emissionGlowLichen = 0.3f;
+        emissionFurnace = 0.7f;
+        emissionBlastFurnace = 0.7f;
+        emissionSmoker = 0.7f;
+        emissionEnderChest = 0.5f;
+        emissionCopperBulb = 1.0f;
+        emissionEnchantingTable = 0.3f;
         outputScale2x = false;
         reflexEnabled = false;
         reflexBoost = false;
         vrrMode = false;
-        chunkBuildingBatchSize = 2;
-        chunkBuildingTotalBatches = 4;
+        chunkBuildingBatchSize = 6;
+        chunkBuildingTotalBatches = 6;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
         upscalerQuality = 2;
         upscalerResOverride = 100;
-        upscalerPreset = 5;
+        upscalerPreset = 4;
         hdrEnabled = false;
         hdrPeakNits = 1000;
         hdrPaperWhiteNits = 203;
         hdrUiBrightnessNits = 100;
         minExposureTenK = 1;
-        maxExposure = 2;
+        maxExposure = 8;
         exposureCompensation = 0;
-        manualExposureEnabled = false;
+        manualExposureEnabled = true;
         manualExposureHundredths = 100;
         legacyExposure = false;
         casEnabled = false;
@@ -1156,8 +1501,96 @@ public class Options {
         exposureLog2Max = 14;
         middleGreyPercent = 18;
         LwhiteTenths = 40;
+        // PsychoV tonemapper defaults
+        psychoEnabled = true;
+        psychoHighlightsPercent = 100;
+        psychoShadowsPercent = 100;
+        psychoContrastPercent = 100;
+        psychoPurityPercent = 100;
+        psychoBleachingPercent = 0;
+        psychoClipPointTenths = 1000;
+        psychoHueRestorePercent = 50;
+        psychoAdaptContrastPercent = 100;
+        psychoWhiteCurve = 1;
+        psychoConeExponentPercent = 100;
         // Environment + orbit
         setEnvironmentDefaults();
+
+        // Push all values to native C++ renderer
+        nativeSetMaxFps(maxFps, false);
+        nativeSetVsync(vsync, false);
+        nativeSetRayBounces(rayBounces, false);
+        nativeSetOMMEnabled(ommEnabled, false);
+        nativeSetOMMBakerLevel(ommBakerLevel, false);
+        nativeSetSimplifiedIndirect(simplifiedIndirect, false);
+        nativeSetAreaLightsEnabled(areaLightsEnabled, false);
+        nativeSetRestirEnabled(restirEnabled, false);
+        nativeSetAreaLightIntensity(areaLightIntensityPercent / 100.0f, false);
+        nativeSetAreaLightRange(areaLightRange, false);
+        nativeSetShadowSoftness(shadowSoftnessPercent / 100.0f, false);
+        nativeSetRestirCandidates(restirCandidates, false);
+        nativeSetRestirTemporalMClamp(restirTemporalMClamp, false);
+        nativeSetRestirWClamp(restirWClamp, false);
+        nativeSetRestirSpatialTaps(restirSpatialTaps, false);
+        nativeSetRestirSpatialRadius(restirSpatialRadius, false);
+        nativeSetRestirSimplifiedBRDF(restirSimplifiedBRDF, false);
+        nativeSetRestirSpatialEnabled(restirSpatialEnabled, false);
+        nativeSetRestirBounceEnabled(restirBounceEnabled, false);
+        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
+            nativeSetAreaLightBlockIntensity(i, areaLightBlockIntensity[i] / 100.0f);
+            nativeSetAreaLightBlockScale(i, areaLightBlockScale[i] / 100.0f);
+            nativeSetAreaLightBlockYOffset(i, areaLightBlockYOffset[i] / 100.0f);
+            nativeSetAreaLightBlockColor(i,
+                areaLightBlockColorR[i] / 255.0f,
+                areaLightBlockColorG[i] / 255.0f,
+                areaLightBlockColorB[i] / 255.0f);
+            nativeSetBlockLightMode(i, blockLightMode[i]);
+        }
+        nativeSetOutputScale2x(outputScale2x, false);
+        nativeSetReflexEnabled(reflexEnabled, false);
+        nativeSetReflexBoost(reflexBoost, false);
+        nativeSetVrrMode(vrrMode, false);
+        nativeSetChunkBuildingBatchSize(chunkBuildingBatchSize, false);
+        nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
+        nativeSetSdrTransferFunction(sdrTransferFunction, false);
+        nativeSetSaturation(saturationPercent / 100.0f, false);
+        nativeSetDlssQuality(upscalerQuality, false);
+        nativeSetDlssResOverride(upscalerResOverride, false);
+        nativeSetDlssPreset(upscalerPreset, false);
+        nativeSetHdrEnabled(hdrEnabled, false);
+        nativeSetHdrPeakNits(hdrPeakNits, false);
+        nativeSetHdrPaperWhiteNits(hdrPaperWhiteNits, false);
+        nativeSetHdrUiBrightnessNits(hdrUiBrightnessNits, false);
+        nativeSetMinExposure(minExposureTenK / 10000.0f, false);
+        nativeSetMaxExposure(maxExposure, false);
+        nativeSetExposureCompensation(exposureCompensation, false);
+        nativeSetManualExposureEnabled(manualExposureEnabled, false);
+        nativeSetManualExposure(manualExposureHundredths / 100.0f, false);
+        nativeSetLegacyExposure(legacyExposure, false);
+        nativeSetCasEnabled(casEnabled, false);
+        nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
+        nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
+        nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
+        nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
+        nativeSetExposureHighlightProtection(exposureHighlightProtectionPercent / 100.0f, false);
+        nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
+        nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
+        nativeSetExposureLog2MaxImproved(exposureLog2Max, false);
+        nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
+        nativeSetLwhite(LwhiteTenths / 10.0f, false);
+        // PsychoV tonemapper
+        nativeSetPsychoEnabled(psychoEnabled, false);
+        nativeSetPsychoHighlights(psychoHighlightsPercent / 100.0f, false);
+        nativeSetPsychoShadows(psychoShadowsPercent / 100.0f, false);
+        nativeSetPsychoContrast(psychoContrastPercent / 100.0f, false);
+        nativeSetPsychoPurity(psychoPurityPercent / 100.0f, false);
+        nativeSetPsychoBleaching(psychoBleachingPercent / 100.0f, false);
+        nativeSetPsychoClipPoint(psychoClipPointTenths / 10.0f, false);
+        nativeSetPsychoHueRestore(psychoHueRestorePercent / 100.0f, false);
+        nativeSetPsychoAdaptContrast(psychoAdaptContrastPercent / 100.0f, false);
+        nativeSetPsychoWhiteCurve(psychoWhiteCurve, false);
+        nativeSetPsychoConeExponent(psychoConeExponentPercent / 100.0f, false);
+
         overwriteConfig();
     }
 
@@ -1395,6 +1828,206 @@ public class Options {
         }
     }
 
+    // --- Area Lights ---
+    public native static void nativeSetAreaLightsEnabled(boolean enabled, boolean write);
+
+    public static void setAreaLightsEnabled(boolean enabled, boolean write) {
+        Options.areaLightsEnabled = enabled;
+        nativeSetAreaLightsEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetRestirEnabled(boolean enabled, boolean write);
+
+    public static void setRestirEnabled(boolean enabled, boolean write) {
+        Options.restirEnabled = enabled;
+        nativeSetRestirEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetAreaLightIntensity(float intensity, boolean write);
+
+    public static void setAreaLightIntensityPercent(int percent, boolean write) {
+        Options.areaLightIntensityPercent = Math.max(0, Math.min(500, percent));
+        nativeSetAreaLightIntensity(Options.areaLightIntensityPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetAreaLightRange(int range, boolean write);
+
+    public static void setAreaLightRange(int range, boolean write) {
+        Options.areaLightRange = Math.max(8, Math.min(512, range));
+        nativeSetAreaLightRange(Options.areaLightRange, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetShadowSoftness(float softness, boolean write);
+
+    public static void setShadowSoftnessPercent(int percent, boolean write) {
+        Options.shadowSoftnessPercent = Math.max(0, Math.min(200, percent));
+        nativeSetShadowSoftness(Options.shadowSoftnessPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetAreaLightBlockIntensity(int lightTypeId, float intensity);
+
+    public static void setAreaLightBlockIntensityPercent(int lightTypeId, int percent, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            Options.areaLightBlockIntensity[lightTypeId] = Math.max(0, Math.min(500, percent));
+            nativeSetAreaLightBlockIntensity(lightTypeId, Options.areaLightBlockIntensity[lightTypeId] / 100.0f);
+        }
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Per-block scale, Y offset, color ---
+
+    public native static void nativeSetAreaLightBlockScale(int lightTypeId, float scale);
+
+    public static void setAreaLightBlockScale(int lightTypeId, int percent, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            Options.areaLightBlockScale[lightTypeId] = Math.max(10, Math.min(500, percent));
+            nativeSetAreaLightBlockScale(lightTypeId, Options.areaLightBlockScale[lightTypeId] / 100.0f);
+        }
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetAreaLightBlockYOffset(int lightTypeId, float offset);
+
+    public static void setAreaLightBlockYOffset(int lightTypeId, int centibleocks, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            Options.areaLightBlockYOffset[lightTypeId] = Math.max(-50, Math.min(50, centibleocks));
+            nativeSetAreaLightBlockYOffset(lightTypeId, Options.areaLightBlockYOffset[lightTypeId] / 100.0f);
+        }
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetAreaLightBlockColor(int lightTypeId, float r, float g, float b);
+
+    public native static void nativeSetBlockLightMode(int lightTypeId, int mode);
+
+    public static void setBlockLightMode(int lightTypeId, int mode, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            blockLightMode[lightTypeId] = Math.max(0, Math.min(2, mode));
+            nativeSetBlockLightMode(lightTypeId, blockLightMode[lightTypeId]);
+            if (write) {
+                overwriteConfig();
+                nativeRebuildChunks();
+                debouncedChunkReload();
+            }
+        }
+    }
+
+    public static void setAreaLightBlockColorR(int lightTypeId, int value, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            Options.areaLightBlockColorR[lightTypeId] = Math.max(0, Math.min(255, value));
+            nativeSetAreaLightBlockColor(lightTypeId,
+                Options.areaLightBlockColorR[lightTypeId] / 255.0f,
+                Options.areaLightBlockColorG[lightTypeId] / 255.0f,
+                Options.areaLightBlockColorB[lightTypeId] / 255.0f);
+        }
+        if (write) overwriteConfig();
+    }
+
+    public static void setAreaLightBlockColorG(int lightTypeId, int value, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            Options.areaLightBlockColorG[lightTypeId] = Math.max(0, Math.min(255, value));
+            nativeSetAreaLightBlockColor(lightTypeId,
+                Options.areaLightBlockColorR[lightTypeId] / 255.0f,
+                Options.areaLightBlockColorG[lightTypeId] / 255.0f,
+                Options.areaLightBlockColorB[lightTypeId] / 255.0f);
+        }
+        if (write) overwriteConfig();
+    }
+
+    public static void setAreaLightBlockColorB(int lightTypeId, int value, boolean write) {
+        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
+            Options.areaLightBlockColorB[lightTypeId] = Math.max(0, Math.min(255, value));
+            nativeSetAreaLightBlockColor(lightTypeId,
+                Options.areaLightBlockColorR[lightTypeId] / 255.0f,
+                Options.areaLightBlockColorG[lightTypeId] / 255.0f,
+                Options.areaLightBlockColorB[lightTypeId] / 255.0f);
+        }
+        if (write) overwriteConfig();
+    }
+
+    // --- ReSTIR DI Tuning ---
+    public native static void nativeSetRestirCandidates(int candidates, boolean write);
+
+    public static void setRestirCandidates(int value, boolean write) {
+        Options.restirCandidates = Math.max(8, Math.min(64, value));
+        nativeSetRestirCandidates(Options.restirCandidates, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetRestirTemporalMClamp(int clamp, boolean write);
+
+    public static void setRestirTemporalMClamp(int value, boolean write) {
+        Options.restirTemporalMClamp = Math.max(5, Math.min(50, value));
+        nativeSetRestirTemporalMClamp(Options.restirTemporalMClamp, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetRestirWClamp(int clamp, boolean write);
+
+    public static void setRestirWClamp(int value, boolean write) {
+        Options.restirWClamp = Math.max(10, Math.min(200, value));
+        nativeSetRestirWClamp(Options.restirWClamp, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetRestirSpatialTaps(int taps, boolean write);
+
+    public static void setRestirSpatialTaps(int value, boolean write) {
+        Options.restirSpatialTaps = Math.max(1, Math.min(10, value));
+        nativeSetRestirSpatialTaps(Options.restirSpatialTaps, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetRestirSpatialRadius(int radius, boolean write);
+
+    public static void setRestirSpatialRadius(int value, boolean write) {
+        Options.restirSpatialRadius = Math.max(5, Math.min(60, value));
+        nativeSetRestirSpatialRadius(Options.restirSpatialRadius, write);
+        if (write) overwriteConfig();
+    }
+
+    // --- ReSTIR Performance ---
+    public native static void nativeSetRestirSimplifiedBRDF(boolean enabled, boolean write);
+
+    public static void setRestirSimplifiedBRDF(boolean enabled, boolean write) {
+        Options.restirSimplifiedBRDF = enabled;
+        nativeSetRestirSimplifiedBRDF(enabled, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetRestirSpatialEnabled(boolean enabled, boolean write);
+
+    public static void setRestirSpatialEnabled(boolean enabled, boolean write) {
+        Options.restirSpatialEnabled = enabled;
+        nativeSetRestirSpatialEnabled(enabled, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetRestirBounceEnabled(boolean enabled, boolean write);
+
+    public static void setRestirBounceEnabled(boolean enabled, boolean write) {
+        Options.restirBounceEnabled = enabled;
+        nativeSetRestirBounceEnabled(enabled, write);
+        if (write) overwriteConfig();
+    }
+
     // --- Output Scale 2x ---
     public native static void nativeSetOutputScale2x(boolean enabled, boolean write);
 
@@ -1469,6 +2102,8 @@ public class Options {
             overwriteConfig();
         }
     }
+
+
 
     public native static void nativeSetDlssPreset(int preset, boolean write);
 
@@ -1638,6 +2273,107 @@ public class Options {
     public static void setSaturation(int percent, boolean write) {
         Options.saturationPercent = percent;
         nativeSetSaturation(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- PsychoV Tonemapper ---
+    public native static void nativeSetPsychoEnabled(boolean enabled, boolean write);
+    public native static void nativeSetPsychoHighlights(float value, boolean write);
+    public native static void nativeSetPsychoShadows(float value, boolean write);
+    public native static void nativeSetPsychoContrast(float value, boolean write);
+    public native static void nativeSetPsychoPurity(float value, boolean write);
+    public native static void nativeSetPsychoBleaching(float value, boolean write);
+    public native static void nativeSetPsychoClipPoint(float value, boolean write);
+    public native static void nativeSetPsychoHueRestore(float value, boolean write);
+    public native static void nativeSetPsychoAdaptContrast(float value, boolean write);
+    public native static void nativeSetPsychoWhiteCurve(int value, boolean write);
+    public native static void nativeSetPsychoConeExponent(float value, boolean write);
+
+    public static void setPsychoEnabled(boolean enabled, boolean write) {
+        Options.psychoEnabled = enabled;
+        nativeSetPsychoEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoHighlights(int percent, boolean write) {
+        Options.psychoHighlightsPercent = percent;
+        nativeSetPsychoHighlights(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoShadows(int percent, boolean write) {
+        Options.psychoShadowsPercent = percent;
+        nativeSetPsychoShadows(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoContrast(int percent, boolean write) {
+        Options.psychoContrastPercent = percent;
+        nativeSetPsychoContrast(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoPurity(int percent, boolean write) {
+        Options.psychoPurityPercent = percent;
+        nativeSetPsychoPurity(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoBleaching(int percent, boolean write) {
+        Options.psychoBleachingPercent = percent;
+        nativeSetPsychoBleaching(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoClipPoint(int tenths, boolean write) {
+        Options.psychoClipPointTenths = tenths;
+        nativeSetPsychoClipPoint(tenths / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoHueRestore(int percent, boolean write) {
+        Options.psychoHueRestorePercent = percent;
+        nativeSetPsychoHueRestore(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoAdaptContrast(int percent, boolean write) {
+        Options.psychoAdaptContrastPercent = percent;
+        nativeSetPsychoAdaptContrast(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoWhiteCurve(int value, boolean write) {
+        Options.psychoWhiteCurve = value;
+        nativeSetPsychoWhiteCurve(value, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setPsychoConeExponent(int percent, boolean write) {
+        Options.psychoConeExponentPercent = percent;
+        nativeSetPsychoConeExponent(percent / 100.0f, write);
         if (write) {
             overwriteConfig();
         }
