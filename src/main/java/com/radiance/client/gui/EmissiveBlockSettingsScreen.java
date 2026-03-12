@@ -64,6 +64,8 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
+        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+            Text.literal("Radiance > Lighting > Emission"), 20, 26, RadianceTheme.textSecondary);
         // Render dropdown overlays AFTER the body list, so they appear on top
         for (MaterialDropdownWidget dd : dropdowns) {
             dd.renderDropdownOverlay(context, mouseX, mouseY);

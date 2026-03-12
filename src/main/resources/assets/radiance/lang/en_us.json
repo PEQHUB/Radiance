@@ -508,6 +508,10 @@
   ,"options.video.autoPBR.varianceWeight": "Variance Weight"
   ,"options.video.autoPBR.edgeWeight": "Edge Weight"
 
+  ,"radiance.settings.menu_transparency": "Menu Transparency"
+  ,"radiance.settings.search.hint": "Search settings..."
+  ,"radiance.settings.search.no_results": "No matching settings"
+  ,"radiance.settings.recent": "Recent"
   ,"radiance.settings.reset_defaults": "Reset to Defaults"
   ,"radiance.settings.welcome_message.on": "Welcome Message: On"
   ,"radiance.settings.welcome_message.off": "Welcome Message: Off"

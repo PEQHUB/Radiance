@@ -6,13 +6,17 @@ import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import com.radiance.client.util.MaterialBlock;
 import com.radiance.client.util.MetalPreset;
+import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.DirectionalLayoutWidget;
 import net.minecraft.client.option.SimpleOption;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 
 public class MaterialsSettingsScreen extends GameOptionsScreen {
 
@@ -96,6 +100,23 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         snapshotTaken = false;
         Options.overwriteConfig();
         this.client.setScreen(this.parentScreen);
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.render(context, mouseX, mouseY, delta);
+        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+            Text.literal("Radiance > Lighting > Materials"), 20, 26, RadianceTheme.textSecondary);
+
+        // Block icon next to the block selector
+        MaterialBlock[] blocks = MaterialBlock.values();
+        if (currentBlockIndex < blocks.length) {
+            MaterialBlock mb = blocks[currentBlockIndex];
+            Block block = Registries.BLOCK.get(Identifier.of("minecraft", mb.getId()));
+            if (block != null) {
+                RadianceBlockIcon.drawBlockIcon(context, block, this.width - 44, 20, 24);
+            }
+        }
     }
 
     @Override

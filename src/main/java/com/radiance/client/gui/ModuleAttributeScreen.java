@@ -62,15 +62,21 @@ public class ModuleAttributeScreen extends Screen {
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent themed background instead of opaque
+        context.fill(0, 0, this.width, this.height, RadianceTheme.panelBg);
+    }
+
+    @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
 
-        context.drawTextWithShadow(textRenderer, Text.translatable(module.name), 10,
-            HEADER_HEIGHT + 8, 0xFFEAEAEA);
+        RadianceTheme.drawOutlinedText(context, textRenderer, Text.translatable(module.name), 10,
+            HEADER_HEIGHT + 8, RadianceTheme.textPrimary);
 
         if (rows.isEmpty()) {
-            context.drawTextWithShadow(textRenderer, "module_attribute_screen.no_attributes", 10,
-                60, 0xFFB0B0B0);
+            RadianceTheme.drawOutlinedText(context, textRenderer,
+                Text.literal("No Attributes"), 10, 60, RadianceTheme.textSecondary);
             return;
         }
 
@@ -81,13 +87,10 @@ public class ModuleAttributeScreen extends Screen {
             Row row = rows.get(i);
             int y = baseY + i * rowH;
 
-            context.drawTextWithShadow(textRenderer, Text.translatable(row.cfg.name), 20, y + 6,
-                0xFFD0D0D0);
-
             boolean visible = y >= (HEADER_HEIGHT + 18) && y <= (this.height - 24);
             if (visible) {
-                context.drawTextWithShadow(textRenderer, Text.translatable(row.cfg.name), 20, y + 6,
-                    0xFFD0D0D0);
+                RadianceTheme.drawOutlinedText(context, textRenderer,
+                    Text.translatable(row.cfg.name), 20, y + 6, RadianceTheme.textPrimary);
             }
 
             layoutRowWidgets(row, y);

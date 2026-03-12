@@ -367,6 +367,8 @@ public class Options {
 
     // Persistent UI state (not reset by Reset to Defaults)
     public static boolean showWelcomeMessage = true;
+    public static int uiGlobalAlphaPercent = 55;         // 0-100, controls menu transparency
+    public static boolean uiAdaptiveDimming = false;     // auto-adjust alpha based on scene brightness
 
     public static final int SUN_PATH_MODE_DEFAULT = 1;
     public static final int SUN_INCLINATION_DEFAULT = 23;
@@ -1223,6 +1225,8 @@ public class Options {
 
         // Persistent UI state
         props.setProperty("showWelcomeMessage", String.valueOf(showWelcomeMessage));
+        props.setProperty("uiGlobalAlphaPercent", String.valueOf(uiGlobalAlphaPercent));
+        props.setProperty("uiAdaptiveDimming", String.valueOf(uiAdaptiveDimming));
 
         try {
             Files.createDirectories(path.getParent());
@@ -1351,6 +1355,14 @@ public class Options {
         // Persistent UI state
         showWelcomeMessage = Boolean.parseBoolean(
             props.getProperty("showWelcomeMessage", "true"));
+        uiGlobalAlphaPercent = Math.max(0, Math.min(100, Integer.parseInt(
+            props.getProperty("uiGlobalAlphaPercent", "55"))));
+        uiAdaptiveDimming = Boolean.parseBoolean(
+            props.getProperty("uiAdaptiveDimming", "false"));
+
+        // Apply UI theme from loaded values
+        com.radiance.client.gui.RadianceTheme.setGlobalAlpha(uiGlobalAlphaPercent / 100f);
+        com.radiance.client.gui.RadianceTheme.setAdaptiveDimmingEnabled(uiAdaptiveDimming);
     }
 
     private static void setEnvironmentDefaults() {
@@ -2823,5 +2835,19 @@ public class Options {
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(7, mode));
+    }
+
+    // ── UI Theme setters ──
+
+    public static void setUiGlobalAlphaPercent(int percent, boolean write) {
+        uiGlobalAlphaPercent = Math.max(0, Math.min(100, percent));
+        com.radiance.client.gui.RadianceTheme.setGlobalAlpha(uiGlobalAlphaPercent / 100f);
+        if (write) overwriteConfig();
+    }
+
+    public static void setUiAdaptiveDimming(boolean enabled, boolean write) {
+        uiAdaptiveDimming = enabled;
+        com.radiance.client.gui.RadianceTheme.setAdaptiveDimmingEnabled(enabled);
+        if (write) overwriteConfig();
     }
 }

@@ -5,6 +5,7 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.text.Text;
@@ -21,6 +22,27 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
         this.parentScreen = parent;
         this.lightTypeId = lightTypeId;
         this.translationKey = translationKey;
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.render(context, mouseX, mouseY, delta);
+        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+            Text.literal("Radiance > Lighting > Area Lights > Detail"), 20, 26, RadianceTheme.textSecondary);
+
+        // Color swatch showing composed RGB from per-block color sliders
+        int r = Options.areaLightBlockColorR[this.lightTypeId];
+        int g = Options.areaLightBlockColorG[this.lightTypeId];
+        int b = Options.areaLightBlockColorB[this.lightTypeId];
+        int swatchColor = 0xFF000000 | (r << 16) | (g << 8) | b;
+        int swatchX = this.width - 40;
+        int swatchY = 22;
+        int swatchSize = 16;
+        context.fill(swatchX, swatchY, swatchX + swatchSize, swatchY + swatchSize, swatchColor);
+        context.fill(swatchX - 1, swatchY - 1, swatchX + swatchSize + 1, swatchY, RadianceTheme.borderDefault);
+        context.fill(swatchX - 1, swatchY + swatchSize, swatchX + swatchSize + 1, swatchY + swatchSize + 1, RadianceTheme.borderDefault);
+        context.fill(swatchX - 1, swatchY, swatchX, swatchY + swatchSize, RadianceTheme.borderDefault);
+        context.fill(swatchX + swatchSize, swatchY, swatchX + swatchSize + 1, swatchY + swatchSize, RadianceTheme.borderDefault);
     }
 
     @Override

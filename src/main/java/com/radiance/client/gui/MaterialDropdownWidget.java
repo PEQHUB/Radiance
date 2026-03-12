@@ -24,11 +24,6 @@ public class MaterialDropdownWidget extends ClickableWidget {
 
     private static final FlameColorant[] OPTIONS = FlameColorant.values();
     private static final int ITEM_HEIGHT = 16;
-    private static final int BG_COLOR = 0xFF1A1A1A;
-    private static final int HOVER_COLOR = 0xFF3A3A5A;
-    private static final int BORDER_COLOR = 0xFF808080;
-    private static final int TEXT_COLOR = 0xFFFFFFFF;
-    private static final int SELECTED_BAR = 0xFF6060FF;
 
     private FlameColorant selected;
     private boolean open = false;
@@ -79,23 +74,34 @@ public class MaterialDropdownWidget extends ClickableWidget {
 
     @Override
     public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Apply inactive fade if another widget is the active slider
+        float fade = RadianceTheme.inactiveFadeFactor();
+        boolean isActive = (RadianceTheme.activeSlider == this);
+        float alphaMult = isActive ? 1f : fade;
+        if (alphaMult <= 0f) return;
+
         int x = getX();
         int y = getY();
         int w = getWidth();
         int h = getHeight();
 
-        context.fill(x, y, x + w, y + h, BG_COLOR);
-        context.drawBorder(x, y, w, h, this.isFocused() || open ? 0xFFFFFFFF : BORDER_COLOR);
+        context.fill(x, y, x + w, y + h, RadianceTheme.scaleAlpha(RadianceTheme.dropdownBg, alphaMult));
+        int borderColor = (this.isFocused() || open)
+                ? RadianceTheme.scaleAlpha(RadianceTheme.borderFocused, alphaMult)
+                : RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, alphaMult);
+        context.drawBorder(x, y, w, h, borderColor);
 
         String label = selected.getLabel();
         var tr = MinecraftClient.getInstance().textRenderer;
         int textWidth = tr.getWidth(label);
         int textX = x + (w - textWidth) / 2;
         int textY = y + (h - 8) / 2;
-        context.drawTextWithShadow(tr, label, textX, textY, TEXT_COLOR);
+        RadianceTheme.drawOutlinedText(context, tr, Text.literal(label), textX, textY,
+                RadianceTheme.textPrimary, alphaMult);
 
         String arrow = open ? "\u25B2" : "\u25BC";
-        context.drawTextWithShadow(tr, arrow, x + w - 10, textY, 0xFFAAAAAA);
+        RadianceTheme.drawOutlinedText(context, tr, Text.literal(arrow), x + w - 10, textY,
+                RadianceTheme.textSecondary, alphaMult);
     }
 
     /**
@@ -104,6 +110,12 @@ public class MaterialDropdownWidget extends ClickableWidget {
      */
     public void renderDropdownOverlay(DrawContext context, int mouseX, int mouseY) {
         if (!open) return;
+
+        // Apply inactive fade if another widget is the active slider
+        float fade = RadianceTheme.inactiveFadeFactor();
+        boolean isActive = (RadianceTheme.activeSlider == this);
+        float alphaMult = isActive ? 1f : fade;
+        if (alphaMult <= 0f) return;
 
         // Push z forward so dropdown renders above list entries below
         context.getMatrices().push();
@@ -114,9 +126,11 @@ public class MaterialDropdownWidget extends ClickableWidget {
         int w = getWidth();
         int totalHeight = OPTIONS.length * ITEM_HEIGHT + 2;
 
-        // Solid opaque background
-        context.fill(x - 1, y - 1, x + w + 1, y + totalHeight + 1, BORDER_COLOR);
-        context.fill(x, y, x + w, y + totalHeight, BG_COLOR);
+        // Solid opaque background with border
+        context.fill(x - 1, y - 1, x + w + 1, y + totalHeight + 1,
+                RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, alphaMult));
+        context.fill(x, y, x + w, y + totalHeight,
+                RadianceTheme.scaleAlpha(RadianceTheme.dropdownBg, alphaMult));
 
         var tr = MinecraftClient.getInstance().textRenderer;
         hoveredIndex = -1;
@@ -125,12 +139,15 @@ public class MaterialDropdownWidget extends ClickableWidget {
             boolean hovered = mouseX >= x && mouseX < x + w && mouseY >= itemY && mouseY < itemY + ITEM_HEIGHT;
             if (hovered) {
                 hoveredIndex = i;
-                context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT, HOVER_COLOR);
+                context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, alphaMult));
             }
             if (OPTIONS[i] == selected) {
-                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT, SELECTED_BAR);
+                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
             }
-            context.drawTextWithShadow(tr, OPTIONS[i].getLabel(), x + 6, itemY + 4, TEXT_COLOR);
+            RadianceTheme.drawOutlinedText(context, tr, Text.literal(OPTIONS[i].getLabel()),
+                    x + 6, itemY + 4, RadianceTheme.textPrimary, alphaMult);
         }
 
         context.getMatrices().pop();

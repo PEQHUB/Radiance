@@ -76,53 +76,59 @@ public class DlssMissingScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.renderBackground(context, mouseX, mouseY, delta);
+        // Draw themed panel behind the content area (centered)
+        int panelW = 340;
+        int panelH = 220;
+        int panelX = this.width / 2 - panelW / 2;
+        int panelY = this.height / 2 - 90;
+        context.fill(panelX, panelY, panelX + panelW, panelY + panelH, RadianceTheme.panelBg);
 
         // Title
-        context.drawCenteredTextWithShadow(
-            this.textRenderer, this.title,
-            this.width / 2, this.height / 2 - 80, 0xFF5555);
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer, this.title,
+            this.width / 2, this.height / 2 - 80, RadianceTheme.TEXT_ERROR);
 
         // Body lines
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
             Text.translatable("radiance.dlss_missing.line1"),
-            this.width / 2, this.height / 2 - 58, 0xFFFFFF);
+            this.width / 2, this.height / 2 - 58, RadianceTheme.textPrimary);
 
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
             Text.translatable("radiance.dlss_missing.line2"),
-            this.width / 2, this.height / 2 - 44, 0xFFFFFF);
+            this.width / 2, this.height / 2 - 44, RadianceTheme.textPrimary);
 
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
             Text.translatable("radiance.dlss_missing.line3"),
-            this.width / 2, this.height / 2 - 24, 0xFFFFFF);
+            this.width / 2, this.height / 2 - 24, RadianceTheme.textPrimary);
 
         // URL (cyan, selectable-looking)
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
             Text.literal(RadianceClient.dlssDownloadUrl),
-            this.width / 2, this.height / 2 - 10, 0x55FFFF);
+            this.width / 2, this.height / 2 - 10, RadianceTheme.TEXT_LINK);
 
         // Install path (gold/yellow)
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
             Text.translatable("radiance.dlss_missing.line4"),
-            this.width / 2, this.height / 2 + 4, 0xFFFFFF);
+            this.width / 2, this.height / 2 + 4, RadianceTheme.textPrimary);
 
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
             Text.literal(RadianceClient.dlssInstallDir.toAbsolutePath().toString()),
-            this.width / 2, this.height / 2 + 14, 0xFFAA00);
+            this.width / 2, this.height / 2 + 14, RadianceTheme.TEXT_PATH);
 
         // Confirmation flash (copied / recheck failed)
         if (copiedTicks > 0) {
             boolean isError = copiedLabel.equals("radiance.dlss_missing.recheck_failed");
-            context.drawCenteredTextWithShadow(
-                this.textRenderer,
+            RadianceTheme.drawCenteredOutlinedText(
+                context, this.textRenderer,
                 Text.translatable(copiedLabel.isEmpty() ? "radiance.dlss_missing.copied" : copiedLabel),
-                this.width / 2, this.height / 2 + 118, isError ? 0xFF5555 : 0x55FF55);
+                this.width / 2, this.height / 2 + 118,
+                isError ? RadianceTheme.TEXT_ERROR : RadianceTheme.TEXT_SUCCESS);
         }
 
         super.render(context, mouseX, mouseY, delta);

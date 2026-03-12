@@ -5,6 +5,7 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.option.SimpleOption;
@@ -18,6 +19,13 @@ public class MoonSettingsScreen extends GameOptionsScreen {
         super(parent, MinecraftClient.getInstance().options,
             Text.translatable("radiance.settings.environment.moon.title"));
         this.parentScreen = parent;
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.render(context, mouseX, mouseY, delta);
+        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+            Text.literal("Radiance > Environment > Moon"), 20, 26, RadianceTheme.textSecondary);
     }
 
     @Override

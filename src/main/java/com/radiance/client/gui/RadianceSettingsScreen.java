@@ -20,10 +20,12 @@ import net.minecraft.client.gui.widget.OptionListWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
+import org.lwjgl.glfw.GLFW;
 
 public class RadianceSettingsScreen extends GameOptionsScreen {
 
     private final Screen parentScreen;
+    private RadianceSearchOverlay searchOverlay;
 
     public RadianceSettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options, Text.translatable("radiance.settings.title"));
@@ -33,6 +35,7 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     @Override
     protected void init() {
         super.init();
+        this.searchOverlay = new RadianceSearchOverlay(this);
 
         // Shift the body list down to make room for the hint lines below the title
         this.body.setY(this.body.getY() + 22);
@@ -75,10 +78,74 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         // Hint lines below the title, above the body list
         int hintY = 26;
         int centerX = this.width / 2;
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
-            Text.literal(Formatting.GRAY + "Ctrl+Click a slider to type a value  \u2502  Shift+Click to reset to default"),
-            centerX, hintY, 0xFFFFFF);
+        RadianceTheme.drawCenteredOutlinedText(
+            context, this.textRenderer,
+            Text.literal(Formatting.GRAY + "Ctrl+Click a slider to type a value  \u2502  Shift+Click to reset  \u2502  Space to search"),
+            centerX, hintY, RadianceTheme.textSecondary);
+
+        // Recently tweaked settings strip
+        var recents = RecentTweaksManager.getRecent();
+        if (!recents.isEmpty()) {
+            StringBuilder recentText = new StringBuilder("Recent: ");
+            for (int i = 0; i < recents.size(); i++) {
+                if (i > 0) recentText.append("  \u2502  ");
+                recentText.append(recents.get(i).displayName());
+            }
+            RadianceTheme.drawCenteredOutlinedText(
+                context, this.textRenderer,
+                Text.literal(recentText.toString()),
+                centerX, hintY + 11, RadianceTheme.textAccent, 0.7f);
+        }
+
+        // Search overlay (rendered last, on top of everything)
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            searchOverlay.render(context, this.textRenderer, this.width, this.height);
+        }
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // Search overlay consumes all input when visible
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.keyPressed(keyCode, scanCode, modifiers);
+        }
+        // Peek mode: hold Tab to hide all UI
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
+            RadianceTheme.peekActive = true;
+            return true;
+        }
+        // Search overlay: Space when no text field is focused
+        if (keyCode == GLFW.GLFW_KEY_SPACE && !(getFocused() instanceof net.minecraft.client.gui.widget.TextFieldWidget)) {
+            if (searchOverlay != null) searchOverlay.toggle();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.charTyped(chr, modifiers);
+        }
+        return super.charTyped(chr, modifiers);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.mouseClicked(mouseX, mouseY, button);
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        // Peek mode: release Tab to restore UI
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
+            RadianceTheme.peekActive = false;
+            return true;
+        }
+        return super.keyReleased(keyCode, scanCode, modifiers);
     }
 
     @Override
@@ -100,6 +167,17 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     protected void addOptions() {
         MinecraftClient mc = MinecraftClient.getInstance();
         RadianceSettingsScreen self = this;
+
+        // ── MENU TRANSPARENCY (global alpha slider, before all categories) ──
+        ResettableSliderWidget alphaSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            0, 100, Options.uiGlobalAlphaPercent, 55,
+            v -> getGenericValueText(
+                Text.translatable("radiance.settings.menu_transparency"),
+                Text.literal(v + "%")),
+            v -> Options.setUiGlobalAlphaPercent(v, true));
+        alphaSlider.settingKey = "uiGlobalAlphaPercent";
+        this.body.addEntry(new SliderEntry(alphaSlider, body));
 
         // ── LIGHTING ──
         this.body.addEntry(
@@ -172,6 +250,7 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
                 Text.translatable(Options.SATURATION_KEY),
                 Text.literal(String.format("%.2f", v / 100.0))),
             v -> Options.setSaturation(v, true));
+        satSlider.settingKey = "saturationPercent";
         this.body.addEntry(new SliderEntry(satSlider, body));
 
         // [PsychoV Settings... | (empty)]
@@ -459,6 +538,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
             context.drawCenteredTextWithShadow(mc.textRenderer, label, x + entryWidth / 2, y + 6, 0xFFFFFF);
         }
@@ -488,12 +569,16 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             // Full-width slider, rounded down to even pixels
             int w = entryWidth - (entryWidth % 2);
             slider.setX(x + (entryWidth - w) / 2);
             slider.setY(y);
             slider.setWidth(w);
             slider.render(context, mouseX, mouseY, tickDelta);
+            // Modified dot for non-default values
+            RadianceTheme.drawModifiedDot(context, slider.getX(), y, entryHeight, !slider.isDefault());
         }
 
         @Override
@@ -526,17 +611,21 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             int gap = 8;
             int colW = (entryWidth - gap) / 2;
             left.setX(x);
             left.setY(y);
             left.setWidth(right != null ? colW : entryWidth);
             left.render(context, mouseX, mouseY, tickDelta);
+            RadianceTheme.drawModifiedDot(context, left.getX(), y, entryHeight, !left.isDefault());
             if (right != null) {
                 right.setX(x + colW + gap);
                 right.setY(y);
                 right.setWidth(colW);
                 right.render(context, mouseX, mouseY, tickDelta);
+                RadianceTheme.drawModifiedDot(context, right.getX(), y, entryHeight, !right.isDefault());
             }
         }
 
@@ -582,6 +671,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             int sw = Math.min(100, entryWidth / 4 - 10);
             renderSlot(s0, x, y, entryWidth, sw, 1, mouseX, mouseY, tickDelta, context);
             renderSlot(s1, x, y, entryWidth, sw, 3, mouseX, mouseY, tickDelta, context);
@@ -642,6 +733,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             int gap = 4;
             int sw = (entryWidth - gap * 4) / 5;
             renderSlider5(s0, x, y, entryWidth, sw, 1, mouseX, mouseY, tickDelta, context);
@@ -695,6 +788,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             int gap = 8;
             int colW = (entryWidth - gap) / 2;
             left.setX(x);
@@ -732,6 +827,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         @Override
         public void render(DrawContext context, int index, int y, int x, int entryWidth,
                 int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
+            if (fadeFactor <= 0f) return;
             int w = entryWidth - (entryWidth % 2);
             button.setX(x + (entryWidth - w) / 2);
             button.setY(y);

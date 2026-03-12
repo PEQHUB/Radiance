@@ -5,6 +5,7 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.text.Text;
@@ -14,6 +15,13 @@ public class SkySettingsScreen extends GameOptionsScreen {
     public SkySettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options,
             Text.translatable("radiance.settings.environment.sky.title"));
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        super.render(context, mouseX, mouseY, delta);
+        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+            Text.literal("Radiance > Environment > Sky"), 20, 26, RadianceTheme.textSecondary);
     }
 
     @Override

@@ -76,13 +76,20 @@ public class NumericSliderInputScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, this.height / 2 - 34, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer,
+        // Draw themed panel behind the content area (centered, 200x100)
+        int panelW = 200;
+        int panelH = 100;
+        int panelX = this.width / 2 - panelW / 2;
+        int panelY = this.height / 2 - 40;
+        context.fill(panelX, panelY, panelX + panelW, panelY + panelH, RadianceTheme.panelBg);
+
+        RadianceTheme.drawCenteredOutlinedText(context, this.textRenderer, this.title,
+                this.width / 2, this.height / 2 - 34, RadianceTheme.textPrimary);
+        RadianceTheme.drawCenteredOutlinedText(context, this.textRenderer,
             Text.literal("Range: " + min + " - " + max),
             this.width / 2,
             this.height / 2 - 22,
-            0xA0A0A0);
+            RadianceTheme.textSecondary);
         super.render(context, mouseX, mouseY, delta);
     }
 }

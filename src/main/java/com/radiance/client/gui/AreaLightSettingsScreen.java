@@ -13,7 +13,6 @@ import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
 
 
 public class AreaLightSettingsScreen extends GameOptionsScreen {
@@ -93,13 +92,15 @@ public class AreaLightSettingsScreen extends GameOptionsScreen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
 
-        // Hint line below the title
-        int hintY = 26;
-        int centerX = this.width / 2;
-        context.drawCenteredTextWithShadow(
-            this.textRenderer,
-            Text.literal(Formatting.GRAY + "Ctrl+Click a slider to type a value  \u2502  Shift+Click to reset to default"),
-            centerX, hintY, 0xFFFFFF);
+        // Breadcrumb
+        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+            Text.literal("Radiance > Lighting > Area Lights"), 20, 26, RadianceTheme.textSecondary);
+
+        // Hint line below the breadcrumb
+        int hintY = 38;
+        RadianceTheme.drawCenteredOutlinedText(context, this.textRenderer,
+            Text.literal("Ctrl+Click a slider to type a value  \u2502  Shift+Click to reset to default"),
+            this.width / 2, hintY, RadianceTheme.textSecondary);
     }
 
     @Override
