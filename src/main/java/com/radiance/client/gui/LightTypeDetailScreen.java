@@ -24,6 +24,13 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
     }
 
     @Override
+    protected void initBody() {
+        this.body = this.layout.addBody(
+            new WideOptionListWidget(this.client, this.width, this));
+        addOptions();
+    }
+
+    @Override
     protected void addOptions() {
         int id = this.lightTypeId;
 

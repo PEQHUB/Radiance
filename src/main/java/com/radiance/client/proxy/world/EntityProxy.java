@@ -6,6 +6,7 @@ import static net.minecraft.client.render.VertexFormat.DrawMode.QUADS;
 import static net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_STRIP;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 
+import com.radiance.client.compat.FirstPersonCompat;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.constant.Constants.RayTracingFlags;
 import com.radiance.client.proxy.vulkan.BufferProxy;
@@ -241,14 +242,64 @@ public class EntityProxy {
             double entityPosZ = MathHelper.lerp(tickDelta, entity.lastRenderZ,
                 entity.getZ());
 
-            entityRenderDispatcher.render(entity,
-                0,
-                0,
-                0,
-                tickDelta,
-                matrixStack,
-                vertexConsumerProvider,
-                entityRenderDispatcher.getLight(entity, tickDelta));
+            // Tag material block type for item entities (dropped items, item frames)
+            if (entity instanceof net.minecraft.entity.ItemEntity itemEntity) {
+                net.minecraft.item.ItemStack stack = itemEntity.getStack();
+                if (!stack.isEmpty() && stack.getItem() instanceof net.minecraft.item.BlockItem blockItem) {
+                    com.radiance.client.util.MaterialBlock mb = com.radiance.client.util.MaterialBlock.fromBlock(blockItem.getBlock());
+                    if (mb != null) PBRVertexConsumer.setItemMaterialBlockType(mb.ordinal());
+                }
+            }
+
+            // FirstPerson mod compat: replicate WorldRendererMixin flow
+            // Set isRenderingPlayer + apply position offset during player entity render
+            // so FirstPerson's LivingEntityRendererMixin hides head and optionally arms
+            boolean isPlayerEntity = entity.equals(camera.getFocusedEntity());
+            boolean fpActive = isPlayerEntity && FirstPersonCompat.isActive();
+
+            // Save entity position before FirstPerson offset
+            double savedX = 0, savedLastX = 0, savedY = 0, savedLastY = 0, savedZ = 0, savedLastZ = 0;
+            if (fpActive) {
+                FirstPersonCompat.setRenderingPlayer(true);
+                FirstPersonCompat.setRenderingPlayerPost(true);
+
+                // Apply position offset (prevents model clipping into camera)
+                FirstPersonCompat.updatePositionOffset(entity, tickDelta);
+                net.minecraft.util.math.Vec3d offset = FirstPersonCompat.getOffset();
+                if (offset != null) {
+                    savedX = entity.getX(); savedLastX = entity.lastRenderX;
+                    savedY = entity.getY(); savedLastY = entity.lastRenderY;
+                    savedZ = entity.getZ(); savedLastZ = entity.lastRenderZ;
+                    entity.setPosition(savedX + offset.x, savedY + offset.y, savedZ + offset.z);
+                    entity.lastRenderX = savedLastX + offset.x;
+                    entity.lastRenderY = savedLastY + offset.y;
+                    entity.lastRenderZ = savedLastZ + offset.z;
+                }
+            }
+            try {
+                entityRenderDispatcher.render(entity,
+                    0,
+                    0,
+                    0,
+                    tickDelta,
+                    matrixStack,
+                    vertexConsumerProvider,
+                    entityRenderDispatcher.getLight(entity, tickDelta));
+            } finally {
+                if (fpActive) {
+                    // Restore entity position
+                    net.minecraft.util.math.Vec3d offset = FirstPersonCompat.getOffset();
+                    if (offset != null) {
+                        entity.setPosition(savedX, savedY, savedZ);
+                        entity.lastRenderX = savedLastX;
+                        entity.lastRenderY = savedLastY;
+                        entity.lastRenderZ = savedLastZ;
+                    }
+                    FirstPersonCompat.setRenderingPlayer(false);
+                    FirstPersonCompat.setRenderingPlayerPost(false);
+                }
+                PBRVertexConsumer.clearItemMaterialBlockType();
+            }
 
             if (entity.equals(camera.getFocusedEntity())) {
                 processWorldEntityRenderData(entityStorageVertexConsumerProvider,
@@ -532,9 +583,12 @@ public class EntityProxy {
 
         boolean bl = client.getCameraEntity() instanceof LivingEntity
             && ((LivingEntity) client.getCameraEntity()).isSleeping();
+        // Skip first-person hand render when FirstPerson mod is active and hides vanilla hands
+        boolean fpSkipHands = FirstPersonCompat.isActive() && !FirstPersonCompat.showVanillaHands();
+
         if (client.options.getPerspective()
             .isFirstPerson() && !bl && !client.options.hudHidden &&
-            client.interactionManager.getCurrentGameMode() != GameMode.SPECTATOR) {
+            client.interactionManager.getCurrentGameMode() != GameMode.SPECTATOR && !fpSkipHands) {
             ((IHeldItemRendererExt) firstPersonRenderer).neoVoxelRT$renderItem(tickDelta,
                 matrixStack,
                 storageVertexConsumerProvider,

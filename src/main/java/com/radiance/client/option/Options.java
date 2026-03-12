@@ -2,6 +2,8 @@ package com.radiance.client.option;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.pipeline.Pipeline;
+import com.radiance.client.util.EmissiveBlock;
+import com.radiance.client.util.MaterialBlock;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -18,7 +20,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 13;
+    public static final int CURRENT_OPTIONS_VERSION = 18;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
 
@@ -42,6 +44,13 @@ public class Options {
     public static final String KEY_CATEGORY_RADIANCE = "key.category.radiance";
 
     public static final String CATEGORY_EMISSION = "options.video.category.emission";
+    public static final String CATEGORY_LIGHTING = "options.video.category.lighting";
+    public static final String GLOBAL_LIGHT_MODE_KEY = "options.video.global_light_mode";
+    public static final String GLOBAL_LIGHT_MODE_AUTO_KEY = "options.video.global_light_mode.auto";
+    public static final String GLOBAL_LIGHT_MODE_AREA_KEY = "options.video.global_light_mode.area_lights";
+    public static final String GLOBAL_LIGHT_MODE_EMISSIVE_KEY = "options.video.global_light_mode.emissive";
+    public static final String EXPOSURE_SETTINGS_KEY = "options.video.exposure_settings";
+    public static final String POST_PROCESSING_SETTINGS_KEY = "options.video.post_processing_settings";
 
     public static final String ENVIRONMENT_SETTINGS_KEY = "options.video.environment_settings";
     public static final String ENVIRONMENT_DIMENSION_KEY = "options.video.environment.dimension";
@@ -55,7 +64,7 @@ public class Options {
     public static final int DIM_COUNT = 3;
 
     public static final int PERCENT_DEFAULT = 100;
-    public static final int MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT = 10;
+    public static final int MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT = 100;  // physical moon value (0.1 lux) already accounts for dimness
     public static final int WATER_TINT_R_DEFAULT = 0;
     public static final int WATER_TINT_G_DEFAULT = 48;
     public static final int WATER_TINT_B_DEFAULT = 65;
@@ -206,15 +215,15 @@ public class Options {
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
-    public static boolean areaLightsEnabled = true;
+    public static boolean areaLightsEnabled = false;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
     public static int areaLightIntensityPercent = 100;  // 0-500%
-    public static int areaLightRange = 48;   // 8-512 blocks
+    public static int areaLightRange = 128;  // 8-512 blocks
     public static int shadowSoftnessPercent = 100;  // 0-200%
     // ReSTIR DI tuning
     public static int restirCandidates = 32;       // 8-64
     public static int restirTemporalMClamp = 20;   // 5-50
-    public static int restirWClamp = 50;           // 10-200
+    public static int restirWClamp = 30;           // 10-200
     public static int restirSpatialTaps = 5;       // 1-10
     public static int restirSpatialRadius = 30;    // 5-60
     // ReSTIR DI performance
@@ -306,24 +315,24 @@ public class Options {
     public static int chunkBuildingTotalBatches = 6;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
-    public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
-    public static int minExposureTenK = 1;    // ten-thousandths: 1-10000 → 0.0001 to 1.0
-    public static int maxExposure = 8;          // raised from 2 — allows ~3 EV boost for dark scenes
+    public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
+    public static int minExposureTenK = 1;    // 1-10000 → 1e-7 to 1e-3 (physical light range)
+    public static int maxExposure = 20;            // Tenths: 20 = 2.0 exposure. Range 1-100 (0.1-10.0)
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
-    public static boolean manualExposureEnabled = true;  // auto exposure off by default
-    public static int manualExposureHundredths = 100; // hundredths: 1-2000 -> 0.01 to 20.00
+    public static boolean manualExposureEnabled = false;  // auto exposure on by default (required for physical luminance range)
+    public static int manualExposureEV100Tenths = 150; // EV100 in tenths: -40 to 200 -> EV -4.0 to EV 20.0 (default EV 15 = sunny day)
     public static boolean legacyExposure = false;
     public static boolean casEnabled = false;
     public static int casSharpnessPercent = 50;
     // Treat speeds as max EV change per second (rate-limited adaptation).
     // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
-    public static int exposureUpSpeedTenths = 10;             // 1-200 → 0.1 to 20.0
-    public static int exposureDownSpeedTenths = 10;           // 1-200 → 0.1 to 20.0
-    public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0
-    public static int exposureHighlightProtectionPercent = 100; // 0-100 → 0.0 to 1.0
-    public static int exposureHighlightPercentileTenK = 9500; // 9000-9999 → 0.9000 to 0.9999 (was 9850, now 95th percentile)
-    public static int exposureHighlightSmoothSpeedTenths = 100; // 0-300 → 0.0 to 30.0
-    public static int exposureLog2Max = 14;                   // 8-16, improved mode only
+    public static int exposureUpSpeedTenths = 8;              // 1-200 → 0.1 to 20.0 (0.8 EV/s dark adapt)
+    public static int exposureDownSpeedTenths = 15;           // 1-200 → 0.1 to 20.0 (1.5 EV/s bright adapt)
+    public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0 (1.0× no boost, eliminates asymmetry)
+    public static int exposureHighlightProtectionPercent = 30; // 0-100 → 0.0 to 1.0 (soft nudge, tonemapper clips)
+    public static int exposureHighlightPercentileTenK = 9800; // 9000-9999 → 0.9000 to 0.9999 (98th percentile, less sensitive to outliers)
+    public static int exposureHighlightSmoothSpeedTenths = 20; // 0-300 → 0.0 to 30.0 (~0.35s half-life)
+    public static int exposureLog2Max = 18;                   // 8-24, improved mode only (physical sun ~100k lux needs ~17)
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
@@ -334,10 +343,10 @@ public class Options {
     public static int psychoHighlightsPercent = 100;     // 0-300 → 0.0 to 3.0
     public static int psychoShadowsPercent = 100;        // 0-300 → 0.0 to 3.0
     public static int psychoContrastPercent = 100;       // 0-300 → 0.0 to 3.0
-    public static int psychoPurityPercent = 100;         // 0-300 → 0.0 to 3.0
+    public static int psychoPurityPercent = 105;         // 0-300 → 0.0 to 3.0
     public static int psychoBleachingPercent = 0;        // 0-100 → 0.0 to 1.0
     public static int psychoClipPointTenths = 1000;      // 10-5000 → 1.0 to 500.0
-    public static int psychoHueRestorePercent = 50;      // 0-100 → 0.0 to 1.0
+    public static int psychoHueRestorePercent = 0;       // 0-100 → 0.0 to 1.0
     public static int psychoAdaptContrastPercent = 100;  // 0-300 → 0.0 to 3.0
     public static int psychoWhiteCurve = 1;              // 0 = Neutwo, 1 = Naka-Rushton
     public static int psychoConeExponentPercent = 100;   // 10-300 → 0.1 to 3.0
@@ -365,7 +374,11 @@ public class Options {
     public static final int MOON_INCLINATION_DEFAULT = 23;
     public static final int MOON_AZIMUTH_OFFSET_DEFAULT = 0;
 
-    // Emission
+    // Emission — per-block temperatures (Celsius, keyed by EmissiveBlock id)
+    public static final java.util.Map<String, Integer> blockTemperatures = new java.util.HashMap<>();
+    // Flame colorant: per-block wavelength (nm, 0=off) and purity (0-100%)
+    public static final java.util.Map<String, Integer> blockWavelengths = new java.util.HashMap<>();
+    public static final java.util.Map<String, Integer> blockPurities = new java.util.HashMap<>();
     public static float emissionLava = 1.0f;
     public static float emissionFire = 1.0f;
     public static float emissionSoulFire = 1.0f;
@@ -407,12 +420,65 @@ public class Options {
     public static float emissionEnderChest = 0.5f;
     public static float emissionCopperBulb = 1.0f;
     public static float emissionEnchantingTable = 0.3f;
+    public static float emissionCalibratedSculkSensor = 1.0f;
+    public static float emissionSeaPickle = 1.0f;
+    public static float emissionEndGateway = 1.0f;
+    public static float emissionTrialSpawner = 1.0f;
+    public static float emissionVault = 1.0f;
 
     // Per-block light mode: 0=Auto, 1=ForceAreaLight, 2=ForceEmissive
     public static final int LIGHT_MODE_AUTO = 0;
     public static final int LIGHT_MODE_FORCE_AREA = 1;
     public static final int LIGHT_MODE_FORCE_EMISSIVE = 2;
     public static final int[] blockLightMode = new int[AREA_LIGHT_TYPE_COUNT]; // default 0 (Auto)
+    public static int globalLightMode = LIGHT_MODE_AUTO;
+
+    // Material block overrides (physically accurate F0/roughness applied in CHS shader)
+    public static boolean materialOverridesEnabled = true;
+    // Per-block properties (indexed by MaterialBlock.ordinal())
+    // F0 in permille (0-1000), roughness in percent (0-100)
+    public static final int[] materialF0R = new int[40];
+    public static final int[] materialF0G = new int[40];
+    public static final int[] materialF0B = new int[40];
+    public static final int[] materialRoughness = new int[40];
+    // Principled BSDF properties
+    public static final int[] materialMetallic = new int[40];       // 0-1000 permille
+    public static final int[] materialTransmission = new int[40];   // 0-1000 permille
+    public static final int[] materialIOR = new int[40];            // 1000-3000 (×1000)
+    public static final int[] materialSubsurface = new int[40];     // 0-1000 permille
+    public static final int[] materialAnisotropic = new int[40];    // 0-1000 permille
+    public static final int[] materialSheenWeight = new int[40];    // 0-1000 permille
+    public static final int[] materialSheenTint = new int[40];      // 0-1000 permille
+    public static final int[] materialCoatWeight = new int[40];     // 0-1000 permille
+    public static final int[] materialCoatRoughness = new int[40];  // 0-100 percent
+    static {
+        for (MaterialBlock mb : MaterialBlock.values()) {
+            int i = mb.ordinal();
+            materialF0R[i] = mb.getDefaultF0R();
+            materialF0G[i] = mb.getDefaultF0G();
+            materialF0B[i] = mb.getDefaultF0B();
+            materialRoughness[i] = mb.getDefaultRoughness();
+            materialMetallic[i] = mb.getDefaultMetallic();
+            materialTransmission[i] = mb.getDefaultTransmission();
+            materialIOR[i] = mb.getDefaultIOR();
+            materialSubsurface[i] = mb.getDefaultSubsurface();
+            materialAnisotropic[i] = mb.getDefaultAnisotropic();
+            materialSheenWeight[i] = mb.getDefaultSheenWeight();
+            materialSheenTint[i] = mb.getDefaultSheenTint();
+            materialCoatWeight[i] = mb.getDefaultCoatWeight();
+            materialCoatRoughness[i] = mb.getDefaultCoatRoughness();
+        }
+    }
+
+    // Auto-PBR generation (roughness + normals from vanilla albedo textures)
+    public static boolean autoPBREnabled = false; // Global toggle
+    public static final boolean[] materialAutoPBR = new boolean[MaterialBlock.COUNT]; // kept for config compat
+    public static int autoPBRRoughnessGamma = 50;    // 10-200, /100 = 0.1-2.0
+    public static int autoPBRRoughnessMin = 30;       // 0-100, /100 = 0.0-1.0
+    public static int autoPBRRoughnessMax = 95;       // 0-100, /100 = 0.0-1.0
+    public static int autoPBRNormalStrength = 250;     // 0-1000, /100 = 0.0-10.0
+    public static int autoPBRVarianceWeight = 30;      // 0-100, /100 = 0.0-1.0
+    public static int autoPBREdgeWeight = 15;          // 0-100, /100 = 0.0-1.0
 
     // Environmental settings (per dimension: overworld/nether/end)
     public static int environmentEditingDimension = DIM_OVERWORLD;
@@ -638,6 +704,44 @@ public class Options {
                 nativeSetBlockLightMode(i, blockLightMode[i]);
             }
 
+            globalLightMode = clamp(Integer.parseInt(props.getProperty("globalLightMode", "0")), 0, 2);
+
+            // Material overrides
+            materialOverridesEnabled = Boolean.parseBoolean(props.getProperty("materialOverridesEnabled", "true"));
+
+            // Load metal/gem block properties
+            for (MaterialBlock mb : MaterialBlock.values()) {
+                int i = mb.ordinal();
+                String pid = mb.getId();
+                materialF0R[i] = clamp(Integer.parseInt(props.getProperty("materialF0R." + pid, String.valueOf(mb.getDefaultF0R()))), 0, 1000);
+                materialF0G[i] = clamp(Integer.parseInt(props.getProperty("materialF0G." + pid, String.valueOf(mb.getDefaultF0G()))), 0, 1000);
+                materialF0B[i] = clamp(Integer.parseInt(props.getProperty("materialF0B." + pid, String.valueOf(mb.getDefaultF0B()))), 0, 1000);
+                materialRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialRoughness." + pid, String.valueOf(mb.getDefaultRoughness()))), 0, 100);
+                materialMetallic[i] = clamp(Integer.parseInt(props.getProperty("materialMetallic." + pid, String.valueOf(mb.getDefaultMetallic()))), 0, 1000);
+                materialTransmission[i] = clamp(Integer.parseInt(props.getProperty("materialTransmission." + pid, String.valueOf(mb.getDefaultTransmission()))), 0, 1000);
+                materialIOR[i] = clamp(Integer.parseInt(props.getProperty("materialIOR." + pid, String.valueOf(mb.getDefaultIOR()))), 0, 3000);
+                materialSubsurface[i] = clamp(Integer.parseInt(props.getProperty("materialSubsurface." + pid, String.valueOf(mb.getDefaultSubsurface()))), 0, 1000);
+                materialAnisotropic[i] = clamp(Integer.parseInt(props.getProperty("materialAnisotropic." + pid, String.valueOf(mb.getDefaultAnisotropic()))), 0, 1000);
+                materialSheenWeight[i] = clamp(Integer.parseInt(props.getProperty("materialSheenWeight." + pid, String.valueOf(mb.getDefaultSheenWeight()))), 0, 1000);
+                materialSheenTint[i] = clamp(Integer.parseInt(props.getProperty("materialSheenTint." + pid, String.valueOf(mb.getDefaultSheenTint()))), 0, 1000);
+                materialCoatWeight[i] = clamp(Integer.parseInt(props.getProperty("materialCoatWeight." + pid, String.valueOf(mb.getDefaultCoatWeight()))), 0, 1000);
+                materialCoatRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialCoatRoughness." + pid, String.valueOf(mb.getDefaultCoatRoughness()))), 0, 100);
+            }
+
+            // Auto-PBR generation
+            autoPBREnabled = Boolean.parseBoolean(props.getProperty("autoPBREnabled", String.valueOf(autoPBREnabled)));
+            for (MaterialBlock mb : MaterialBlock.values()) {
+                int i = mb.ordinal();
+                String pid = mb.getId();
+                materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "false"));
+            }
+            autoPBRRoughnessGamma = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessGamma", String.valueOf(autoPBRRoughnessGamma))), 10, 200);
+            autoPBRRoughnessMin = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin))), 0, 100);
+            autoPBRRoughnessMax = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax))), 0, 100);
+            autoPBRNormalStrength = clamp(Integer.parseInt(props.getProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength))), 0, 1000);
+            autoPBRVarianceWeight = clamp(Integer.parseInt(props.getProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight))), 0, 100);
+            autoPBREdgeWeight = clamp(Integer.parseInt(props.getProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight))), 0, 100);
+
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 
@@ -652,9 +756,9 @@ public class Options {
                 "exposureCompensation", String.valueOf(exposureCompensation)));
             manualExposureEnabled = Boolean.parseBoolean(props.getProperty(
                 "manualExposureEnabled", String.valueOf(manualExposureEnabled)));
-            manualExposureHundredths = Integer.parseInt(props.getProperty(
-                "manualExposureHundredths", String.valueOf(manualExposureHundredths)));
-            manualExposureHundredths = clamp(manualExposureHundredths, 1, 2000);
+            manualExposureEV100Tenths = Integer.parseInt(props.getProperty(
+                "manualExposureEV100Tenths", String.valueOf(manualExposureEV100Tenths)));
+            manualExposureEV100Tenths = clamp(manualExposureEV100Tenths, -40, 200);
             casEnabled = Boolean.parseBoolean(props.getProperty(
                 "casEnabled", String.valueOf(casEnabled)));
             casSharpnessPercent = clamp(Integer.parseInt(props.getProperty(
@@ -675,13 +779,13 @@ public class Options {
             nativeSetPsychoShadows(psychoShadowsPercent / 100.0f, false);
             psychoContrastPercent = Integer.parseInt(props.getProperty("psychoContrastPercent", "100"));
             nativeSetPsychoContrast(psychoContrastPercent / 100.0f, false);
-            psychoPurityPercent = Integer.parseInt(props.getProperty("psychoPurityPercent", "100"));
+            psychoPurityPercent = Integer.parseInt(props.getProperty("psychoPurityPercent", "105"));
             nativeSetPsychoPurity(psychoPurityPercent / 100.0f, false);
             psychoBleachingPercent = Integer.parseInt(props.getProperty("psychoBleachingPercent", "0"));
             nativeSetPsychoBleaching(psychoBleachingPercent / 100.0f, false);
             psychoClipPointTenths = Integer.parseInt(props.getProperty("psychoClipPointTenths", "1000"));
             nativeSetPsychoClipPoint(psychoClipPointTenths / 10.0f, false);
-            psychoHueRestorePercent = Integer.parseInt(props.getProperty("psychoHueRestorePercent", "50"));
+            psychoHueRestorePercent = Integer.parseInt(props.getProperty("psychoHueRestorePercent", "0"));
             nativeSetPsychoHueRestore(psychoHueRestorePercent / 100.0f, false);
             psychoAdaptContrastPercent = Integer.parseInt(props.getProperty("psychoAdaptContrastPercent", "100"));
             nativeSetPsychoAdaptContrast(psychoAdaptContrastPercent / 100.0f, false);
@@ -714,11 +818,11 @@ public class Options {
             exposureHighlightProtectionPercent = clamp(exposureHighlightProtectionPercent, 0, 100);
             exposureHighlightPercentileTenK = clamp(exposureHighlightPercentileTenK, 9000, 9999);
             exposureHighlightSmoothSpeedTenths = clamp(exposureHighlightSmoothSpeedTenths, 0, 300);
-            exposureLog2Max = clamp(exposureLog2Max, 8, 16);
+            exposureLog2Max = clamp(exposureLog2Max, 8, 24);
 
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             nativeSetManualExposureEnabled(manualExposureEnabled, false);
-            nativeSetManualExposure(manualExposureHundredths / 100.0f, false);
+            nativeSetManualExposure(ev100ToLinearExposure(manualExposureEV100Tenths), false);
             nativeSetCasEnabled(casEnabled, false);
             nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
@@ -769,9 +873,94 @@ public class Options {
                 nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
             }
 
+            if (loadedOptionsVersion < 14) {
+                // Physical lighting auto-exposure overhaul:
+                // - maxExposure 8→256 (covers EV -8 for deep caves/starlight)
+                // - Asymmetric adaptation: fast bright (3.0 EV/s), gradual dark (1.5 EV/s)
+                // - brightAdaptBoost 1.0→2.0 (stacks with downSpeed for 6 EV/s entering sunlight)
+                // - Highlight protection 100%→30% (soft nudge, removed hard cap — tonemapper handles clipping)
+                // - Percentile 95%→98% (less sensitive to emissive outliers)
+                maxExposure = 256;
+                nativeSetMaxExposure(maxExposure, false);
+                exposureUpSpeedTenths = 15;
+                nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
+                exposureDownSpeedTenths = 30;
+                nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
+                exposureBrightAdaptBoostTenths = 20;
+                nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
+                exposureHighlightProtectionPercent = 30;
+                nativeSetExposureHighlightProtection(exposureHighlightProtectionPercent / 100.0f, false);
+                exposureHighlightPercentileTenK = 9800;
+                nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
+            }
+
+            if (loadedOptionsVersion < 15) {
+                // v15: Lower maxExposure from 256 to 32 (human scotopic limit).
+                // 256 gave superhuman night vision; 32 keeps moonlit scenes visible but caves dark.
+                maxExposure = 32;
+                nativeSetMaxExposure(maxExposure, false);
+            }
+
+            if (loadedOptionsVersion < 16) {
+                // v16: Scene-referred emission normalization + PsychoV SDR fix.
+                // maxExposure 32→2: caves stay dark, shadow detail via moderate adaptation.
+                maxExposure = 2;
+                nativeSetMaxExposure(maxExposure, false);
+            }
+
+            if (loadedOptionsVersion < 17) {
+                // v17: Motion-aware ReSTIR + light intensity 20× increase.
+                // Lower W-clamp (shader now motion-scales M+W dynamically).
+                // Extend light range for better coverage with brighter lights.
+                restirWClamp = 30;
+                nativeSetRestirWClamp(restirWClamp, false);
+                areaLightRange = 128;
+                nativeSetAreaLightRange(areaLightRange, false);
+            }
+
+            if (loadedOptionsVersion < 18) {
+                // v18: Stabilize auto exposure — reduce adaptation speeds, remove bright boost,
+                // slow highlight cap smoothing. Dead zone + rate scaling added in shader.
+                exposureUpSpeedTenths = 8;
+                nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
+                exposureDownSpeedTenths = 15;
+                nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
+                exposureBrightAdaptBoostTenths = 10;
+                nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
+                exposureHighlightSmoothSpeedTenths = 20;
+                nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
+            }
+
             optionsVersion = CURRENT_OPTIONS_VERSION;
 
-            // Emission
+            // Emission — per-block temperatures
+            // Migrate legacy lavaTemperatureCelsius if present
+            String legacyLavaTemp = props.getProperty("lavaTemperatureCelsius");
+            for (EmissiveBlock b : EmissiveBlock.values()) {
+                if (!b.isThermal()) continue;
+                String key = "blockTemp_" + b.getId();
+                int defaultTemp = b.getDefaultTemperatureCelsius();
+                // Legacy migration: use old lavaTemperatureCelsius for lava if new key absent
+                String fallback = String.valueOf(defaultTemp);
+                if (b == EmissiveBlock.LAVA && legacyLavaTemp != null && !props.containsKey(key)) {
+                    fallback = legacyLavaTemp;
+                }
+                int temp = clamp(Integer.parseInt(props.getProperty(key, fallback)), 500, 4000);
+                blockTemperatures.put(b.getId(), temp);
+                // Apply temperature to surfaceNits: BB(T) × emissivity
+                float kelvin = temp + 273.15f;
+                b.setSurfaceNits(EmissiveBlock.blackbodyLuminance(kelvin) * b.getEmissivity());
+            }
+            // Flame colorant: per-block wavelength and purity
+            for (EmissiveBlock b : EmissiveBlock.values()) {
+                if (!b.isThermal()) continue;
+                int wl = clamp(Integer.parseInt(props.getProperty("blockWavelength_" + b.getId(),
+                    String.valueOf(b.getDefaultWavelengthNm()))), 0, 780);
+                blockWavelengths.put(b.getId(), wl);
+                int pur = clamp(Integer.parseInt(props.getProperty("blockPurity_" + b.getId(),
+                    String.valueOf(b.getDefaultPurityPercent()))), 0, 100);
+                blockPurities.put(b.getId(), pur);
+            }
             emissionLava = Float.parseFloat(props.getProperty("emissionLava", String.valueOf(emissionLava)));
             emissionFire = Float.parseFloat(props.getProperty("emissionFire", String.valueOf(emissionFire)));
             emissionSoulFire = Float.parseFloat(props.getProperty("emissionSoulFire", String.valueOf(emissionSoulFire)));
@@ -812,6 +1001,11 @@ public class Options {
             emissionEnderChest = Float.parseFloat(props.getProperty("emissionEnderChest", String.valueOf(emissionEnderChest)));
             emissionCopperBulb = Float.parseFloat(props.getProperty("emissionCopperBulb", String.valueOf(emissionCopperBulb)));
             emissionEnchantingTable = Float.parseFloat(props.getProperty("emissionEnchantingTable", String.valueOf(emissionEnchantingTable)));
+            emissionCalibratedSculkSensor = Float.parseFloat(props.getProperty("emissionCalibratedSculkSensor", String.valueOf(emissionCalibratedSculkSensor)));
+            emissionSeaPickle = Float.parseFloat(props.getProperty("emissionSeaPickle", String.valueOf(emissionSeaPickle)));
+            emissionEndGateway = Float.parseFloat(props.getProperty("emissionEndGateway", String.valueOf(emissionEndGateway)));
+            emissionTrialSpawner = Float.parseFloat(props.getProperty("emissionTrialSpawner", String.valueOf(emissionTrialSpawner)));
+            emissionVault = Float.parseFloat(props.getProperty("emissionVault", String.valueOf(emissionVault)));
 
             readEnvironmentSettings(props, loadedOptionsVersion);
 
@@ -860,6 +1054,42 @@ public class Options {
             props.setProperty("areaLightColorB." + i, String.valueOf(areaLightBlockColorB[i]));
             props.setProperty("blockLightMode." + i, String.valueOf(blockLightMode[i]));
         }
+        props.setProperty("globalLightMode", String.valueOf(globalLightMode));
+
+        // Material overrides
+        props.setProperty("materialOverridesEnabled", String.valueOf(materialOverridesEnabled));
+
+        // Save metal/gem block properties
+        for (MaterialBlock mb : MaterialBlock.values()) {
+            int i = mb.ordinal();
+            String pid = mb.getId();
+            props.setProperty("materialF0R." + pid, String.valueOf(materialF0R[i]));
+            props.setProperty("materialF0G." + pid, String.valueOf(materialF0G[i]));
+            props.setProperty("materialF0B." + pid, String.valueOf(materialF0B[i]));
+            props.setProperty("materialRoughness." + pid, String.valueOf(materialRoughness[i]));
+            props.setProperty("materialMetallic." + pid, String.valueOf(materialMetallic[i]));
+            props.setProperty("materialTransmission." + pid, String.valueOf(materialTransmission[i]));
+            props.setProperty("materialIOR." + pid, String.valueOf(materialIOR[i]));
+            props.setProperty("materialSubsurface." + pid, String.valueOf(materialSubsurface[i]));
+            props.setProperty("materialAnisotropic." + pid, String.valueOf(materialAnisotropic[i]));
+            props.setProperty("materialSheenWeight." + pid, String.valueOf(materialSheenWeight[i]));
+            props.setProperty("materialSheenTint." + pid, String.valueOf(materialSheenTint[i]));
+            props.setProperty("materialCoatWeight." + pid, String.valueOf(materialCoatWeight[i]));
+            props.setProperty("materialCoatRoughness." + pid, String.valueOf(materialCoatRoughness[i]));
+        }
+
+        // Auto-PBR generation
+        props.setProperty("autoPBREnabled", String.valueOf(autoPBREnabled));
+        for (MaterialBlock mb : MaterialBlock.values()) {
+            props.setProperty("materialAutoPBR." + mb.getId(), String.valueOf(materialAutoPBR[mb.ordinal()]));
+        }
+        props.setProperty("autoPBRRoughnessGamma", String.valueOf(autoPBRRoughnessGamma));
+        props.setProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin));
+        props.setProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax));
+        props.setProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength));
+        props.setProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight));
+        props.setProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight));
+
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
@@ -873,7 +1103,7 @@ public class Options {
         props.setProperty("maxExposure", String.valueOf(maxExposure));
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
         props.setProperty("manualExposureEnabled", String.valueOf(manualExposureEnabled));
-        props.setProperty("manualExposureHundredths", String.valueOf(manualExposureHundredths));
+        props.setProperty("manualExposureEV100Tenths", String.valueOf(manualExposureEV100Tenths));
         props.setProperty("casEnabled", String.valueOf(casEnabled));
         props.setProperty("casSharpnessPercent", String.valueOf(casSharpnessPercent));
         props.setProperty("legacyExposure", String.valueOf(legacyExposure));
@@ -904,6 +1134,15 @@ public class Options {
         props.setProperty("hdrPeakNits", String.valueOf(hdrPeakNits));
         props.setProperty("hdrPaperWhiteNits", String.valueOf(hdrPaperWhiteNits));
         props.setProperty("hdrUiBrightnessNits", String.valueOf(hdrUiBrightnessNits));
+        for (var entry : blockTemperatures.entrySet()) {
+            props.setProperty("blockTemp_" + entry.getKey(), String.valueOf(entry.getValue()));
+        }
+        for (var entry : blockWavelengths.entrySet()) {
+            props.setProperty("blockWavelength_" + entry.getKey(), String.valueOf(entry.getValue()));
+        }
+        for (var entry : blockPurities.entrySet()) {
+            props.setProperty("blockPurity_" + entry.getKey(), String.valueOf(entry.getValue()));
+        }
         props.setProperty("emissionLava", String.valueOf(emissionLava));
         props.setProperty("emissionFire", String.valueOf(emissionFire));
         props.setProperty("emissionSoulFire", String.valueOf(emissionSoulFire));
@@ -944,6 +1183,11 @@ public class Options {
         props.setProperty("emissionEnderChest", String.valueOf(emissionEnderChest));
         props.setProperty("emissionCopperBulb", String.valueOf(emissionCopperBulb));
         props.setProperty("emissionEnchantingTable", String.valueOf(emissionEnchantingTable));
+        props.setProperty("emissionCalibratedSculkSensor", String.valueOf(emissionCalibratedSculkSensor));
+        props.setProperty("emissionSeaPickle", String.valueOf(emissionSeaPickle));
+        props.setProperty("emissionEndGateway", String.valueOf(emissionEndGateway));
+        props.setProperty("emissionTrialSpawner", String.valueOf(emissionTrialSpawner));
+        props.setProperty("emissionVault", String.valueOf(emissionVault));
         props.setProperty("environmentEditingDimension", String.valueOf(environmentEditingDimension));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.skyBrightnessPercent." + dim, String.valueOf(skyBrightnessPercent[dim]));
@@ -1440,15 +1684,15 @@ public class Options {
         ommEnabled = false;
         ommBakerLevel = 4;
         simplifiedIndirect = false;
-        areaLightsEnabled = true;
+        areaLightsEnabled = false;
         restirEnabled = true;
         areaLightIntensityPercent = 100;
-        areaLightRange = 48;
+        areaLightRange = 128;
         shadowSoftnessPercent = 100;
         restirCandidates = 32;
         restirBounceEnabled = false;
         restirTemporalMClamp = 20;
-        restirWClamp = 50;
+        restirWClamp = 30;
         restirSpatialTaps = 5;
         restirSpatialRadius = 30;
         java.util.Arrays.fill(areaLightBlockIntensity, 100);
@@ -1457,6 +1701,7 @@ public class Options {
         // All per-block overrides baked into LIGHT_DEFS — sliders start neutral
         resetLightColorsToDefaults();
         java.util.Arrays.fill(blockLightMode, LIGHT_MODE_AUTO);
+        globalLightMode = LIGHT_MODE_AUTO;
         // New emission defaults
         emissionRedstoneTorch = 0.5f;
         emissionRedstoneLamp = 1.0f;
@@ -1475,7 +1720,7 @@ public class Options {
         vrrMode = false;
         chunkBuildingBatchSize = 6;
         chunkBuildingTotalBatches = 6;
-        sdrTransferFunction = SDR_TRANSFER_FUNCTION_GAMMA_22;
+        sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
         upscalerQuality = 2;
         upscalerResOverride = 100;
@@ -1485,20 +1730,20 @@ public class Options {
         hdrPaperWhiteNits = 203;
         hdrUiBrightnessNits = 100;
         minExposureTenK = 1;
-        maxExposure = 8;
+        maxExposure = 2;
         exposureCompensation = 0;
-        manualExposureEnabled = true;
-        manualExposureHundredths = 100;
+        manualExposureEnabled = false;
+        manualExposureEV100Tenths = 150;
         legacyExposure = false;
         casEnabled = false;
         casSharpnessPercent = 50;
-        exposureUpSpeedTenths = 10;
-        exposureDownSpeedTenths = 10;
+        exposureUpSpeedTenths = 8;
+        exposureDownSpeedTenths = 15;
         exposureBrightAdaptBoostTenths = 10;
-        exposureHighlightProtectionPercent = 100;
-        exposureHighlightPercentileTenK = 9850;
-        exposureHighlightSmoothSpeedTenths = 100;
-        exposureLog2Max = 14;
+        exposureHighlightProtectionPercent = 30;
+        exposureHighlightPercentileTenK = 9800;
+        exposureHighlightSmoothSpeedTenths = 20;
+        exposureLog2Max = 18;
         middleGreyPercent = 18;
         LwhiteTenths = 40;
         // PsychoV tonemapper defaults
@@ -1506,10 +1751,10 @@ public class Options {
         psychoHighlightsPercent = 100;
         psychoShadowsPercent = 100;
         psychoContrastPercent = 100;
-        psychoPurityPercent = 100;
+        psychoPurityPercent = 105;
         psychoBleachingPercent = 0;
         psychoClipPointTenths = 1000;
-        psychoHueRestorePercent = 50;
+        psychoHueRestorePercent = 0;
         psychoAdaptContrastPercent = 100;
         psychoWhiteCurve = 1;
         psychoConeExponentPercent = 100;
@@ -1525,6 +1770,13 @@ public class Options {
         nativeSetSimplifiedIndirect(simplifiedIndirect, false);
         nativeSetAreaLightsEnabled(areaLightsEnabled, false);
         nativeSetRestirEnabled(restirEnabled, false);
+        for (EmissiveBlock b : EmissiveBlock.values()) {
+            if (b.isThermal() && b.getLightTypeId() >= 0) {
+                int temp = blockTemperatures.getOrDefault(b.getId(), b.getDefaultTemperatureCelsius());
+                nativeSetBlockTemperature(b.getLightTypeId(), temp + 273.15f, false);
+                updateBlockEmissionColor(b);
+            }
+        }
         nativeSetAreaLightIntensity(areaLightIntensityPercent / 100.0f, false);
         nativeSetAreaLightRange(areaLightRange, false);
         nativeSetShadowSoftness(shadowSoftnessPercent / 100.0f, false);
@@ -1561,11 +1813,11 @@ public class Options {
         nativeSetHdrPeakNits(hdrPeakNits, false);
         nativeSetHdrPaperWhiteNits(hdrPaperWhiteNits, false);
         nativeSetHdrUiBrightnessNits(hdrUiBrightnessNits, false);
-        nativeSetMinExposure(minExposureTenK / 10000.0f, false);
+        nativeSetMinExposure(minExposureTenK * 1e-7f, false);  // 1-10000 → 1e-7 to 1e-3
         nativeSetMaxExposure(maxExposure, false);
         nativeSetExposureCompensation(exposureCompensation, false);
         nativeSetManualExposureEnabled(manualExposureEnabled, false);
-        nativeSetManualExposure(manualExposureHundredths / 100.0f, false);
+        nativeSetManualExposure(ev100ToLinearExposure(manualExposureEV100Tenths), false);
         nativeSetLegacyExposure(legacyExposure, false);
         nativeSetCasEnabled(casEnabled, false);
         nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
@@ -1929,6 +2181,19 @@ public class Options {
         }
     }
 
+    public static void setGlobalLightMode(int mode, boolean write) {
+        globalLightMode = Math.max(0, Math.min(2, mode));
+        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
+            blockLightMode[i] = globalLightMode;
+            nativeSetBlockLightMode(i, globalLightMode);
+        }
+        if (write) {
+            overwriteConfig();
+            nativeRebuildChunks();
+            debouncedChunkReload();
+        }
+    }
+
     public static void setAreaLightBlockColorR(int lightTypeId, int value, boolean write) {
         if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
             Options.areaLightBlockColorR[lightTypeId] = Math.max(0, Math.min(255, value));
@@ -1960,6 +2225,87 @@ public class Options {
                 Options.areaLightBlockColorB[lightTypeId] / 255.0f);
         }
         if (write) overwriteConfig();
+    }
+
+    // --- Per-Block Temperature ---
+    public native static void nativeSetBlockTemperature(int typeId, float kelvin, boolean write);
+
+    /**
+     * Get current temperature for a block in Celsius.
+     */
+    public static int getBlockTemperature(EmissiveBlock block) {
+        return blockTemperatures.getOrDefault(block.getId(), block.getDefaultTemperatureCelsius());
+    }
+
+    /**
+     * Set temperature for a thermal block in Celsius (500-4000°C).
+     * Updates both area light blackbody color (C++ side) and emissive surfaceNits (Java side).
+     * surfaceNits = blackbodyLuminance(T) × emissivity
+     */
+    public static void setBlockTemperature(EmissiveBlock block, int celsius, boolean write) {
+        celsius = Math.max(500, Math.min(4000, celsius));
+        blockTemperatures.put(block.getId(), celsius);
+        float kelvin = celsius + 273.15f;
+
+        // Update emissive surfaceNits from Planck's law
+        block.setSurfaceNits(EmissiveBlock.blackbodyLuminance(kelvin) * block.getEmissivity());
+
+        // Update area light color on C++ side (blackbody -> BT.2020)
+        if (block.getLightTypeId() >= 0) {
+            nativeSetBlockTemperature(block.getLightTypeId(), kelvin, write);
+        }
+
+        // Update flame colorant area light color
+        updateBlockEmissionColor(block);
+
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Flame Colorant: Wavelength + Purity ---
+
+    public static int getBlockWavelength(EmissiveBlock block) {
+        return blockWavelengths.getOrDefault(block.getId(), block.getDefaultWavelengthNm());
+    }
+
+    public static void setBlockWavelength(EmissiveBlock block, int nm, boolean write) {
+        nm = (nm <= 0) ? 0 : Math.max(380, Math.min(780, nm));
+        blockWavelengths.put(block.getId(), nm);
+        updateBlockEmissionColor(block);
+        if (write) overwriteConfig();
+    }
+
+    public static int getBlockPurity(EmissiveBlock block) {
+        return blockPurities.getOrDefault(block.getId(), block.getDefaultPurityPercent());
+    }
+
+    public static void setBlockPurity(EmissiveBlock block, int percent, boolean write) {
+        percent = Math.max(0, Math.min(100, percent));
+        blockPurities.put(block.getId(), percent);
+        updateBlockEmissionColor(block);
+        if (write) overwriteConfig();
+    }
+
+    /**
+     * Push spectral flame color to area light system.
+     * When wavelength > 0: compute BT.2020 flame color, convert to BT.709, set perBlockColor.
+     * When wavelength = 0: reset perBlockColor to sentinel (-1), let C++ use blackbody.
+     */
+    public static void updateBlockEmissionColor(EmissiveBlock block) {
+        if (block.getLightTypeId() < 0) return;
+        int wavelength = getBlockWavelength(block);
+        int purity = getBlockPurity(block);
+        if (wavelength <= 0 || purity <= 0) {
+            // Reset to blackbody sentinel — C++ will use LIGHT_DEFS blackbody
+            nativeSetAreaLightBlockColor(block.getLightTypeId(), -1, -1, -1);
+            return;
+        }
+        int tempC = getBlockTemperature(block);
+        float tempK = tempC + 273.15f;
+        float[] bt2020 = com.radiance.client.util.SpectralColor.computeFlameColor(tempK, wavelength, purity / 100.0f);
+        float[] bt709 = com.radiance.client.util.SpectralColor.bt2020ToBT709(bt2020);
+        nativeSetAreaLightBlockColor(block.getLightTypeId(), bt709[0], bt709[1], bt709[2]);
     }
 
     // --- ReSTIR DI Tuning ---
@@ -2087,7 +2433,7 @@ public class Options {
 
     public static void setMinExposure(int tenK, boolean write) {
         Options.minExposureTenK = tenK;
-        nativeSetMinExposure(tenK / 10000.0f, write);
+        nativeSetMinExposure(tenK * 1e-7f, write);  // 1-10000 → 1e-7 to 1e-3
         if (write) {
             overwriteConfig();
         }
@@ -2138,13 +2484,23 @@ public class Options {
 
     public native static void nativeSetManualExposure(float exposure, boolean write);
 
-    public static void setManualExposureHundredths(int hundredths, boolean write) {
-        hundredths = clamp(hundredths, 1, 2000);
-        Options.manualExposureHundredths = hundredths;
-        nativeSetManualExposure(hundredths / 100.0f, write);
+    public static void setManualExposureEV100Tenths(int tenths, boolean write) {
+        tenths = clamp(tenths, -40, 200);
+        Options.manualExposureEV100Tenths = tenths;
+        nativeSetManualExposure(ev100ToLinearExposure(tenths), write);
         if (write) {
             overwriteConfig();
         }
+    }
+
+    /**
+     * Convert EV100 (in tenths) to linear exposure multiplier.
+     * Formula: exposure = 1 / (1.2 * 2^EV100)
+     * EV15 (sunny day) -> ~2.54e-5, EV0 -> 0.833, EV-4 -> 13.3
+     */
+    public static float ev100ToLinearExposure(int ev100Tenths) {
+        float ev = ev100Tenths / 10.0f;
+        return 1.0f / (1.2f * (float) Math.pow(2.0, ev));
     }
 
     public native static void nativeSetCasEnabled(boolean enabled, boolean write);

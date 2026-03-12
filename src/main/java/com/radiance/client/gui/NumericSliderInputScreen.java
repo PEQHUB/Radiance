@@ -38,9 +38,9 @@ public class NumericSliderInputScreen extends Screen {
         valueField = new TextFieldWidget(this.textRenderer, x, y, w, 20, Text.empty());
         valueField.setText(initialValue);
         valueField.setMaxLength(16);
-        valueField.setFocused(true);
         this.addSelectableChild(valueField);
         this.addDrawableChild(valueField);
+        this.setFocused(valueField);
 
         this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), b -> submit())
             .dimensions(this.width / 2 - 102, y + 28, 100, 20)

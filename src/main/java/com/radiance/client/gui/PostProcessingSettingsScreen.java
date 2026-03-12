@@ -21,6 +21,13 @@ public class PostProcessingSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    protected void initBody() {
+        this.body = this.layout.addBody(
+            new WideOptionListWidget(this.client, this.width, this));
+        addOptions();
+    }
+
+    @Override
     protected void addOptions() {
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_POST_PROCESSING), body));

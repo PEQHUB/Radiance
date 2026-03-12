@@ -18,6 +18,7 @@ public class ResettableSliderWidget extends SliderWidget {
     private int stockDefault;
     private final Consumer<Integer> onChange;
     private final IntFunction<Text> displayFormatter;
+    private Runnable onRelease;
 
     public ResettableSliderWidget(int x, int y, int width, int height,
                                   int min, int max, int currentValue, int stockDefault,
@@ -71,6 +72,17 @@ public class ResettableSliderWidget extends SliderWidget {
             return true;
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    /** Set a callback to run when the mouse is released after dragging. */
+    public void setOnRelease(Runnable onRelease) {
+        this.onRelease = onRelease;
+    }
+
+    @Override
+    public void onRelease(double mouseX, double mouseY) {
+        super.onRelease(mouseX, mouseY);
+        if (this.onRelease != null) this.onRelease.run();
     }
 
     /** Update the slider position externally (e.g. when tonemapper changes). */

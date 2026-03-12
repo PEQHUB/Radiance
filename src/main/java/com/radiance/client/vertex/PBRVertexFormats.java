@@ -16,6 +16,7 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_COLOR_L
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_GLINT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_LIGHT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_NORM;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_EMISSIVE_BLOCK_TYPE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_OVERLAY;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_TEXTURE;
 
@@ -52,6 +53,6 @@ public class PBRVertexFormats {
 
             .add("PostBase", PBR_POST_BASE)
 
-            .skip(4)
+            .add("EmissiveBlockType", PBR_EMISSIVE_BLOCK_TYPE)
             .build();
 }

@@ -121,6 +121,9 @@ public class RadianceClient implements ClientModInitializer {
 
         Pipeline.reloadAllModuleEntries();
 
+        // Mod compatibility
+        com.radiance.client.compat.FirstPersonCompat.init();
+
         KeyInputHandler.register();
 
         if (dlssMissing) {

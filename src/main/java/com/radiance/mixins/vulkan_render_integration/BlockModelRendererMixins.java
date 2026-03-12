@@ -3,6 +3,7 @@ package com.radiance.mixins.vulkan_render_integration;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.client.util.EmissiveBlock;
+import com.radiance.client.util.MaterialBlock;
 import com.radiance.client.util.LightSourceDef;
 import com.radiance.client.util.LightSourceRegistry;
 import com.radiance.client.vertex.PBRVertexConsumer;
@@ -77,16 +78,28 @@ public class BlockModelRendererMixins {
             emission = 0.0F;
         }
 
-        if (EmissiveBlock.isEmissive(state.getBlock())) {
-            emission = Math.max(emission, EmissiveBlock.getEmission(state.getBlock()));
+        // Convert emission to physical nits (cd/m²)
+        // For registered blocks: bake DEFAULT nits (immutable). User scale applied via UBO multiplier.
+        float emissionNits;
+        EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
+        if (eb != null) {
+            // Registered emissive block: DEFAULT surfaceNits (scale applied by shader via UBO)
+            emissionNits = eb.getDefaultSurfaceNits();
+        } else if (emission > 0.0f) {
+            // Non-registered block with tint emission: scale 0-1 to nits (200 nits reference)
+            emissionNits = emission * 200.0f;
+        } else {
+            emissionNits = 0.0f;
         }
+
+        // Look up light source definition for this block (used for area light mode below)
+        LightSourceDef lightDef = LightSourceRegistry.getLightSource(state);
 
         PBRVertexConsumer pbrVertexConsumer = null;
         if (vertexConsumer instanceof PBRVertexConsumer pbr) {
             pbrVertexConsumer = pbr;
 
             // --- Mutual exclusion: resolve effective light mode ---
-            LightSourceDef lightDef = LightSourceRegistry.getLightSource(state);
             int effectiveMode;
 
             if (lightDef != null && lightDef.typeId >= 0 && lightDef.typeId < Options.AREA_LIGHT_TYPE_COUNT) {
@@ -104,17 +117,28 @@ public class BlockModelRendererMixins {
                 effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
             }
 
+            // Write emissive block type ordinal for UBO multiplier lookup
+            if (eb != null) {
+                pbrVertexConsumer.setPendingEmissiveBlockType(eb.ordinal());
+            }
+
+            // Tag material blocks for physically accurate material override
+            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
+            if (mb != null) {
+                pbrVertexConsumer.setPendingMaterialBlockType(mb.ordinal());
+            }
+
             // Apply based on effective mode
             if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA && lightDef != null) {
                 // AREA LIGHT MODE: negative emission = signal to shader to suppress bounce
                 // abs(value) used for primary-hit self-glow and bloom
-                pbrVertexConsumer.setPendingEmission(-Math.max(emission, 0.001f));
+                pbrVertexConsumer.setPendingEmission(-Math.max(emissionNits, 0.001f));
                 if (ChunkLightCollector.isActive()) {
                     ChunkLightCollector.addLight(pos, lightDef);
                 }
             } else {
-                // EMISSIVE MODE: positive emission, no area light collection
-                pbrVertexConsumer.setPendingEmission(emission);
+                // EMISSIVE MODE: positive emission in nits, no area light collection
+                pbrVertexConsumer.setPendingEmission(emissionNits);
                 // Area light NOT added to collector — emissive path handles illumination
             }
         }
@@ -145,6 +169,8 @@ public class BlockModelRendererMixins {
         } finally {
             if (pbrVertexConsumer != null) {
                 pbrVertexConsumer.setPendingEmission(0.0F);
+                pbrVertexConsumer.setPendingEmissiveBlockType(255);
+                pbrVertexConsumer.setPendingMaterialBlockType(255);
             }
         }
 

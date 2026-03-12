@@ -20,6 +20,13 @@ public class PsychoVSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    protected void initBody() {
+        this.body = this.layout.addBody(
+            new WideOptionListWidget(this.client, this.width, this));
+        addOptions();
+    }
+
+    @Override
     protected void addOptions() {
         // === Tone Curve ===
         this.body.addEntry(new CategoryVideoOptionEntry(
@@ -62,7 +69,7 @@ public class PsychoVSettingsScreen extends GameOptionsScreen {
         // Purity / Saturation (0-300 -> 0.0 to 3.0)
         ResettableSliderWidget puritySlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            0, 300, Options.psychoPurityPercent, 100,
+            0, 300, Options.psychoPurityPercent, 105,
             v -> getGenericValueText(
                 Text.translatable(Options.PSYCHO_PURITY_KEY),
                 Text.literal(String.format("%.2f", v / 100.0))),
@@ -82,7 +89,7 @@ public class PsychoVSettingsScreen extends GameOptionsScreen {
         // Hue Restore (0-100 -> 0.0 to 1.0)
         ResettableSliderWidget hueRestoreSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            0, 100, Options.psychoHueRestorePercent, 100,
+            0, 100, Options.psychoHueRestorePercent, 0,
             v -> getGenericValueText(
                 Text.translatable(Options.PSYCHO_HUE_RESTORE_KEY),
                 Text.literal(String.format("%.2f", v / 100.0))),
@@ -110,7 +117,7 @@ public class PsychoVSettingsScreen extends GameOptionsScreen {
         // White Curve Mode (0 = Neutwo, 1 = Naka-Rushton)
         ResettableSliderWidget whiteCurveSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            0, 1, Options.psychoWhiteCurve, 0,
+            0, 1, Options.psychoWhiteCurve, 1,
             v -> {
                 String[] labels = {"Neutwo", "Naka-Rushton"};
                 return getGenericValueText(

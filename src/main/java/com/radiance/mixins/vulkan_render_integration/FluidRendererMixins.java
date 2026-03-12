@@ -2,6 +2,7 @@ package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.option.Options;
 import com.radiance.client.util.ChunkLightCollector;
+import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.util.LightSourceDef;
 import com.radiance.client.util.LightSourceRegistry;
 import com.radiance.client.vertex.PBRVertexConsumer;
@@ -120,6 +121,9 @@ public abstract class FluidRendererMixins {
         
         if (vertexConsumer instanceof PBRVertexConsumer pbrVertexConsumer) {
             pbrVertexConsumer.albedoEmission(emission);
+            if (emission != 0.0f) {
+                pbrVertexConsumer.emissiveBlockType(EmissiveBlock.LAVA.ordinal());
+            }
         }
     }
 
@@ -137,7 +141,7 @@ public abstract class FluidRendererMixins {
         boolean isLava = fluidState.isIn(FluidTags.LAVA);
         Sprite[] fluidSprites = isLava ? this.lavaSprites : this.waterSprites;
         int tintColor = isLava ? 16777215 : BiomeColors.getWaterColor(world, pos);
-        float emission = isLava ? Options.emissionLava : 0.0F;
+        float emission = isLava ? EmissiveBlock.LAVA.getDefaultSurfaceNits() : 0.0F;
 
         // --- Resolve light mode for lava (same logic as BlockModelRendererMixins) ---
         if (isLava) {

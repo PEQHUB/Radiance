@@ -11,7 +11,7 @@
   "options.video.omm_enabled": "Opacity Micro Maps (OMM)",
   "options.video.omm_baker_level": "OMM Subdivision Level",
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
-  "options.video.area_lights_enabled": "Area Lights",
+  "options.video.area_lights_enabled": "Area Lights (Unfinished - Experimental)",
   "options.video.area_light_intensity": "Area Light Intensity",
   "options.video.area_light_range": "Area Light Range",
   "options.video.output_scale_2x": "Output Scale 2x",
@@ -67,6 +67,7 @@
   "options.video.camera_controls.exposure": "Exposure...",
   "options.video.camera_controls.post_processing": "Post Processing...",
   "options.video.category.exposure": "Exposure",
+  "options.video.category.exposure_tonemapping": "Exposure & Tonemapping",
   "options.video.category.post_processing": "Post Processing",
   "options.video.category.tonemapping": "Tonemapping",
   "options.video.tonemap_mode": "Tonemapping",
@@ -152,6 +153,58 @@
   "options.video.category.emission": "Emission Settings",
   "options.video.emission_settings": "Emission Settings...",
 "radiance.settings.emission.title": "Emission Settings",
+  "radiance.settings.emission.temperature_category": "Color Temperature",
+  "options.video.emission.temperature.lava": "Lava Temp",
+  "options.video.emission.temperature.fire": "Fire Temp",
+  "options.video.emission.temperature.torch": "Torch Temp",
+  "options.video.emission.temperature.lantern": "Lantern Temp",
+  "options.video.emission.temperature.campfire": "Campfire Temp",
+  "options.video.emission.temperature.magma_block": "Magma Block Temp",
+  "options.video.emission.temperature.jack_o_lantern": "Jack o'Lantern Temp",
+  "options.video.emission.temperature.candle": "Candle Temp",
+  "options.video.emission.temperature.furnace": "Furnace Temp",
+  "options.video.emission.temperature.blast_furnace": "Blast Furnace Temp",
+  "options.video.emission.temperature.smoker": "Smoker Temp",
+  "options.video.emission.temperature.copper_bulb": "Copper Bulb Temp",
+  "options.video.emission.temperature.brewing_stand": "Brewing Stand Temp",
+  "options.video.emission.temperature.soul_fire": "Soul Fire Temp",
+  "options.video.emission.temperature.soul_torch": "Soul Torch Temp",
+  "options.video.emission.temperature.soul_lantern": "Soul Lantern Temp",
+  "options.video.emission.temperature.soul_campfire": "Soul Campfire Temp",
+  "options.video.emission.wavelength.lava": "Lava \u03bb",
+  "options.video.emission.wavelength.fire": "Fire \u03bb",
+  "options.video.emission.wavelength.soul_fire": "Soul Fire \u03bb",
+  "options.video.emission.wavelength.torch": "Torch \u03bb",
+  "options.video.emission.wavelength.soul_torch": "Soul Torch \u03bb",
+  "options.video.emission.wavelength.lantern": "Lantern \u03bb",
+  "options.video.emission.wavelength.soul_lantern": "Soul Lantern \u03bb",
+  "options.video.emission.wavelength.campfire": "Campfire \u03bb",
+  "options.video.emission.wavelength.soul_campfire": "Soul Campfire \u03bb",
+  "options.video.emission.wavelength.magma_block": "Magma Block \u03bb",
+  "options.video.emission.wavelength.jack_o_lantern": "Jack o'Lantern \u03bb",
+  "options.video.emission.wavelength.candle": "Candle \u03bb",
+  "options.video.emission.wavelength.furnace": "Furnace \u03bb",
+  "options.video.emission.wavelength.blast_furnace": "Blast Furnace \u03bb",
+  "options.video.emission.wavelength.smoker": "Smoker \u03bb",
+  "options.video.emission.wavelength.copper_bulb": "Copper Bulb \u03bb",
+  "options.video.emission.wavelength.brewing_stand": "Brewing Stand \u03bb",
+  "options.video.emission.purity.lava": "Lava Purity",
+  "options.video.emission.purity.fire": "Fire Purity",
+  "options.video.emission.purity.soul_fire": "Soul Fire Purity",
+  "options.video.emission.purity.torch": "Torch Purity",
+  "options.video.emission.purity.soul_torch": "Soul Torch Purity",
+  "options.video.emission.purity.lantern": "Lantern Purity",
+  "options.video.emission.purity.soul_lantern": "Soul Lantern Purity",
+  "options.video.emission.purity.campfire": "Campfire Purity",
+  "options.video.emission.purity.soul_campfire": "Soul Campfire Purity",
+  "options.video.emission.purity.magma_block": "Magma Block Purity",
+  "options.video.emission.purity.jack_o_lantern": "Jack o'Lantern Purity",
+  "options.video.emission.purity.candle": "Candle Purity",
+  "options.video.emission.purity.furnace": "Furnace Purity",
+  "options.video.emission.purity.blast_furnace": "Blast Furnace Purity",
+  "options.video.emission.purity.smoker": "Smoker Purity",
+  "options.video.emission.purity.copper_bulb": "Copper Bulb Purity",
+  "options.video.emission.purity.brewing_stand": "Brewing Stand Purity",
   "options.video.emission.lava": "Lava",
   "options.video.emission.fire": "Fire",
   "options.video.emission.soul_fire": "Soul Fire",
@@ -259,6 +312,13 @@
   ,"options.video.environment.moon_inclination": "Inclination"
   ,"options.video.environment.moon_azimuth_offset": "Azimuth Offset"
 
+  ,"options.video.category.lighting": "Lighting"
+  ,"options.video.global_light_mode": "Set All Blocks"
+  ,"options.video.global_light_mode.auto": "Auto"
+  ,"options.video.global_light_mode.area_lights": "Area Lights"
+  ,"options.video.global_light_mode.emissive": "Emissive"
+  ,"options.video.exposure_settings": "Exposure..."
+  ,"options.video.post_processing_settings": "Post Processing..."
   ,"options.video.category.area_lights": "Area Lights"
   ,"options.video.area_light_settings": "Area Light Settings..."
   ,"options.video.area_light_shadow_softness": "Shadow Softness"
@@ -273,7 +333,7 @@
   ,"options.video.restir_simplified_brdf": "Simplified BRDF"
   ,"options.video.restir_spatial_enabled": "Spatial Reuse"
   ,"options.video.restir_bounce_enabled": "Bounce ReSTIR"
-  ,"radiance.settings.area_lights.title": "Area Light Settings"
+  ,"radiance.settings.area_lights.title": "Area Light Settings (Experimental)"
   ,"options.video.area_light.global_category": "Global Controls"
   ,"options.video.area_light.per_block_category": "Per-Block Settings"
   ,"options.video.area_light.block.torch": "Torch"
@@ -330,6 +390,123 @@
   ,"options.video.area_light.block.color_r": "Color Red"
   ,"options.video.area_light.block.color_g": "Color Green"
   ,"options.video.area_light.block.color_b": "Color Blue"
+
+  ,"options.video.emission.calibrated_sculk_sensor": "Calibrated Sculk Sensor"
+  ,"options.video.emission.sea_pickle": "Sea Pickle"
+  ,"options.video.emission.end_gateway": "End Gateway"
+  ,"options.video.emission.trial_spawner": "Trial Spawner"
+  ,"options.video.emission.vault": "Vault"
+
+  ,"options.video.materials_settings": "Materials..."
+  ,"radiance.settings.materials.title": "Materials"
+  ,"radiance.settings.materials.apply": "Update Materials"
+  ,"radiance.settings.materials.cancel": "Cancel"
+  ,"options.video.category.materials.pure": "Pure Metals"
+  ,"options.video.category.materials.constructs": "Metal Constructs"
+  ,"options.video.category.materials.gems": "Gems & Crystals"
+  ,"options.video.category.materials.minerals": "Minerals & Glass"
+  ,"options.video.category.materials.special": "Special"
+  ,"options.video.materials.overridesEnabled": "Material Overrides"
+  ,"options.video.materials.autoPBR": "Auto-PBR Generation"
+  ,"options.video.materials.iron_block": "Iron Block"
+  ,"options.video.materials.gold_block": "Gold Block"
+  ,"options.video.materials.copper_block": "Copper Block"
+  ,"options.video.materials.netherite_block": "Netherite Block"
+  ,"options.video.materials.raw_iron_block": "Raw Iron Block"
+  ,"options.video.materials.raw_gold_block": "Raw Gold Block"
+  ,"options.video.materials.raw_copper_block": "Raw Copper Block"
+  ,"options.video.materials.iron_bars": "Iron Bars"
+  ,"options.video.materials.chain": "Chain"
+  ,"options.video.materials.anvil": "Anvil"
+  ,"options.video.materials.cauldron": "Cauldron"
+  ,"options.video.materials.hopper": "Hopper"
+  ,"options.video.materials.heavy_pressure_plate": "Heavy Weighted Pressure Plate"
+  ,"options.video.materials.light_pressure_plate": "Light Weighted Pressure Plate"
+  ,"options.video.materials.bell": "Bell"
+  ,"options.video.materials.lightning_rod": "Lightning Rod"
+  ,"options.video.materials.iron_door": "Iron Door"
+  ,"options.video.materials.rail": "Rail"
+  ,"options.video.materials.diamond": "Diamond Block"
+  ,"options.video.materials.emerald": "Emerald Block"
+  ,"options.video.materials.amethyst": "Amethyst Block"
+  ,"options.video.materials.amethyst_cluster": "Amethyst Cluster"
+  ,"options.video.materials.lapis": "Lapis Lazuli Block"
+  ,"options.video.materials.quartz": "Quartz Block"
+  ,"options.video.materials.obsidian": "Obsidian"
+  ,"options.video.materials.crying_obsidian": "Crying Obsidian"
+  ,"options.video.materials.prismarine": "Prismarine"
+  ,"options.video.materials.calcite": "Calcite"
+  ,"options.video.materials.glass": "Glass"
+  ,"options.video.materials.ice": "Ice"
+  ,"options.video.materials.redstone": "Redstone Block"
+  ,"options.video.materials.ancient_debris": "Ancient Debris"
+  ,"options.video.materials.gilded_blackstone": "Gilded Blackstone"
+  ,"options.video.materials.lodestone": "Lodestone"
+  ,"options.video.materials.smithing_table": "Smithing Table"
+  ,"options.video.materials.iron_block.autoPBR": "Iron Block: Auto-PBR"
+  ,"options.video.materials.gold_block.autoPBR": "Gold Block: Auto-PBR"
+  ,"options.video.materials.copper_block.autoPBR": "Copper Block: Auto-PBR"
+  ,"options.video.materials.netherite_block.autoPBR": "Netherite Block: Auto-PBR"
+  ,"options.video.materials.raw_iron_block.autoPBR": "Raw Iron Block: Auto-PBR"
+  ,"options.video.materials.raw_gold_block.autoPBR": "Raw Gold Block: Auto-PBR"
+  ,"options.video.materials.raw_copper_block.autoPBR": "Raw Copper Block: Auto-PBR"
+  ,"options.video.materials.iron_bars.autoPBR": "Iron Bars: Auto-PBR"
+  ,"options.video.materials.chain.autoPBR": "Chain: Auto-PBR"
+  ,"options.video.materials.anvil.autoPBR": "Anvil: Auto-PBR"
+  ,"options.video.materials.cauldron.autoPBR": "Cauldron: Auto-PBR"
+  ,"options.video.materials.hopper.autoPBR": "Hopper: Auto-PBR"
+  ,"options.video.materials.heavy_pressure_plate.autoPBR": "Heavy Weighted Pressure Plate: Auto-PBR"
+  ,"options.video.materials.light_pressure_plate.autoPBR": "Light Weighted Pressure Plate: Auto-PBR"
+  ,"options.video.materials.bell.autoPBR": "Bell: Auto-PBR"
+  ,"options.video.materials.lightning_rod.autoPBR": "Lightning Rod: Auto-PBR"
+  ,"options.video.materials.iron_door.autoPBR": "Iron Door: Auto-PBR"
+  ,"options.video.materials.rail.autoPBR": "Rail: Auto-PBR"
+  ,"options.video.materials.diamond.autoPBR": "Diamond Block: Auto-PBR"
+  ,"options.video.materials.emerald.autoPBR": "Emerald Block: Auto-PBR"
+  ,"options.video.materials.amethyst.autoPBR": "Amethyst Block: Auto-PBR"
+  ,"options.video.materials.amethyst_cluster.autoPBR": "Amethyst Cluster: Auto-PBR"
+  ,"options.video.materials.lapis.autoPBR": "Lapis Lazuli Block: Auto-PBR"
+  ,"options.video.materials.quartz.autoPBR": "Quartz Block: Auto-PBR"
+  ,"options.video.materials.obsidian.autoPBR": "Obsidian: Auto-PBR"
+  ,"options.video.materials.crying_obsidian.autoPBR": "Crying Obsidian: Auto-PBR"
+  ,"options.video.materials.prismarine.autoPBR": "Prismarine: Auto-PBR"
+  ,"options.video.materials.calcite.autoPBR": "Calcite: Auto-PBR"
+  ,"options.video.materials.glass.autoPBR": "Glass: Auto-PBR"
+  ,"options.video.materials.ice.autoPBR": "Ice: Auto-PBR"
+  ,"options.video.materials.redstone.autoPBR": "Redstone Block: Auto-PBR"
+  ,"options.video.materials.ancient_debris.autoPBR": "Ancient Debris: Auto-PBR"
+  ,"options.video.materials.gilded_blackstone.autoPBR": "Gilded Blackstone: Auto-PBR"
+  ,"options.video.materials.lodestone.autoPBR": "Lodestone: Auto-PBR"
+  ,"options.video.materials.smithing_table.autoPBR": "Smithing Table: Auto-PBR"
+
+  ,"options.video.materials.metallic": "Metallic"
+  ,"options.video.materials.roughness": "Roughness"
+  ,"options.video.materials.ior": "Index of Refraction"
+  ,"options.video.materials.transmission": "Transmission"
+  ,"options.video.materials.subsurface": "Subsurface"
+  ,"options.video.materials.anisotropic": "Anisotropic"
+  ,"options.video.materials.sheenWeight": "Sheen Weight"
+  ,"options.video.materials.sheenTint": "Sheen Tint"
+  ,"options.video.materials.coatWeight": "Coat Weight"
+  ,"options.video.materials.coatRoughness": "Coat Roughness"
+  ,"options.video.materials.f0r": "F0 Red"
+  ,"options.video.materials.f0g": "F0 Green"
+  ,"options.video.materials.f0b": "F0 Blue"
+  ,"options.video.category.materials.baseProperties": "Base Properties"
+  ,"options.video.category.materials.sheen": "Sheen"
+  ,"options.video.category.materials.coat": "Coat"
+  ,"options.video.category.materials.fresnelF0": "Fresnel F0 (Reflectance)"
+
+  ,"options.video.category.materials.presets": "Metal Presets"
+  ,"options.video.materials.loadPreset": "\u2193  Load Preset into This Block"
+
+  ,"options.video.category.materials.autoPBR": "Auto-PBR Parameters"
+  ,"options.video.autoPBR.roughnessGamma": "Roughness Gamma"
+  ,"options.video.autoPBR.roughnessMin": "Roughness Min"
+  ,"options.video.autoPBR.roughnessMax": "Roughness Max"
+  ,"options.video.autoPBR.normalStrength": "Normal Strength"
+  ,"options.video.autoPBR.varianceWeight": "Variance Weight"
+  ,"options.video.autoPBR.edgeWeight": "Edge Weight"
 
   ,"radiance.settings.reset_defaults": "Reset to Defaults"
   ,"radiance.settings.welcome_message.on": "Welcome Message: On"

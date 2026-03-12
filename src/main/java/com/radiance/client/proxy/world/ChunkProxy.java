@@ -12,6 +12,7 @@ import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBui
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderExt;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -136,7 +137,14 @@ public class ChunkProxy {
         double importantDistanceSq = smoothing ? importantDistanceSqWarmup : importantDistanceSqNormal;
         int importantTaskCount = 0;
 
-        for (ChunkBuilder.BuiltChunk builtChunk : rebuildQueue.values()) {
+        // Sort chunks by distance to player (spiral outward from player position)
+        List<ChunkBuilder.BuiltChunk> sortedChunks = new ArrayList<>(rebuildQueue.values());
+        sortedChunks.sort(Comparator.comparingDouble(chunk -> {
+            if (chunk == null) return Double.MAX_VALUE;
+            return chunk.getOrigin().add(8, 8, 8).getSquaredDistance(blockPos);
+        }));
+
+        for (ChunkBuilder.BuiltChunk builtChunk : sortedChunks) {
             if (builtChunk == null) {
                 continue;
             }

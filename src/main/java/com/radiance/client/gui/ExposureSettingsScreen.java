@@ -2,7 +2,6 @@ package com.radiance.client.gui;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
@@ -13,9 +12,8 @@ import net.minecraft.text.Text;
 
 public class ExposureSettingsScreen extends GameOptionsScreen {
 
-    private static final int MANUAL_EXPOSURE_LOG_STEPS = 1000;
-    private static final double MANUAL_EXPOSURE_MIN = 0.01;
-    private static final double MANUAL_EXPOSURE_MAX = 20.0;
+    // EV100 slider: offset by 40 so slider range is [0, 240] representing EV [-4.0, 20.0]
+    private static final int EV100_SLIDER_OFFSET = 40;
 
     private final Screen parentScreen;
 
@@ -23,6 +21,13 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
         super(parent, MinecraftClient.getInstance().options,
             Text.translatable("radiance.settings.exposure.title"));
         this.parentScreen = parent;
+    }
+
+    @Override
+    protected void initBody() {
+        this.body = this.layout.addBody(
+            new WideOptionListWidget(this.client, this.width, this));
+        addOptions();
     }
 
     @Override
@@ -40,15 +45,17 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
         this.body.addSingleOptionEntry(manualExposure);
 
         if (Options.manualExposureEnabled) {
-            int currentLogStep = manualExposureToLogStep(Options.manualExposureHundredths);
-            int defaultLogStep = manualExposureToLogStep(100);
+            // Manual Exposure: EV100 slider, range EV -4.0 to EV 20.0
+            // Stored as tenths (-40 to 200), slider offset by 40 -> [0, 240]
+            int sliderValue = Options.manualExposureEV100Tenths + EV100_SLIDER_OFFSET;
+            int sliderDefault = 150 + EV100_SLIDER_OFFSET; // EV 15.0 (sunny day)
             ResettableSliderWidget manualSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
-                0, MANUAL_EXPOSURE_LOG_STEPS, currentLogStep, defaultLogStep,
+                0, 240, sliderValue, sliderDefault,
                 v -> getGenericValueText(
                     Text.translatable(Options.MANUAL_EXPOSURE_KEY),
-                    Text.literal(formatManualExposure(logStepToManualExposure(v) / 100.0))),
-                v -> Options.setManualExposureHundredths(logStepToManualExposure(v), true));
+                    Text.literal(String.format("EV %.1f", (v - EV100_SLIDER_OFFSET) / 10.0))),
+                v -> Options.setManualExposureEV100Tenths(v - EV100_SLIDER_OFFSET, true));
             this.body.addEntry(new RadianceSettingsScreen.SliderEntry(manualSlider, body));
             return;
         }
@@ -67,7 +74,7 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
         // Exposure Up Speed: 0.1 to 20.0 (stored as tenths 1-200)
         ResettableSliderWidget upSpeedSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            1, 200, Options.exposureUpSpeedTenths, 50,
+            1, 200, Options.exposureUpSpeedTenths, 8,
             v -> getGenericValueText(
                 Text.translatable(Options.EXPOSURE_UP_SPEED_KEY),
                 Text.literal(String.format("%.1f", v / 10.0))),
@@ -87,7 +94,7 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
         // Bright Adapt Boost: 1.0 to 8.0 (stored as tenths 10-80)
         ResettableSliderWidget boostSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            10, 80, Options.exposureBrightAdaptBoostTenths, 40,
+            10, 80, Options.exposureBrightAdaptBoostTenths, 10,
             v -> getGenericValueText(
                 Text.translatable(Options.EXPOSURE_BRIGHT_ADAPT_BOOST_KEY),
                 Text.literal(String.format("x%.1f", v / 10.0))),
@@ -95,10 +102,10 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(boostSlider, body));
 
         if (!Options.legacyExposure) {
-            // Histogram Max EV: 8 to 16 (controls max log2 luminance for histogram mapping)
+            // Histogram Max EV: 8 to 24 (controls max log2 luminance for histogram mapping)
             ResettableSliderWidget log2MaxSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
-                8, 16, Options.exposureLog2Max, 14,
+                8, 24, Options.exposureLog2Max, 18,
                 v -> getGenericValueText(
                     Text.translatable(Options.EXPOSURE_LOG2_MAX_KEY),
                     Text.literal(Integer.toString(v))),
@@ -108,7 +115,7 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
             // Highlight Protection: 0% to 100%
             ResettableSliderWidget hpSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
-                0, 100, Options.exposureHighlightProtectionPercent, 100,
+                0, 100, Options.exposureHighlightProtectionPercent, 30,
                 v -> getGenericValueText(
                     Text.translatable(Options.EXPOSURE_HIGHLIGHT_PROTECTION_KEY),
                     Text.literal(v + "%")),
@@ -118,7 +125,7 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
             // Highlight Smoothing Speed: 0.0 to 30.0 (stored as tenths 0-300)
             ResettableSliderWidget smoothSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
-                0, 300, Options.exposureHighlightSmoothSpeedTenths, 100,
+                0, 300, Options.exposureHighlightSmoothSpeedTenths, 20,
                 v -> getGenericValueText(
                     Text.translatable(Options.EXPOSURE_HIGHLIGHT_SMOOTH_SPEED_KEY),
                     Text.literal(String.format("%.1f", v / 10.0))),
@@ -128,7 +135,7 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
             // Highlight Percentile: 0.9000 to 0.9999 (stored as ten-thousandths 9000-9999)
             ResettableSliderWidget percSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
-                9000, 9999, Options.exposureHighlightPercentileTenK, 9990,
+                9000, 9999, Options.exposureHighlightPercentileTenK, 9800,
                 v -> getGenericValueText(
                     Text.translatable(Options.EXPOSURE_HIGHLIGHT_PERCENTILE_KEY),
                     Text.literal(String.format("%.2f%%", v / 100.0))),
@@ -136,25 +143,25 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
             this.body.addEntry(new RadianceSettingsScreen.SliderEntry(percSlider, body));
         }
 
-        // Min Exposure: 0.0001 to 1.0 (stored as ten-thousandths 1-10000)
+        // Min Exposure: 1e-7 to 1e-3 (slider 1-10000, physical light range)
         ResettableSliderWidget minExpSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
             1, 10000, Options.minExposureTenK, 1,
             v -> getGenericValueText(
                 Text.translatable(Options.MIN_EXPOSURE_KEY),
-                Text.literal(String.format("%.4f", v / 10000.0))),
+                Text.literal(String.format("%.1e", v * 1e-7))),
             v -> Options.setMinExposure(v, true));
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(minExpSlider, body));
 
-        SimpleOption<Integer> maxExposure = new SimpleOption<>(
-            Options.MAX_EXPOSURE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText, Text.literal(Integer.toString(value))),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 20),
-            Codec.intRange(1, 20),
-            Options.maxExposure,
-            value -> Options.setMaxExposure(value, true));
-        this.body.addSingleOptionEntry(maxExposure);
+        // Max Exposure: 0.1 to 10.0 (stored as tenths 1-100, default 20 = 2.0)
+        ResettableSliderWidget maxExpSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 100, Options.maxExposure, 20,
+            v -> getGenericValueText(
+                Text.translatable(Options.MAX_EXPOSURE_KEY),
+                Text.literal(String.format("%.1f", v / 10.0))),
+            v -> Options.setMaxExposure(v, true));
+        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(maxExpSlider, body));
 
         // Exposure Compensation: -3.0 to +3.0 EV (stored as tenths, slider 0-60 offset by 30)
         ResettableSliderWidget ecSlider = new ResettableSliderWidget(
@@ -175,26 +182,5 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
                 Text.literal(String.format("%.2f", v / 100.0))),
             v -> Options.setMiddleGrey(v, true));
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(mgSlider, body));
-    }
-
-    private static int manualExposureToLogStep(int hundredths) {
-        double exposure = Math.max(MANUAL_EXPOSURE_MIN, Math.min(MANUAL_EXPOSURE_MAX, hundredths / 100.0));
-        double t = (Math.log(exposure) - Math.log(MANUAL_EXPOSURE_MIN)) /
-            (Math.log(MANUAL_EXPOSURE_MAX) - Math.log(MANUAL_EXPOSURE_MIN));
-        return Math.max(0, Math.min(MANUAL_EXPOSURE_LOG_STEPS, (int) Math.round(t * MANUAL_EXPOSURE_LOG_STEPS)));
-    }
-
-    private static int logStepToManualExposure(int logStep) {
-        double t = Math.max(0.0, Math.min(1.0, logStep / (double) MANUAL_EXPOSURE_LOG_STEPS));
-        double exposure = Math.exp(Math.log(MANUAL_EXPOSURE_MIN) + t *
-            (Math.log(MANUAL_EXPOSURE_MAX) - Math.log(MANUAL_EXPOSURE_MIN)));
-        return Math.max(1, Math.min(2000, (int) Math.round(exposure * 100.0)));
-    }
-
-    private static String formatManualExposure(double exposure) {
-        if (exposure < 0.1) {
-            return String.format("%.3f", exposure);
-        }
-        return String.format("%.2f", exposure);
     }
 }

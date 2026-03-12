@@ -22,6 +22,13 @@ public class SunSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    protected void initBody() {
+        this.body = this.layout.addBody(
+            new WideOptionListWidget(this.client, this.width, this));
+        addOptions();
+    }
+
+    @Override
     protected void addOptions() {
         int dim = Options.getEnvironmentEditingDimension();
 

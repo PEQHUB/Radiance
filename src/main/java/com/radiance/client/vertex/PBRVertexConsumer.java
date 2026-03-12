@@ -1,6 +1,7 @@
 package com.radiance.client.vertex;
 
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALBEDO_EMISSION;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_EMISSIVE_BLOCK_TYPE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_COLOR_LAYER;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_GLINT_TEXTURE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_GLINT_UV;
@@ -59,6 +60,15 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float baseY = 0;
     private float baseZ = 0;
     private float pendingEmission = 0.0f;
+    private int pendingEmissiveBlockType = 255; // 255 = no type
+    private int pendingMaterialBlockType = 255;    // 255 = no material type
+
+    // Thread-local for item rendering: set before item model emits quads, cleared after.
+    // Applies material block type to all quads emitted by the item model.
+    private static final ThreadLocal<Integer> itemMaterialBlockType = ThreadLocal.withInitial(() -> 255);
+
+    public static void setItemMaterialBlockType(int ordinal) { itemMaterialBlockType.set(ordinal); }
+    public static void clearItemMaterialBlockType() { itemMaterialBlockType.set(255); }
 
     public PBRVertexConsumer(BufferAllocator allocator, RenderLayer renderLayer) {
         this(allocator, VertexFormat.DrawMode.QUADS, PBRVertexFormats.PBR_TRIANGLE, renderLayer);
@@ -276,8 +286,17 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutFloat(p + 8L, z);
         }
 
-        if (pendingEmission > 0.0f) {
+        if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
+        }
+        // Pack emissiveBlockType (bits 0-7) + materialBlockType+1 (bits 8-15) into one uint
+        // Material uses ordinal+1 so that 0 = "no material" (default for untagged vertices)
+        // Check thread-local for item rendering when instance field not set
+        int effectiveMaterial = (pendingMaterialBlockType != 255) ? pendingMaterialBlockType : itemMaterialBlockType.get();
+        if (pendingEmissiveBlockType != 255 || effectiveMaterial != 255) {
+            int materialVal = (effectiveMaterial != 255) ? (effectiveMaterial + 1) : 0;
+            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8);
+            emissiveBlockType(packed);
         }
 
         return this;
@@ -300,8 +319,13 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutFloat(p + 8L, z);
         }
 
-        if (pendingEmission > 0.0f) {
+        if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
+        }
+        if (pendingEmissiveBlockType != 255 || pendingMaterialBlockType != 255) {
+            int materialVal = (pendingMaterialBlockType != 255) ? (pendingMaterialBlockType + 1) : 0;
+            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8);
+            emissiveBlockType(packed);
         }
 
         return this;
@@ -394,7 +418,23 @@ public class PBRVertexConsumer implements VertexConsumer {
     }
 
     public void setPendingEmission(float emission) {
-        this.pendingEmission = Math.max(0.0f, emission);
+        this.pendingEmission = emission;  // Allow negative (area light sign convention)
+    }
+
+    public void setPendingEmissiveBlockType(int ordinal) {
+        this.pendingEmissiveBlockType = ordinal;
+    }
+
+    public void setPendingMaterialBlockType(int ordinal) {
+        this.pendingMaterialBlockType = ordinal;
+    }
+
+    public VertexConsumer emissiveBlockType(int type) {
+        long p = beginElement(PBR_EMISSIVE_BLOCK_TYPE);
+        if (p != -1L) {
+            MemoryUtil.memPutInt(p, type);
+        }
+        return this;
     }
 
     public int getTextureID() {

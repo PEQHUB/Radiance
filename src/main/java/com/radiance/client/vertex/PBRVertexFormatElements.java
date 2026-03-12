@@ -93,4 +93,9 @@ public class PBRVertexFormatElements {
         PBR_ALBEDO_EMISSION =
         VertexFormatElement.register(23, 0, VertexFormatElement.ComponentType.UINT,
             VertexFormatElement.Usage.UV, 1);
+
+    public static final VertexFormatElement
+        PBR_EMISSIVE_BLOCK_TYPE =
+        VertexFormatElement.register(24, 0, VertexFormatElement.ComponentType.UINT,
+            VertexFormatElement.Usage.UV, 1);
 }

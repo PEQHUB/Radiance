@@ -8,6 +8,11 @@ import static org.lwjgl.system.MemoryUtil.memSet;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.constant.Constants;
+import com.radiance.client.compat.FirstPersonCompat;
+import com.radiance.client.option.Options;
+import com.radiance.client.util.EmissiveBlock;
+import com.radiance.client.util.MaterialBlock;
+import com.radiance.client.util.SpectralColor;
 import com.radiance.client.texture.TextureTracker;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
@@ -205,7 +210,7 @@ public class BufferProxy {
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
         try (MemoryStack stack = stackPush()) {
-            int size = 560;
+            int size = 3920; // 560 base + 800 (vec4[50] emissionData) + 2560 (vec4[160] materialData)
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -236,7 +241,10 @@ public class BufferProxy {
 
             bb.putInt(baseAddr, overlayTextureID);
             baseAddr += Integer.BYTES;
-            bb.putInt(baseAddr, camera.isThirdPerson() ? 0 : 1);
+            // When FirstPerson mod is active, tell shader camera is "third person"
+            // so PLAYER_MASK is included in ray mask (player body visible)
+            boolean hidePlayer = !camera.isThirdPerson() && !FirstPersonCompat.isActive();
+            bb.putInt(baseAddr, hidePlayer ? 1 : 0);
             baseAddr += Integer.BYTES;
             bb.putFloat(baseAddr, fog.start());
             baseAddr += Float.BYTES;
@@ -271,6 +279,81 @@ public class BufferProxy {
             baseAddr += Integer.BYTES;
             baseAddr += Integer.BYTES;
             baseAddr += Integer.BYTES;
+
+            // Emission data: vec4[40], one per EmissiveBlock ordinal
+            // .rgb = BT.2020 flame color override (0,0,0 = use texture tint)
+            // .a   = scalar multiplier: (currentNits * userScale) / defaultNits
+            EmissiveBlock[] blocks = EmissiveBlock.values();
+            for (int i = 0; i < 50; i++) {
+                float r = 0, g = 0, b = 0, mult = 1.0f;
+                if (i < blocks.length) {
+                    EmissiveBlock blk = blocks[i];
+                    float defNits = blk.getDefaultSurfaceNits();
+                    if (defNits > 0) {
+                        mult = (blk.getSurfaceNits() * blk.getValue()) / defNits;
+                    }
+                    // Flame colorant: compute spectral color for thermal blocks with wavelength > 0
+                    if (blk.isThermal()) {
+                        int wl = Options.getBlockWavelength(blk);
+                        int pur = Options.getBlockPurity(blk);
+                        if (wl > 0 && pur > 0) {
+                            int tempC = Options.getBlockTemperature(blk);
+                            float tempK = tempC + 273.15f;
+                            float[] color = SpectralColor.computeFlameColor(tempK, wl, pur / 100.0f);
+                            r = color[0]; g = color[1]; b = color[2];
+                        }
+                    }
+                }
+                int off = baseAddr + i * 16; // vec4 = 16 bytes
+                bb.putFloat(off,      r);
+                bb.putFloat(off + 4,  g);
+                bb.putFloat(off + 8,  b);
+                bb.putFloat(off + 12, mult);
+            }
+            baseAddr += 50 * 16; // 50 × vec4
+
+            // Principled BSDF material data: 4 × vec4[40] = 160 vec4 per block
+            // Pack 0 [idx+0]:   (f0.r, f0.g, f0.b, roughness)
+            // Pack 1 [idx+40]:  (metallic, transmission, ior, subsurface)
+            // Pack 2 [idx+80]:  (anisotropic, sheenWeight, sheenTint, coatWeight)
+            // Pack 3 [idx+120]: (coatRoughness, 0, 0, 0)
+            // When disabled, write zeros so shader dot() guard skips override
+            boolean matEnabled = Options.materialOverridesEnabled;
+            for (int i = 0; i < 40; i++) {
+                int p0 = baseAddr + i * 16;            // Pack 0
+                int p1 = baseAddr + (40 + i) * 16;     // Pack 1
+                int p2 = baseAddr + (80 + i) * 16;     // Pack 2
+                int p3 = baseAddr + (120 + i) * 16;    // Pack 3
+                if (matEnabled && i < MaterialBlock.COUNT) {
+                    // Pack 0: F0 RGB + roughness
+                    bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
+                    bb.putFloat(p0 + 4,  Options.materialF0G[i] / 1000.0f);
+                    bb.putFloat(p0 + 8,  Options.materialF0B[i] / 1000.0f);
+                    bb.putFloat(p0 + 12, Options.materialRoughness[i] / 100.0f);
+                    // Pack 1: metallic, transmission, IOR, subsurface
+                    bb.putFloat(p1,      Options.materialMetallic[i] / 1000.0f);
+                    bb.putFloat(p1 + 4,  Options.materialTransmission[i] / 1000.0f);
+                    bb.putFloat(p1 + 8,  Options.materialIOR[i] / 1000.0f);
+                    bb.putFloat(p1 + 12, Options.materialSubsurface[i] / 1000.0f);
+                    // Pack 2: anisotropic, sheen weight, sheen tint, coat weight
+                    bb.putFloat(p2,      Options.materialAnisotropic[i] / 1000.0f);
+                    bb.putFloat(p2 + 4,  Options.materialSheenWeight[i] / 1000.0f);
+                    bb.putFloat(p2 + 8,  Options.materialSheenTint[i] / 1000.0f);
+                    bb.putFloat(p2 + 12, Options.materialCoatWeight[i] / 1000.0f);
+                    // Pack 3: coat roughness + reserved
+                    bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
+                    bb.putFloat(p3 + 4,  0.0f);
+                    bb.putFloat(p3 + 8,  0.0f);
+                    bb.putFloat(p3 + 12, 0.0f);
+                } else {
+                    // Zero all 4 packs
+                    for (int p : new int[]{p0, p1, p2, p3}) {
+                        bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
+                        bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
+                    }
+                }
+            }
+            baseAddr += 160 * 16; // 160 × vec4
 
             updateWorldUniform(addr);
         }
