@@ -149,6 +149,11 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
+    }
+
+    @Override
     protected void initBody() {
         this.body = this.layout.addBody(
             new WideOptionListWidget(this.client, this.width, this));
@@ -175,7 +180,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(
                 Text.translatable("radiance.settings.menu_transparency"),
                 Text.literal(v + "%")),
-            v -> Options.setUiGlobalAlphaPercent(v, true));
+            v -> Options.setUiGlobalAlphaPercent(v, false));
+        alphaSlider.setOnRelease(() -> Options.overwriteConfig());
         alphaSlider.settingKey = "uiGlobalAlphaPercent";
         this.body.addEntry(new SliderEntry(alphaSlider, body));
 
@@ -208,10 +214,11 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             subScreenButton("options.video.emission_settings", new EmissiveBlockSettingsScreen(this)),
             body));
 
-        // [Materials... | (empty)]
+        // [Materials... | Material Browser...]
         this.body.addEntry(new TwoColumnOptionEntry(
             subScreenButton("options.video.materials_settings", new MaterialsSettingsScreen(this)),
-            null, body));
+            subScreenButton("radiance.materials.browser", new MaterialBrowserScreen(this)),
+            body));
 
         // ── EXPOSURE & TONEMAPPING ──
         this.body.addEntry(
@@ -465,6 +472,67 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             value -> Options.setSimplifiedIndirect(value, true));
         this.body.addEntry(new TwoColumnOptionEntry(
             ommBakerLevel.createWidget(gameOptions), simplifiedIndirect.createWidget(gameOptions), body));
+
+        // ── SHARC RADIANCE CACHE ──
+        this.body.addEntry(
+            new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_SHARC), body));
+
+        SimpleOption<Boolean> sharcEnabled = SimpleOption.ofBoolean(
+            Options.SHARC_ENABLED_KEY,
+            Options.sharcEnabled,
+            value -> Options.setSharcEnabled(value, true));
+        SimpleOption<Integer> sharcSceneScale = new SimpleOption<>(
+            Options.SHARC_SCENE_SCALE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(String.format("%.1f", value / 10.0))),
+            new SimpleOption.ValidatingIntSliderCallbacks(10, 80),
+            Codec.intRange(10, 80),
+            Options.sharcSceneScaleTenths,
+            value -> Options.setSharcSceneScaleTenths(value, true));
+        SimpleOption<Integer> sharcRoughnessThreshold = new SimpleOption<>(
+            Options.SHARC_ROUGHNESS_THRESHOLD_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(String.format("%.2f", value / 100.0))),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 100),
+            Codec.intRange(0, 100),
+            Options.sharcRoughnessThresholdPercent,
+            value -> Options.setSharcRoughnessThresholdPercent(value, true));
+        SimpleOption<Integer> sharcAccumulationFrames = new SimpleOption<>(
+            Options.SHARC_ACCUMULATION_FRAMES_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(Integer.toString(value))),
+            new SimpleOption.ValidatingIntSliderCallbacks(4, 128),
+            Codec.intRange(4, 128),
+            Options.sharcAccumulationFrames,
+            value -> Options.setSharcAccumulationFrames(value, true));
+        SimpleOption<Integer> sharcStaleFrames = new SimpleOption<>(
+            Options.SHARC_STALE_FRAMES_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(Integer.toString(value))),
+            new SimpleOption.ValidatingIntSliderCallbacks(4, 64),
+            Codec.intRange(4, 64),
+            Options.sharcStaleFrames,
+            value -> Options.setSharcStaleFrames(value, true));
+        SimpleOption<Integer> sharcDownscale = new SimpleOption<>(
+            Options.SHARC_DOWNSCALE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(value + "x")),
+            new SimpleOption.ValidatingIntSliderCallbacks(1, 4),
+            Codec.intRange(1, 4),
+            Options.sharcDownscale,
+            value -> Options.setSharcDownscale(value, true));
+
+        this.body.addEntry(new TwoColumnOptionEntry(
+            sharcEnabled.createWidget(gameOptions), sharcDownscale.createWidget(gameOptions), body));
+        this.body.addEntry(new TwoColumnOptionEntry(
+            sharcSceneScale.createWidget(gameOptions), sharcRoughnessThreshold.createWidget(gameOptions), body));
+        this.body.addEntry(new TwoColumnOptionEntry(
+            sharcAccumulationFrames.createWidget(gameOptions), sharcStaleFrames.createWidget(gameOptions), body));
 
         // ── WINDOW ──
         this.body.addEntry(
@@ -802,6 +870,12 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
                 right.setWidth(colW);
                 right.render(context, mouseX, mouseY, tickDelta);
             }
+        }
+
+        @Override
+        public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+            if (left.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+            return right != null && right.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         }
 
         @Override

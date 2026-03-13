@@ -321,6 +321,70 @@ public final class RadianceTheme {
         ctx.fill(dotX, dotY, dotX + dotSize, dotY + dotSize, textAccent);
     }
 
+    // ── Breadcrumb navigation ──
+
+    private static final int BREADCRUMB_Y = 26;
+    private static int breadcrumbTextEndX = 0;
+
+    /**
+     * Draw a clickable breadcrumb at the standard position (20, 26).
+     * The breadcrumb text is rendered with link-style coloring.
+     * Call {@link #handleBreadcrumbClick} in mouseClicked to handle navigation.
+     */
+    public static void drawBreadcrumb(DrawContext ctx, TextRenderer renderer,
+            String breadcrumbText, Screen parentScreen) {
+        // Split into segments by " > "
+        String[] parts = breadcrumbText.split(" > ");
+        int x = 20;
+        for (int i = 0; i < parts.length; i++) {
+            boolean isLast = (i == parts.length - 1);
+            int color = isLast ? textSecondary : TEXT_LINK;
+            Text seg = Text.literal(parts[i]);
+            drawOutlinedText(ctx, renderer, seg, x, BREADCRUMB_Y, color);
+            x += renderer.getWidth(seg);
+            if (!isLast) {
+                Text sep = Text.literal(" > ");
+                drawOutlinedText(ctx, renderer, sep, x, BREADCRUMB_Y, textSecondary);
+                x += renderer.getWidth(sep);
+            }
+        }
+        breadcrumbTextEndX = x;
+    }
+
+    /**
+     * Check if a mouse click hit the breadcrumb area and navigate to parent if so.
+     * @return true if the click was consumed (navigated to parent)
+     */
+    public static boolean handleBreadcrumbClick(double mouseX, double mouseY, Screen parent) {
+        if (parent != null
+                && mouseY >= BREADCRUMB_Y - 2 && mouseY <= BREADCRUMB_Y + 12
+                && mouseX >= 20 && mouseX <= breadcrumbTextEndX) {
+            net.minecraft.client.MinecraftClient.getInstance().setScreen(parent);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Handle Tab key for peek mode. Call from sub-screen keyPressed/keyReleased.
+     * @return true if the key event was consumed
+     */
+    public static boolean handlePeekKeyPressed(int keyCode) {
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB) {
+            peekActive = true;
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean handlePeekKeyReleased(int keyCode) {
+        if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB) {
+            peekActive = false;
+            return true;
+        }
+        return false;
+    }
+
     // ── Category accent line ──
 
     /**

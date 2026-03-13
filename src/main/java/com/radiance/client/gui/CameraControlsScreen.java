@@ -5,6 +5,7 @@ import com.mojang.serialization.Codec;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.option.SimpleOption;
@@ -15,6 +16,11 @@ public class CameraControlsScreen extends GameOptionsScreen {
     public CameraControlsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options,
             Text.translatable("radiance.settings.camera_controls.title"));
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
     }
 
     @Override

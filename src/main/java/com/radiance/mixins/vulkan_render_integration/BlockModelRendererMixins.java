@@ -10,6 +10,7 @@ import com.radiance.client.vertex.PBRVertexConsumer;
 
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IBlockColorsExt;
 import net.minecraft.block.BlockState;
+import net.minecraft.state.property.Properties;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.block.BlockModelRenderer;
@@ -83,8 +84,9 @@ public class BlockModelRendererMixins {
         float emissionNits;
         EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
         if (eb != null) {
-            // Registered emissive block: DEFAULT surfaceNits (scale applied by shader via UBO)
-            emissionNits = eb.getDefaultSurfaceNits();
+            // Skip emission for blocks with a LIT property when unlit (furnace, blast_furnace, smoker)
+            boolean isLit = !state.contains(Properties.LIT) || state.get(Properties.LIT);
+            emissionNits = isLit ? eb.getDefaultSurfaceNits() : 0.0f;
         } else if (emission > 0.0f) {
             // Non-registered block with tint emission: scale 0-1 to nits (200 nits reference)
             emissionNits = emission * 200.0f;

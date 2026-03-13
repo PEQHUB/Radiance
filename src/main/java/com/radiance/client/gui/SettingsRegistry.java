@@ -93,6 +93,31 @@ public final class SettingsRegistry {
                 0, 1, () -> Options.simplifiedIndirect ? 1 : 0, 0,
                 null, false);
 
+        // ── Main Screen: SHARC Radiance Cache ─────────────────────────────
+        register("sharcEnabled", "SHARC Radiance Cache", "SHARC Radiance Cache", null, null,
+                0, 1, () -> Options.sharcEnabled ? 1 : 0, 1,
+                "Cache indirect radiance at world positions for faster convergence.", false);
+
+        register("sharcSceneScaleTenths", "Grid Scene Scale", "SHARC Radiance Cache", null, null,
+                10, 80, () -> Options.sharcSceneScaleTenths, 40,
+                "Voxel size. Lower = finer detail, higher = better coverage.", false);
+
+        register("sharcRoughnessThresholdPercent", "Roughness Threshold", "SHARC Radiance Cache", null, null,
+                0, 100, () -> Options.sharcRoughnessThresholdPercent, 25,
+                "Min surface roughness to use cache. 0=all surfaces, 100=diffuse only.", false);
+
+        register("sharcAccumulationFrames", "Accumulation Frames", "SHARC Radiance Cache", null, null,
+                4, 128, () -> Options.sharcAccumulationFrames, 32,
+                "Temporal accumulation window. Higher = smoother but slower convergence.", false);
+
+        register("sharcStaleFrames", "Stale Eviction Frames", "SHARC Radiance Cache", null, null,
+                4, 64, () -> Options.sharcStaleFrames, 16,
+                "Frames before unused entries are evicted. Higher = more memory use.", false);
+
+        register("sharcDownscale", "Update Downscale", "SHARC Radiance Cache", null, null,
+                1, 4, () -> Options.sharcDownscale, 1,
+                "Resolution divisor for update pass. Higher = faster but slower population.", true);
+
         // ── Main Screen: Display ───────────────────────────────────────────
         register("maxFps", "Max FPS", "Display", null, null,
                 10, 260, () -> Options.maxFps, 260,

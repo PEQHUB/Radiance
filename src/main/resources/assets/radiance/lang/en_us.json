@@ -11,6 +11,13 @@
   "options.video.omm_enabled": "Opacity Micro Maps (OMM)",
   "options.video.omm_baker_level": "OMM Subdivision Level",
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
+  "options.video.category.sharc": "SHARC Radiance Cache",
+  "options.video.sharc_enabled": "SHARC Enabled",
+  "options.video.sharc_scene_scale": "Grid Scene Scale",
+  "options.video.sharc_roughness_threshold": "Roughness Threshold",
+  "options.video.sharc_accumulation_frames": "Accumulation Frames",
+  "options.video.sharc_stale_frames": "Stale Eviction Frames",
+  "options.video.sharc_downscale": "Update Downscale",
   "options.video.area_lights_enabled": "Area Lights (Unfinished - Experimental)",
   "options.video.area_light_intensity": "Area Light Intensity",
   "options.video.area_light_range": "Area Light Range",
@@ -498,7 +505,7 @@
   ,"options.video.category.materials.fresnelF0": "Fresnel F0 (Reflectance)"
 
   ,"options.video.category.materials.presets": "Metal Presets"
-  ,"options.video.materials.loadPreset": "\u2193  Load Preset into This Block"
+  ,"options.video.materials.loadPreset": "Load Preset"
 
   ,"options.video.category.materials.autoPBR": "Auto-PBR Parameters"
   ,"options.video.autoPBR.roughnessGamma": "Roughness Gamma"
@@ -517,4 +524,32 @@
   ,"radiance.settings.welcome_message.off": "Welcome Message: Off"
   ,"radiance.welcome_message.line1": "\u00a7bRadiance\u00a7r \u2014 Press \u00a7eO\u00a7r to open the settings menu."
   ,"radiance.welcome_message.line2": "\u00a77(Disable this message via Welcome Message in the O menu.)\u00a7r"
+
+  ,"radiance.materials.copy": "Copy"
+  ,"radiance.materials.paste": "Paste"
+  ,"radiance.materials.export": "Export"
+  ,"radiance.materials.import": "Import"
+  ,"radiance.materials.browser": "Material Browser..."
+  ,"radiance.materials.exportAll": "Export All"
+  ,"radiance.materials.importPack": "Import Pack"
+  ,"radiance.materials.copied": "Copied!"
+  ,"radiance.materials.pasted": "Pasted!"
+  ,"radiance.materials.noClipboard": "No material in clipboard"
+  ,"radiance.materials.browser.title": "Material Browser"
+  ,"radiance.materials.browser.search": "Search materials..."
+  ,"radiance.materials.browser.tab.all": "All"
+  ,"radiance.materials.browser.tab.metals": "Metals"
+  ,"radiance.materials.browser.tab.gems": "Gems"
+  ,"radiance.materials.browser.tab.minerals": "Minerals"
+  ,"radiance.materials.browser.tab.glass": "Glass"
+  ,"radiance.materials.browser.tab.presets": "Presets"
+  ,"radiance.materials.browser.tab.saved": "Saved"
+  ,"radiance.materials.browser.tab.packs": "Packs"
+  ,"radiance.materials.browser.apply": "Apply"
+  ,"radiance.materials.browser.reset": "Reset to Default"
+  ,"radiance.materials.context.copy": "Copy Material"
+  ,"radiance.materials.context.paste": "Paste Material"
+  ,"radiance.materials.context.exportJson": "Export as .radmat"
+  ,"radiance.materials.context.exportTxt": "Export as .txt"
+  ,"radiance.materials.context.reset": "Reset Default"
 }

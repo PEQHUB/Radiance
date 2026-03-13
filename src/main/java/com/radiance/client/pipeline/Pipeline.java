@@ -427,6 +427,22 @@ public class Pipeline {
             connect(rayTracingModule.getOutputImageConfig("specular_ray_dir_hit_dist"),
                 dlssModule.getInputImageConfig("specular_ray_dir_hit_dist"));
 
+            // DLSS-RR guide buffers (created internally if null, but must have pipeline slots)
+            connect(rayTracingModule.getOutputImageConfig("reflection_mv"),
+                dlssModule.getInputImageConfig("reflection_mv"));
+            connect(rayTracingModule.getOutputImageConfig("animated_tex_mask"),
+                dlssModule.getInputImageConfig("animated_tex_mask"));
+            connect(rayTracingModule.getOutputImageConfig("particle_mask"),
+                dlssModule.getInputImageConfig("particle_mask"));
+            connect(rayTracingModule.getOutputImageConfig("first_hit_base_emission"),
+                dlssModule.getInputImageConfig("first_hit_base_emission"));
+            connect(rayTracingModule.getOutputImageConfig("bias_mask"),
+                dlssModule.getInputImageConfig("bias_mask"));
+            connect(rayTracingModule.getOutputImageConfig("rt_hit_dist"),
+                dlssModule.getInputImageConfig("rt_hit_dist"));
+            connect(rayTracingModule.getOutputImageConfig("motion_vectors_3d"),
+                dlssModule.getInputImageConfig("motion_vectors_3d"));
+
             connect(dlssModule.getOutputImageConfig("processed"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
 

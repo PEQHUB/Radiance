@@ -25,6 +25,23 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyReleased(keyCode)) return true;
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
+    }
+
+    @Override
     protected void initBody() {
         MaterialDropdownWidget.clearInstances();
         dropdowns.clear();
@@ -64,8 +81,7 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
-        RadianceTheme.drawOutlinedText(context, this.textRenderer,
-            Text.literal("Radiance > Lighting > Emission"), 20, 26, RadianceTheme.textSecondary);
+        RadianceTheme.drawBreadcrumb(context, this.textRenderer, "Radiance > Lighting > Emission", parentScreen);
         // Render dropdown overlays AFTER the body list, so they appear on top
         for (MaterialDropdownWidget dd : dropdowns) {
             dd.renderDropdownOverlay(context, mouseX, mouseY);
@@ -74,6 +90,7 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
         // Check dropdown overlays first (they render on top, should get clicks first)
         for (MaterialDropdownWidget dd : dropdowns) {
             if (dd.isOpen() && dd.isInDropdownBounds(mouseX, mouseY)) {

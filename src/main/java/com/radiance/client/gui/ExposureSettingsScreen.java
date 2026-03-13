@@ -27,8 +27,30 @@ public class ExposureSettingsScreen extends GameOptionsScreen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
-        RadianceTheme.drawOutlinedText(context, this.textRenderer,
-            Text.literal("Radiance > Light & Color > Exposure"), 20, 26, RadianceTheme.textSecondary);
+        RadianceTheme.drawBreadcrumb(context, this.textRenderer, "Radiance > Light & Color > Exposure", parentScreen);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyReleased(keyCode)) return true;
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
     }
 
     @Override

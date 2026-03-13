@@ -3,9 +3,8 @@ package com.radiance.client.gui;
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.radiance.client.option.Options;
-import com.radiance.client.util.CategoryVideoOptionEntry;
-import com.radiance.client.util.MaterialBlock;
-import com.radiance.client.util.MetalPreset;
+import com.radiance.client.util.*;
+import java.nio.file.Path;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -105,8 +104,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
-        RadianceTheme.drawOutlinedText(context, this.textRenderer,
-            Text.literal("Radiance > Lighting > Materials"), 20, 26, RadianceTheme.textSecondary);
+        RadianceTheme.drawBreadcrumb(context, this.textRenderer, "Radiance > Lighting > Materials", parentScreen);
 
         // Block icon next to the block selector
         MaterialBlock[] blocks = MaterialBlock.values();
@@ -117,6 +115,29 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 RadianceBlockIcon.drawBlockIcon(context, block, this.width - 44, 20, 24);
             }
         }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyReleased(keyCode)) return true;
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
     }
 
     @Override
@@ -131,10 +152,21 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         DirectionalLayoutWidget footer = DirectionalLayoutWidget.horizontal().spacing(8);
         footer.add(ButtonWidget.builder(
             Text.translatable("radiance.settings.materials.apply"), btn -> applyChanges())
-            .width(150).build());
+            .width(100).build());
         footer.add(ButtonWidget.builder(
             Text.translatable("radiance.settings.materials.cancel"), btn -> cancelChanges())
-            .width(150).build());
+            .width(100).build());
+        footer.add(ButtonWidget.builder(
+            Text.translatable("radiance.materials.exportAll"), btn -> {
+                MaterialsPack pack = MaterialsPack.fromCurrentOptions();
+                pack.name = "All Materials";
+                MaterialFileManager.savePack(pack, "all-materials");
+            }).width(100).build());
+        footer.add(ButtonWidget.builder(
+            Text.translatable("radiance.materials.importPack"), btn -> {
+                MinecraftClient.getInstance().setScreen(
+                    new MaterialBrowserScreen(this, MaterialBrowserScreen.TAB_PACKS));
+            }).width(100).build());
         this.layout.addFooter(footer);
     }
 
@@ -171,7 +203,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         this.body.addAll(new SimpleOption[]{overridesToggle, autoPBRToggle});
 
         // === Block selector (full-width slider) ===
-        // onChange only updates the index; screen rebuild is deferred to mouse release
         ResettableSliderWidget blockSelector = new ResettableSliderWidget(0, 0, 150, 20,
             0, blocks.length - 1, currentBlockIndex, 0,
             v -> {
@@ -187,174 +218,171 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         });
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(blockSelector, body));
 
-        // === Base Properties ===
+        // === Material Actions (Copy/Paste | Export/Browser) ===
+        final int currentIdx = i;
+        ButtonWidget copyBtn = ButtonWidget.builder(
+            Text.translatable("radiance.materials.copy"),
+            btn -> {
+                MaterialClipboard.copy(currentIdx);
+                btn.setMessage(Text.translatable("radiance.materials.copied"));
+            }).width(70).build();
+
+        ButtonWidget pasteBtn = ButtonWidget.builder(
+            Text.translatable("radiance.materials.paste"),
+            btn -> {
+                if (MaterialClipboard.paste(currentIdx)) {
+                    MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
+                }
+            }).width(70).build();
+
+        ButtonWidget exportBtn = ButtonWidget.builder(
+            Text.translatable("radiance.materials.export"),
+            btn -> {
+                MaterialData data = MaterialData.fromOptions(currentIdx);
+                if (data != null) {
+                    Path path = MaterialFileManager.saveMaterial(data, data.blockId);
+                    if (path != null) btn.setMessage(Text.literal("Saved!"));
+                }
+            }).width(70).build();
+
+        ButtonWidget browserBtn = ButtonWidget.builder(
+            Text.translatable("radiance.materials.browser"),
+            btn -> MinecraftClient.getInstance().setScreen(new MaterialBrowserScreen(this))
+        ).width(70).build();
+
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(copyBtn, pasteBtn, body));
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(exportBtn, browserBtn, body));
+
+        // === Material Properties (all 13 in paired rows) ===
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.category.materials.baseProperties"), body));
 
-        // Metallic
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialMetallic[i], block.getDefaultMetallic(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.metallic"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialMetallic[i] = v; }),
-            body));
+        // Metallic + Roughness
+        ResettableSliderWidget metallic = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialMetallic[i], block.getDefaultMetallic(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.metallic"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialMetallic[i] = v; });
+        ResettableSliderWidget roughness = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 100, Options.materialRoughness[i], block.getDefaultRoughness(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.roughness"),
+                Text.literal(v + "%")),
+            v -> { Options.materialRoughness[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(metallic, roughness, body));
 
-        // Roughness
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 100, Options.materialRoughness[i], block.getDefaultRoughness(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.roughness"),
-                    Text.literal(v + "%")),
-                v -> { Options.materialRoughness[i] = v; }),
-            body));
+        // IOR + Transmission
+        ResettableSliderWidget ior = new ResettableSliderWidget(0, 0, 150, 20,
+            1000, 3000, Math.max(Options.materialIOR[i], 1000), Math.max(block.getDefaultIOR(), 1000),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.ior"),
+                Text.literal(String.format("%.3f", v / 1000.0))),
+            v -> {
+                Options.materialIOR[i] = v;
+                if (Options.materialMetallic[i] < 500) {
+                    int f0pm = MaterialBlock.iorToF0Permille(v);
+                    Options.materialF0R[i] = f0pm;
+                    Options.materialF0G[i] = f0pm;
+                    Options.materialF0B[i] = f0pm;
+                }
+            });
+        ResettableSliderWidget transmission = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialTransmission[i], block.getDefaultTransmission(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.transmission"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialTransmission[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(ior, transmission, body));
 
-        // IOR
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                1000, 3000, Math.max(Options.materialIOR[i], 1000), Math.max(block.getDefaultIOR(), 1000),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.ior"),
-                    Text.literal(String.format("%.3f", v / 1000.0))),
-                v -> {
-                    Options.materialIOR[i] = v;
-                    if (Options.materialMetallic[i] < 500) {
-                        int f0pm = MaterialBlock.iorToF0Permille(v);
-                        Options.materialF0R[i] = f0pm;
-                        Options.materialF0G[i] = f0pm;
-                        Options.materialF0B[i] = f0pm;
-                    }
-                }),
-            body));
+        // Subsurface + Anisotropic
+        ResettableSliderWidget subsurface = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialSubsurface[i], block.getDefaultSubsurface(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.subsurface"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialSubsurface[i] = v; });
+        ResettableSliderWidget anisotropic = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialAnisotropic[i], block.getDefaultAnisotropic(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.anisotropic"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialAnisotropic[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(subsurface, anisotropic, body));
 
-        // Transmission
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialTransmission[i], block.getDefaultTransmission(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.transmission"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialTransmission[i] = v; }),
-            body));
+        // Sheen Weight + Sheen Tint
+        ResettableSliderWidget sheenWeight = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialSheenWeight[i], block.getDefaultSheenWeight(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.sheenWeight"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialSheenWeight[i] = v; });
+        ResettableSliderWidget sheenTint = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialSheenTint[i], block.getDefaultSheenTint(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.sheenTint"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialSheenTint[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(sheenWeight, sheenTint, body));
 
-        // Subsurface
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialSubsurface[i], block.getDefaultSubsurface(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.subsurface"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialSubsurface[i] = v; }),
-            body));
-
-        // Anisotropic
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialAnisotropic[i], block.getDefaultAnisotropic(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.anisotropic"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialAnisotropic[i] = v; }),
-            body));
-
-        // === Sheen ===
-        this.body.addEntry(new CategoryVideoOptionEntry(
-            Text.translatable("options.video.category.materials.sheen"), body));
-
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialSheenWeight[i], block.getDefaultSheenWeight(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.sheenWeight"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialSheenWeight[i] = v; }),
-            body));
-
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialSheenTint[i], block.getDefaultSheenTint(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.sheenTint"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialSheenTint[i] = v; }),
-            body));
-
-        // === Coat ===
-        this.body.addEntry(new CategoryVideoOptionEntry(
-            Text.translatable("options.video.category.materials.coat"), body));
-
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialCoatWeight[i], block.getDefaultCoatWeight(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.coatWeight"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialCoatWeight[i] = v; }),
-            body));
-
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 100, Options.materialCoatRoughness[i], block.getDefaultCoatRoughness(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.coatRoughness"),
-                    Text.literal(v + "%")),
-                v -> { Options.materialCoatRoughness[i] = v; }),
-            body));
+        // Coat Weight + Coat Roughness
+        ResettableSliderWidget coatWeight = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialCoatWeight[i], block.getDefaultCoatWeight(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.coatWeight"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialCoatWeight[i] = v; });
+        ResettableSliderWidget coatRoughness = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 100, Options.materialCoatRoughness[i], block.getDefaultCoatRoughness(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.coatRoughness"),
+                Text.literal(v + "%")),
+            v -> { Options.materialCoatRoughness[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(coatWeight, coatRoughness, body));
 
         // === Fresnel F0 ===
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.category.materials.fresnelF0"), body));
 
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialF0R[i], block.getDefaultF0R(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.f0r"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialF0R[i] = v; }),
-            body));
+        // F0 Red + F0 Green
+        ResettableSliderWidget f0r = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialF0R[i], block.getDefaultF0R(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.f0r"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialF0R[i] = v; });
+        ResettableSliderWidget f0g = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialF0G[i], block.getDefaultF0G(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.f0g"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialF0G[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(f0r, f0g, body));
 
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialF0G[i], block.getDefaultF0G(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.f0g"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialF0G[i] = v; }),
-            body));
+        // F0 Blue (solo)
+        ResettableSliderWidget f0b = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.materialF0B[i], block.getDefaultF0B(),
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.f0b"),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialF0B[i] = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(f0b, null, body));
 
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 1000, Options.materialF0B[i], block.getDefaultF0B(),
-                v -> getGenericValueText(
-                    Text.translatable("options.video.materials.f0b"),
-                    Text.literal(String.format("%.1f%%", v / 10.0))),
-                v -> { Options.materialF0B[i] = v; }),
-            body));
-
-        // === Metal Presets ===
+        // === Metal Presets (selector + load in one row) ===
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.category.materials.presets"), body));
 
         MetalPreset[] presets = MetalPreset.values();
         if (currentPresetIndex >= presets.length) currentPresetIndex = 0;
 
-        // Preset selector slider — shows preset name + F0 summary
         ResettableSliderWidget presetSelector = new ResettableSliderWidget(0, 0, 150, 20,
             0, presets.length - 1, currentPresetIndex, 0,
             v -> {
                 MetalPreset p = MetalPreset.values()[v];
-                return Text.literal(p.getDisplayName()
-                    + String.format("  R:%.0f G:%.0f B:%.0f  %d%%",
-                        p.getF0R() / 10.0, p.getF0G() / 10.0, p.getF0B() / 10.0,
-                        p.getRoughness()));
+                return Text.literal(p.getDisplayName());
             },
             v -> { currentPresetIndex = v; });
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(presetSelector, body));
 
-        // Apply button — loads the selected preset F0/roughness/metallic into this block
         final int blockIdx = i;
         ButtonWidget loadPresetBtn = ButtonWidget.builder(
             Text.translatable("options.video.materials.loadPreset"),
@@ -368,68 +396,53 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
             })
             .width(150).build();
-        this.body.addEntry(new RadianceSettingsScreen.ButtonEntry(loadPresetBtn, body));
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(presetSelector, loadPresetBtn, body));
 
         // === Auto-PBR Parameters ===
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.category.materials.autoPBR"), body));
 
-        ResettableSliderWidget roughGamma = new ResettableSliderWidget(
-            0, 0, 150, 20,
+        ResettableSliderWidget roughGamma = new ResettableSliderWidget(0, 0, 150, 20,
             10, 200, Options.autoPBRRoughnessGamma, 50,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.roughnessGamma"),
                 Text.literal(String.format("%.2f", v / 100.0))),
             v -> { Options.autoPBRRoughnessGamma = v; });
-
-        ResettableSliderWidget roughMin = new ResettableSliderWidget(
-            0, 0, 150, 20,
+        ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.autoPBRRoughnessMin, 30,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.roughnessMin"),
                 Text.literal(v + "%")),
             v -> { Options.autoPBRRoughnessMin = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(roughGamma, roughMin, body));
 
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(
-            roughGamma, roughMin, body));
-
-        ResettableSliderWidget roughMax = new ResettableSliderWidget(
-            0, 0, 150, 20,
+        ResettableSliderWidget roughMax = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.autoPBRRoughnessMax, 95,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.roughnessMax"),
                 Text.literal(v + "%")),
             v -> { Options.autoPBRRoughnessMax = v; });
-
-        ResettableSliderWidget normStr = new ResettableSliderWidget(
-            0, 0, 150, 20,
+        ResettableSliderWidget normStr = new ResettableSliderWidget(0, 0, 150, 20,
             0, 1000, Options.autoPBRNormalStrength, 250,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.normalStrength"),
                 Text.literal(String.format("%.1f", v / 100.0))),
             v -> { Options.autoPBRNormalStrength = v; });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(roughMax, normStr, body));
 
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(
-            roughMax, normStr, body));
-
-        ResettableSliderWidget varWt = new ResettableSliderWidget(
-            0, 0, 150, 20,
+        ResettableSliderWidget varWt = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.autoPBRVarianceWeight, 30,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.varianceWeight"),
                 Text.literal(v + "%")),
             v -> { Options.autoPBRVarianceWeight = v; });
-
-        ResettableSliderWidget edgeWt = new ResettableSliderWidget(
-            0, 0, 150, 20,
+        ResettableSliderWidget edgeWt = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.autoPBREdgeWeight, 15,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.edgeWeight"),
                 Text.literal(v + "%")),
             v -> { Options.autoPBREdgeWeight = v; });
-
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(
-            varWt, edgeWt, body));
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(varWt, edgeWt, body));
     }
 
 }

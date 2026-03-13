@@ -28,11 +28,11 @@ public enum EmissiveBlock {
     LAVA("lava", 1.0f, 2300.0f, 38, 1050, 0, 0, () -> Options.emissionLava, v -> Options.emissionLava = v),           // 1323K basalt, ε=0.65
     FIRE("fire", 1.0f, 14000.0f, 39, 1227, 0, 0, () -> Options.emissionFire, v -> Options.emissionFire = v),           // 1500K soot flame, ε=0.35
     SOUL_FIRE("soul_fire", 1.0f, 6000.0f, 40, 1727, 460, 80, () -> Options.emissionSoulFire, v -> Options.emissionSoulFire = v), // 2000K sulfur blue
-    TORCH("torch", 1.0f, 110000.0f, 0, 1527, 0, 0, () -> Options.emissionTorch, v -> Options.emissionTorch = v),     // 1800K soot flame, ε=0.35
+    TORCH("torch", 1.0f, 12000.0f, 0, 1527, 0, 0, () -> Options.emissionTorch, v -> Options.emissionTorch = v),      // 1800K thin flame, ε~0.04
     SOUL_TORCH("soul_torch", 1.0f, 6000.0f, 1, 1727, 460, 80, () -> Options.emissionSoulTorch, v -> Options.emissionSoulTorch = v), // 2000K sulfur blue
 
     // Enclosed flames: flame × glass/housing transmission
-    LANTERN("lantern", 1.0f, 30000.0f, 2, 1927, 0, 0, () -> Options.emissionLantern, v -> Options.emissionLantern = v),       // 2200K oil lamp
+    LANTERN("lantern", 1.0f, 10000.0f, 2, 1927, 0, 0, () -> Options.emissionLantern, v -> Options.emissionLantern = v),       // 2200K oil lamp behind glass
     SOUL_LANTERN("soul_lantern", 1.0f, 3000.0f, 3, 1727, 460, 80, () -> Options.emissionSoulLantern, v -> Options.emissionSoulLantern = v), // 2000K sulfur blue
     CAMPFIRE("campfire", 1.0f, 14000.0f, 4, 1227, 0, 0, () -> Options.emissionCampfire, v -> Options.emissionCampfire = v),   // 1500K soot flame, ε=0.35
     SOUL_CAMPFIRE("soul_campfire", 1.0f, 6000.0f, 5, 1727, 460, 80, () -> Options.emissionSoulCampfire, v -> Options.emissionSoulCampfire = v), // 2000K sulfur blue
@@ -74,11 +74,11 @@ public enum EmissiveBlock {
     // Redstone / misc (non-thermal)
     REDSTONE_TORCH("redstone_torch", 1.0f, 300.0f, -1, 0, 0, 0, () -> Options.emissionRedstoneTorch, v -> Options.emissionRedstoneTorch = v),
     REDSTONE_LAMP("redstone_lamp", 1.0f, 5000.0f, -1, 0, 0, 0, () -> Options.emissionRedstoneLamp, v -> Options.emissionRedstoneLamp = v),
-    CANDLE("candle", 1.0f, 78000.0f, 17, 1527, 0, 0, () -> Options.emissionCandle, v -> Options.emissionCandle = v),           // 1800K small flame, ε=0.25
+    CANDLE("candle", 1.0f, 10000.0f, 17, 1527, 0, 0, () -> Options.emissionCandle, v -> Options.emissionCandle = v),           // 1800K thin flame, ε~0.03
     CAVE_VINES("cave_vines", 1.0f, 8.0f, -1, 0, 0, 0, () -> Options.emissionCaveVines, v -> Options.emissionCaveVines = v),
     GLOW_LICHEN("glow_lichen", 1.0f, 0.5f, -1, 0, 0, 0, () -> Options.emissionGlowLichen, v -> Options.emissionGlowLichen = v),
     FURNACE("furnace", 1.0f, 5500.0f, 23, 1127, 0, 0, () -> Options.emissionFurnace, v -> Options.emissionFurnace = v),       // 1400K, ε=0.70
-    BLAST_FURNACE("blast_furnace", 1.0f, 58000.0f, 24, 1327, 0, 0, () -> Options.emissionBlastFurnace, v -> Options.emissionBlastFurnace = v), // 1600K, ε=0.65
+    BLAST_FURNACE("blast_furnace", 1.0f, 15000.0f, 24, 1327, 0, 0, () -> Options.emissionBlastFurnace, v -> Options.emissionBlastFurnace = v), // 1600K fire through grate
     SMOKER("smoker", 1.0f, 3200.0f, 25, 1127, 0, 0, () -> Options.emissionSmoker, v -> Options.emissionSmoker = v),           // 1400K, ε=0.40
     ENDER_CHEST("ender_chest", 1.0f, 10.0f, -1, 0, 0, 0, () -> Options.emissionEnderChest, v -> Options.emissionEnderChest = v),
     COPPER_BULB("copper_bulb", 1.0f, 15000.0f, 36, 2427, 0, 0, () -> Options.emissionCopperBulb, v -> Options.emissionCopperBulb = v), // 2700K incandescent

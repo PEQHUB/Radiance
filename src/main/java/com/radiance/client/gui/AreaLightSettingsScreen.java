@@ -92,15 +92,38 @@ public class AreaLightSettingsScreen extends GameOptionsScreen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
 
-        // Breadcrumb
-        RadianceTheme.drawOutlinedText(context, this.textRenderer,
-            Text.literal("Radiance > Lighting > Area Lights"), 20, 26, RadianceTheme.textSecondary);
+        // Breadcrumb (clickable)
+        RadianceTheme.drawBreadcrumb(context, this.textRenderer,
+            "Radiance > Lighting > Area Lights", parentScreen);
 
         // Hint line below the breadcrumb
         int hintY = 38;
         RadianceTheme.drawCenteredOutlinedText(context, this.textRenderer,
             Text.literal("Ctrl+Click a slider to type a value  \u2502  Shift+Click to reset to default"),
             this.width / 2, hintY, RadianceTheme.textSecondary);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (RadianceTheme.handlePeekKeyReleased(keyCode)) return true;
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
     }
 
     @Override

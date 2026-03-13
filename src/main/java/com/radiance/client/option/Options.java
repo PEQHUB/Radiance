@@ -170,6 +170,13 @@ public class Options {
     public static final String OMM_ENABLED_KEY = "options.video.omm_enabled";
     public static final String OMM_BAKER_LEVEL_KEY = "options.video.omm_baker_level";
     public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
+    public static final String SHARC_ENABLED_KEY = "options.video.sharc_enabled";
+    public static final String SHARC_SCENE_SCALE_KEY = "options.video.sharc_scene_scale";
+    public static final String SHARC_ROUGHNESS_THRESHOLD_KEY = "options.video.sharc_roughness_threshold";
+    public static final String SHARC_ACCUMULATION_FRAMES_KEY = "options.video.sharc_accumulation_frames";
+    public static final String SHARC_STALE_FRAMES_KEY = "options.video.sharc_stale_frames";
+    public static final String SHARC_DOWNSCALE_KEY = "options.video.sharc_downscale";
+    public static final String CATEGORY_SHARC = "options.video.category.sharc";
     public static final String AREA_LIGHTS_ENABLED_KEY = "options.video.area_lights_enabled";
     public static final String AREA_LIGHT_INTENSITY_KEY = "options.video.area_light_intensity";
     public static final String AREA_LIGHT_RANGE_KEY = "options.video.area_light_range";
@@ -215,6 +222,12 @@ public class Options {
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
+    public static boolean sharcEnabled = true;
+    public static int sharcSceneScaleTenths = 40;          // 10-80 → 1.0-8.0
+    public static int sharcRoughnessThresholdPercent = 25;  // 0-100 → 0.0-1.0
+    public static int sharcAccumulationFrames = 32;         // 4-128
+    public static int sharcStaleFrames = 16;                // 4-64
+    public static int sharcDownscale = 1;                   // 1-4
     public static boolean areaLightsEnabled = false;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
     public static int areaLightIntensityPercent = 100;  // 0-500%
@@ -645,6 +658,24 @@ public class Options {
             simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
 
+            sharcEnabled = Boolean.parseBoolean(props.getProperty("sharcEnabled", String.valueOf(sharcEnabled)));
+            nativeSetSharcEnabled(sharcEnabled, false);
+
+            sharcSceneScaleTenths = clamp(Integer.parseInt(props.getProperty("sharcSceneScaleTenths", String.valueOf(sharcSceneScaleTenths))), 10, 80);
+            nativeSetSharcSceneScale(sharcSceneScaleTenths / 10.0f, false);
+
+            sharcRoughnessThresholdPercent = clamp(Integer.parseInt(props.getProperty("sharcRoughnessThresholdPercent", String.valueOf(sharcRoughnessThresholdPercent))), 0, 100);
+            nativeSetSharcRoughnessThreshold(sharcRoughnessThresholdPercent / 100.0f, false);
+
+            sharcAccumulationFrames = clamp(Integer.parseInt(props.getProperty("sharcAccumulationFrames", String.valueOf(sharcAccumulationFrames))), 4, 128);
+            nativeSetSharcAccumulationFrames(sharcAccumulationFrames, false);
+
+            sharcStaleFrames = clamp(Integer.parseInt(props.getProperty("sharcStaleFrames", String.valueOf(sharcStaleFrames))), 4, 64);
+            nativeSetSharcStaleFrames(sharcStaleFrames, false);
+
+            sharcDownscale = clamp(Integer.parseInt(props.getProperty("sharcDownscale", String.valueOf(sharcDownscale))), 1, 4);
+            nativeSetSharcDownscale(sharcDownscale, false);
+
             areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled)));
             nativeSetAreaLightsEnabled(areaLightsEnabled, false);
 
@@ -1034,6 +1065,12 @@ public class Options {
         props.setProperty("ommEnabled", String.valueOf(ommEnabled));
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
+        props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
+        props.setProperty("sharcSceneScaleTenths", String.valueOf(sharcSceneScaleTenths));
+        props.setProperty("sharcRoughnessThresholdPercent", String.valueOf(sharcRoughnessThresholdPercent));
+        props.setProperty("sharcAccumulationFrames", String.valueOf(sharcAccumulationFrames));
+        props.setProperty("sharcStaleFrames", String.valueOf(sharcStaleFrames));
+        props.setProperty("sharcDownscale", String.valueOf(sharcDownscale));
         props.setProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled));
         props.setProperty("restirEnabled", String.valueOf(restirEnabled));
         props.setProperty("areaLightIntensityPercent", String.valueOf(areaLightIntensityPercent));
@@ -1696,6 +1733,12 @@ public class Options {
         ommEnabled = false;
         ommBakerLevel = 4;
         simplifiedIndirect = false;
+        sharcEnabled = true;
+        sharcSceneScaleTenths = 40;
+        sharcRoughnessThresholdPercent = 25;
+        sharcAccumulationFrames = 32;
+        sharcStaleFrames = 16;
+        sharcDownscale = 1;
         areaLightsEnabled = false;
         restirEnabled = true;
         areaLightIntensityPercent = 100;
@@ -1780,6 +1823,12 @@ public class Options {
         nativeSetOMMEnabled(ommEnabled, false);
         nativeSetOMMBakerLevel(ommBakerLevel, false);
         nativeSetSimplifiedIndirect(simplifiedIndirect, false);
+        nativeSetSharcEnabled(sharcEnabled, false);
+        nativeSetSharcSceneScale(sharcSceneScaleTenths / 10.0f, false);
+        nativeSetSharcRoughnessThreshold(sharcRoughnessThresholdPercent / 100.0f, false);
+        nativeSetSharcAccumulationFrames(sharcAccumulationFrames, false);
+        nativeSetSharcStaleFrames(sharcStaleFrames, false);
+        nativeSetSharcDownscale(sharcDownscale, false);
         nativeSetAreaLightsEnabled(areaLightsEnabled, false);
         nativeSetRestirEnabled(restirEnabled, false);
         for (EmissiveBlock b : EmissiveBlock.values()) {
@@ -2090,6 +2139,52 @@ public class Options {
         if (write) {
             overwriteConfig();
         }
+    }
+
+    // --- SHARC Radiance Cache ---
+    public native static void nativeSetSharcEnabled(boolean enabled, boolean write);
+    public native static void nativeSetSharcSceneScale(float scale, boolean write);
+    public native static void nativeSetSharcRoughnessThreshold(float threshold, boolean write);
+    public native static void nativeSetSharcAccumulationFrames(int frames, boolean write);
+    public native static void nativeSetSharcStaleFrames(int frames, boolean write);
+    public native static void nativeSetSharcDownscale(int downscale, boolean write);
+
+    public static void setSharcEnabled(boolean enabled, boolean write) {
+        Options.sharcEnabled = enabled;
+        nativeSetSharcEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setSharcSceneScaleTenths(int tenths, boolean write) {
+        Options.sharcSceneScaleTenths = Math.max(10, Math.min(80, tenths));
+        nativeSetSharcSceneScale(Options.sharcSceneScaleTenths / 10.0f, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcRoughnessThresholdPercent(int percent, boolean write) {
+        Options.sharcRoughnessThresholdPercent = Math.max(0, Math.min(100, percent));
+        nativeSetSharcRoughnessThreshold(Options.sharcRoughnessThresholdPercent / 100.0f, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcAccumulationFrames(int frames, boolean write) {
+        Options.sharcAccumulationFrames = Math.max(4, Math.min(128, frames));
+        nativeSetSharcAccumulationFrames(Options.sharcAccumulationFrames, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcStaleFrames(int frames, boolean write) {
+        Options.sharcStaleFrames = Math.max(4, Math.min(64, frames));
+        nativeSetSharcStaleFrames(Options.sharcStaleFrames, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcDownscale(int downscale, boolean write) {
+        Options.sharcDownscale = Math.max(1, Math.min(4, downscale));
+        nativeSetSharcDownscale(Options.sharcDownscale, write);
+        if (write) { overwriteConfig(); }
     }
 
     // --- Area Lights ---
@@ -2832,6 +2927,7 @@ public class Options {
     }
 
     public native static void nativeRebuildChunks();
+    public native static void nativeResetExposureAdaptation();
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(7, mode));

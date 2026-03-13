@@ -91,6 +91,8 @@ public class ChunkProxy {
 
     private static void resetWorldLoadSmoothing() {
         smoothImportantUntilNanos = System.nanoTime() + worldLoadSmoothDurationNanos;
+        // Reset exposure adaptation timer so it adapts near-instantly as chunks load
+        try { com.radiance.client.option.Options.nativeResetExposureAdaptation(); } catch (Exception ignored) {}
     }
 
     private static boolean inWorldLoadSmoothingWindow() {
