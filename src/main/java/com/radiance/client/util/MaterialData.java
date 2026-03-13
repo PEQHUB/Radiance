@@ -33,15 +33,27 @@ public class MaterialData {
     public int sheenTint;              // 0-1000 permille
     public int coatWeight;             // 0-1000 permille
     public int coatRoughness;          // 0-100 percent
-    // Procedural noise (metals)
-    public int noiseScale = 50;        // 1-200 (/10 = 0.1-20.0 world units)
-    public int noiseStrength;          // 0-100 percent
-    public int noiseOctaves = 2;       // 1-4
+    // Procedural noise
+    public int noiseScale = 50;        // 1-1000 (/10 = 0.1-100.0 world units)
+    public int noiseStrength;          // 0-1000 permille (0.0-100.0%)
+    public int noiseOctaves = 2;       // 1-8
+    public int noiseType;              // 0-7 (noise algorithm)
+    public int noiseSeed;              // 0-999
     // Texture roughness channel routing
     public int channelR = 213;         // 0-1000 permille (BT.709 luminance default)
     public int channelG = 715;         // 0-1000 permille
     public int channelB = 72;          // 0-1000 permille
     public int textureBlend = 30;      // 0-100 percent
+    // Gamut boost
+    public int gamutBoost = 100;       // 0-200 (×0.01 = 0.00-2.00 multiplier)
+    // Per-channel input types: 0=Auto, 1=Custom, 2=Flat, 3=Blender PBR
+    public int normalInputType;
+    public int specularInputType;
+    public String customNormalPath = "";
+    public String customSpecularPath = "";
+    public String blenderFolder = "";
+    // Noise target channels: bit 0=roughness, bit 1=normal, bit 2=metallic
+    public int noiseTarget = 1;
 
     public MaterialData() {}
 
@@ -70,10 +82,19 @@ public class MaterialData {
         d.noiseScale = Options.materialNoiseScale[blockIndex];
         d.noiseStrength = Options.materialNoiseStrength[blockIndex];
         d.noiseOctaves = Options.materialNoiseOctaves[blockIndex];
+        d.noiseType = Options.materialNoiseType[blockIndex];
+        d.noiseSeed = Options.materialNoiseSeed[blockIndex];
         d.channelR = Options.materialChannelR[blockIndex];
         d.channelG = Options.materialChannelG[blockIndex];
         d.channelB = Options.materialChannelB[blockIndex];
         d.textureBlend = Options.materialTextureBlend[blockIndex];
+        d.gamutBoost = Options.materialGamutBoost[blockIndex];
+        d.normalInputType = Options.materialNormalInputType[blockIndex];
+        d.specularInputType = Options.materialSpecularInputType[blockIndex];
+        d.customNormalPath = Options.materialCustomNormalPath[blockIndex];
+        d.customSpecularPath = Options.materialCustomSpecularPath[blockIndex];
+        d.blenderFolder = Options.materialBlenderFolder[blockIndex];
+        d.noiseTarget = Options.materialNoiseTarget[blockIndex];
         return d;
     }
 
@@ -117,10 +138,19 @@ public class MaterialData {
         Options.materialNoiseScale[blockIndex] = noiseScale;
         Options.materialNoiseStrength[blockIndex] = noiseStrength;
         Options.materialNoiseOctaves[blockIndex] = noiseOctaves;
+        Options.materialNoiseType[blockIndex] = noiseType;
+        Options.materialNoiseSeed[blockIndex] = noiseSeed;
         Options.materialChannelR[blockIndex] = channelR;
         Options.materialChannelG[blockIndex] = channelG;
         Options.materialChannelB[blockIndex] = channelB;
         Options.materialTextureBlend[blockIndex] = textureBlend;
+        Options.materialGamutBoost[blockIndex] = gamutBoost;
+        Options.materialNormalInputType[blockIndex] = normalInputType;
+        Options.materialSpecularInputType[blockIndex] = specularInputType;
+        Options.materialCustomNormalPath[blockIndex] = customNormalPath != null ? customNormalPath : "";
+        Options.materialCustomSpecularPath[blockIndex] = customSpecularPath != null ? customSpecularPath : "";
+        Options.materialBlenderFolder[blockIndex] = blenderFolder != null ? blenderFolder : "";
+        Options.materialNoiseTarget[blockIndex] = noiseTarget;
     }
 
     /** Find the MaterialBlock index for this data's blockId. Returns -1 if not found. */
@@ -147,7 +177,9 @@ public class MaterialData {
             && sheenTint == block.getDefaultSheenTint()
             && coatWeight == block.getDefaultCoatWeight()
             && coatRoughness == block.getDefaultCoatRoughness()
-            && noiseScale == 50 && noiseStrength == 0 && noiseOctaves == 2;
+            && noiseScale == 50 && noiseStrength == 0 && noiseOctaves == 2
+            && noiseType == 0 && noiseSeed == 0
+            && gamutBoost == 100;
     }
 
     // ── JSON serialization ──
@@ -186,8 +218,10 @@ public class MaterialData {
         sb.append(String.format("Coat Weight: %.1f%%\n", coatWeight / 10.0));
         sb.append(String.format("Coat Roughness: %d%%\n", coatRoughness));
         if (noiseStrength > 0) {
+            sb.append(String.format("Noise Type: %d\n", noiseType));
+            sb.append(String.format("Noise Seed: %d\n", noiseSeed));
             sb.append(String.format("Noise Scale: %.1f\n", noiseScale / 10.0));
-            sb.append(String.format("Noise Strength: %d%%\n", noiseStrength));
+            sb.append(String.format("Noise Strength: %.1f%%\n", noiseStrength / 10.0));
             sb.append(String.format("Noise Octaves: %d\n", noiseOctaves));
         }
         if (textureBlend > 0) {
@@ -195,6 +229,9 @@ public class MaterialData {
             sb.append(String.format("Channel G: %.1f%%\n", channelG / 10.0));
             sb.append(String.format("Channel B: %.1f%%\n", channelB / 10.0));
             sb.append(String.format("Texture Blend: %d%%\n", textureBlend));
+        }
+        if (gamutBoost != 100) {
+            sb.append(String.format("Gamut Boost: %.2f\n", gamutBoost / 100.0));
         }
         return sb.toString();
     }
@@ -232,13 +269,16 @@ public class MaterialData {
                         case "Sheen Tint"    -> d.sheenTint = Math.round(Float.parseFloat(val) * 10);
                         case "Coat Weight"   -> d.coatWeight = Math.round(Float.parseFloat(val) * 10);
                         case "Coat Roughness"-> d.coatRoughness = Integer.parseInt(val);
+                        case "Noise Type"    -> d.noiseType = Integer.parseInt(val);
+                        case "Noise Seed"    -> d.noiseSeed = Integer.parseInt(val);
                         case "Noise Scale"   -> d.noiseScale = Math.round(Float.parseFloat(val) * 10);
-                        case "Noise Strength"-> d.noiseStrength = Integer.parseInt(val);
+                        case "Noise Strength"-> d.noiseStrength = Math.round(Float.parseFloat(val) * 10);
                         case "Noise Octaves" -> d.noiseOctaves = Integer.parseInt(val);
                         case "Channel R"     -> d.channelR = Math.round(Float.parseFloat(val) * 10);
                         case "Channel G"     -> d.channelG = Math.round(Float.parseFloat(val) * 10);
                         case "Channel B"     -> d.channelB = Math.round(Float.parseFloat(val) * 10);
                         case "Texture Blend" -> d.textureBlend = Integer.parseInt(val);
+                        case "Gamut Boost"   -> d.gamutBoost = Math.round(Float.parseFloat(val) * 100);
                         default -> {}
                     }
                 }
@@ -259,7 +299,9 @@ public class MaterialData {
         h = h * 31 + sheenWeight;  h = h * 31 + sheenTint;
         h = h * 31 + coatWeight;  h = h * 31 + coatRoughness;
         h = h * 31 + noiseScale; h = h * 31 + noiseStrength; h = h * 31 + noiseOctaves;
+        h = h * 31 + noiseType; h = h * 31 + noiseSeed;
         h = h * 31 + channelR; h = h * 31 + channelG; h = h * 31 + channelB; h = h * 31 + textureBlend;
+        h = h * 31 + gamutBoost;
         return h;
     }
 }

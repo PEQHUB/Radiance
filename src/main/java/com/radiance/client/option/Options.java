@@ -23,6 +23,7 @@ public class Options {
     public static final int CURRENT_OPTIONS_VERSION = 18;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
     public static final int SATURATION_DEFAULT_PERCENT = 130;
+    public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
 
     // SDR transfer function
     public static final int SDR_TRANSFER_FUNCTION_GAMMA_22 = 0;
@@ -41,6 +42,7 @@ public class Options {
     public static final String CATEGORY_ENVIRONMENT = "options.video.category.environment";
 
     public static final String KEY_RADIANCE_SETTINGS = "key.radiance.settings";
+    public static final String KEY_MATERIAL_PICKER = "key.radiance.material_picker";
     public static final String KEY_CATEGORY_RADIANCE = "key.category.radiance";
 
     public static final String CATEGORY_EMISSION = "options.video.category.emission";
@@ -108,6 +110,7 @@ public class Options {
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
+    public static final String COLOR_EXPANSION_KEY = "options.video.color_expansion";
     public static final String CAS_ENABLED_KEY = "options.video.cas_enabled";
     public static final String CAS_SHARPNESS_KEY = "options.video.cas_sharpness";
 
@@ -373,6 +376,7 @@ public class Options {
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
+    public static int colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
     public static int upscalerPreset = 4; // DLSS: 4=D (default), 5=E. Generic for future upscalers.
 
     // PsychoV tonemapper (stored as integer percent/tenths for slider UI)
@@ -419,6 +423,8 @@ public class Options {
     // Flame colorant: per-block wavelength (nm, 0=off) and purity (0-100%)
     public static final java.util.Map<String, Integer> blockWavelengths = new java.util.HashMap<>();
     public static final java.util.Map<String, Integer> blockPurities = new java.util.HashMap<>();
+    // Per-emissive-block gamut boost (0-200, 100 = 1.0× neutral)
+    public static final java.util.Map<String, Integer> blockGamutBoosts = new java.util.HashMap<>();
     public static float emissionLava = 1.0f;
     public static float emissionFire = 1.0f;
     public static float emissionSoulFire = 1.0f;
@@ -493,14 +499,17 @@ public class Options {
     public static final int[] materialSheenTint = new int[MAX_MATERIALS];      // 0-1000 permille
     public static final int[] materialCoatWeight = new int[MAX_MATERIALS];     // 0-1000 permille
     public static final int[] materialCoatRoughness = new int[MAX_MATERIALS];  // 0-100 percent
-    public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-200 (/10 = 0.1-20.0 world units)
-    public static final int[] materialNoiseStrength = new int[MAX_MATERIALS];  // 0-100 percent
-    public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-4
+    public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-1000 (/10 = 0.1-100.0 world units)
+    public static final int[] materialNoiseStrength = new int[MAX_MATERIALS];  // 0-1000 permille (0.0-100.0%)
+    public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-8
+    public static final int[] materialNoiseType = new int[MAX_MATERIALS];     // 0-7 (noise algorithm)
+    public static final int[] materialNoiseSeed = new int[MAX_MATERIALS];     // 0-999
     // Texture roughness channel routing: per-material weights for deriving roughness from albedo
     public static final int[] materialChannelR = new int[MAX_MATERIALS];       // 0-1000 permille
     public static final int[] materialChannelG = new int[MAX_MATERIALS];       // 0-1000 permille
     public static final int[] materialChannelB = new int[MAX_MATERIALS];       // 0-1000 permille
     public static final int[] materialTextureBlend = new int[MAX_MATERIALS];   // 0-100 percent
+    public static final int[] materialGamutBoost = new int[MAX_MATERIALS];    // 0-200 (×0.01 = 0.00-2.00 multiplier)
     static {
         for (MaterialBlock mb : MaterialBlock.values()) {
             int i = mb.ordinal();
@@ -520,6 +529,8 @@ public class Options {
             materialNoiseScale[i] = 50;     // default 5.0 world units
             materialNoiseStrength[i] = 0;   // disabled by default
             materialNoiseOctaves[i] = 2;    // default 2 octaves
+            materialNoiseType[i] = 0;       // Simplex
+            materialNoiseSeed[i] = 0;       // no seed offset
             // Channel weights default to BT.709 luminance
             materialChannelR[i] = 213;      // 0.2126
             materialChannelG[i] = 715;      // 0.7152
@@ -531,6 +542,7 @@ public class Options {
             else if (cat == MaterialBlock.MaterialCategory.WOOD) blend = 40;
             else if (cat == MaterialBlock.MaterialCategory.GEMS) blend = 20;
             materialTextureBlend[i] = blend;
+            materialGamutBoost[i] = 100;    // 1.0× (neutral)
         }
     }
 
@@ -559,23 +571,52 @@ public class Options {
                 materialNoiseScale[ci] = materialNoiseScale[parentOrdinal];
                 materialNoiseStrength[ci] = materialNoiseStrength[parentOrdinal];
                 materialNoiseOctaves[ci] = materialNoiseOctaves[parentOrdinal];
+                materialNoiseType[ci] = materialNoiseType[parentOrdinal];
+                materialNoiseSeed[ci] = materialNoiseSeed[parentOrdinal];
                 materialChannelR[ci] = materialChannelR[parentOrdinal];
                 materialChannelG[ci] = materialChannelG[parentOrdinal];
                 materialChannelB[ci] = materialChannelB[parentOrdinal];
                 materialTextureBlend[ci] = materialTextureBlend[parentOrdinal];
+                materialGamutBoost[ci] = materialGamutBoost[parentOrdinal];
+                materialNormalInputType[ci] = materialNormalInputType[parentOrdinal];
+                materialSpecularInputType[ci] = materialSpecularInputType[parentOrdinal];
+                materialCustomNormalPath[ci] = materialCustomNormalPath[parentOrdinal];
+                materialCustomSpecularPath[ci] = materialCustomSpecularPath[parentOrdinal];
+                materialBlenderFolder[ci] = materialBlenderFolder[parentOrdinal];
+                materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
             }
         }
     }
 
     // Auto-PBR generation (roughness + normals from vanilla albedo textures)
-    public static boolean autoPBREnabled = false; // Global toggle
-    public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // kept for config compat
+    public static boolean autoPBREnabled = true; // Global kill switch (default on; disable to suppress all)
+    public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // per-block toggle, default false
     public static int autoPBRRoughnessGamma = 50;    // 10-200, /100 = 0.1-2.0
     public static int autoPBRRoughnessMin = 30;       // 0-100, /100 = 0.0-1.0
     public static int autoPBRRoughnessMax = 95;       // 0-100, /100 = 0.0-1.0
     public static int autoPBRNormalStrength = 250;     // 0-1000, /100 = 0.0-10.0
     public static int autoPBRVarianceWeight = 30;      // 0-100, /100 = 0.0-1.0
     public static int autoPBREdgeWeight = 15;          // 0-100, /100 = 0.0-1.0
+    public static boolean autoPBRInvertNormal = false;   // Invert luminance for normal map generation
+    public static boolean autoPBRInvertRoughness = false; // Invert luminance for roughness generation
+
+    // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat, 3=Blender PBR
+    public static final int[] materialNormalInputType = new int[MAX_MATERIALS];
+    public static final int[] materialSpecularInputType = new int[MAX_MATERIALS];
+    public static final String[] materialCustomNormalPath = new String[MAX_MATERIALS];
+    public static final String[] materialCustomSpecularPath = new String[MAX_MATERIALS];
+    public static final String[] materialBlenderFolder = new String[MAX_MATERIALS];
+    static {
+        java.util.Arrays.fill(materialCustomNormalPath, "");
+        java.util.Arrays.fill(materialCustomSpecularPath, "");
+        java.util.Arrays.fill(materialBlenderFolder, "");
+    }
+
+    // Noise target channels: bit 0=roughness (default ON), bit 1=normal perturbation, bit 2=metallic
+    public static final int[] materialNoiseTarget = new int[MAX_MATERIALS];
+    static {
+        java.util.Arrays.fill(materialNoiseTarget, 1); // default: roughness only
+    }
 
     // Environmental settings (per dimension: overworld/nether/end)
     public static int environmentEditingDimension = DIM_OVERWORLD;
@@ -852,13 +893,22 @@ public class Options {
                 materialSheenTint[i] = clamp(Integer.parseInt(props.getProperty("materialSheenTint." + pid, String.valueOf(mb.getDefaultSheenTint()))), 0, 1000);
                 materialCoatWeight[i] = clamp(Integer.parseInt(props.getProperty("materialCoatWeight." + pid, String.valueOf(mb.getDefaultCoatWeight()))), 0, 1000);
                 materialCoatRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialCoatRoughness." + pid, String.valueOf(mb.getDefaultCoatRoughness()))), 0, 100);
-                materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 200);
-                materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 100);
-                materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 4);
+                materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 1000);
+                materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 1000);
+                materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 8);
+                materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 7);
+                materialNoiseSeed[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseSeed." + pid, "0")), 0, 999);
                 materialChannelR[i] = clamp(Integer.parseInt(props.getProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]))), 0, 1000);
                 materialChannelG[i] = clamp(Integer.parseInt(props.getProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]))), 0, 1000);
                 materialChannelB[i] = clamp(Integer.parseInt(props.getProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]))), 0, 1000);
                 materialTextureBlend[i] = clamp(Integer.parseInt(props.getProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]))), 0, 100);
+                materialGamutBoost[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]))), 0, 200);
+                materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 3);
+                materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, 3);
+                materialBlenderFolder[i] = props.getProperty("materialBlenderFolder." + pid, "");
+                materialCustomNormalPath[i] = props.getProperty("materialCustomNormalPath." + pid, "");
+                materialCustomSpecularPath[i] = props.getProperty("materialCustomSpecularPath." + pid, "");
+                materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 7);
             }
 
             // Child override flags
@@ -880,6 +930,8 @@ public class Options {
             autoPBRNormalStrength = clamp(Integer.parseInt(props.getProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength))), 0, 1000);
             autoPBRVarianceWeight = clamp(Integer.parseInt(props.getProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight))), 0, 100);
             autoPBREdgeWeight = clamp(Integer.parseInt(props.getProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight))), 0, 100);
+            autoPBRInvertNormal = Boolean.parseBoolean(props.getProperty("autoPBRInvertNormal", String.valueOf(autoPBRInvertNormal)));
+            autoPBRInvertRoughness = Boolean.parseBoolean(props.getProperty("autoPBRInvertRoughness", String.valueOf(autoPBRInvertRoughness)));
 
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
@@ -908,6 +960,8 @@ public class Options {
                 "LwhiteTenths", String.valueOf(LwhiteTenths)));
             saturationPercent = Integer.parseInt(props.getProperty(
                 "saturationPercent", String.valueOf(saturationPercent)));
+            colorExpansionPercent = Integer.parseInt(props.getProperty(
+                "colorExpansionPercent", String.valueOf(colorExpansionPercent)));
 
             // PsychoV tonemapper
             psychoEnabled = Boolean.parseBoolean(props.getProperty("psychoEnabled", "true"));
@@ -967,6 +1021,7 @@ public class Options {
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
             nativeSetSaturation(saturationPercent / 100.0f, false);
+            nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
             nativeSetLegacyExposure(legacyExposure, false);
             nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
             nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
@@ -1100,6 +1155,11 @@ public class Options {
                     String.valueOf(b.getDefaultPurityPercent()))), 0, 100);
                 blockPurities.put(b.getId(), pur);
             }
+            // Per-emissive-block gamut boost
+            for (EmissiveBlock b : EmissiveBlock.values()) {
+                int gb = clamp(Integer.parseInt(props.getProperty("blockGamut_" + b.getId(), "100")), 0, 200);
+                blockGamutBoosts.put(b.getId(), gb);
+            }
             emissionLava = Float.parseFloat(props.getProperty("emissionLava", String.valueOf(emissionLava)));
             emissionFire = Float.parseFloat(props.getProperty("emissionFire", String.valueOf(emissionFire)));
             emissionSoulFire = Float.parseFloat(props.getProperty("emissionSoulFire", String.valueOf(emissionSoulFire)));
@@ -1228,10 +1288,25 @@ public class Options {
             props.setProperty("materialNoiseScale." + pid, String.valueOf(materialNoiseScale[i]));
             props.setProperty("materialNoiseStrength." + pid, String.valueOf(materialNoiseStrength[i]));
             props.setProperty("materialNoiseOctaves." + pid, String.valueOf(materialNoiseOctaves[i]));
+            props.setProperty("materialNoiseType." + pid, String.valueOf(materialNoiseType[i]));
+            props.setProperty("materialNoiseSeed." + pid, String.valueOf(materialNoiseSeed[i]));
             props.setProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]));
             props.setProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]));
             props.setProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]));
             props.setProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]));
+            props.setProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]));
+            props.setProperty("materialNormalInputType." + pid, String.valueOf(materialNormalInputType[i]));
+            props.setProperty("materialSpecularInputType." + pid, String.valueOf(materialSpecularInputType[i]));
+            if (!materialCustomNormalPath[i].isEmpty()) {
+                props.setProperty("materialCustomNormalPath." + pid, materialCustomNormalPath[i]);
+            }
+            if (!materialCustomSpecularPath[i].isEmpty()) {
+                props.setProperty("materialCustomSpecularPath." + pid, materialCustomSpecularPath[i]);
+            }
+            if (!materialBlenderFolder[i].isEmpty()) {
+                props.setProperty("materialBlenderFolder." + pid, materialBlenderFolder[i]);
+            }
+            props.setProperty("materialNoiseTarget." + pid, String.valueOf(materialNoiseTarget[i]));
         }
 
         // Child override flags
@@ -1252,6 +1327,8 @@ public class Options {
         props.setProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength));
         props.setProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight));
         props.setProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight));
+        props.setProperty("autoPBRInvertNormal", String.valueOf(autoPBRInvertNormal));
+        props.setProperty("autoPBRInvertRoughness", String.valueOf(autoPBRInvertRoughness));
 
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
@@ -1280,6 +1357,7 @@ public class Options {
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
+        props.setProperty("colorExpansionPercent", String.valueOf(colorExpansionPercent));
         // PsychoV tonemapper
         props.setProperty("psychoEnabled", String.valueOf(psychoEnabled));
         props.setProperty("psychoHighlightsPercent", String.valueOf(psychoHighlightsPercent));
@@ -1305,6 +1383,9 @@ public class Options {
         }
         for (var entry : blockPurities.entrySet()) {
             props.setProperty("blockPurity_" + entry.getKey(), String.valueOf(entry.getValue()));
+        }
+        for (var entry : blockGamutBoosts.entrySet()) {
+            props.setProperty("blockGamut_" + entry.getKey(), String.valueOf(entry.getValue()));
         }
         props.setProperty("emissionLava", String.valueOf(emissionLava));
         props.setProperty("emissionFire", String.valueOf(emissionFire));
@@ -1941,6 +2022,7 @@ public class Options {
         chunkBuildingTotalBatches = 6;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
+        colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;
         upscalerQuality = 2;
         upscalerResOverride = 100;
         upscalerPreset = 4;
@@ -2034,6 +2116,7 @@ public class Options {
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
         nativeSetSdrTransferFunction(sdrTransferFunction, false);
         nativeSetSaturation(saturationPercent / 100.0f, false);
+        nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
         nativeSetDlssQuality(upscalerQuality, false);
         nativeSetDlssResOverride(upscalerResOverride, false);
         nativeSetDlssPreset(upscalerPreset, false);
@@ -2614,6 +2697,18 @@ public class Options {
         if (write) overwriteConfig();
     }
 
+    // --- Per-Emissive-Block Gamut Boost ---
+
+    public static int getBlockGamutBoost(EmissiveBlock block) {
+        return blockGamutBoosts.getOrDefault(block.getId(), 100);
+    }
+
+    public static void setBlockGamutBoost(EmissiveBlock block, int value, boolean write) {
+        value = Math.max(0, Math.min(200, value));
+        blockGamutBoosts.put(block.getId(), value);
+        if (write) overwriteConfig();
+    }
+
     /**
      * Push spectral flame color to area light system.
      * When wavelength > 0: compute BT.2020 flame color, convert to BT.709, set perBlockColor.
@@ -2956,6 +3051,17 @@ public class Options {
     public static void setSaturation(int percent, boolean write) {
         Options.saturationPercent = percent;
         nativeSetSaturation(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Color Expansion (per-block vivid chroma boost) ---
+    public native static void nativeSetColorExpansion(float colorExpansion, boolean write);
+
+    public static void setColorExpansion(int percent, boolean write) {
+        Options.colorExpansionPercent = percent;
+        nativeSetColorExpansion(percent / 100.0f, write);
         if (write) {
             overwriteConfig();
         }

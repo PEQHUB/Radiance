@@ -3,10 +3,14 @@ package com.radiance.client.gui;
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.radiance.client.option.Options;
+import com.radiance.client.texture.AutoPBRGenerator;
+import com.radiance.client.texture.LiveNormalReuploader;
 import com.radiance.client.util.*;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -17,7 +21,11 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.DirectionalLayoutWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.option.SimpleOption;
+import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.registry.Registries;
+import net.minecraft.resource.Resource;
 import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
@@ -31,6 +39,17 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     private static final List<Integer> searchMatches = new ArrayList<>();
     private static int searchMatchIndex = 0;
     private TextFieldWidget searchField;
+    private NoiseTypeDropdownWidget noiseDropdown;
+
+    // Auto-PBR preview textures — STATIC to survive screen rebuilds and avoid Vulkan destroy/recreate crashes
+    private NativeImage sourceAlbedo;
+    private static final Identifier PREVIEW_ALBEDO_ID = Identifier.of("radiance", "autopbr_preview/albedo");
+    private static final Identifier PREVIEW_NORMAL_ID = Identifier.of("radiance", "autopbr_preview/normal");
+    private static final Identifier PREVIEW_ROUGHNESS_ID = Identifier.of("radiance", "autopbr_preview/roughness");
+    private static NativeImageBackedTexture previewAlbedoTex;
+    private static NativeImageBackedTexture previewNormalTex;
+    private static NativeImageBackedTexture previewRoughTex;
+    private static boolean previewsRegistered = false;
 
     /** Set the block index to show when this screen opens (used by Texture Editor child clicks). */
     public static void setCurrentBlockIndex(int index) { currentBlockIndex = index; }
@@ -54,10 +73,17 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     private static final int[] snapSheenWeight = new int[Options.MAX_MATERIALS], snapSheenTint = new int[Options.MAX_MATERIALS];
     private static final int[] snapCoatWeight = new int[Options.MAX_MATERIALS], snapCoatRoughness = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseScale = new int[Options.MAX_MATERIALS], snapNoiseStrength = new int[Options.MAX_MATERIALS], snapNoiseOctaves = new int[Options.MAX_MATERIALS];
+    private static final int[] snapNoiseType = new int[Options.MAX_MATERIALS], snapNoiseSeed = new int[Options.MAX_MATERIALS];
     private static final int[] snapChannelR = new int[Options.MAX_MATERIALS], snapChannelG = new int[Options.MAX_MATERIALS], snapChannelB = new int[Options.MAX_MATERIALS];
     private static final int[] snapTextureBlend = new int[Options.MAX_MATERIALS];
+    private static final int[] snapGamutBoost = new int[Options.MAX_MATERIALS];
+    private static final boolean[] snapAutoPBR = new boolean[Options.MAX_MATERIALS];
+    private static final boolean[] snapChildOverride = new boolean[Options.MAX_MATERIALS];
+    private static boolean snapAutoPBREnabled;
     private static int snapAutoPBRRoughnessGamma, snapAutoPBRRoughnessMin, snapAutoPBRRoughnessMax;
     private static int snapAutoPBRNormalStrength, snapAutoPBRVarianceWeight, snapAutoPBREdgeWeight;
+    private static boolean snapAutoPBRInvertNormal;
+    private static boolean snapAutoPBRInvertRoughness;
 
     public MaterialsSettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options, Text.translatable("radiance.settings.materials.title"));
@@ -85,16 +111,24 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         System.arraycopy(Options.materialNoiseScale, 0, snapNoiseScale, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseStrength, 0, snapNoiseStrength, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseOctaves, 0, snapNoiseOctaves, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseType, 0, snapNoiseType, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseSeed, 0, snapNoiseSeed, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChannelR, 0, snapChannelR, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChannelG, 0, snapChannelG, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChannelB, 0, snapChannelB, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialTextureBlend, 0, snapTextureBlend, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialGamutBoost, 0, snapGamutBoost, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialAutoPBR, 0, snapAutoPBR, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialChildOverride, 0, snapChildOverride, 0, Options.MAX_MATERIALS);
+        snapAutoPBREnabled = Options.autoPBREnabled;
         snapAutoPBRRoughnessGamma = Options.autoPBRRoughnessGamma;
         snapAutoPBRRoughnessMin = Options.autoPBRRoughnessMin;
         snapAutoPBRRoughnessMax = Options.autoPBRRoughnessMax;
         snapAutoPBRNormalStrength = Options.autoPBRNormalStrength;
         snapAutoPBRVarianceWeight = Options.autoPBRVarianceWeight;
         snapAutoPBREdgeWeight = Options.autoPBREdgeWeight;
+        snapAutoPBRInvertNormal = Options.autoPBRInvertNormal;
+        snapAutoPBRInvertRoughness = Options.autoPBRInvertRoughness;
     }
 
     private static void restoreSnapshot() {
@@ -114,22 +148,53 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         System.arraycopy(snapNoiseScale, 0, Options.materialNoiseScale, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseStrength, 0, Options.materialNoiseStrength, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseOctaves, 0, Options.materialNoiseOctaves, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseType, 0, Options.materialNoiseType, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseSeed, 0, Options.materialNoiseSeed, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChannelR, 0, Options.materialChannelR, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChannelG, 0, Options.materialChannelG, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChannelB, 0, Options.materialChannelB, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapTextureBlend, 0, Options.materialTextureBlend, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapGamutBoost, 0, Options.materialGamutBoost, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapAutoPBR, 0, Options.materialAutoPBR, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapChildOverride, 0, Options.materialChildOverride, 0, Options.MAX_MATERIALS);
+        Options.autoPBREnabled = snapAutoPBREnabled;
         Options.autoPBRRoughnessGamma = snapAutoPBRRoughnessGamma;
         Options.autoPBRRoughnessMin = snapAutoPBRRoughnessMin;
         Options.autoPBRRoughnessMax = snapAutoPBRRoughnessMax;
         Options.autoPBRNormalStrength = snapAutoPBRNormalStrength;
         Options.autoPBRVarianceWeight = snapAutoPBRVarianceWeight;
         Options.autoPBREdgeWeight = snapAutoPBREdgeWeight;
+        Options.autoPBRInvertNormal = snapAutoPBRInvertNormal;
+        Options.autoPBRInvertRoughness = snapAutoPBRInvertRoughness;
+    }
+
+    private boolean autoPBRParamsChanged() {
+        if (Options.autoPBREnabled != snapAutoPBREnabled
+            || Options.autoPBRRoughnessGamma != snapAutoPBRRoughnessGamma
+            || Options.autoPBRRoughnessMin != snapAutoPBRRoughnessMin
+            || Options.autoPBRRoughnessMax != snapAutoPBRRoughnessMax
+            || Options.autoPBRNormalStrength != snapAutoPBRNormalStrength
+            || Options.autoPBRVarianceWeight != snapAutoPBRVarianceWeight
+            || Options.autoPBREdgeWeight != snapAutoPBREdgeWeight
+            || Options.autoPBRInvertNormal != snapAutoPBRInvertNormal
+            || Options.autoPBRInvertRoughness != snapAutoPBRInvertRoughness) return true;
+        for (int j = 0; j < Options.MAX_MATERIALS; j++) {
+            if (Options.materialAutoPBR[j] != snapAutoPBR[j]) return true;
+        }
+        return false;
     }
 
     private void applyChanges() {
+        boolean needsTextureReload = autoPBRParamsChanged();
         snapshotTaken = false;
         Options.overwriteConfig();
-        MinecraftClient.getInstance().worldRenderer.reload();
+        if (needsTextureReload) {
+            // Full resource reload to regenerate auto-PBR textures with new parameters
+            MinecraftClient.getInstance().reloadResources();
+        } else {
+            // No texture changes — just rebuild chunks for material constant updates
+            MinecraftClient.getInstance().worldRenderer.reload();
+        }
         this.client.setScreen(this.parentScreen);
     }
 
@@ -162,13 +227,28 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             }
         });
         addDrawableChild(searchField);
+        searchField.setFocused(true);
+        setFocused(searchField);
         updateSearchMatches();
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
+        // Render noise type dropdown overlay above the list widget
+        if (noiseDropdown != null) {
+            noiseDropdown.renderDropdownOverlay(context, mouseX, mouseY);
+        }
         RadianceTheme.drawBreadcrumb(context, this.textRenderer, "Radiance > Lighting > Texture Editor", parentScreen);
+
+        // Auto-PBR pending changes warning
+        if (autoPBRParamsChanged()) {
+            String warning = "Auto-PBR changes pending - press Apply to update textures";
+            int ww = this.textRenderer.getWidth(warning);
+            int wx = (this.width - ww) / 2;
+            int wy = this.body.getY() - 10;
+            context.drawText(this.textRenderer, Text.literal(warning), wx, wy, 0xFFFFAA00, false);
+        }
 
         // Search match preview (to the right of the search field)
         if (searchField != null && !searchQuery.isEmpty()) {
@@ -178,6 +258,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 context.drawText(this.textRenderer, Text.literal("No matches"),
                     infoX, infoY, 0xFF808080, false);
             } else {
+                if (searchMatchIndex >= searchMatches.size()) searchMatchIndex = 0;
                 int matchIdx = searchMatches.get(searchMatchIndex);
                 MaterialBlock matchBlock = MaterialBlock.values()[matchIdx];
                 String matchName = Text.translatable("options.video.materials." + matchBlock.getId()).getString();
@@ -196,11 +277,62 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 RadianceBlockIcon.drawBlockIcon(context, block, this.width - 44, 20, 24);
             }
         }
+
+        // Auto-PBR channel preview panel (Cinema 4D / Blender style)
+        if (previewsRegistered) {
+            int thumbSize = 64;
+            int gap = 6;
+            int padding = 8;
+            int labelH = 10;
+            int totalW = thumbSize * 3 + gap * 2 + padding * 2;
+            int totalH = thumbSize + labelH + padding * 2 + 2;
+            int panelX = this.width - totalW - 6;
+            int panelY = this.body.getY() + 4;
+            var tr = this.textRenderer;
+
+            // Dark background panel
+            context.fill(panelX, panelY, panelX + totalW, panelY + totalH, 0xCC000000);
+            // Thin border
+            context.fill(panelX, panelY, panelX + totalW, panelY + 1, 0xFF444444);
+            context.fill(panelX, panelY + totalH - 1, panelX + totalW, panelY + totalH, 0xFF444444);
+            context.fill(panelX, panelY, panelX + 1, panelY + totalH, 0xFF444444);
+            context.fill(panelX + totalW - 1, panelY, panelX + totalW, panelY + totalH, 0xFF444444);
+
+            int tx = panelX + padding;
+            int ty = panelY + padding;
+
+            // Albedo
+            context.drawTexture(RenderLayer::getGuiTextured, PREVIEW_ALBEDO_ID,
+                tx, ty, 0, 0, thumbSize, thumbSize, thumbSize, thumbSize);
+            String aLabel = "Albedo";
+            context.drawText(tr, Text.literal(aLabel),
+                tx + (thumbSize - tr.getWidth(aLabel)) / 2, ty + thumbSize + 2, 0xFFCCCCCC, false);
+
+            // Normal
+            int nx = tx + thumbSize + gap;
+            context.drawTexture(RenderLayer::getGuiTextured, PREVIEW_NORMAL_ID,
+                nx, ty, 0, 0, thumbSize, thumbSize, thumbSize, thumbSize);
+            String nLabel = "Normal";
+            context.drawText(tr, Text.literal(nLabel),
+                nx + (thumbSize - tr.getWidth(nLabel)) / 2, ty + thumbSize + 2, 0xFFCCCCCC, false);
+
+            // Roughness
+            int rx = nx + thumbSize + gap;
+            context.drawTexture(RenderLayer::getGuiTextured, PREVIEW_ROUGHNESS_ID,
+                rx, ty, 0, 0, thumbSize, thumbSize, thumbSize, thumbSize);
+            String rLabel = "Roughness";
+            context.drawText(tr, Text.literal(rLabel),
+                rx + (thumbSize - tr.getWidth(rLabel)) / 2, ty + thumbSize + 2, 0xFFCCCCCC, false);
+        }
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
+        // Handle noise type dropdown clicks (overlay is above list widget)
+        if (noiseDropdown != null && noiseDropdown.isOpen()) {
+            if (noiseDropdown.mouseClicked(mouseX, mouseY, button)) return true;
+        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -217,15 +349,24 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    public boolean charTyped(char chr, int modifiers) {
+        // Always forward printable characters to the search field
+        if (searchField != null) {
+            searchField.setFocused(true);
+            if (searchField.charTyped(chr, modifiers)) return true;
+        }
+        return super.charTyped(chr, modifiers);
+    }
+
+    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
-        if (searchField != null && searchField.isFocused()) {
+        if (searchField != null) {
             if (keyCode == GLFW.GLFW_KEY_ENTER) {
                 commitSearch();
                 return true;
             }
             if (keyCode == GLFW.GLFW_KEY_TAB && !searchMatches.isEmpty()) {
-                // Tab = next match, Shift+Tab = previous match
                 if ((modifiers & GLFW.GLFW_MOD_SHIFT) != 0) {
                     searchMatchIndex = (searchMatchIndex - 1 + searchMatches.size()) % searchMatches.size();
                 } else {
@@ -248,9 +389,14 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                     searchMatches.clear();
                     searchMatchIndex = 0;
                 } else {
-                    searchField.setFocused(false);
+                    this.close();
                 }
                 return true;
+            }
+            // Forward backspace/delete to search field
+            if (keyCode == GLFW.GLFW_KEY_BACKSPACE || keyCode == GLFW.GLFW_KEY_DELETE) {
+                searchField.setFocused(true);
+                if (searchField.keyPressed(keyCode, scanCode, modifiers)) return true;
             }
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -269,6 +415,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
     @Override
     protected void initBody() {
+        NoiseTypeDropdownWidget.clearInstances();
         this.body = this.layout.addBody(
             new WideOptionListWidget(this.client, this.width, this));
         addOptions();
@@ -299,18 +446,96 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
     @Override
     public void close() {
+        NoiseTypeDropdownWidget.clearInstances();
+        cleanupPreviews();
         cancelChanges();
     }
+
+    private void loadSourceAlbedo(MaterialBlock block) {
+        if (sourceAlbedo != null) {
+            sourceAlbedo.close();
+            sourceAlbedo = null;
+        }
+        String id = block.getId();
+        // Try multiple path patterns: exact match, then common suffixes for multi-face blocks
+        String[] candidates = {
+            id, id + "_top", id + "_side", id + "_front", id + "_still"
+        };
+        var rm = MinecraftClient.getInstance().getResourceManager();
+        for (String name : candidates) {
+            try {
+                Identifier texId = Identifier.of("minecraft", "textures/block/" + name + ".png");
+                Optional<Resource> res = rm.getResource(texId);
+                if (res.isPresent()) {
+                    sourceAlbedo = NativeImage.read(res.get().getInputStream());
+                    break;
+                }
+            } catch (IOException e) {
+                // Try next candidate
+            }
+        }
+    }
+
+    private void regeneratePreview() {
+        if (sourceAlbedo == null) return;
+
+        // Generate new pixel data
+        NativeImage albedoCopy = new NativeImage(sourceAlbedo.getWidth(), sourceAlbedo.getHeight(), false);
+        for (int y = 0; y < sourceAlbedo.getHeight(); y++)
+            for (int x = 0; x < sourceAlbedo.getWidth(); x++)
+                albedoCopy.setColorArgb(x, y, sourceAlbedo.getColorArgb(x, y));
+        NativeImage normalImg = AutoPBRGenerator.generateNormal(sourceAlbedo);
+        NativeImage roughImg = AutoPBRGenerator.generateRoughnessPreview(sourceAlbedo);
+
+        if (!previewsRegistered) {
+            // First time: create textures and register them once
+            var texManager = MinecraftClient.getInstance().getTextureManager();
+            previewAlbedoTex = new NativeImageBackedTexture(albedoCopy);
+            previewAlbedoTex.upload();
+            texManager.registerTexture(PREVIEW_ALBEDO_ID, previewAlbedoTex);
+
+            previewNormalTex = new NativeImageBackedTexture(normalImg);
+            previewNormalTex.upload();
+            texManager.registerTexture(PREVIEW_NORMAL_ID, previewNormalTex);
+
+            previewRoughTex = new NativeImageBackedTexture(roughImg);
+            previewRoughTex.upload();
+            texManager.registerTexture(PREVIEW_ROUGHNESS_ID, previewRoughTex);
+
+            previewsRegistered = true;
+        } else {
+            // Subsequent updates: replace pixel data in-place, reuse same GL/Vulkan resources
+            previewAlbedoTex.setImage(albedoCopy);
+            previewAlbedoTex.upload();
+
+            previewNormalTex.setImage(normalImg);
+            previewNormalTex.upload();
+
+            previewRoughTex.setImage(roughImg);
+            previewRoughTex.upload();
+        }
+    }
+
+    private void cleanupPreviews() {
+        // NOTE: Do NOT call texManager.destroyTexture() — Vulkan has no intercept for
+        // texture destruction and calling it causes stale descriptors → VK_ERROR_DEVICE_LOST.
+        // Preview textures are static and persist across screen rebuilds (tiny memory: 3× 64×64 RGBA).
+        if (sourceAlbedo != null) {
+            sourceAlbedo.close();
+            sourceAlbedo = null;
+        }
+    }
+
 
     private void commitSearch() {
         if (searchMatches.isEmpty()) return;
         int match = searchMatches.get(searchMatchIndex);
-        // Advance index for next Enter press
-        searchMatchIndex = (searchMatchIndex + 1) % searchMatches.size();
-        if (match != currentBlockIndex) {
-            currentBlockIndex = match;
-            MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
-        }
+        currentBlockIndex = match;
+        // Clear search so the field is ready for a new query
+        searchQuery = "";
+        searchMatches.clear();
+        searchMatchIndex = 0;
+        MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
     }
 
     private static void updateSearchMatches() {
@@ -349,8 +574,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.autoPBREnabled,
             value -> {
                 Options.autoPBREnabled = value;
-                Options.overwriteConfig();
-                MinecraftClient.getInstance().worldRenderer.reload();
             });
 
         this.body.addAll(new SimpleOption[]{overridesToggle, autoPBRToggle});
@@ -370,6 +593,46 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             }
         });
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(blockSelector, body));
+
+        // === Per-block Auto-PBR toggle ===
+        final int blockIdx_apbr = i;
+        ButtonWidget autoPBRBlockBtn = ButtonWidget.builder(
+            Text.literal("Auto-PBR: " + (Options.materialAutoPBR[i] ? "ON" : "OFF")),
+            btn -> {
+                Options.materialAutoPBR[blockIdx_apbr] = !Options.materialAutoPBR[blockIdx_apbr];
+                btn.setMessage(Text.literal("Auto-PBR: " + (Options.materialAutoPBR[blockIdx_apbr] ? "ON" : "OFF")));
+            }).width(150).build();
+        // Normal Source dropdown: Auto / Custom / Flat / Blender PBR
+        final String[] inputTypeLabels = {"Auto", "Custom", "Flat", "Blender PBR"};
+        final int blockIdx_ns = i;
+        ButtonWidget normalSourceBtn = ButtonWidget.builder(
+            Text.literal("Normal: " + inputTypeLabels[Options.materialNormalInputType[i]]),
+            btn -> {
+                int next = (Options.materialNormalInputType[blockIdx_ns] + 1) % 4;
+                Options.materialNormalInputType[blockIdx_ns] = next;
+                // Blender PBR forces both channels to match
+                if (next == 3) Options.materialSpecularInputType[blockIdx_ns] = 3;
+                btn.setMessage(Text.literal("Normal: " + inputTypeLabels[next]));
+            }).width(150).build();
+        // Specular Source dropdown: Auto / Custom / Flat / Blender PBR
+        final int blockIdx_ss = i;
+        ButtonWidget specularSourceBtn = ButtonWidget.builder(
+            Text.literal("Specular: " + inputTypeLabels[Options.materialSpecularInputType[i]]),
+            btn -> {
+                int next = (Options.materialSpecularInputType[blockIdx_ss] + 1) % 4;
+                Options.materialSpecularInputType[blockIdx_ss] = next;
+                // Blender PBR forces both channels to match
+                if (next == 3) Options.materialNormalInputType[blockIdx_ss] = 3;
+                btn.setMessage(Text.literal("Specular: " + inputTypeLabels[next]));
+            }).width(150).build();
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(autoPBRBlockBtn, null, body));
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(normalSourceBtn, specularSourceBtn, body));
+
+        // === Auto-PBR Preview (loaded here, rendered in render()) ===
+        if (Options.autoPBREnabled && Options.materialAutoPBR[i]) {
+            loadSourceAlbedo(block);
+            regeneratePreview();
+        }
 
         // === Material Actions (Copy/Paste | Export/Browser) ===
         final int currentIdx = i;
@@ -560,24 +823,49 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> { Options.materialTextureBlend[i] = v; onSliderChanged(i); });
         this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(channelR, channelG, channelB, textureBlend, body));
 
-        // === Procedural Noise (metals, 3 sliders in one row) ===
+        // === Gamut Boost (per-material Oklab chroma scaling) ===
+        this.body.addEntry(new CategoryVideoOptionEntry(
+            Text.translatable("options.video.category.materials.gamutBoost"), body));
+        ResettableSliderWidget gamutBoost = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 200, Options.materialGamutBoost[i], 100,
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.gamutBoost"),
+                Text.literal(String.format("\u00d7%.2f", v / 100.0))),
+            v -> { Options.materialGamutBoost[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(gamutBoost, body));
+
+        // === Procedural Noise (all materials, dropdown + seed + 3 sliders) ===
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.category.materials.noise"), body));
 
+        // Row 1: Noise Type dropdown + Seed slider
+        noiseDropdown = new NoiseTypeDropdownWidget(0, 0, 100, 20, type -> {
+            Options.materialNoiseType[i] = type; onSliderChanged(i);
+        });
+        noiseDropdown.setNoiseType(Options.materialNoiseType[i]);
+        ResettableSliderWidget noiseSeed = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 999, Options.materialNoiseSeed[i], 0,
+            v -> getGenericValueText(
+                Text.translatable("options.video.materials.noiseSeed"),
+                Text.literal(String.valueOf(v))),
+            v -> { Options.materialNoiseSeed[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(noiseDropdown, noiseSeed, body));
+
+        // Row 2: Scale, Strength, Octaves
         ResettableSliderWidget noiseScale = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 200, Options.materialNoiseScale[i], 50,
+            1, 1000, Options.materialNoiseScale[i], 50,
             v -> getGenericValueText(
                 Text.translatable("options.video.materials.noiseScale"),
                 Text.literal(String.format("%.1f", v / 10.0))),
             v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); });
         ResettableSliderWidget noiseStrength = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.materialNoiseStrength[i], 0,
+            0, 1000, Options.materialNoiseStrength[i], 0,
             v -> getGenericValueText(
                 Text.translatable("options.video.materials.noiseStrength"),
-                Text.literal(v + "%")),
+                Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialNoiseStrength[i] = v; onSliderChanged(i); });
         ResettableSliderWidget noiseOctaves = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 4, Options.materialNoiseOctaves[i], 2,
+            1, 8, Options.materialNoiseOctaves[i], 2,
             v -> getGenericValueText(
                 Text.translatable("options.video.materials.noiseOctaves"),
                 Text.literal(String.valueOf(v))),
@@ -642,18 +930,37 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.category.materials.autoPBR"), body));
 
+        // Separate invert toggles for normal and roughness
+        ButtonWidget invertNormalBtn = ButtonWidget.builder(
+            Text.literal("Invert Normal: " + (Options.autoPBRInvertNormal ? "ON" : "OFF")),
+            btn -> {
+                Options.autoPBRInvertNormal = !Options.autoPBRInvertNormal;
+                btn.setMessage(Text.literal("Invert Normal: " + (Options.autoPBRInvertNormal ? "ON" : "OFF")));
+                regeneratePreview();
+                LiveNormalReuploader.scheduleReupload();
+            }).width(150).build();
+        ButtonWidget invertRoughBtn = ButtonWidget.builder(
+            Text.literal("Invert Roughness: " + (Options.autoPBRInvertRoughness ? "ON" : "OFF")),
+            btn -> {
+                Options.autoPBRInvertRoughness = !Options.autoPBRInvertRoughness;
+                btn.setMessage(Text.literal("Invert Roughness: " + (Options.autoPBRInvertRoughness ? "ON" : "OFF")));
+                regeneratePreview();
+                LiveNormalReuploader.scheduleReupload();
+            }).width(150).build();
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(invertNormalBtn, invertRoughBtn, body));
+
         ResettableSliderWidget roughGamma = new ResettableSliderWidget(0, 0, 150, 20,
             10, 200, Options.autoPBRRoughnessGamma, 50,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.roughnessGamma"),
                 Text.literal(String.format("%.2f", v / 100.0))),
-            v -> { Options.autoPBRRoughnessGamma = v; });
+            v -> { Options.autoPBRRoughnessGamma = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.autoPBRRoughnessMin, 30,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.roughnessMin"),
                 Text.literal(v + "%")),
-            v -> { Options.autoPBRRoughnessMin = v; });
+            v -> { Options.autoPBRRoughnessMin = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(roughGamma, roughMin, body));
 
         ResettableSliderWidget roughMax = new ResettableSliderWidget(0, 0, 150, 20,
@@ -661,13 +968,13 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.roughnessMax"),
                 Text.literal(v + "%")),
-            v -> { Options.autoPBRRoughnessMax = v; });
+            v -> { Options.autoPBRRoughnessMax = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         ResettableSliderWidget normStr = new ResettableSliderWidget(0, 0, 150, 20,
             0, 1000, Options.autoPBRNormalStrength, 250,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.normalStrength"),
                 Text.literal(String.format("%.1f", v / 100.0))),
-            v -> { Options.autoPBRNormalStrength = v; });
+            v -> { Options.autoPBRNormalStrength = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(roughMax, normStr, body));
 
         ResettableSliderWidget varWt = new ResettableSliderWidget(0, 0, 150, 20,
@@ -675,13 +982,13 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.varianceWeight"),
                 Text.literal(v + "%")),
-            v -> { Options.autoPBRVarianceWeight = v; });
+            v -> { Options.autoPBRVarianceWeight = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         ResettableSliderWidget edgeWt = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.autoPBREdgeWeight, 15,
             v -> getGenericValueText(
                 Text.translatable("options.video.autoPBR.edgeWeight"),
                 Text.literal(v + "%")),
-            v -> { Options.autoPBREdgeWeight = v; });
+            v -> { Options.autoPBREdgeWeight = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(varWt, edgeWt, body));
     }
 
