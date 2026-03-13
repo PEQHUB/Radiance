@@ -4,6 +4,8 @@ import static com.radiance.client.constant.VulkanConstants.VkBufferUsageFlagBits
 import static com.radiance.client.constant.VulkanConstants.VkBufferUsageFlagBits.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.memAddress;
+import static org.lwjgl.system.MemoryUtil.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.system.MemoryUtil.memSet;
 
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -210,7 +212,7 @@ public class BufferProxy {
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
         try (MemoryStack stack = stackPush()) {
-            int size = 560 + 50 * 16 + Options.MAX_MATERIALS * 5 * 16; // base + emissionData[50] + materialData[MAX*5]
+            int size = 560 + 50 * 16 + 13 * 16 + Options.MAX_MATERIALS * 6 * 16; // base + emissionData[50] + emissiveGamut[13] + materialData[MAX*6]
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -312,11 +314,27 @@ public class BufferProxy {
             }
             baseAddr += 50 * 16; // 50 × vec4
 
-            // Principled BSDF material data: 4 × vec4[MAX_MATERIALS] per block
+            // Per-emissive-block gamut boost: 13 vec4 (52 floats, indexing: [i/4][i%4])
+            for (int i = 0; i < 13; i++) {
+                int off = baseAddr + i * 16;
+                for (int c = 0; c < 4; c++) {
+                    int slot = i * 4 + c;
+                    float gamut = 1.0f; // neutral default
+                    if (slot < blocks.length) {
+                        gamut = Options.getBlockGamutBoost(blocks[slot]) / 100.0f;
+                    }
+                    bb.putFloat(off + c * 4, gamut);
+                }
+            }
+            baseAddr += 13 * 16; // 13 × vec4
+
+            // Principled BSDF material data: 6 × vec4[MAX_MATERIALS] per block
             // Pack 0 [idx+0]:     (f0.r, f0.g, f0.b, roughness)
             // Pack 1 [idx+N]:     (metallic, transmission, ior, subsurface)
             // Pack 2 [idx+2*N]:   (anisotropic, sheenWeight, sheenTint, coatWeight)
-            // Pack 3 [idx+3*N]:   (coatRoughness, 0, 0, 0)
+            // Pack 3 [idx+3*N]:   (coatRoughness, noiseScale, noiseStrength, noisePacked)
+            // Pack 4 [idx+4*N]:   (channelR, channelG, channelB, textureBlend)
+            // Pack 5 [idx+5*N]:   (gamutBoost, reserved, reserved, reserved)
             // When disabled, write zeros so shader dot() guard skips override
             final int N = Options.MAX_MATERIALS;
             boolean matEnabled = Options.materialOverridesEnabled;
@@ -326,6 +344,7 @@ public class BufferProxy {
                 int p2 = baseAddr + (2 * N + i) * 16;  // Pack 2
                 int p3 = baseAddr + (3 * N + i) * 16;  // Pack 3
                 int p4 = baseAddr + (4 * N + i) * 16;  // Pack 4
+                int p5 = baseAddr + (5 * N + i) * 16;  // Pack 5
                 if (matEnabled && i < MaterialBlock.COUNT) {
                     // Pack 0: F0 RGB + roughness
                     bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
@@ -344,23 +363,33 @@ public class BufferProxy {
                     bb.putFloat(p2 + 12, Options.materialCoatWeight[i] / 1000.0f);
                     // Pack 3: coat roughness + noise parameters
                     bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
-                    bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-20.0
-                    bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 100.0f);   // 0.0-1.0
-                    bb.putFloat(p3 + 12, (float) Options.materialNoiseOctaves[i]);     // 1-4
+                    bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-100.0
+                    bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 1000.0f);  // 0.0-1.0
+                    // Pack octaves (bits 0-3), noiseType (bits 4-7), seed (bits 8-17), noiseTarget (bits 20-22)
+                    int noisePacked = Options.materialNoiseOctaves[i]
+                                    | (Options.materialNoiseType[i] << 4)
+                                    | (Options.materialNoiseSeed[i] << 8)
+                                    | (Options.materialNoiseTarget[i] << 20);
+                    bb.putFloat(p3 + 12, (float) noisePacked);
                     // Pack 4: texture roughness channel routing
                     bb.putFloat(p4,      Options.materialChannelR[i] / 1000.0f);
                     bb.putFloat(p4 + 4,  Options.materialChannelG[i] / 1000.0f);
                     bb.putFloat(p4 + 8,  Options.materialChannelB[i] / 1000.0f);
                     bb.putFloat(p4 + 12, Options.materialTextureBlend[i] / 100.0f);
+                    // Pack 5: gamut boost
+                    bb.putFloat(p5,      Options.materialGamutBoost[i] / 100.0f);
+                    bb.putFloat(p5 + 4,  0); // reserved
+                    bb.putFloat(p5 + 8,  0); // reserved
+                    bb.putFloat(p5 + 12, 0); // reserved
                 } else {
-                    // Zero all 5 packs
-                    for (int p : new int[]{p0, p1, p2, p3, p4}) {
+                    // Zero all 6 packs
+                    for (int p : new int[]{p0, p1, p2, p3, p4, p5}) {
                         bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
                         bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
                     }
                 }
             }
-            baseAddr += N * 5 * 16; // MAX_MATERIALS × 5 vec4
+            baseAddr += N * 6 * 16; // MAX_MATERIALS × 6 vec4
 
             updateWorldUniform(addr);
         }
@@ -533,35 +562,48 @@ public class BufferProxy {
 
     public static native void updateMapping(long ptr);
 
+    // TextureMapEntry stride: 12 ints (48 bytes) matching shared.hpp
+    // Layout: [specular, normal, flag, properties, roughnessTex, metallicTex,
+    //          emissionTex, normalBPTex, heightTex, aoTex, extraTex, _reserved]
+    private static final int TEX_ENTRY_INTS = 12;
+    private static final int TEX_ENTRY_COUNT = 8192;
+    private static final int TEX_PROP_HAS_HEIGHT_MAP = 1;
+    private static final int TEX_PROP_DIRECT_PBR = 4;
+
     public static void updateMapping() {
-        try (MemoryStack stack = stackPush()) {
-            final int elementCount = 4096;
-            int size = elementCount * Integer.BYTES * 3;
-            ByteBuffer bb = stack.malloc(size);
+        int size = TEX_ENTRY_COUNT * Integer.BYTES * TEX_ENTRY_INTS;
+        ByteBuffer bb = memAlloc(size);
+        try {
             long addr = memAddress(bb);
             memSet(addr, -1, size);
             IntBuffer intView = bb.asIntBuffer();
 
+            // Clear properties and _reserved fields to 0 (memSet wrote -1 = 0xFFFFFFFF)
+            for (int i = 0; i < TEX_ENTRY_COUNT; i++) {
+                intView.put(i * TEX_ENTRY_INTS + 3, 0);   // properties
+                intView.put(i * TEX_ENTRY_INTS + 11, 0);  // _reserved
+            }
+
             for (Map.Entry<Integer, Integer> specularEntry : TextureTracker.GLID2SpecularGLID.entrySet()) {
                 int sourceID = specularEntry.getKey();
                 int targetID = specularEntry.getValue();
-                if (sourceID >= 0 && sourceID < elementCount) {
-                    intView.put(sourceID * 3, targetID);
+                if (sourceID >= 0 && sourceID < TEX_ENTRY_COUNT) {
+                    intView.put(sourceID * TEX_ENTRY_INTS, targetID);
                 } else {
                     throw new RuntimeException(
                         "Specular mapping sourceID " + sourceID + " out of index [0, " + (
-                            elementCount - 1) + "]");
+                            TEX_ENTRY_COUNT - 1) + "]");
                 }
             }
 
             for (Map.Entry<Integer, Integer> normalEntry : TextureTracker.GLID2NormalGLID.entrySet()) {
                 int sourceID = normalEntry.getKey();
                 int targetID = normalEntry.getValue();
-                if (sourceID >= 0 && sourceID < elementCount) {
-                    intView.put(sourceID * 3 + 1, targetID);
+                if (sourceID >= 0 && sourceID < TEX_ENTRY_COUNT) {
+                    intView.put(sourceID * TEX_ENTRY_INTS + 1, targetID);
                 } else {
                     throw new RuntimeException(
-                        "Normal mapping sourceID " + sourceID + " out of index [0, " + (elementCount
+                        "Normal mapping sourceID " + sourceID + " out of index [0, " + (TEX_ENTRY_COUNT
                             - 1) + "]");
                 }
             }
@@ -569,16 +611,47 @@ public class BufferProxy {
             for (Map.Entry<Integer, Integer> flagEntry : TextureTracker.GLID2FlagGLID.entrySet()) {
                 int sourceID = flagEntry.getKey();
                 int targetID = flagEntry.getValue();
-                if (sourceID >= 0 && sourceID < elementCount) {
-                    intView.put(sourceID * 3 + 2, targetID);
+                if (sourceID >= 0 && sourceID < TEX_ENTRY_COUNT) {
+                    intView.put(sourceID * TEX_ENTRY_INTS + 2, targetID);
                 } else {
                     throw new RuntimeException(
-                        "Flag mapping sourceID " + sourceID + " out of index [0, " + (elementCount
+                        "Flag mapping sourceID " + sourceID + " out of index [0, " + (TEX_ENTRY_COUNT
                             - 1) + "]");
                 }
             }
 
+            // Set TEX_PROP_HAS_HEIGHT_MAP for textures with valid height data in normal alpha
+            for (int albedoGLID : TextureTracker.hasHeightMap) {
+                if (albedoGLID >= 0 && albedoGLID < TEX_ENTRY_COUNT) {
+                    int base = albedoGLID * TEX_ENTRY_INTS + 3;
+                    intView.put(base, intView.get(base) | TEX_PROP_HAS_HEIGHT_MAP);
+                }
+            }
+
+            // Populate Blender PBR per-channel texture IDs
+            for (Map.Entry<Integer, Map<TextureTracker.BlenderChannel, Integer>> entry :
+                    TextureTracker.blenderPBRTextures.entrySet()) {
+                int sourceID = entry.getKey();
+                if (sourceID < 0 || sourceID >= TEX_ENTRY_COUNT) continue;
+                int base = sourceID * TEX_ENTRY_INTS;
+                Map<TextureTracker.BlenderChannel, Integer> channels = entry.getValue();
+
+                for (Map.Entry<TextureTracker.BlenderChannel, Integer> ch : channels.entrySet()) {
+                    intView.put(base + ch.getKey().ssboOffset, ch.getValue());
+                }
+
+                // Set TEX_PROP_DIRECT_PBR flag
+                intView.put(base + 3, intView.get(base + 3) | TEX_PROP_DIRECT_PBR);
+
+                // Set height map flag if Blender height texture present
+                if (channels.containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
+                    intView.put(base + 3, intView.get(base + 3) | TEX_PROP_HAS_HEIGHT_MAP);
+                }
+            }
+
             updateMapping(addr);
+        } finally {
+            memFree(bb);
         }
     }
 

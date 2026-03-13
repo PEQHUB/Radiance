@@ -214,16 +214,63 @@ public enum AuxiliaryTextures {
                     }
 
                     if (!success) {
-                        // Generate auto-PBR for MaterialBlock textures when global auto-PBR is enabled
-                        // Note: specular/roughness for MaterialBlocks is now derived in the shader via
-                        // channel routing (pack4), so AutoPBR specular generation is skipped for them.
                         int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                        boolean autoPBR = mbOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled;
-                        if (autoPBR && auxiliaryTexture == NORMAL) {
-                            auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source);
-                        } else {
-                            auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+
+                        // Check per-material input type override
+                        int inputType = 0; // 0=Auto
+                        if (mbOrdinal >= 0) {
+                            if (auxiliaryTexture == NORMAL) {
+                                inputType = com.radiance.client.option.Options.materialNormalInputType[mbOrdinal];
+                            } else if (auxiliaryTexture == SPECULAR) {
+                                inputType = com.radiance.client.option.Options.materialSpecularInputType[mbOrdinal];
+                            }
                         }
+
+                        if (inputType == 2) {
+                            // Flat: neutral normal or zero specular
+                            if (auxiliaryTexture == NORMAL) {
+                                auxiliaryTemplateImage = source.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
+                            } else {
+                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+                            }
+                        } else if (inputType == 1) {
+                            // Custom: load from user-specified path
+                            String customPath = (auxiliaryTexture == NORMAL)
+                                ? com.radiance.client.option.Options.materialCustomNormalPath[mbOrdinal]
+                                : com.radiance.client.option.Options.materialCustomSpecularPath[mbOrdinal];
+                            if (customPath != null && !customPath.isEmpty()) {
+                                int customGlid = CustomTextureLoader.loadAndUpload(customPath, source);
+                                if (customGlid >= 0) {
+                                    auxiliaryTexture.GLIDMapping.put(targetId, customGlid);
+                                    auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
+                                        uploadedLevelsMask | levelBit);
+                                    continue;
+                                }
+                            }
+                            auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+                        } else {
+                            // Auto: existing LabPBR/auto-PBR path
+                            boolean autoPBR = mbOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled
+                                && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
+                            if (autoPBR && auxiliaryTexture == NORMAL) {
+                                auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source);
+                                TextureTracker.hasHeightMap.add(targetId);
+                                if (level == 0) {
+                                    TextureTracker.materialBlockAlbedoCache.put(targetId, source.applyToCopy(i -> i));
+                                    TextureTracker.autoPBRNormalGLIDs.add(targetId);
+                                }
+                            } else if (autoPBR && auxiliaryTexture == SPECULAR) {
+                                auxiliaryTemplateImage = AutoPBRGenerator.generateSpecular(source);
+                                if (level == 0) {
+                                    TextureTracker.autoPBRSpecularGLIDs.add(targetId);
+                                }
+                            } else {
+                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+                            }
+                        }
+                    } else if (auxiliaryTexture == NORMAL) {
+                        // Resource pack LabPBR normal loaded — alpha contains height data
+                        TextureTracker.hasHeightMap.add(targetId);
                     }
                 }
 
@@ -248,6 +295,24 @@ public enum AuxiliaryTextures {
                     auxiliaryTexture.setter.set(sourceExt, auxiliaryImage);
                     auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
                         uploadedLevelsMask | levelBit);
+                }
+            }
+
+            // Blender PBR: scan for per-channel textures on first mip level only
+            if (level == 0 && !TextureTracker.blenderPBRTextures.containsKey(targetId)
+                && (identifier.getPath().contains("textures/block")
+                    || identifier.getPath().contains("textures/item")
+                    || identifier.getPath().contains("textures/entity"))) {
+                var bpChannels = BlenderTextureLoader.scan(resourceManager, identifier);
+                if (!bpChannels.isEmpty()) {
+                    var texIDs = BlenderTextureLoader.uploadAll(bpChannels);
+                    if (!texIDs.isEmpty()) {
+                        TextureTracker.blenderPBRTextures.put(targetId, texIDs);
+                        TextureTracker.blenderTextureIDs.addAll(texIDs.values());
+                        if (texIDs.containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
+                            TextureTracker.hasHeightMap.add(targetId);
+                        }
+                    }
                 }
             }
         }
