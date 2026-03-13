@@ -146,6 +146,31 @@ public class AreaLightSettingsScreen extends GameOptionsScreen {
 
     @Override
     protected void addOptions() {
+        // === Enable & Mode ===
+        SimpleOption<Boolean> areaLightsEnabled = SimpleOption.ofBoolean(
+            Options.AREA_LIGHTS_ENABLED_KEY,
+            Options.areaLightsEnabled,
+            value -> Options.setAreaLightsEnabled(value, true));
+
+        String[] modeLabels = {
+            Options.GLOBAL_LIGHT_MODE_AUTO_KEY,
+            Options.GLOBAL_LIGHT_MODE_AREA_KEY,
+            Options.GLOBAL_LIGHT_MODE_EMISSIVE_KEY
+        };
+        SimpleOption<Integer> globalLightMode = new SimpleOption<>(
+            Options.GLOBAL_LIGHT_MODE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.translatable(modeLabels[Math.min(value, modeLabels.length - 1)])),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 2),
+            Codec.intRange(0, 2),
+            Options.globalLightMode,
+            value -> Options.setGlobalLightMode(value, true));
+
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(
+            areaLightsEnabled.createWidget(this.gameOptions),
+            globalLightMode.createWidget(this.gameOptions), body));
+
         // === Global Controls ===
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.translatable("options.video.area_light.global_category"), body));
