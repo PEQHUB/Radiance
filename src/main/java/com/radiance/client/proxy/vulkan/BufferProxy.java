@@ -567,7 +567,7 @@ public class BufferProxy {
     // BlenderPBREntry: 8 ints (32 bytes) — cold path, only read when TEX_PROP_DIRECT_PBR set
     private static final int TEX_ENTRY_INTS = 4;
     private static final int BP_ENTRY_INTS = 8;
-    private static final int TEX_ENTRY_COUNT = 8192;
+    private static final int TEX_ENTRY_COUNT = 4096;
     private static final int TEX_PROP_HAS_HEIGHT_MAP = 1;
     private static final int TEX_PROP_DIRECT_PBR = 4;
 

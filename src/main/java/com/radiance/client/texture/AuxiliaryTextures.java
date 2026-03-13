@@ -298,19 +298,23 @@ public enum AuxiliaryTextures {
                 }
             }
 
-            // Blender PBR: scan for per-channel textures on first mip level only
-            if (level == 0 && !TextureTracker.blenderPBRTextures.containsKey(targetId)
-                && (identifier.getPath().contains("textures/block")
+            // Blender PBR: scan for per-channel textures on first mip level only.
+            // Quick-detect first: only probe individual textures if a PBR resource pack exists.
+            if (level == 0 && (identifier.getPath().contains("textures/block")
                     || identifier.getPath().contains("textures/item")
                     || identifier.getPath().contains("textures/entity"))) {
-                var bpChannels = BlenderTextureLoader.scan(resourceManager, identifier);
-                if (!bpChannels.isEmpty()) {
-                    var texIDs = BlenderTextureLoader.uploadAll(bpChannels);
-                    if (!texIDs.isEmpty()) {
-                        TextureTracker.blenderPBRTextures.put(targetId, texIDs);
-                        TextureTracker.blenderTextureIDs.addAll(texIDs.values());
-                        if (texIDs.containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
-                            TextureTracker.hasHeightMap.add(targetId);
+                BlenderTextureLoader.detectPBRResourcePack(resourceManager);
+                if (BlenderTextureLoader.isPBRResourcePackDetected()
+                    && !TextureTracker.blenderPBRTextures.containsKey(targetId)) {
+                    var bpChannels = BlenderTextureLoader.scan(resourceManager, identifier);
+                    if (!bpChannels.isEmpty()) {
+                        var texIDs = BlenderTextureLoader.uploadAll(bpChannels);
+                        if (!texIDs.isEmpty()) {
+                            TextureTracker.blenderPBRTextures.put(targetId, texIDs);
+                            TextureTracker.blenderTextureIDs.addAll(texIDs.values());
+                            if (texIDs.containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
+                                TextureTracker.hasHeightMap.add(targetId);
+                            }
                         }
                     }
                 }

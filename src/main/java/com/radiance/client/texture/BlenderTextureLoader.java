@@ -31,6 +31,33 @@ import org.lwjgl.system.MemoryUtil;
  */
 public class BlenderTextureLoader {
 
+    // Set to true once we detect that any PBR resource exists; avoids 63 lookups per texture otherwise.
+    // Reset on cleanup (resource pack reload / disconnect).
+    private static volatile boolean pbrResourcePackDetected = false;
+    private static volatile boolean pbrDetectionDone = false;
+
+    /**
+     * Quick probe: check if the resource pack has a textures/pbr/ directory at all.
+     * Only runs once per session; subsequent calls are no-ops.
+     */
+    public static void detectPBRResourcePack(ResourceManager resources) {
+        if (pbrDetectionDone) return;
+        pbrDetectionDone = true;
+        // Probe for a well-known block to see if any pbr/ folder exists
+        for (String probe : new String[]{"stone", "dirt", "oak_planks", "cobblestone"}) {
+            Identifier id = Identifier.of("minecraft", "textures/pbr/block/" + probe + "/roughness.png");
+            if (resources.getResource(id).isPresent()) {
+                pbrResourcePackDetected = true;
+                return;
+            }
+        }
+        pbrResourcePackDetected = false;
+    }
+
+    public static boolean isPBRResourcePackDetected() {
+        return pbrResourcePackDetected;
+    }
+
     // Filename variants per channel (case-insensitive matching done at probe time)
     private static final String[][] ROUGHNESS_NAMES = {{"roughness"}, {"rough"}, {"rgh"}};
     private static final String[][] METALLIC_NAMES  = {{"metallic"}, {"metal"}, {"mtl"}};
@@ -256,6 +283,8 @@ public class BlenderTextureLoader {
         }
         TextureTracker.blenderPBRTextures.clear();
         TextureTracker.blenderTextureIDs.clear();
+        pbrResourcePackDetected = false;
+        pbrDetectionDone = false;
     }
 
     /**
