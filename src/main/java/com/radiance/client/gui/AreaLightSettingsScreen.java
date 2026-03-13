@@ -8,6 +8,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.gui.widget.ClickableWidget;
@@ -20,7 +21,7 @@ public class AreaLightSettingsScreen extends GameOptionsScreen {
     private final Screen parentScreen;
 
     // Human-readable names for each light type ID (indices match C++ LightTypeId enum)
-    static final String[] LIGHT_TYPE_KEYS = {
+    public static final String[] LIGHT_TYPE_KEYS = {
         "options.video.area_light.block.torch",
         "options.video.area_light.block.soul_torch",
         "options.video.area_light.block.lantern",
@@ -107,6 +108,16 @@ public class AreaLightSettingsScreen extends GameOptionsScreen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        return false;
     }
 
     @Override

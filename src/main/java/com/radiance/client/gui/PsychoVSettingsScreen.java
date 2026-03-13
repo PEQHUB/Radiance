@@ -6,6 +6,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.util.CategoryVideoOptionEntry;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.text.Text;
@@ -30,6 +31,16 @@ public class PsychoVSettingsScreen extends GameOptionsScreen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        return false;
     }
 
     @Override

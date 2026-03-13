@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import net.minecraft.block.Block;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -121,6 +122,18 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        // Propagate right-click drag for precision slider mode (button 1)
+        // Minecraft's default only propagates button 0.
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        return false;
     }
 
     @Override

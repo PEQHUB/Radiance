@@ -34,9 +34,17 @@ public final class MaterialSphereRenderer {
     private static final ConcurrentHashMap<SphereKey, Identifier> textureCache = new ConcurrentHashMap<>();
     private static final AtomicInteger idCounter = new AtomicInteger(0);
 
-    // Fixed lighting setup (classic 3-point-ish for material preview)
-    private static final double LX = 0.4082, LY = 0.8165, LZ = 0.4082; // normalized (1,2,1)
+    // 3-point studio lighting (key, fill, rim)
+    private static final double[] KEY  = normalize( 0.5,  0.7,  0.5); // upper-right front
+    private static final double[] FILL = normalize(-0.6,  0.2,  0.7); // left front, softer
+    private static final double[] RIM  = normalize(-0.3, -0.5,  0.4); // lower-left back, cool
+    private static final double KEY_INT = 2.5, FILL_INT = 0.8, RIM_INT = 0.5;
     private static final double VX = 0.0, VY = 0.0, VZ = 1.0; // front view
+
+    private static double[] normalize(double x, double y, double z) {
+        double len = Math.sqrt(x * x + y * y + z * z);
+        return new double[]{ x / len, y / len, z / len };
+    }
 
     /** Draw a material sphere icon at the given position and size. */
     public static void drawSphere(DrawContext context, MaterialData data, int x, int y, int size) {
@@ -102,6 +110,9 @@ public final class MaterialSphereRenderer {
             dielF0 = r * r;
         }
 
+        double[][] lights = { KEY, FILL, RIM };
+        double[] lightInt = { KEY_INT, FILL_INT, RIM_INT };
+
         for (int py = 0; py < size; py++) {
             for (int px = 0; px < size; px++) {
                 double nx = (px - cx) / radius;
@@ -114,81 +125,108 @@ public final class MaterialSphereRenderer {
                 }
 
                 double nz = Math.sqrt(1.0 - r2);
-
-                // Dot products
-                double NdotL = Math.max(nx * LX + ny * LY + nz * LZ, 0.0);
                 double NdotV = Math.max(nz, 0.001);
-                double hx = LX + VX, hy = LY + VY, hz = LZ + VZ;
-                double hLen = Math.sqrt(hx * hx + hy * hy + hz * hz);
-                hx /= hLen; hy /= hLen; hz /= hLen;
-                double NdotH = Math.max(nx * hx + ny * hy + nz * hz, 0.0);
-                double VdotH = Math.max(VX * hx + VY * hy + VZ * hz, 0.001);
 
-                // GGX Distribution
-                double d = ggxD(NdotH, alpha);
-                double g = smithG(NdotV, NdotL, alpha);
+                // Fresnel at normal incidence for diffuse energy conservation
+                double fNorm = schlick(dielF0, NdotV);
+                double frNorm = fNorm + met * (schlick(f0r, NdotV) - fNorm);
 
-                // Fresnel (Schlick) — continuous metallic blend
-                double fDiel = schlick(dielF0, VdotH);
-                double fr = fDiel + met * (schlick(f0r, VdotH) - fDiel);
-                double fg = fDiel + met * (schlick(f0g, VdotH) - fDiel);
-                double fb = fDiel + met * (schlick(f0b, VdotH) - fDiel);
+                double outR = 0, outG = 0, outB = 0;
 
-                // Specular
-                double denom = Math.max(4.0 * NdotV * NdotL, 0.001);
-                double specScale = d * g / denom;
-                double specR = fr * specScale * NdotL;
-                double specG = fg * specScale * NdotL;
-                double specB = fb * specScale * NdotL;
+                // Accumulate direct lighting from all 3 studio lights
+                for (int li = 0; li < 3; li++) {
+                    double lx = lights[li][0], ly = lights[li][1], lz = lights[li][2];
+                    double intensity = lightInt[li];
+                    double NdotL = Math.max(nx * lx + ny * ly + nz * lz, 0.0);
+                    if (NdotL <= 0.0) continue;
 
-                // Diffuse (Lambertian) — (1-met) already suppresses for metals
-                double baseAlbedo = 0.7;
-                double diffScale = (1.0 - met) * (1.0 - fr) * NdotL / Math.PI;
-                double diffR = baseAlbedo * diffScale;
-                double diffG = baseAlbedo * diffScale;
-                double diffB = baseAlbedo * diffScale;
+                    double hx = lx + VX, hy = ly + VY, hz = lz + VZ;
+                    double hLen = Math.sqrt(hx * hx + hy * hy + hz * hz);
+                    hx /= hLen; hy /= hLen; hz /= hLen;
+                    double NdotH = Math.max(nx * hx + ny * hy + nz * hz, 0.0);
+                    double VdotH = Math.max(VX * hx + VY * hy + VZ * hz, 0.001);
 
-                double outR = specR + diffR;
-                double outG = specG + diffG;
-                double outB = specB + diffB;
+                    // GGX specular BRDF
+                    double d = ggxD(NdotH, alpha);
+                    double g = smithG(NdotV, NdotL, alpha);
+                    double fD = schlick(dielF0, VdotH);
+                    double fr = fD + met * (schlick(f0r, VdotH) - fD);
+                    double fg = fD + met * (schlick(f0g, VdotH) - fD);
+                    double fb = fD + met * (schlick(f0b, VdotH) - fD);
+                    double denom = Math.max(4.0 * NdotV * NdotL, 0.001);
+                    double spec = d * g / denom;
+
+                    outR += fr * spec * NdotL * intensity;
+                    outG += fg * spec * NdotL * intensity;
+                    outB += fb * spec * NdotL * intensity;
+
+                    // Diffuse (only for non-metals)
+                    double diffScale = (1.0 - met) * (1.0 - fr) * NdotL / Math.PI * intensity;
+                    outR += 0.7 * diffScale;
+                    outG += 0.7 * diffScale;
+                    outB += 0.7 * diffScale;
+
+                    // Clearcoat
+                    if (coat > 0.01) {
+                        double cD = ggxD(NdotH, coatAlpha);
+                        double cG = smithG(NdotV, NdotL, coatAlpha);
+                        double cF = schlick(0.04, VdotH);
+                        outR += cD * cG * cF / denom * NdotL * coat * intensity;
+                        outG += cD * cG * cF / denom * NdotL * coat * intensity;
+                        outB += cD * cG * cF / denom * NdotL * coat * intensity;
+                    }
+                }
+
+                // Environment reflection (studio HDRI approximation)
+                // Reflection direction for specular environment
+                double rdotN2 = 2.0 * NdotV;
+                double refX = -VX + rdotN2 * nx;
+                double refY = -VY + rdotN2 * ny;
+                double refZ = -VZ + rdotN2 * nz;
+                // Hemisphere gradient: bright sky above, warm ground below
+                double refUp = (-refY + 1.0) * 0.5;
+                double envSpecR = 0.35 + refUp * 0.55;  // warm ground to bright sky
+                double envSpecG = 0.30 + refUp * 0.60;
+                double envSpecB = 0.25 + refUp * 0.75;
+
+                // Roughness-blurred env: lerp toward diffuse hemisphere as roughness increases
+                double upN = (-ny + 1.0) * 0.5;
+                double envDiffR = 0.25 + upN * 0.35;
+                double envDiffG = 0.20 + upN * 0.40;
+                double envDiffB = 0.15 + upN * 0.50;
+                double envBlur = Math.min(rough * 2.0, 1.0);
+                double eR = envSpecR * (1.0 - envBlur) + envDiffR * envBlur;
+                double eG = envSpecG * (1.0 - envBlur) + envDiffG * envBlur;
+                double eB = envSpecB * (1.0 - envBlur) + envDiffB * envBlur;
+
+                // Specular environment (pre-integrated: F * envBRDF)
+                double envF_r = frNorm + (Math.max(1.0 - rough, frNorm) - frNorm) * Math.pow(1.0 - NdotV, 5.0);
+                double envF_g = fNorm + met * (schlick(f0g, NdotV) - fNorm)
+                    + (Math.max(1.0 - rough, fNorm + met * (f0g - fNorm)) - (fNorm + met * (f0g - fNorm))) * Math.pow(1.0 - NdotV, 5.0);
+                double envF_b = fNorm + met * (schlick(f0b, NdotV) - fNorm)
+                    + (Math.max(1.0 - rough, fNorm + met * (f0b - fNorm)) - (fNorm + met * (f0b - fNorm))) * Math.pow(1.0 - NdotV, 5.0);
+                outR += eR * envF_r * 0.6;
+                outG += eG * envF_g * 0.6;
+                outB += eB * envF_b * 0.6;
+
+                // Diffuse environment (only for non-metals)
+                outR += envDiffR * 0.7 * (1.0 - met) * (1.0 - frNorm) * 0.4;
+                outG += envDiffG * 0.7 * (1.0 - met) * (1.0 - frNorm) * 0.4;
+                outB += envDiffB * 0.7 * (1.0 - met) * (1.0 - frNorm) * 0.4;
 
                 // Transmission: checker pattern shows through
                 if (trans > 0.01) {
                     boolean checker = ((px / 4) + (py / 4)) % 2 == 0;
-                    double bgR = checker ? 0.22 : 0.12;
-                    double bgG = checker ? 0.22 : 0.12;
-                    double bgB = checker ? 0.25 : 0.14;
+                    double bgR = checker ? 0.3 : 0.15;
+                    double bgG = checker ? 0.3 : 0.15;
+                    double bgB = checker ? 0.35 : 0.18;
                     outR = outR * (1.0 - trans * 0.7) + bgR * trans * 0.7;
                     outG = outG * (1.0 - trans * 0.7) + bgG * trans * 0.7;
                     outB = outB * (1.0 - trans * 0.7) + bgB * trans * 0.7;
                 }
 
-                // Clearcoat layer
-                if (coat > 0.01) {
-                    double coatD = ggxD(NdotH, coatAlpha);
-                    double coatG = smithG(NdotV, NdotL, coatAlpha);
-                    double coatF = schlick(0.04, VdotH);
-                    double coatSpec = coatD * coatG * coatF / denom * NdotL;
-                    outR += coatSpec * coat;
-                    outG += coatSpec * coat;
-                    outB += coatSpec * coat;
-                }
-
-                // Hemisphere ambient (cool sky above, warm ground below)
-                double upFactor = (-ny + 1.0) * 0.5;
-                double envR = 0.10 + upFactor * 0.25;
-                double envG = 0.07 + upFactor * 0.38;
-                double envB = 0.04 + upFactor * 0.56;
-                double ambScale = 0.10;
-                double tintR = baseAlbedo + met * (f0r - baseAlbedo);
-                double tintG = baseAlbedo + met * (f0g - baseAlbedo);
-                double tintB = baseAlbedo + met * (f0b - baseAlbedo);
-                outR += envR * ambScale * tintR;
-                outG += envG * ambScale * tintG;
-                outB += envB * ambScale * tintB;
-
-                // Fresnel rim (subtle edge glow)
-                double rim = Math.pow(1.0 - NdotV, 4.0) * 0.15;
+                // Fresnel rim glow
+                double rim = Math.pow(1.0 - NdotV, 4.0) * 0.25;
                 outR += rim; outG += rim; outB += rim;
 
                 // Reinhard tonemap

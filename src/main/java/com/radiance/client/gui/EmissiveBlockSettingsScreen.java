@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.text.Text;
@@ -98,6 +99,16 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
             }
         }
         return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        return false;
     }
 
     @Override

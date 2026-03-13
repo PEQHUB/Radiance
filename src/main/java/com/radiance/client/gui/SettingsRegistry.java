@@ -99,7 +99,7 @@ public final class SettingsRegistry {
                 "Cache indirect radiance at world positions for faster convergence.", false);
 
         register("sharcSceneScaleTenths", "Grid Scene Scale", "SHARC Radiance Cache", null, null,
-                10, 80, () -> Options.sharcSceneScaleTenths, 40,
+                10, 200, () -> Options.sharcSceneScaleTenths, 40,
                 "Voxel size. Lower = finer detail, higher = better coverage.", false);
 
         register("sharcRoughnessThresholdPercent", "Roughness Threshold", "SHARC Radiance Cache", null, null,
@@ -107,15 +107,15 @@ public final class SettingsRegistry {
                 "Min surface roughness to use cache. 0=all surfaces, 100=diffuse only.", false);
 
         register("sharcAccumulationFrames", "Accumulation Frames", "SHARC Radiance Cache", null, null,
-                4, 128, () -> Options.sharcAccumulationFrames, 32,
+                4, 256, () -> Options.sharcAccumulationFrames, 32,
                 "Temporal accumulation window. Higher = smoother but slower convergence.", false);
 
         register("sharcStaleFrames", "Stale Eviction Frames", "SHARC Radiance Cache", null, null,
-                4, 64, () -> Options.sharcStaleFrames, 16,
+                4, 128, () -> Options.sharcStaleFrames, 16,
                 "Frames before unused entries are evicted. Higher = more memory use.", false);
 
         register("sharcDownscale", "Update Downscale", "SHARC Radiance Cache", null, null,
-                1, 4, () -> Options.sharcDownscale, 1,
+                1, 8, () -> Options.sharcDownscale, 1,
                 "Resolution divisor for update pass. Higher = faster but slower population.", true);
 
         // ── Main Screen: Display ───────────────────────────────────────────

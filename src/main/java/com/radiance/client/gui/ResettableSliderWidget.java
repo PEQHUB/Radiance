@@ -3,6 +3,7 @@ package com.radiance.client.gui;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
@@ -75,6 +76,15 @@ public class ResettableSliderWidget extends SliderWidget {
         }
     }
 
+    // ── Custom rendering (bypasses Minecraft's vanilla sprite-based slider) ──
+
+    @Override
+    public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
+        RadianceTheme.drawCustomSlider(context, getX(), getY(), getWidth(), getHeight(),
+            this.value, isHovered(), dragging || precisionDragging,
+            MinecraftClient.getInstance().textRenderer, getMessage());
+    }
+
     // ── Mouse handling ──
 
     @Override
@@ -128,7 +138,9 @@ public class ResettableSliderWidget extends SliderWidget {
         if (dragging && button == 0) {
             return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
         }
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        // Not actively dragging this slider — don't consume the event so sibling
+        // sliders in TwoColumn/FourColumn layouts can receive it instead.
+        return false;
     }
 
     @Override

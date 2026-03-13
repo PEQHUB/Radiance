@@ -2,6 +2,7 @@ package com.radiance.client.gui;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.screen.option.GameOptionsScreen;
 import net.minecraft.client.gui.widget.OptionListWidget;
 
@@ -57,6 +58,25 @@ public class WideOptionListWidget extends OptionListWidget {
         setScrollY(displayScrollY);
         super.renderWidget(context, mouseX, mouseY, delta);
         setScrollY(originalScroll);
+    }
+
+    // ── Right-click precision drag propagation ──
+    // Minecraft's default ParentElement.mouseDragged only propagates button 0.
+    // Override to also propagate button 1 (right-click precision slider drag)
+    // to the focused entry.
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) {
+            return true;
+        }
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) {
+                return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+            }
+        }
+        return false;
     }
 
     // ── Per-entry backdrop, fade, and peek mode ──

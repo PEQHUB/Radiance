@@ -17,23 +17,33 @@ public final class RadianceTheme {
 
     // ── Base palette (RGB only, alpha applied dynamically) ──
     private static final int BASE_PANEL       = 0x0A0A0A;
-    private static final int BASE_WIDGET      = 0x1A1A2A;
-    private static final int BASE_HOVER       = 0x2A2A4A;
-    private static final int BASE_ACTIVE      = 0x3A3A5A;
-    private static final int BASE_DROPDOWN    = 0x101018;
+    private static final int BASE_WIDGET      = 0x1A1A1E;
+    private static final int BASE_HOVER       = 0x2A2A30;
+    private static final int BASE_ACTIVE      = 0x3A3A42;
+    private static final int BASE_DROPDOWN    = 0x101014;
     private static final int BASE_HEADER      = 0x0A0A0A;
     private static final int BASE_BORDER      = 0x808080;
-    private static final int BASE_BORDER_FOCUS = 0xC0C0E0;
+    private static final int BASE_BORDER_FOCUS = 0xD0C0B0;
     private static final int BASE_TEXT_PRIMARY = 0xE0E0E0;
     private static final int BASE_TEXT_SECONDARY = 0x909090;
-    private static final int BASE_TEXT_ACCENT  = 0x8888CC;
+    private static final int BASE_TEXT_ACCENT  = 0xE8712A;
+
+    // ── Custom widget rendering palette ──
+    private static final int BASE_SLIDER_TRACK = 0x252528;
+    private static final int BASE_SLIDER_FILL  = 0xE8712A;
+    private static final int BASE_SLIDER_THUMB = 0xE0E0E0;
+    private static final int BASE_TOGGLE_ON    = 0xE8712A;
+    private static final int BASE_TOGGLE_OFF   = 0x404046;
+    private static final int BASE_BUTTON_BG    = 0x1E1E24;
+    private static final int BASE_BUTTON_HOVER = 0x2A2A32;
+    private static final int BASE_BUTTON_BORDER= 0x404048;
 
     // ── Semantic colors (special purpose, fixed alpha) ──
     public static final int TEXT_ERROR    = 0xFFFF5555;
     public static final int TEXT_SUCCESS  = 0xFF55FF55;
     public static final int TEXT_LINK     = 0xFF55FFFF;
     public static final int TEXT_PATH     = 0xFFFFAA00;
-    public static final int SELECTED_BAR  = 0xFF6060FF;
+    public static final int SELECTED_BAR  = 0xFFE8712A;
     public static final int GPU_TAG       = 0xFF707090;
 
     // ── Derived colors (recomputed by recompute()) ──
@@ -48,6 +58,21 @@ public final class RadianceTheme {
     public static int textPrimary;
     public static int textSecondary;
     public static int textAccent;
+
+    // ── Custom widget derived colors ──
+    public static int sliderTrack;
+    public static int sliderFill;
+    public static int sliderThumb;
+    public static int toggleOn;
+    public static int toggleOff;
+    public static int buttonBg;
+    public static int buttonHover;
+    public static int buttonBorder;
+
+    // ── Unified screen panel backgrounds (alpha-aware with readability floor) ──
+    public static int unifiedContentBg;
+    public static int unifiedTreeBg;
+    public static int unifiedHeaderBg;
 
     // ── Alpha state ──
     private static float globalAlpha = 0.55f;
@@ -143,6 +168,22 @@ public final class RadianceTheme {
         textPrimary   = withAlpha(BASE_TEXT_PRIMARY, 1.0f);
         textSecondary = withAlpha(BASE_TEXT_SECONDARY, 0.8f);
         textAccent    = withAlpha(BASE_TEXT_ACCENT, 1.0f);
+
+        // Custom widget colors
+        sliderTrack   = withAlpha(BASE_SLIDER_TRACK, effectiveAlpha);
+        sliderFill    = withAlpha(BASE_SLIDER_FILL, effectiveAlpha);
+        sliderThumb   = withAlpha(BASE_SLIDER_THUMB, 1.0f);
+        toggleOn      = withAlpha(BASE_TOGGLE_ON, effectiveAlpha);
+        toggleOff     = withAlpha(BASE_TOGGLE_OFF, effectiveAlpha);
+        buttonBg      = withAlpha(BASE_BUTTON_BG, effectiveAlpha);
+        buttonHover   = withAlpha(BASE_BUTTON_HOVER, effectiveAlpha);
+        buttonBorder  = withAlpha(BASE_BUTTON_BORDER, effectiveAlpha * 0.6f);
+
+        // Unified panel backgrounds — respond to globalAlpha but never go too transparent
+        float panelAlpha = Math.min(0.92f, Math.max(effectiveAlpha * 1.3f, 0.55f));
+        unifiedContentBg = withAlpha(0x0C0C0E, panelAlpha);
+        unifiedTreeBg    = withAlpha(0x0A0A0C, Math.min(0.92f, panelAlpha + 0.04f));
+        unifiedHeaderBg  = withAlpha(0x080808, Math.min(0.95f, panelAlpha + 0.08f));
     }
 
     /**
@@ -420,5 +461,100 @@ public final class RadianceTheme {
         // Text
         drawOutlinedText(ctx, renderer, text, textX, textY,
                 textAccent & 0x00FFFFFF | 0xFF000000, alphaMult);
+    }
+
+    // ── Modern section header (left-aligned, thin underline) ──
+
+    /**
+     * Draw a modern section header: left-aligned label in accent color with
+     * a thin horizontal rule underneath. Replaces the centered category header
+     * for the unified settings UI.
+     */
+    public static void drawSectionHeader(DrawContext ctx, TextRenderer renderer,
+            Text text, int x, int y, int width, int headerHeight, float alphaMult) {
+        if (alphaMult <= 0f) return;
+
+        int textY = y + (headerHeight - 8) / 2;
+        drawOutlinedText(ctx, renderer, text, x + 4, textY,
+                textAccent & 0x00FFFFFF | 0xFF000000, alphaMult);
+
+        // Thin horizontal rule below text
+        int lineY = y + headerHeight - 2;
+        int lineColor = withAlpha(BASE_TEXT_ACCENT, 0.25f * alphaMult);
+        ctx.fill(x, lineY, x + width, lineY + 1, lineColor);
+    }
+
+    // ── Custom widget rendering ──
+
+    /**
+     * Render a custom flat slider: thin track, orange fill, white thumb, centered label.
+     * Replaces Minecraft's vanilla sprite-based slider rendering.
+     */
+    public static void drawCustomSlider(DrawContext ctx, int x, int y, int w, int h,
+            double value, boolean hovered, boolean active,
+            TextRenderer renderer, Text message) {
+        // Track background
+        int trackH = 4;
+        int trackY = y + (h - trackH) / 2;
+        ctx.fill(x, trackY, x + w, trackY + trackH, sliderTrack);
+
+        // Filled portion (accent color)
+        int fillW = (int) (w * value);
+        if (fillW > 0) {
+            ctx.fill(x, trackY, x + fillW, trackY + trackH, sliderFill);
+        }
+
+        // Thumb
+        int thumbW = 8, thumbH = 14;
+        int thumbX = Math.max(x, Math.min(x + fillW - thumbW / 2, x + w - thumbW));
+        int thumbY = y + (h - thumbH) / 2;
+        int thumbColor = active ? sliderFill : (hovered ? scaleAlpha(sliderThumb, 0.9f) : sliderThumb);
+        ctx.fill(thumbX, thumbY, thumbX + thumbW, thumbY + thumbH, thumbColor);
+
+        // Label centered on widget
+        int textW = renderer.getWidth(message);
+        drawOutlinedText(ctx, renderer, message,
+                x + (w - textW) / 2, y + (h - 8) / 2, textPrimary);
+    }
+
+    /**
+     * Render a custom flat button: dark bg, subtle border, centered label.
+     * Replaces Minecraft's vanilla button textures.
+     */
+    public static void drawCustomButton(DrawContext ctx, int x, int y, int w, int h,
+            boolean hovered, TextRenderer renderer, Text message) {
+        int bg = hovered ? buttonHover : buttonBg;
+        ctx.fill(x, y, x + w, y + h, bg);
+        ctx.drawBorder(x, y, w, h, buttonBorder);
+        int textW = renderer.getWidth(message);
+        drawOutlinedText(ctx, renderer, message,
+                x + (w - textW) / 2, y + (h - 8) / 2,
+                hovered ? textPrimary : textSecondary);
+    }
+
+    /**
+     * Render a custom toggle widget: label on left, ON/OFF switch on right.
+     * Replaces Minecraft's vanilla CyclingButtonWidget rendering.
+     */
+    public static void drawCustomToggle(DrawContext ctx, int x, int y, int w, int h,
+            boolean value, boolean hovered, TextRenderer renderer, Text message) {
+        // Background
+        int bg = hovered ? buttonHover : buttonBg;
+        ctx.fill(x, y, x + w, y + h, bg);
+        ctx.drawBorder(x, y, w, h, buttonBorder);
+
+        // Toggle switch on right side
+        int swW = 28, swH = 14;
+        int swX = x + w - swW - 6;
+        int swY = y + (h - swH) / 2;
+        int swBg = value ? toggleOn : toggleOff;
+        ctx.fill(swX, swY, swX + swW, swY + swH, swBg);
+        // Thumb knob
+        int knobW = 10, knobH = swH - 2;
+        int knobX = value ? swX + swW - knobW - 1 : swX + 1;
+        ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH, sliderThumb);
+
+        // Label on left
+        drawOutlinedText(ctx, renderer, message, x + 6, y + (h - 8) / 2, textPrimary);
     }
 }

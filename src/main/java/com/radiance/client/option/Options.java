@@ -366,7 +366,7 @@ public class Options {
 
     // HDR10 output (default: disabled, pure SDR)
     public static boolean hdrEnabled = false;
-    public static int hdrPeakNits = 1000;          // 400–10000 nits
+    public static int hdrPeakNits = 1000;          // 100–10000 nits
     public static int hdrPaperWhiteNits = 203;     // 80–500 nits, ITU-R BT.2408 reference white
     public static int hdrUiBrightnessNits = 100;   // 50–300 nits, UI brightness in HDR mode
 
@@ -380,6 +380,7 @@ public class Options {
 
     // Persistent UI state (not reset by Reset to Defaults)
     public static boolean showWelcomeMessage = true;
+    public static boolean useUnifiedUI = true;           // true = new unified panel UI, false = legacy screens
     public static int uiGlobalAlphaPercent = 55;         // 0-100, controls menu transparency
     public static boolean uiAdaptiveDimming = false;     // auto-adjust alpha based on scene brightness
 
@@ -661,19 +662,19 @@ public class Options {
             sharcEnabled = Boolean.parseBoolean(props.getProperty("sharcEnabled", String.valueOf(sharcEnabled)));
             nativeSetSharcEnabled(sharcEnabled, false);
 
-            sharcSceneScaleTenths = clamp(Integer.parseInt(props.getProperty("sharcSceneScaleTenths", String.valueOf(sharcSceneScaleTenths))), 10, 80);
+            sharcSceneScaleTenths = clamp(Integer.parseInt(props.getProperty("sharcSceneScaleTenths", String.valueOf(sharcSceneScaleTenths))), 10, 200);
             nativeSetSharcSceneScale(sharcSceneScaleTenths / 10.0f, false);
 
             sharcRoughnessThresholdPercent = clamp(Integer.parseInt(props.getProperty("sharcRoughnessThresholdPercent", String.valueOf(sharcRoughnessThresholdPercent))), 0, 100);
             nativeSetSharcRoughnessThreshold(sharcRoughnessThresholdPercent / 100.0f, false);
 
-            sharcAccumulationFrames = clamp(Integer.parseInt(props.getProperty("sharcAccumulationFrames", String.valueOf(sharcAccumulationFrames))), 4, 128);
+            sharcAccumulationFrames = clamp(Integer.parseInt(props.getProperty("sharcAccumulationFrames", String.valueOf(sharcAccumulationFrames))), 4, 256);
             nativeSetSharcAccumulationFrames(sharcAccumulationFrames, false);
 
-            sharcStaleFrames = clamp(Integer.parseInt(props.getProperty("sharcStaleFrames", String.valueOf(sharcStaleFrames))), 4, 64);
+            sharcStaleFrames = clamp(Integer.parseInt(props.getProperty("sharcStaleFrames", String.valueOf(sharcStaleFrames))), 4, 128);
             nativeSetSharcStaleFrames(sharcStaleFrames, false);
 
-            sharcDownscale = clamp(Integer.parseInt(props.getProperty("sharcDownscale", String.valueOf(sharcDownscale))), 1, 4);
+            sharcDownscale = clamp(Integer.parseInt(props.getProperty("sharcDownscale", String.valueOf(sharcDownscale))), 1, 8);
             nativeSetSharcDownscale(sharcDownscale, false);
 
             areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled)));
@@ -1750,6 +1751,8 @@ public class Options {
         restirWClamp = 30;
         restirSpatialTaps = 5;
         restirSpatialRadius = 30;
+        restirSimplifiedBRDF = false;
+        restirSpatialEnabled = false;
         java.util.Arrays.fill(areaLightBlockIntensity, 100);
         java.util.Arrays.fill(areaLightBlockScale, 100);
         java.util.Arrays.fill(areaLightBlockYOffset, 0);
@@ -1757,7 +1760,41 @@ public class Options {
         resetLightColorsToDefaults();
         java.util.Arrays.fill(blockLightMode, LIGHT_MODE_AUTO);
         globalLightMode = LIGHT_MODE_AUTO;
-        // New emission defaults
+        // Emission defaults
+        emissionLava = 1.0f;
+        emissionFire = 1.0f;
+        emissionSoulFire = 1.0f;
+        emissionTorch = 1.0f;
+        emissionSoulTorch = 1.0f;
+        emissionLantern = 1.0f;
+        emissionSoulLantern = 1.0f;
+        emissionCampfire = 1.0f;
+        emissionSoulCampfire = 1.0f;
+        emissionGlowstone = 1.0f;
+        emissionShroomlight = 1.0f;
+        emissionSeaLantern = 1.0f;
+        emissionFroglight = 1.0f;
+        emissionMagmaBlock = 1.0f;
+        emissionBeacon = 1.0f;
+        emissionEndRod = 1.0f;
+        emissionJackOLantern = 1.0f;
+        emissionNetherPortal = 1.0f;
+        emissionCryingObsidian = 0.8f;
+        emissionRespawnAnchor = 1.0f;
+        emissionConduit = 1.0f;
+        emissionAmethystCluster = 0.5f;
+        emissionSculkSensor = 0.5f;
+        emissionSculkCatalyst = 0.5f;
+        emissionSculkVein = 0.3f;
+        emissionSculk = 0.2f;
+        emissionSculkShrieker = 0.5f;
+        emissionBrewingStand = 0.5f;
+        emissionEndPortal = 1.0f;
+        emissionCalibratedSculkSensor = 1.0f;
+        emissionSeaPickle = 1.0f;
+        emissionEndGateway = 1.0f;
+        emissionTrialSpawner = 1.0f;
+        emissionVault = 1.0f;
         emissionRedstoneTorch = 0.5f;
         emissionRedstoneLamp = 1.0f;
         emissionCandle = 0.5f;
@@ -2158,7 +2195,7 @@ public class Options {
     }
 
     public static void setSharcSceneScaleTenths(int tenths, boolean write) {
-        Options.sharcSceneScaleTenths = Math.max(10, Math.min(80, tenths));
+        Options.sharcSceneScaleTenths = Math.max(10, Math.min(200, tenths));
         nativeSetSharcSceneScale(Options.sharcSceneScaleTenths / 10.0f, write);
         if (write) { overwriteConfig(); }
     }
@@ -2170,19 +2207,19 @@ public class Options {
     }
 
     public static void setSharcAccumulationFrames(int frames, boolean write) {
-        Options.sharcAccumulationFrames = Math.max(4, Math.min(128, frames));
+        Options.sharcAccumulationFrames = Math.max(4, Math.min(256, frames));
         nativeSetSharcAccumulationFrames(Options.sharcAccumulationFrames, write);
         if (write) { overwriteConfig(); }
     }
 
     public static void setSharcStaleFrames(int frames, boolean write) {
-        Options.sharcStaleFrames = Math.max(4, Math.min(64, frames));
+        Options.sharcStaleFrames = Math.max(4, Math.min(128, frames));
         nativeSetSharcStaleFrames(Options.sharcStaleFrames, write);
         if (write) { overwriteConfig(); }
     }
 
     public static void setSharcDownscale(int downscale, boolean write) {
-        Options.sharcDownscale = Math.max(1, Math.min(4, downscale));
+        Options.sharcDownscale = Math.max(1, Math.min(8, downscale));
         nativeSetSharcDownscale(Options.sharcDownscale, write);
         if (write) { overwriteConfig(); }
     }

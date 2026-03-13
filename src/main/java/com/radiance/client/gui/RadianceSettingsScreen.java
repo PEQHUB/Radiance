@@ -139,6 +139,18 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        // Propagate right-click drag for precision slider mode (button 1)
+        // Minecraft's default only propagates button 0.
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        return false;
+    }
+
+    @Override
     public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
         // Peek mode: release Tab to restore UI
         if (keyCode == GLFW.GLFW_KEY_TAB) {
@@ -284,7 +296,7 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             // [Peak Brightness | Paper White]
             ResettableSliderWidget peakNitsSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
-                40, 1000, Options.hdrPeakNits / 10, 100,
+                10, 1000, Options.hdrPeakNits / 10, 100,
                 v -> getGenericValueText(
                     Text.translatable(Options.HDR_PEAK_NITS_KEY),
                     Text.literal((v * 10) + " nits")),
@@ -486,8 +498,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             SimpleOption.emptyTooltip(),
             (optionText, value) -> getGenericValueText(optionText,
                 Text.literal(String.format("%.1f", value / 10.0))),
-            new SimpleOption.ValidatingIntSliderCallbacks(10, 80),
-            Codec.intRange(10, 80),
+            new SimpleOption.ValidatingIntSliderCallbacks(10, 200),
+            Codec.intRange(10, 200),
             Options.sharcSceneScaleTenths,
             value -> Options.setSharcSceneScaleTenths(value, true));
         SimpleOption<Integer> sharcRoughnessThreshold = new SimpleOption<>(
@@ -504,8 +516,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             SimpleOption.emptyTooltip(),
             (optionText, value) -> getGenericValueText(optionText,
                 Text.literal(Integer.toString(value))),
-            new SimpleOption.ValidatingIntSliderCallbacks(4, 128),
-            Codec.intRange(4, 128),
+            new SimpleOption.ValidatingIntSliderCallbacks(4, 256),
+            Codec.intRange(4, 256),
             Options.sharcAccumulationFrames,
             value -> Options.setSharcAccumulationFrames(value, true));
         SimpleOption<Integer> sharcStaleFrames = new SimpleOption<>(
@@ -513,8 +525,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             SimpleOption.emptyTooltip(),
             (optionText, value) -> getGenericValueText(optionText,
                 Text.literal(Integer.toString(value))),
-            new SimpleOption.ValidatingIntSliderCallbacks(4, 64),
-            Codec.intRange(4, 64),
+            new SimpleOption.ValidatingIntSliderCallbacks(4, 128),
+            Codec.intRange(4, 128),
             Options.sharcStaleFrames,
             value -> Options.setSharcStaleFrames(value, true));
         SimpleOption<Integer> sharcDownscale = new SimpleOption<>(
@@ -522,8 +534,8 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             SimpleOption.emptyTooltip(),
             (optionText, value) -> getGenericValueText(optionText,
                 Text.literal(value + "x")),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 4),
-            Codec.intRange(1, 4),
+            new SimpleOption.ValidatingIntSliderCallbacks(1, 8),
+            Codec.intRange(1, 8),
             Options.sharcDownscale,
             value -> Options.setSharcDownscale(value, true));
 

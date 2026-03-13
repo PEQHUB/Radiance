@@ -1,6 +1,7 @@
 package com.radiance.client.input;
 
 import com.radiance.client.gui.RadianceSettingsScreen;
+import com.radiance.client.gui.unified.RadianceUnifiedScreen;
 import com.radiance.client.option.Options;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -24,7 +25,11 @@ public class KeyInputHandler {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (radianceSettingsKey.wasPressed()) {
                 if (client.currentScreen == null) {
-                    MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(null));
+                    if (Options.useUnifiedUI) {
+                        MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(null));
+                    } else {
+                        MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(null));
+                    }
                 }
             }
         });
