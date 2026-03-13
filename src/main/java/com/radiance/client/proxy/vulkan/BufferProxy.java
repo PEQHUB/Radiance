@@ -561,97 +561,103 @@ public class BufferProxy {
     }
 
     public static native void updateMapping(long ptr);
+    public static native void updateBlenderPBRMapping(long ptr);
 
-    // TextureMapEntry stride: 12 ints (48 bytes) matching shared.hpp
-    // Layout: [specular, normal, flag, properties, roughnessTex, metallicTex,
-    //          emissionTex, normalBPTex, heightTex, aoTex, extraTex, _reserved]
-    private static final int TEX_ENTRY_INTS = 12;
+    // TextureMapEntry: 4 ints (16 bytes) — hot path, read by every ray hit
+    // BlenderPBREntry: 8 ints (32 bytes) — cold path, only read when TEX_PROP_DIRECT_PBR set
+    private static final int TEX_ENTRY_INTS = 4;
+    private static final int BP_ENTRY_INTS = 8;
     private static final int TEX_ENTRY_COUNT = 8192;
     private static final int TEX_PROP_HAS_HEIGHT_MAP = 1;
     private static final int TEX_PROP_DIRECT_PBR = 4;
 
     public static void updateMapping() {
-        int size = TEX_ENTRY_COUNT * Integer.BYTES * TEX_ENTRY_INTS;
-        ByteBuffer bb = memAlloc(size);
+        // === Main TextureMapping SSBO (compact, 128KB) ===
+        int texSize = TEX_ENTRY_COUNT * Integer.BYTES * TEX_ENTRY_INTS;
+        ByteBuffer texBB = memAlloc(texSize);
         try {
-            long addr = memAddress(bb);
-            memSet(addr, -1, size);
-            IntBuffer intView = bb.asIntBuffer();
+            long texAddr = memAddress(texBB);
+            memSet(texAddr, -1, texSize);
+            IntBuffer texView = texBB.asIntBuffer();
 
-            // Clear properties and _reserved fields to 0 (memSet wrote -1 = 0xFFFFFFFF)
+            // Clear properties field to 0
             for (int i = 0; i < TEX_ENTRY_COUNT; i++) {
-                intView.put(i * TEX_ENTRY_INTS + 3, 0);   // properties
-                intView.put(i * TEX_ENTRY_INTS + 11, 0);  // _reserved
+                texView.put(i * TEX_ENTRY_INTS + 3, 0);
             }
 
-            for (Map.Entry<Integer, Integer> specularEntry : TextureTracker.GLID2SpecularGLID.entrySet()) {
-                int sourceID = specularEntry.getKey();
-                int targetID = specularEntry.getValue();
-                if (sourceID >= 0 && sourceID < TEX_ENTRY_COUNT) {
-                    intView.put(sourceID * TEX_ENTRY_INTS, targetID);
-                } else {
-                    throw new RuntimeException(
-                        "Specular mapping sourceID " + sourceID + " out of index [0, " + (
-                            TEX_ENTRY_COUNT - 1) + "]");
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2SpecularGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS, e.getValue());
                 }
             }
-
-            for (Map.Entry<Integer, Integer> normalEntry : TextureTracker.GLID2NormalGLID.entrySet()) {
-                int sourceID = normalEntry.getKey();
-                int targetID = normalEntry.getValue();
-                if (sourceID >= 0 && sourceID < TEX_ENTRY_COUNT) {
-                    intView.put(sourceID * TEX_ENTRY_INTS + 1, targetID);
-                } else {
-                    throw new RuntimeException(
-                        "Normal mapping sourceID " + sourceID + " out of index [0, " + (TEX_ENTRY_COUNT
-                            - 1) + "]");
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2NormalGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS + 1, e.getValue());
                 }
             }
-
-            for (Map.Entry<Integer, Integer> flagEntry : TextureTracker.GLID2FlagGLID.entrySet()) {
-                int sourceID = flagEntry.getKey();
-                int targetID = flagEntry.getValue();
-                if (sourceID >= 0 && sourceID < TEX_ENTRY_COUNT) {
-                    intView.put(sourceID * TEX_ENTRY_INTS + 2, targetID);
-                } else {
-                    throw new RuntimeException(
-                        "Flag mapping sourceID " + sourceID + " out of index [0, " + (TEX_ENTRY_COUNT
-                            - 1) + "]");
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2FlagGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS + 2, e.getValue());
                 }
             }
-
-            // Set TEX_PROP_HAS_HEIGHT_MAP for textures with valid height data in normal alpha
             for (int albedoGLID : TextureTracker.hasHeightMap) {
                 if (albedoGLID >= 0 && albedoGLID < TEX_ENTRY_COUNT) {
-                    int base = albedoGLID * TEX_ENTRY_INTS + 3;
-                    intView.put(base, intView.get(base) | TEX_PROP_HAS_HEIGHT_MAP);
+                    int off = albedoGLID * TEX_ENTRY_INTS + 3;
+                    texView.put(off, texView.get(off) | TEX_PROP_HAS_HEIGHT_MAP);
                 }
             }
 
-            // Populate Blender PBR per-channel texture IDs
+            // Set TEX_PROP_DIRECT_PBR + height flag from Blender PBR entries
             for (Map.Entry<Integer, Map<TextureTracker.BlenderChannel, Integer>> entry :
                     TextureTracker.blenderPBRTextures.entrySet()) {
-                int sourceID = entry.getKey();
-                if (sourceID < 0 || sourceID >= TEX_ENTRY_COUNT) continue;
-                int base = sourceID * TEX_ENTRY_INTS;
-                Map<TextureTracker.BlenderChannel, Integer> channels = entry.getValue();
-
-                for (Map.Entry<TextureTracker.BlenderChannel, Integer> ch : channels.entrySet()) {
-                    intView.put(base + ch.getKey().ssboOffset, ch.getValue());
-                }
-
-                // Set TEX_PROP_DIRECT_PBR flag
-                intView.put(base + 3, intView.get(base + 3) | TEX_PROP_DIRECT_PBR);
-
-                // Set height map flag if Blender height texture present
-                if (channels.containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
-                    intView.put(base + 3, intView.get(base + 3) | TEX_PROP_HAS_HEIGHT_MAP);
+                int id = entry.getKey();
+                if (id < 0 || id >= TEX_ENTRY_COUNT) continue;
+                int off = id * TEX_ENTRY_INTS + 3;
+                texView.put(off, texView.get(off) | TEX_PROP_DIRECT_PBR);
+                if (entry.getValue().containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
+                    texView.put(off, texView.get(off) | TEX_PROP_HAS_HEIGHT_MAP);
                 }
             }
 
-            updateMapping(addr);
+            updateMapping(texAddr);
         } finally {
-            memFree(bb);
+            memFree(texBB);
+        }
+
+        // === Blender PBR SSBO (cold path, 256KB) — only uploaded if any Blender textures exist ===
+        if (!TextureTracker.blenderPBRTextures.isEmpty()) {
+            int bpSize = TEX_ENTRY_COUNT * Integer.BYTES * BP_ENTRY_INTS;
+            ByteBuffer bpBB = memAlloc(bpSize);
+            try {
+                long bpAddr = memAddress(bpBB);
+                memSet(bpAddr, -1, bpSize); // all -1 = no texture
+                IntBuffer bpView = bpBB.asIntBuffer();
+
+                // Clear _reserved field to 0
+                for (int i = 0; i < TEX_ENTRY_COUNT; i++) {
+                    bpView.put(i * BP_ENTRY_INTS + 7, 0);
+                }
+
+                for (Map.Entry<Integer, Map<TextureTracker.BlenderChannel, Integer>> entry :
+                        TextureTracker.blenderPBRTextures.entrySet()) {
+                    int id = entry.getKey();
+                    if (id < 0 || id >= TEX_ENTRY_COUNT) continue;
+                    int base = id * BP_ENTRY_INTS;
+                    for (Map.Entry<TextureTracker.BlenderChannel, Integer> ch : entry.getValue().entrySet()) {
+                        // BlenderChannel ssboOffset was for the old combined struct (4-11)
+                        // Remap to BlenderPBREntry offsets (0-7)
+                        int bpOffset = ch.getKey().ssboOffset - 4;
+                        bpView.put(base + bpOffset, ch.getValue());
+                    }
+                }
+
+                updateBlenderPBRMapping(bpAddr);
+            } finally {
+                memFree(bpBB);
+            }
         }
     }
 
