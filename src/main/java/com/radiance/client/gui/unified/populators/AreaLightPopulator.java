@@ -19,8 +19,36 @@ import net.minecraft.text.Text;
 public class AreaLightPopulator implements ContentPopulator {
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
+        var gameOptions = MinecraftClient.getInstance().options;
+
+        // Enable & Mode
+        SettingsSection enableSection = panel.addSection("options.video.area_light.global_category");
+
+        SimpleOption<Boolean> areaLightsEnabled = SimpleOption.ofBoolean(
+            Options.AREA_LIGHTS_ENABLED_KEY, Options.areaLightsEnabled,
+            value -> Options.setAreaLightsEnabled(value, true));
+
+        String[] modeLabels = {
+            Options.GLOBAL_LIGHT_MODE_AUTO_KEY,
+            Options.GLOBAL_LIGHT_MODE_AREA_KEY,
+            Options.GLOBAL_LIGHT_MODE_EMISSIVE_KEY
+        };
+        SimpleOption<Integer> globalLightMode = new SimpleOption<>(
+            Options.GLOBAL_LIGHT_MODE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.translatable(modeLabels[Math.min(value, modeLabels.length - 1)])),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 2),
+            Codec.intRange(0, 2),
+            Options.globalLightMode,
+            value -> Options.setGlobalLightMode(value, true));
+
+        enableSection.addTwoWidgets(
+            areaLightsEnabled.createWidget(gameOptions),
+            globalLightMode.createWidget(gameOptions));
+
         // Global Controls
-        SettingsSection global = panel.addSection("options.video.area_light.global_category");
+        SettingsSection global = enableSection;
 
         global.addTwoSliders(
             new ResettableSliderWidget(0, 0, 150, 20,

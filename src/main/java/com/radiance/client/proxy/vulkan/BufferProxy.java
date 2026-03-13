@@ -210,7 +210,7 @@ public class BufferProxy {
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
         try (MemoryStack stack = stackPush()) {
-            int size = 3920; // 560 base + 800 (vec4[50] emissionData) + 2560 (vec4[160] materialData)
+            int size = 560 + 50 * 16 + Options.MAX_MATERIALS * 5 * 16; // base + emissionData[50] + materialData[MAX*5]
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -312,18 +312,20 @@ public class BufferProxy {
             }
             baseAddr += 50 * 16; // 50 × vec4
 
-            // Principled BSDF material data: 4 × vec4[40] = 160 vec4 per block
-            // Pack 0 [idx+0]:   (f0.r, f0.g, f0.b, roughness)
-            // Pack 1 [idx+40]:  (metallic, transmission, ior, subsurface)
-            // Pack 2 [idx+80]:  (anisotropic, sheenWeight, sheenTint, coatWeight)
-            // Pack 3 [idx+120]: (coatRoughness, 0, 0, 0)
+            // Principled BSDF material data: 4 × vec4[MAX_MATERIALS] per block
+            // Pack 0 [idx+0]:     (f0.r, f0.g, f0.b, roughness)
+            // Pack 1 [idx+N]:     (metallic, transmission, ior, subsurface)
+            // Pack 2 [idx+2*N]:   (anisotropic, sheenWeight, sheenTint, coatWeight)
+            // Pack 3 [idx+3*N]:   (coatRoughness, 0, 0, 0)
             // When disabled, write zeros so shader dot() guard skips override
+            final int N = Options.MAX_MATERIALS;
             boolean matEnabled = Options.materialOverridesEnabled;
-            for (int i = 0; i < 40; i++) {
+            for (int i = 0; i < N; i++) {
                 int p0 = baseAddr + i * 16;            // Pack 0
-                int p1 = baseAddr + (40 + i) * 16;     // Pack 1
-                int p2 = baseAddr + (80 + i) * 16;     // Pack 2
-                int p3 = baseAddr + (120 + i) * 16;    // Pack 3
+                int p1 = baseAddr + (N + i) * 16;      // Pack 1
+                int p2 = baseAddr + (2 * N + i) * 16;  // Pack 2
+                int p3 = baseAddr + (3 * N + i) * 16;  // Pack 3
+                int p4 = baseAddr + (4 * N + i) * 16;  // Pack 4
                 if (matEnabled && i < MaterialBlock.COUNT) {
                     // Pack 0: F0 RGB + roughness
                     bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
@@ -340,20 +342,25 @@ public class BufferProxy {
                     bb.putFloat(p2 + 4,  Options.materialSheenWeight[i] / 1000.0f);
                     bb.putFloat(p2 + 8,  Options.materialSheenTint[i] / 1000.0f);
                     bb.putFloat(p2 + 12, Options.materialCoatWeight[i] / 1000.0f);
-                    // Pack 3: coat roughness + reserved
+                    // Pack 3: coat roughness + noise parameters
                     bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
-                    bb.putFloat(p3 + 4,  0.0f);
-                    bb.putFloat(p3 + 8,  0.0f);
-                    bb.putFloat(p3 + 12, 0.0f);
+                    bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-20.0
+                    bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 100.0f);   // 0.0-1.0
+                    bb.putFloat(p3 + 12, (float) Options.materialNoiseOctaves[i]);     // 1-4
+                    // Pack 4: texture roughness channel routing
+                    bb.putFloat(p4,      Options.materialChannelR[i] / 1000.0f);
+                    bb.putFloat(p4 + 4,  Options.materialChannelG[i] / 1000.0f);
+                    bb.putFloat(p4 + 8,  Options.materialChannelB[i] / 1000.0f);
+                    bb.putFloat(p4 + 12, Options.materialTextureBlend[i] / 100.0f);
                 } else {
-                    // Zero all 4 packs
-                    for (int p : new int[]{p0, p1, p2, p3}) {
+                    // Zero all 5 packs
+                    for (int p : new int[]{p0, p1, p2, p3, p4}) {
                         bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
                         bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
                     }
                 }
             }
-            baseAddr += 160 * 16; // 160 × vec4
+            baseAddr += N * 5 * 16; // MAX_MATERIALS × 5 vec4
 
             updateWorldUniform(addr);
         }

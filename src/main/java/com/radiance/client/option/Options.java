@@ -176,6 +176,10 @@ public class Options {
     public static final String SHARC_ACCUMULATION_FRAMES_KEY = "options.video.sharc_accumulation_frames";
     public static final String SHARC_STALE_FRAMES_KEY = "options.video.sharc_stale_frames";
     public static final String SHARC_DOWNSCALE_KEY = "options.video.sharc_downscale";
+    public static final String SHARC_UPDATE_BLOCK_SIZE_KEY = "options.video.sharc_update_block_size";
+    public static final String SHARC_UPDATE_BOUNCES_KEY = "options.video.sharc_update_bounces";
+    public static final String SHARC_CAPACITY_EXPONENT_KEY = "options.video.sharc_capacity_exponent";
+    public static final String SHARC_QUALITY_PRESET_KEY = "options.video.sharc_quality_preset";
     public static final String CATEGORY_SHARC = "options.video.category.sharc";
     public static final String AREA_LIGHTS_ENABLED_KEY = "options.video.area_lights_enabled";
     public static final String AREA_LIGHT_INTENSITY_KEY = "options.video.area_light_intensity";
@@ -223,12 +227,32 @@ public class Options {
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
     public static boolean sharcEnabled = true;
-    public static int sharcSceneScaleTenths = 40;          // 10-80 → 1.0-8.0
+    public static int sharcSceneScaleTenths = 40;          // 10-200 → 1.0-20.0
     public static int sharcRoughnessThresholdPercent = 25;  // 0-100 → 0.0-1.0
-    public static int sharcAccumulationFrames = 32;         // 4-128
-    public static int sharcStaleFrames = 16;                // 4-64
-    public static int sharcDownscale = 1;                   // 1-4
-    public static boolean areaLightsEnabled = false;
+    public static int sharcAccumulationFrames = 32;         // 4-256
+    public static int sharcStaleFrames = 16;                // 4-128
+    public static int sharcDownscale = 1;                   // 1-8
+    public static int sharcUpdateBlockSize = 5;             // 2-8 (NxN sparse block)
+    public static int sharcUpdateBounces = 4;               // 2-8 (max bounces in update pass)
+    public static int sharcCapacityExponent = 21;           // 18-26 (2^N entries)
+    public static int sharcQualityPreset = 1;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
+
+    /** SHARC quality preset definitions. Each row: {sceneScaleTenths, roughnessPercent, accumFrames,
+     *  staleFrames, downscale, updateBlockSize, updateBounces, capacityExponent} */
+    public static final int[][] SHARC_PRESETS = {
+        // Low:      coarse grid, sparse updates, small cache
+        {60, 30, 24, 12, 1, 7, 3, 20},
+        // Medium:   balanced (current defaults)
+        {40, 25, 32, 16, 1, 5, 4, 21},
+        // High:     finer grid, denser updates, larger cache
+        {30, 20, 40, 20, 1, 4, 5, 22},
+        // Ultra:    fine grid, dense updates, 8M entries
+        {20, 15, 48, 24, 1, 3, 6, 23},
+        // Overkill: finest grid, very dense updates, 16M entries
+        {15, 10, 64, 32, 1, 2, 8, 24},
+    };
+    public static final String[] SHARC_PRESET_NAMES = {"Low", "Medium", "High", "Ultra", "Overkill", "Custom"};
+    public static boolean areaLightsEnabled = true;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
     public static int areaLightIntensityPercent = 100;  // 0-500%
     public static int areaLightRange = 128;  // 8-512 blocks
@@ -447,26 +471,36 @@ public class Options {
     public static final int LIGHT_MODE_FORCE_AREA = 1;
     public static final int LIGHT_MODE_FORCE_EMISSIVE = 2;
     public static final int[] blockLightMode = new int[AREA_LIGHT_TYPE_COUNT]; // default 0 (Auto)
-    public static int globalLightMode = LIGHT_MODE_AUTO;
+    public static int globalLightMode = LIGHT_MODE_FORCE_EMISSIVE;
 
     // Material block overrides (physically accurate F0/roughness applied in CHS shader)
     public static boolean materialOverridesEnabled = true;
+    // Material overrides: max 160 blocks (4 vec4 per block × 160 = 640 vec4 in UBO)
+    public static final int MAX_MATERIALS = 160;
     // Per-block properties (indexed by MaterialBlock.ordinal())
     // F0 in permille (0-1000), roughness in percent (0-100)
-    public static final int[] materialF0R = new int[40];
-    public static final int[] materialF0G = new int[40];
-    public static final int[] materialF0B = new int[40];
-    public static final int[] materialRoughness = new int[40];
+    public static final int[] materialF0R = new int[MAX_MATERIALS];
+    public static final int[] materialF0G = new int[MAX_MATERIALS];
+    public static final int[] materialF0B = new int[MAX_MATERIALS];
+    public static final int[] materialRoughness = new int[MAX_MATERIALS];
     // Principled BSDF properties
-    public static final int[] materialMetallic = new int[40];       // 0-1000 permille
-    public static final int[] materialTransmission = new int[40];   // 0-1000 permille
-    public static final int[] materialIOR = new int[40];            // 1000-3000 (×1000)
-    public static final int[] materialSubsurface = new int[40];     // 0-1000 permille
-    public static final int[] materialAnisotropic = new int[40];    // 0-1000 permille
-    public static final int[] materialSheenWeight = new int[40];    // 0-1000 permille
-    public static final int[] materialSheenTint = new int[40];      // 0-1000 permille
-    public static final int[] materialCoatWeight = new int[40];     // 0-1000 permille
-    public static final int[] materialCoatRoughness = new int[40];  // 0-100 percent
+    public static final int[] materialMetallic = new int[MAX_MATERIALS];       // 0-1000 permille
+    public static final int[] materialTransmission = new int[MAX_MATERIALS];   // 0-1000 permille
+    public static final int[] materialIOR = new int[MAX_MATERIALS];            // 1000-3000 (×1000)
+    public static final int[] materialSubsurface = new int[MAX_MATERIALS];     // 0-1000 permille
+    public static final int[] materialAnisotropic = new int[MAX_MATERIALS];    // 0-1000 permille
+    public static final int[] materialSheenWeight = new int[MAX_MATERIALS];    // 0-1000 permille
+    public static final int[] materialSheenTint = new int[MAX_MATERIALS];      // 0-1000 permille
+    public static final int[] materialCoatWeight = new int[MAX_MATERIALS];     // 0-1000 permille
+    public static final int[] materialCoatRoughness = new int[MAX_MATERIALS];  // 0-100 percent
+    public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-200 (/10 = 0.1-20.0 world units)
+    public static final int[] materialNoiseStrength = new int[MAX_MATERIALS];  // 0-100 percent
+    public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-4
+    // Texture roughness channel routing: per-material weights for deriving roughness from albedo
+    public static final int[] materialChannelR = new int[MAX_MATERIALS];       // 0-1000 permille
+    public static final int[] materialChannelG = new int[MAX_MATERIALS];       // 0-1000 permille
+    public static final int[] materialChannelB = new int[MAX_MATERIALS];       // 0-1000 permille
+    public static final int[] materialTextureBlend = new int[MAX_MATERIALS];   // 0-100 percent
     static {
         for (MaterialBlock mb : MaterialBlock.values()) {
             int i = mb.ordinal();
@@ -483,12 +517,59 @@ public class Options {
             materialSheenTint[i] = mb.getDefaultSheenTint();
             materialCoatWeight[i] = mb.getDefaultCoatWeight();
             materialCoatRoughness[i] = mb.getDefaultCoatRoughness();
+            materialNoiseScale[i] = 50;     // default 5.0 world units
+            materialNoiseStrength[i] = 0;   // disabled by default
+            materialNoiseOctaves[i] = 2;    // default 2 octaves
+            // Channel weights default to BT.709 luminance
+            materialChannelR[i] = 213;      // 0.2126
+            materialChannelG[i] = 715;      // 0.7152
+            materialChannelB[i] = 72;       // 0.0722
+            // Texture blend defaults by category
+            int blend = 30; // default for most
+            MaterialBlock.MaterialCategory cat = mb.getCategory();
+            if (cat == MaterialBlock.MaterialCategory.METALS) blend = 60;
+            else if (cat == MaterialBlock.MaterialCategory.WOOD) blend = 40;
+            else if (cat == MaterialBlock.MaterialCategory.GEMS) blend = 20;
+            materialTextureBlend[i] = blend;
+        }
+    }
+
+    // Child override tracking: true = child has been independently customized, won't inherit parent changes
+    public static final boolean[] materialChildOverride = new boolean[MAX_MATERIALS];
+
+    /** Propagate parent material properties to all non-overridden children. */
+    public static void propagateParentMaterial(int parentOrdinal) {
+        MaterialBlock parent = MaterialBlock.values()[parentOrdinal];
+        for (MaterialBlock child : parent.getChildren()) {
+            int ci = child.ordinal();
+            if (!materialChildOverride[ci]) {
+                materialF0R[ci] = materialF0R[parentOrdinal];
+                materialF0G[ci] = materialF0G[parentOrdinal];
+                materialF0B[ci] = materialF0B[parentOrdinal];
+                materialRoughness[ci] = materialRoughness[parentOrdinal];
+                materialMetallic[ci] = materialMetallic[parentOrdinal];
+                materialTransmission[ci] = materialTransmission[parentOrdinal];
+                materialIOR[ci] = materialIOR[parentOrdinal];
+                materialSubsurface[ci] = materialSubsurface[parentOrdinal];
+                materialAnisotropic[ci] = materialAnisotropic[parentOrdinal];
+                materialSheenWeight[ci] = materialSheenWeight[parentOrdinal];
+                materialSheenTint[ci] = materialSheenTint[parentOrdinal];
+                materialCoatWeight[ci] = materialCoatWeight[parentOrdinal];
+                materialCoatRoughness[ci] = materialCoatRoughness[parentOrdinal];
+                materialNoiseScale[ci] = materialNoiseScale[parentOrdinal];
+                materialNoiseStrength[ci] = materialNoiseStrength[parentOrdinal];
+                materialNoiseOctaves[ci] = materialNoiseOctaves[parentOrdinal];
+                materialChannelR[ci] = materialChannelR[parentOrdinal];
+                materialChannelG[ci] = materialChannelG[parentOrdinal];
+                materialChannelB[ci] = materialChannelB[parentOrdinal];
+                materialTextureBlend[ci] = materialTextureBlend[parentOrdinal];
+            }
         }
     }
 
     // Auto-PBR generation (roughness + normals from vanilla albedo textures)
     public static boolean autoPBREnabled = false; // Global toggle
-    public static final boolean[] materialAutoPBR = new boolean[MaterialBlock.COUNT]; // kept for config compat
+    public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // kept for config compat
     public static int autoPBRRoughnessGamma = 50;    // 10-200, /100 = 0.1-2.0
     public static int autoPBRRoughnessMin = 30;       // 0-100, /100 = 0.0-1.0
     public static int autoPBRRoughnessMax = 95;       // 0-100, /100 = 0.0-1.0
@@ -677,6 +758,17 @@ public class Options {
             sharcDownscale = clamp(Integer.parseInt(props.getProperty("sharcDownscale", String.valueOf(sharcDownscale))), 1, 8);
             nativeSetSharcDownscale(sharcDownscale, false);
 
+            sharcUpdateBlockSize = clamp(Integer.parseInt(props.getProperty("sharcUpdateBlockSize", String.valueOf(sharcUpdateBlockSize))), 1, 8);
+            nativeSetSharcUpdateBlockSize(sharcUpdateBlockSize, false);
+
+            sharcUpdateBounces = clamp(Integer.parseInt(props.getProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces))), 2, 16);
+            nativeSetSharcUpdateBounces(sharcUpdateBounces, false);
+
+            sharcCapacityExponent = clamp(Integer.parseInt(props.getProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent))), 18, 26);
+            nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
+
+            sharcQualityPreset = clamp(Integer.parseInt(props.getProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset))), 0, 5);
+
             areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled)));
             nativeSetAreaLightsEnabled(areaLightsEnabled, false);
 
@@ -738,7 +830,7 @@ public class Options {
                 nativeSetBlockLightMode(i, blockLightMode[i]);
             }
 
-            globalLightMode = clamp(Integer.parseInt(props.getProperty("globalLightMode", "0")), 0, 2);
+            globalLightMode = clamp(Integer.parseInt(props.getProperty("globalLightMode", "2")), 0, 2);
 
             // Material overrides
             materialOverridesEnabled = Boolean.parseBoolean(props.getProperty("materialOverridesEnabled", "true"));
@@ -760,6 +852,19 @@ public class Options {
                 materialSheenTint[i] = clamp(Integer.parseInt(props.getProperty("materialSheenTint." + pid, String.valueOf(mb.getDefaultSheenTint()))), 0, 1000);
                 materialCoatWeight[i] = clamp(Integer.parseInt(props.getProperty("materialCoatWeight." + pid, String.valueOf(mb.getDefaultCoatWeight()))), 0, 1000);
                 materialCoatRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialCoatRoughness." + pid, String.valueOf(mb.getDefaultCoatRoughness()))), 0, 100);
+                materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 200);
+                materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 100);
+                materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 4);
+                materialChannelR[i] = clamp(Integer.parseInt(props.getProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]))), 0, 1000);
+                materialChannelG[i] = clamp(Integer.parseInt(props.getProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]))), 0, 1000);
+                materialChannelB[i] = clamp(Integer.parseInt(props.getProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]))), 0, 1000);
+                materialTextureBlend[i] = clamp(Integer.parseInt(props.getProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]))), 0, 100);
+            }
+
+            // Child override flags
+            for (MaterialBlock mb : MaterialBlock.values()) {
+                int i = mb.ordinal();
+                materialChildOverride[i] = Boolean.parseBoolean(props.getProperty("materialChildOverride." + mb.getId(), "false"));
             }
 
             // Auto-PBR generation
@@ -1072,6 +1177,10 @@ public class Options {
         props.setProperty("sharcAccumulationFrames", String.valueOf(sharcAccumulationFrames));
         props.setProperty("sharcStaleFrames", String.valueOf(sharcStaleFrames));
         props.setProperty("sharcDownscale", String.valueOf(sharcDownscale));
+        props.setProperty("sharcUpdateBlockSize", String.valueOf(sharcUpdateBlockSize));
+        props.setProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces));
+        props.setProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent));
+        props.setProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset));
         props.setProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled));
         props.setProperty("restirEnabled", String.valueOf(restirEnabled));
         props.setProperty("areaLightIntensityPercent", String.valueOf(areaLightIntensityPercent));
@@ -1116,6 +1225,20 @@ public class Options {
             props.setProperty("materialSheenTint." + pid, String.valueOf(materialSheenTint[i]));
             props.setProperty("materialCoatWeight." + pid, String.valueOf(materialCoatWeight[i]));
             props.setProperty("materialCoatRoughness." + pid, String.valueOf(materialCoatRoughness[i]));
+            props.setProperty("materialNoiseScale." + pid, String.valueOf(materialNoiseScale[i]));
+            props.setProperty("materialNoiseStrength." + pid, String.valueOf(materialNoiseStrength[i]));
+            props.setProperty("materialNoiseOctaves." + pid, String.valueOf(materialNoiseOctaves[i]));
+            props.setProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]));
+            props.setProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]));
+            props.setProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]));
+            props.setProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]));
+        }
+
+        // Child override flags
+        for (MaterialBlock mb : MaterialBlock.values()) {
+            if (materialChildOverride[mb.ordinal()]) {
+                props.setProperty("materialChildOverride." + mb.getId(), "true");
+            }
         }
 
         // Auto-PBR generation
@@ -1740,7 +1863,11 @@ public class Options {
         sharcAccumulationFrames = 32;
         sharcStaleFrames = 16;
         sharcDownscale = 1;
-        areaLightsEnabled = false;
+        sharcUpdateBlockSize = 5;
+        sharcUpdateBounces = 4;
+        sharcCapacityExponent = 21;
+        sharcQualityPreset = 1;
+        areaLightsEnabled = true;
         restirEnabled = true;
         areaLightIntensityPercent = 100;
         areaLightRange = 128;
@@ -1758,8 +1885,8 @@ public class Options {
         java.util.Arrays.fill(areaLightBlockYOffset, 0);
         // All per-block overrides baked into LIGHT_DEFS — sliders start neutral
         resetLightColorsToDefaults();
-        java.util.Arrays.fill(blockLightMode, LIGHT_MODE_AUTO);
-        globalLightMode = LIGHT_MODE_AUTO;
+        java.util.Arrays.fill(blockLightMode, LIGHT_MODE_FORCE_EMISSIVE);
+        globalLightMode = LIGHT_MODE_FORCE_EMISSIVE;
         // Emission defaults
         emissionLava = 1.0f;
         emissionFire = 1.0f;
@@ -1866,6 +1993,9 @@ public class Options {
         nativeSetSharcAccumulationFrames(sharcAccumulationFrames, false);
         nativeSetSharcStaleFrames(sharcStaleFrames, false);
         nativeSetSharcDownscale(sharcDownscale, false);
+        nativeSetSharcUpdateBlockSize(sharcUpdateBlockSize, false);
+        nativeSetSharcUpdateBounces(sharcUpdateBounces, false);
+        nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
         nativeSetAreaLightsEnabled(areaLightsEnabled, false);
         nativeSetRestirEnabled(restirEnabled, false);
         for (EmissiveBlock b : EmissiveBlock.values()) {
@@ -2222,6 +2352,59 @@ public class Options {
         Options.sharcDownscale = Math.max(1, Math.min(8, downscale));
         nativeSetSharcDownscale(Options.sharcDownscale, write);
         if (write) { overwriteConfig(); }
+    }
+
+    public native static void nativeSetSharcUpdateBlockSize(int blockSize, boolean write);
+    public native static void nativeSetSharcUpdateBounces(int bounces, boolean write);
+    public native static void nativeSetSharcCapacityExponent(int exponent, boolean write);
+
+    public static void setSharcUpdateBlockSize(int blockSize, boolean write) {
+        Options.sharcUpdateBlockSize = Math.max(1, Math.min(8, blockSize));
+        nativeSetSharcUpdateBlockSize(Options.sharcUpdateBlockSize, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcUpdateBounces(int bounces, boolean write) {
+        Options.sharcUpdateBounces = Math.max(2, Math.min(16, bounces));
+        nativeSetSharcUpdateBounces(Options.sharcUpdateBounces, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcCapacityExponent(int exponent, boolean write) {
+        Options.sharcCapacityExponent = Math.max(18, Math.min(26, exponent));
+        nativeSetSharcCapacityExponent(Options.sharcCapacityExponent, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    /** Apply a quality preset. Index 0-4 are presets, 5 = custom (no change). */
+    public static void applySharcPreset(int presetIndex, boolean write) {
+        Options.sharcQualityPreset = presetIndex;
+        if (presetIndex >= 0 && presetIndex < SHARC_PRESETS.length) {
+            int[] p = SHARC_PRESETS[presetIndex];
+            setSharcSceneScaleTenths(p[0], false);
+            setSharcRoughnessThresholdPercent(p[1], false);
+            setSharcAccumulationFrames(p[2], false);
+            setSharcStaleFrames(p[3], false);
+            setSharcDownscale(p[4], false);
+            setSharcUpdateBlockSize(p[5], false);
+            setSharcUpdateBounces(p[6], false);
+            setSharcCapacityExponent(p[7], false);
+        }
+        if (write) { overwriteConfig(); }
+    }
+
+    /** Check if current SHARC settings match any preset. Returns preset index or 5 (Custom). */
+    public static int detectSharcPreset() {
+        for (int i = 0; i < SHARC_PRESETS.length; i++) {
+            int[] p = SHARC_PRESETS[i];
+            if (sharcSceneScaleTenths == p[0] && sharcRoughnessThresholdPercent == p[1]
+                && sharcAccumulationFrames == p[2] && sharcStaleFrames == p[3]
+                && sharcDownscale == p[4] && sharcUpdateBlockSize == p[5]
+                && sharcUpdateBounces == p[6] && sharcCapacityExponent == p[7]) {
+                return i;
+            }
+        }
+        return 5; // Custom
     }
 
     // --- Area Lights ---

@@ -128,8 +128,11 @@ public class ContentPanelWidget extends ClickableWidget {
         int panelRight = panelLeft + getWidth();
         int panelBottom = panelTop + getHeight();
 
-        // Full-panel dark background (responds to global transparency slider)
-        context.fill(panelLeft, panelTop, panelRight, panelBottom, RadianceTheme.unifiedContentBg);
+        // Full-panel dark background (hidden during slider drag)
+        if (globalFade > 0.005f) {
+            context.fill(panelLeft, panelTop, panelRight, panelBottom,
+                RadianceTheme.scaleAlpha(RadianceTheme.unifiedContentBg, globalFade));
+        }
 
         context.enableScissor(panelLeft, panelTop, panelRight, panelBottom);
 
@@ -148,8 +151,8 @@ public class ContentPanelWidget extends ClickableWidget {
             // Compute scroll-edge alpha for this section
             float scrollAlpha = RadianceTheme.scrollAlpha(drawY + sectionHeight / 2, panelTop, panelBottom);
 
-            // Section-specific fade: active slider section stays bright
-            float sectionFade = section.containsActiveSlider() ? 1f : globalFade;
+            // All sections fade together during slider drag
+            float sectionFade = globalFade;
 
             float combinedAlpha = scrollAlpha * sectionFade * contentAlpha;
             if (combinedAlpha > 0.005f) {

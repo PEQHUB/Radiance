@@ -442,6 +442,14 @@ public class Pipeline {
                 dlssModule.getInputImageConfig("rt_hit_dist"));
             connect(rayTracingModule.getOutputImageConfig("motion_vectors_3d"),
                 dlssModule.getInputImageConfig("motion_vectors_3d"));
+            connect(rayTracingModule.getOutputImageConfig("gbuffer_metallic"),
+                dlssModule.getInputImageConfig("gbuffer_metallic"));
+            connect(rayTracingModule.getOutputImageConfig("gbuffer_shading_model_id"),
+                dlssModule.getInputImageConfig("gbuffer_shading_model_id"));
+            connect(rayTracingModule.getOutputImageConfig("gbuffer_material_id"),
+                dlssModule.getInputImageConfig("gbuffer_material_id"));
+            connect(rayTracingModule.getOutputImageConfig("position_view_space"),
+                dlssModule.getInputImageConfig("position_view_space"));
 
             connect(dlssModule.getOutputImageConfig("processed"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));

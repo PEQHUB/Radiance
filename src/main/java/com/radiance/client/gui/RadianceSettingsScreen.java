@@ -197,6 +197,30 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         alphaSlider.settingKey = "uiGlobalAlphaPercent";
         this.body.addEntry(new SliderEntry(alphaSlider, body));
 
+        // ── DISPLAY ──
+        this.body.addEntry(
+            new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_WINDOW), body));
+
+        // [Max FPS | VSync]
+        SimpleOption<Integer> maxFps = new SimpleOption<>(
+            "options.framerateLimit",
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> value == 260
+                ? getGenericValueText(optionText, Text.translatable("options.framerateLimit.max"))
+                : getGenericValueText(optionText, Text.translatable("options.framerate", value)),
+            new SimpleOption.ValidatingIntSliderCallbacks(1, 26).withModifier(
+                value -> value * 10, value -> value / 10),
+            Codec.intRange(10, 260),
+            Options.maxFps,
+            value -> {
+                mc.getInactivityFpsLimiter().setMaxFps(value);
+                Options.setMaxFps(value, true);
+            });
+        SimpleOption<Boolean> enableVsync = SimpleOption.ofBoolean("options.vsync", Options.vsync,
+            value -> Options.setVsync(value, true));
+        this.body.addEntry(new TwoColumnOptionEntry(
+            maxFps.createWidget(gameOptions), enableVsync.createWidget(gameOptions), body));
+
         // ── LIGHTING ──
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_LIGHTING), body));
@@ -545,30 +569,6 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             sharcSceneScale.createWidget(gameOptions), sharcRoughnessThreshold.createWidget(gameOptions), body));
         this.body.addEntry(new TwoColumnOptionEntry(
             sharcAccumulationFrames.createWidget(gameOptions), sharcStaleFrames.createWidget(gameOptions), body));
-
-        // ── WINDOW ──
-        this.body.addEntry(
-            new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_WINDOW), body));
-
-        // [Max FPS | VSync]
-        SimpleOption<Integer> maxFps = new SimpleOption<>(
-            "options.framerateLimit",
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> value == 260
-                ? getGenericValueText(optionText, Text.translatable("options.framerateLimit.max"))
-                : getGenericValueText(optionText, Text.translatable("options.framerate", value)),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 26).withModifier(
-                value -> value * 10, value -> value / 10),
-            Codec.intRange(10, 260),
-            Options.maxFps,
-            value -> {
-                mc.getInactivityFpsLimiter().setMaxFps(value);
-                Options.setMaxFps(value, true);
-            });
-        SimpleOption<Boolean> enableVsync = SimpleOption.ofBoolean("options.vsync", Options.vsync,
-            value -> Options.setVsync(value, true));
-        this.body.addEntry(new TwoColumnOptionEntry(
-            maxFps.createWidget(gameOptions), enableVsync.createWidget(gameOptions), body));
 
         // ── TERRAIN ──
         this.body.addEntry(

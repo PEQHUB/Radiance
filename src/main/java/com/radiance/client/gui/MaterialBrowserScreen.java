@@ -1,5 +1,7 @@
 package com.radiance.client.gui;
 
+import static net.minecraft.client.option.GameOptions.getGenericValueText;
+
 import com.radiance.client.option.Options;
 import com.radiance.client.util.*;
 import net.minecraft.client.MinecraftClient;
@@ -26,18 +28,22 @@ public class MaterialBrowserScreen extends Screen {
     private static final int HEADER_H = 22;
     private static final int TABS_H = 22;
     private static final int SEARCH_H = 24;
-    private static final int SIDEBAR_W = 170;
-    private static final int CELL_SIZE = 56;
+    private static final int SIDEBAR_W = 220;
+    private static final int CELL_SIZE = 80;
     private static final int CELL_PAD = 6;
-    private static final int ICON_SIZE = 32;
-    private static final int LARGE_ICON = 64;
+    private static final int ICON_SIZE = 64;
+    private static final int LARGE_ICON = 180;
     private static final int MARGIN = 10;
     private static final int SIDE_BTN_H = 16;
     private static final int SIDE_BTN_PAD = 3;
 
     // Category tabs
-    private static final String[] CATEGORIES = {"All", "Metals", "Gems", "Minerals", "Glass", "Presets", "Saved", "Packs"};
-    public static final int TAB_PACKS = 7;
+    private static final String[] CATEGORIES = {
+        "All", "Metals", "Gems", "Minerals", "Glass", "Stone", "Wood",
+        "Earth", "Ceramics", "Organic", "Liquids", "Misc",
+        "Presets", "Saved", "Packs"
+    };
+    public static final int TAB_PACKS = 14;
     private int selectedCategory = 0;
 
     // Sort modes
@@ -70,6 +76,10 @@ public class MaterialBrowserScreen extends Screen {
     private String toastMessage = null;
     private long toastExpiry = 0;
 
+    // Sidebar child variant tracking (for click hit-testing)
+    private final List<Integer> sidebarChildOrdinals = new ArrayList<>();
+    private int sidebarChildrenTopY = -1;
+
     record MaterialEntry(
         String blockId,
         String displayName,
@@ -79,7 +89,7 @@ public class MaterialBrowserScreen extends Screen {
     ) {}
 
     public MaterialBrowserScreen(Screen parent) {
-        super(Text.translatable("radiance.materials.browser.title"));
+        super(Text.translatable("radiance.texture_editor.title"));
         this.parent = parent;
     }
 
@@ -93,12 +103,15 @@ public class MaterialBrowserScreen extends Screen {
 
     @Override
     protected void init() {
+        // Validate sphere disk cache on first open
+        MaterialSphereRenderer.validateDiskCache();
+
         // Search field
         int searchX = MARGIN;
         int searchY = HEADER_H + TABS_H + 4;
-        int searchW = this.width - SIDEBAR_W - MARGIN * 3 - 210;
+        int searchW = this.width - SIDEBAR_W - MARGIN * 3 - 340;
         searchField = new TextFieldWidget(this.textRenderer, searchX, searchY, Math.max(searchW, 100), SEARCH_H - 4,
-            Text.translatable("radiance.materials.browser.search"));
+            Text.translatable("radiance.texture_editor.search"));
         searchField.setMaxLength(50);
         searchField.setText(searchQuery);
         searchField.setChangedListener(q -> { searchQuery = q; rebuildFilteredList(); });
@@ -123,6 +136,22 @@ public class MaterialBrowserScreen extends Screen {
                 rebuildFilteredList();
             }).dimensions(btnX + 140, searchY, 64, SEARCH_H - 4).build());
 
+        // Opacity slider (top-right, before sidebar)
+        int opSliderW = 120;
+        int opSliderH = SEARCH_H - 4;
+        int opSliderX = this.width - SIDEBAR_W - MARGIN - opSliderW - 4;
+        int opSliderY = searchY;
+        ResettableSliderWidget opacitySlider = new ResettableSliderWidget(
+            opSliderX, opSliderY, opSliderW, opSliderH,
+            0, 100, Options.uiGlobalAlphaPercent, 55,
+            v -> getGenericValueText(
+                Text.translatable("radiance.settings.menu_transparency"),
+                Text.literal(v + "%")),
+            v -> Options.setUiGlobalAlphaPercent(v, false));
+        opacitySlider.setOnRelease(() -> Options.overwriteConfig());
+        opacitySlider.settingKey = "uiGlobalAlphaPercent";
+        addDrawableChild(opacitySlider);
+
         // Build entries
         buildEntryList();
         rebuildFilteredList();
@@ -133,8 +162,9 @@ public class MaterialBrowserScreen extends Screen {
         MaterialBlock[] blocks = MaterialBlock.values();
         for (int i = 0; i < blocks.length; i++) {
             MaterialBlock mb = blocks[i];
+            if (!mb.isParent()) continue; // Only show parent materials in grid
             MaterialData data = MaterialData.fromOptions(i);
-            String cat = categorize(mb);
+            String cat = mb.getCategory().getDisplayName();
             String name = Text.translatable("options.video.materials." + mb.getId()).getString();
             allEntries.add(new MaterialEntry(mb.getId(), name, cat, data, i));
         }
@@ -167,15 +197,6 @@ public class MaterialBrowserScreen extends Screen {
                     d.displayName + " (" + packLabel + ")", "Packs", d, -1));
             }
         }
-    }
-
-    private String categorize(MaterialBlock mb) {
-        int ord = mb.ordinal();
-        if (ord <= 17) return "Metals";        // Pure Metals (0-6) + Metal Constructs (7-17)
-        if (ord <= 22) return "Gems";          // Gems (18-22)
-        if (ord <= 27) return "Minerals";      // Minerals (23-27): Quartz through Calcite
-        if (ord <= 29) return "Glass";         // Glass + Ice (28-29)
-        return "Minerals";                     // Special/Mixed (30-34)
     }
 
     private void rebuildFilteredList() {
@@ -216,12 +237,15 @@ public class MaterialBrowserScreen extends Screen {
 
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        // Drain completed async sphere renders → register textures on GL thread
+        MaterialSphereRenderer.drainCompleted();
+
         // Background
         ctx.fill(0, 0, this.width, this.height, RadianceTheme.panelBg);
 
         // Header / breadcrumb (clickable)
         RadianceTheme.drawBreadcrumb(ctx, this.textRenderer,
-            "Radiance > Lighting > Materials > Browser", parent);
+            "Radiance > Lighting > Texture Editor", parent);
 
         // Category tabs
         renderCategoryTabs(ctx, mouseX, mouseY);
@@ -328,10 +352,21 @@ public class MaterialBrowserScreen extends Screen {
                 drawBorder(ctx, cellX, cellY, CELL_SIZE, CELL_SIZE + 14, borderAlpha | accentRgb);
             }
 
-            // Sphere icon (centered in cell)
+            // Block icon (centered in cell)
             int iconX = cellX + (CELL_SIZE - ICON_SIZE) / 2;
             int iconY = cellY + 2;
-            MaterialSphereRenderer.drawSphere(ctx, entry.data, iconX, iconY, ICON_SIZE);
+            boolean drewBlock = false;
+            if (entry.blockIndex >= 0 && entry.blockIndex < MaterialBlock.values().length) {
+                net.minecraft.block.Block block = MaterialBlock.values()[entry.blockIndex].getPrimaryBlock();
+                if (block != null) {
+                    RadianceBlockIcon.drawBlockIcon(ctx, block, iconX, iconY, ICON_SIZE);
+                    drewBlock = true;
+                }
+            }
+            if (!drewBlock) {
+                MaterialSphereRenderer.drawSphere(ctx, entry.data, iconX, iconY,
+                    MaterialSphereRenderer.GRID_RENDER_SIZE, ICON_SIZE);
+            }
 
             // Modified indicator (accent bottom edge)
             if (entry.blockIndex >= 0) {
@@ -390,7 +425,8 @@ public class MaterialBrowserScreen extends Screen {
 
         // Large sphere preview
         int sphereX = sideX + (SIDEBAR_W - LARGE_ICON) / 2;
-        MaterialSphereRenderer.drawSphere(ctx, d, sphereX, sideY + 8, LARGE_ICON);
+        MaterialSphereRenderer.drawSphere(ctx, d, sphereX, sideY + 8,
+            MaterialSphereRenderer.SIDEBAR_RENDER_SIZE, LARGE_ICON);
 
         // Material name
         int textY = sideY + LARGE_ICON + 16;
@@ -427,6 +463,11 @@ public class MaterialBrowserScreen extends Screen {
         textY = drawProperty(ctx, sideX + 8, textY, "S.Tint", String.format("%.1f%%", d.sheenTint / 10.0));
         textY = drawProperty(ctx, sideX + 8, textY, "Coat", String.format("%.1f%%", d.coatWeight / 10.0));
         textY = drawProperty(ctx, sideX + 8, textY, "C.Rough", d.coatRoughness + "%");
+        if (d.noiseStrength > 0) {
+            textY = drawProperty(ctx, sideX + 8, textY, "Noise", d.noiseStrength + "%");
+            textY = drawProperty(ctx, sideX + 8, textY, "N.Scale", String.format("%.1f", d.noiseScale / 10.0));
+            textY = drawProperty(ctx, sideX + 8, textY, "N.Oct", String.valueOf(d.noiseOctaves));
+        }
         textY += 4;
 
         // Separator before buttons
@@ -441,6 +482,43 @@ public class MaterialBrowserScreen extends Screen {
         renderSidebarButton(ctx, sideX + 8, textY, btnW, "Copy", mouseX, mouseY);
         textY += SIDE_BTN_H + SIDE_BTN_PAD;
         renderSidebarButton(ctx, sideX + 8, textY, btnW, "Export", mouseX, mouseY);
+        textY += SIDE_BTN_H + SIDE_BTN_PAD;
+
+        // Variants section (children of parent material)
+        sidebarChildOrdinals.clear();
+        sidebarChildrenTopY = -1;
+        if (entry.blockIndex >= 0 && entry.blockIndex < MaterialBlock.values().length) {
+            MaterialBlock mb = MaterialBlock.values()[entry.blockIndex];
+            List<MaterialBlock> children = mb.getChildren();
+            if (!children.isEmpty()) {
+                textY += 4;
+                ctx.fill(sideX + 8, textY, sideX + SIDEBAR_W - 8, textY + 1, RadianceTheme.borderDefault);
+                textY += 5;
+                RadianceTheme.drawOutlinedText(ctx, this.textRenderer,
+                    Text.translatable("radiance.texture_editor.variants"), sideX + 8, textY, RadianceTheme.textAccent);
+                textY += 14;
+
+                sidebarChildrenTopY = textY;
+                for (MaterialBlock child : children) {
+                    sidebarChildOrdinals.add(child.ordinal());
+                    boolean childOverride = Options.materialChildOverride[child.ordinal()];
+                    String childName = Text.translatable("options.video.materials." + child.getId()).getString();
+                    boolean hovered = mouseX >= sideX + 8 && mouseX < sideX + SIDEBAR_W - 8
+                        && mouseY >= textY && mouseY < textY + 13;
+
+                    if (hovered) ctx.fill(sideX + 8, textY, sideX + SIDEBAR_W - 8, textY + 13, RadianceTheme.widgetBgHover);
+
+                    // Override indicator dot
+                    int dotColor = childOverride ? RadianceTheme.textAccent : RadianceTheme.textSecondary;
+                    ctx.fill(sideX + 10, textY + 3, sideX + 14, textY + 7, dotColor);
+
+                    RadianceTheme.drawOutlinedText(ctx, this.textRenderer,
+                        Text.literal(childName), sideX + 18, textY + 2,
+                        childOverride ? RadianceTheme.textPrimary : RadianceTheme.textSecondary);
+                    textY += 14;
+                }
+            }
+        }
     }
 
     private void renderSidebarButton(DrawContext ctx, int x, int y, int w, String label, int mouseX, int mouseY) {
@@ -595,6 +673,21 @@ public class MaterialBrowserScreen extends Screen {
             }
         }
 
+        // Sidebar child variant clicks
+        if (button == 0 && sidebarChildrenTopY >= 0 && !sidebarChildOrdinals.isEmpty()) {
+            int sideX = this.width - SIDEBAR_W - MARGIN;
+            if (mouseX >= sideX + 8 && mouseX < sideX + SIDEBAR_W - 8) {
+                int childIdx = ((int) mouseY - sidebarChildrenTopY) / 14;
+                if (childIdx >= 0 && childIdx < sidebarChildOrdinals.size()
+                        && mouseY >= sidebarChildrenTopY) {
+                    int childOrdinal = sidebarChildOrdinals.get(childIdx);
+                    MaterialsSettingsScreen.setCurrentBlockIndex(childOrdinal);
+                    this.client.setScreen(new MaterialsSettingsScreen(this));
+                    return true;
+                }
+            }
+        }
+
         // Sidebar action buttons
         if (button == 0) {
             int sideBtn = getSidebarButtonAt((int) mouseX, (int) mouseY);
@@ -721,6 +814,14 @@ public class MaterialBrowserScreen extends Screen {
     public void close() {
         MaterialSphereRenderer.clearCache();
         this.client.setScreen(parent);
+    }
+
+    @Override
+    public void removed() {
+        // Safety net: if screen is removed externally (not through close()),
+        // ensure native textures are cleaned up to prevent memory leaks
+        MaterialSphereRenderer.clearCache();
+        super.removed();
     }
 
     // ── Actions ──

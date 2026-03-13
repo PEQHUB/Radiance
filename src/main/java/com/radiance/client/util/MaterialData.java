@@ -33,6 +33,15 @@ public class MaterialData {
     public int sheenTint;              // 0-1000 permille
     public int coatWeight;             // 0-1000 permille
     public int coatRoughness;          // 0-100 percent
+    // Procedural noise (metals)
+    public int noiseScale = 50;        // 1-200 (/10 = 0.1-20.0 world units)
+    public int noiseStrength;          // 0-100 percent
+    public int noiseOctaves = 2;       // 1-4
+    // Texture roughness channel routing
+    public int channelR = 213;         // 0-1000 permille (BT.709 luminance default)
+    public int channelG = 715;         // 0-1000 permille
+    public int channelB = 72;          // 0-1000 permille
+    public int textureBlend = 30;      // 0-100 percent
 
     public MaterialData() {}
 
@@ -58,6 +67,13 @@ public class MaterialData {
         d.sheenTint = Options.materialSheenTint[blockIndex];
         d.coatWeight = Options.materialCoatWeight[blockIndex];
         d.coatRoughness = Options.materialCoatRoughness[blockIndex];
+        d.noiseScale = Options.materialNoiseScale[blockIndex];
+        d.noiseStrength = Options.materialNoiseStrength[blockIndex];
+        d.noiseOctaves = Options.materialNoiseOctaves[blockIndex];
+        d.channelR = Options.materialChannelR[blockIndex];
+        d.channelG = Options.materialChannelG[blockIndex];
+        d.channelB = Options.materialChannelB[blockIndex];
+        d.textureBlend = Options.materialTextureBlend[blockIndex];
         return d;
     }
 
@@ -98,6 +114,13 @@ public class MaterialData {
         Options.materialSheenTint[blockIndex] = sheenTint;
         Options.materialCoatWeight[blockIndex] = coatWeight;
         Options.materialCoatRoughness[blockIndex] = coatRoughness;
+        Options.materialNoiseScale[blockIndex] = noiseScale;
+        Options.materialNoiseStrength[blockIndex] = noiseStrength;
+        Options.materialNoiseOctaves[blockIndex] = noiseOctaves;
+        Options.materialChannelR[blockIndex] = channelR;
+        Options.materialChannelG[blockIndex] = channelG;
+        Options.materialChannelB[blockIndex] = channelB;
+        Options.materialTextureBlend[blockIndex] = textureBlend;
     }
 
     /** Find the MaterialBlock index for this data's blockId. Returns -1 if not found. */
@@ -123,7 +146,8 @@ public class MaterialData {
             && sheenWeight == block.getDefaultSheenWeight()
             && sheenTint == block.getDefaultSheenTint()
             && coatWeight == block.getDefaultCoatWeight()
-            && coatRoughness == block.getDefaultCoatRoughness();
+            && coatRoughness == block.getDefaultCoatRoughness()
+            && noiseScale == 50 && noiseStrength == 0 && noiseOctaves == 2;
     }
 
     // ── JSON serialization ──
@@ -161,6 +185,17 @@ public class MaterialData {
         sb.append(String.format("Sheen Tint: %.1f%%\n", sheenTint / 10.0));
         sb.append(String.format("Coat Weight: %.1f%%\n", coatWeight / 10.0));
         sb.append(String.format("Coat Roughness: %d%%\n", coatRoughness));
+        if (noiseStrength > 0) {
+            sb.append(String.format("Noise Scale: %.1f\n", noiseScale / 10.0));
+            sb.append(String.format("Noise Strength: %d%%\n", noiseStrength));
+            sb.append(String.format("Noise Octaves: %d\n", noiseOctaves));
+        }
+        if (textureBlend > 0) {
+            sb.append(String.format("Channel R: %.1f%%\n", channelR / 10.0));
+            sb.append(String.format("Channel G: %.1f%%\n", channelG / 10.0));
+            sb.append(String.format("Channel B: %.1f%%\n", channelB / 10.0));
+            sb.append(String.format("Texture Blend: %d%%\n", textureBlend));
+        }
         return sb.toString();
     }
 
@@ -197,6 +232,13 @@ public class MaterialData {
                         case "Sheen Tint"    -> d.sheenTint = Math.round(Float.parseFloat(val) * 10);
                         case "Coat Weight"   -> d.coatWeight = Math.round(Float.parseFloat(val) * 10);
                         case "Coat Roughness"-> d.coatRoughness = Integer.parseInt(val);
+                        case "Noise Scale"   -> d.noiseScale = Math.round(Float.parseFloat(val) * 10);
+                        case "Noise Strength"-> d.noiseStrength = Integer.parseInt(val);
+                        case "Noise Octaves" -> d.noiseOctaves = Integer.parseInt(val);
+                        case "Channel R"     -> d.channelR = Math.round(Float.parseFloat(val) * 10);
+                        case "Channel G"     -> d.channelG = Math.round(Float.parseFloat(val) * 10);
+                        case "Channel B"     -> d.channelB = Math.round(Float.parseFloat(val) * 10);
+                        case "Texture Blend" -> d.textureBlend = Integer.parseInt(val);
                         default -> {}
                     }
                 }
@@ -216,6 +258,8 @@ public class MaterialData {
         h = h * 31 + subsurface;  h = h * 31 + anisotropic;
         h = h * 31 + sheenWeight;  h = h * 31 + sheenTint;
         h = h * 31 + coatWeight;  h = h * 31 + coatRoughness;
+        h = h * 31 + noiseScale; h = h * 31 + noiseStrength; h = h * 31 + noiseOctaves;
+        h = h * 31 + channelR; h = h * 31 + channelG; h = h * 31 + channelB; h = h * 31 + textureBlend;
         return h;
     }
 }

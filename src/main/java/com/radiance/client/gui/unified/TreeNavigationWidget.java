@@ -149,12 +149,14 @@ public class TreeNavigationWidget extends ClickableWidget {
         int panelW = getWidth();
         int panelH = getHeight();
 
-        // Background (responds to global transparency slider)
-        context.fill(panelX, panelY, panelX + panelW, panelY + panelH, RadianceTheme.unifiedTreeBg);
+        // Background (hidden during slider drag)
+        float fade = RadianceTheme.inactiveFadeFactor();
+        context.fill(panelX, panelY, panelX + panelW, panelY + panelH,
+            RadianceTheme.scaleAlpha(RadianceTheme.unifiedTreeBg, fade));
 
         // Right border
         context.fill(panelX + panelW - 1, panelY, panelX + panelW, panelY + panelH,
-            RadianceTheme.borderDefault);
+            RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, fade));
 
         // Enable scissor
         context.enableScissor(panelX, panelY, panelX + panelW, panelY + panelH);
@@ -163,54 +165,56 @@ public class TreeNavigationWidget extends ClickableWidget {
         List<FlatNode> visible = flattenVisible();
 
         int drawY = panelY + 2 - (int) scrollDisplay;
-        for (int i = 0; i < visible.size(); i++) {
-            FlatNode flat = visible.get(i);
-            TreeNode node = flat.node;
-            int depth = flat.depth;
+        if (fade > 0.005f) {
+            for (int i = 0; i < visible.size(); i++) {
+                FlatNode flat = visible.get(i);
+                TreeNode node = flat.node;
+                int depth = flat.depth;
 
-            if (drawY + NODE_HEIGHT < panelY) {
-                drawY += NODE_HEIGHT;
-                continue;
-            }
-            if (drawY > panelY + panelH) break;
+                if (drawY + NODE_HEIGHT < panelY) {
+                    drawY += NODE_HEIGHT;
+                    continue;
+                }
+                if (drawY > panelY + panelH) break;
 
-            int textX = panelX + LEFT_PAD + depth * INDENT;
-            int textY = drawY + (NODE_HEIGHT - 8) / 2;
+                int textX = panelX + LEFT_PAD + depth * INDENT;
+                int textY = drawY + (NODE_HEIGHT - 8) / 2;
 
-            // Selected highlight
-            if (node.selected) {
-                context.fill(panelX + 1, drawY, panelX + panelW - 2, drawY + NODE_HEIGHT,
-                    RadianceTheme.scaleAlpha(RadianceTheme.widgetBgActive, 0.9f));
-                // Left accent bar
-                context.fill(panelX + 1, drawY, panelX + 3, drawY + NODE_HEIGHT,
-                    RadianceTheme.SELECTED_BAR);
-            }
+                // Selected highlight
+                if (node.selected) {
+                    context.fill(panelX + 1, drawY, panelX + panelW - 2, drawY + NODE_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgActive, 0.9f * fade));
+                    // Left accent bar
+                    context.fill(panelX + 1, drawY, panelX + 3, drawY + NODE_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, fade));
+                }
 
-            // Hover highlight
-            boolean hovered = mouseX >= panelX && mouseX < panelX + panelW
-                && mouseY >= drawY && mouseY < drawY + NODE_HEIGHT;
-            if (hovered && !node.selected) {
-                context.fill(panelX + 1, drawY, panelX + panelW - 2, drawY + NODE_HEIGHT,
-                    RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, 0.5f));
-            }
+                // Hover highlight
+                boolean hovered = mouseX >= panelX && mouseX < panelX + panelW
+                    && mouseY >= drawY && mouseY < drawY + NODE_HEIGHT;
+                if (hovered && !node.selected) {
+                    context.fill(panelX + 1, drawY, panelX + panelW - 2, drawY + NODE_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, 0.5f * fade));
+                }
 
-            // Category expand/collapse indicator
-            if (node.isCategory()) {
-                String indicator = node.expanded ? "\u25BC" : "\u25B6"; // ▼ or ▶
+                // Category expand/collapse indicator
+                if (node.isCategory()) {
+                    String indicator = node.expanded ? "\u25BC" : "\u25B6"; // ▼ or ▶
+                    RadianceTheme.drawOutlinedText(context, textRenderer,
+                        Text.literal(indicator), textX - 2, textY,
+                        RadianceTheme.textSecondary, fade);
+                    textX += 10;
+                }
+
+                // Label
+                int labelColor = node.isCategory() ? RadianceTheme.textAccent :
+                                 node.selected ? RadianceTheme.textPrimary :
+                                 RadianceTheme.textSecondary;
                 RadianceTheme.drawOutlinedText(context, textRenderer,
-                    Text.literal(indicator), textX - 2, textY,
-                    RadianceTheme.textSecondary);
-                textX += 10;
+                    Text.literal(node.label), textX, textY, labelColor, fade);
+
+                drawY += NODE_HEIGHT;
             }
-
-            // Label
-            int labelColor = node.isCategory() ? RadianceTheme.textAccent :
-                             node.selected ? RadianceTheme.textPrimary :
-                             RadianceTheme.textSecondary;
-            RadianceTheme.drawOutlinedText(context, textRenderer,
-                Text.literal(node.label), textX, textY, labelColor);
-
-            drawY += NODE_HEIGHT;
         }
 
         context.disableScissor();

@@ -215,11 +215,11 @@ public enum AuxiliaryTextures {
 
                     if (!success) {
                         // Generate auto-PBR for MaterialBlock textures when global auto-PBR is enabled
+                        // Note: specular/roughness for MaterialBlocks is now derived in the shader via
+                        // channel routing (pack4), so AutoPBR specular generation is skipped for them.
                         int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
                         boolean autoPBR = mbOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled;
-                        if (autoPBR && auxiliaryTexture == SPECULAR) {
-                            auxiliaryTemplateImage = AutoPBRGenerator.generateSpecular(source);
-                        } else if (autoPBR && auxiliaryTexture == NORMAL) {
+                        if (autoPBR && auxiliaryTexture == NORMAL) {
                             auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source);
                         } else {
                             auxiliaryTemplateImage = source.applyToCopy(i -> 0);

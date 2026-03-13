@@ -179,11 +179,11 @@ public final class RadianceTheme {
         buttonHover   = withAlpha(BASE_BUTTON_HOVER, effectiveAlpha);
         buttonBorder  = withAlpha(BASE_BUTTON_BORDER, effectiveAlpha * 0.6f);
 
-        // Unified panel backgrounds — respond to globalAlpha but never go too transparent
-        float panelAlpha = Math.min(0.92f, Math.max(effectiveAlpha * 1.3f, 0.55f));
+        // Unified panel backgrounds — track globalAlpha fully
+        float panelAlpha = Math.min(0.92f, effectiveAlpha * 1.3f);
         unifiedContentBg = withAlpha(0x0C0C0E, panelAlpha);
-        unifiedTreeBg    = withAlpha(0x0A0A0C, Math.min(0.92f, panelAlpha + 0.04f));
-        unifiedHeaderBg  = withAlpha(0x080808, Math.min(0.95f, panelAlpha + 0.08f));
+        unifiedTreeBg    = withAlpha(0x0A0A0C, Math.min(0.92f, panelAlpha + 0.04f * effectiveAlpha));
+        unifiedHeaderBg  = withAlpha(0x080808, Math.min(0.95f, panelAlpha + 0.08f * effectiveAlpha));
     }
 
     /**

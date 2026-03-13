@@ -1,0 +1,2655 @@
+{
+  "_metadata": {
+    "description": "Physically measured constants for Minecraft solid material blocks. For use in PBR rendering pipeline.",
+    "rgb_wavelengths_nm": { "R": 650, "G": 550, "B": 450 },
+    "sources": {
+      "complex_ior": "refractiveindex.info — Johnson & Christy 1974 (metals), Malitson 1965 (quartz/glass), Peter 1923 (diamond)",
+      "f0_f82": "Computed from complex IOR via Fresnel equations. Adobe Standard Material references for cross-validation.",
+      "physical_properties": "CRC Handbook of Chemistry and Physics, Engineering Toolbox, WebMineral, Mindat.org",
+      "sss": "Jensen et al. 2001 (marble). Other materials estimated from absorption spectra.",
+      "dispersion": "Schott Glass Catalog, Sellmeier coefficients from refractiveindex.info",
+      "wood": "Forest Products Laboratory Wood Handbook (USDA FPL-GTR-190)",
+      "adobe_metal_ref": "Adobe Standard Material Metal References (helpx.adobe.com)"
+    },
+    "notes": {
+      "f0_computation": "F0 = ((n-1)^2 + k^2) / ((n+1)^2 + k^2) for metals; ((n-1)/(n+1))^2 for dielectrics",
+      "roughness_values": "Artistic estimates based on real-world surface finish. 0.0 = perfect mirror, 1.0 = fully diffuse",
+      "fictional_materials": "Marked with is_fictional=true. Suggested real-world analogues provided where possible.",
+      "ior_note": "For metals, IOR is complex (n+ik). For dielectrics, only real part n is significant (k≈0).",
+      "sss_units": "sigma_s_prime and sigma_a in mm^-1 per RGB channel (reduced scattering and absorption coefficients)"
+    }
+  },
+
+  "materials": {
+
+    "iron_block": {
+      "real_world_material": "Iron",
+      "chemical_formula": "Fe",
+      "category": "metal",
+      "is_fictional": false,
+      "optical": {
+        "complex_ior": {
+          "n": { "r": 2.9114, "g": 2.9497, "b": 2.5845 },
+          "k": { "r": 3.0893, "g": 2.9318, "b": 2.7670 },
+          "source": "Johnson & Christy 1974"
+        },
+        "f0_linear_rgb": [0.531, 0.512, 0.496],
+        "f82_linear_rgb": [0.856, 0.880, 0.895],
+        "metalness": 1.0
+      },
+      "surface": {
+        "roughness_polished": 0.02,
+        "roughness_block": 0.35,
+        "roughness_raw": 0.65,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": {
+        "blackbody_temp_k": null,
+        "emissivity": 0.21,
+        "note": "Non-emissive at room temperature. Emissivity for thermal radiation reference."
+      },
+      "coat": null,
+      "thin_film": null,
+      "dispersion": null,
+      "birefringence": null,
+      "physical": {
+        "density_kg_m3": 7874,
+        "mohs_hardness": 4.0,
+        "melting_point_k": 1811,
+        "thermal_conductivity_w_mk": 80.4,
+        "specific_heat_j_kgk": 449,
+        "electrical_conductivity_MS_m": 10.0
+      }
+    },
+
+    "gold_block": {
+      "real_world_material": "Gold",
+      "chemical_formula": "Au",
+      "category": "metal",
+      "is_fictional": false,
+      "optical": {
+        "complex_ior": {
+          "n": { "r": 0.18299, "g": 0.42108, "b": 1.3734 },
+          "k": { "r": 3.4242, "g": 2.3459, "b": 1.7704 },
+          "source": "Johnson & Christy 1972"
+        },
+        "f0_linear_rgb": [0.944, 0.776, 0.373],
+        "f82_linear_rgb": [0.937, 0.964, 0.912],
+        "metalness": 1.0
+      },
+      "surface": {
+        "roughness_polished": 0.01,
+        "roughness_block": 0.25,
+        "roughness_raw": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": {
+        "blackbody_temp_k": null,
+        "emissivity": 0.02,
+        "note": "Extremely low emissivity — excellent IR reflector."
+      },
+      "coat": null,
+      "thin_film": null,
+      "dispersion": null,
+      "birefringence": null,
+      "physical": {
+        "density_kg_m3": 19320,
+        "mohs_hardness": 2.5,
+        "melting_point_k": 1337,
+        "thermal_conductivity_w_mk": 315,
+        "specific_heat_j_kgk": 129,
+        "electrical_conductivity_MS_m": 41.0
+      }
+    },
+
+    "copper_block": {
+      "real_world_material": "Copper",
+      "chemical_formula": "Cu",
+      "category": "metal",
+      "is_fictional": false,
+      "optical": {
+        "complex_ior": {
+          "n": { "r": 0.27105, "g": 0.67693, "b": 1.3164 },
+          "k": { "r": 3.6092, "g": 2.6248, "b": 2.2921 },
+          "source": "Johnson & Christy 1972"
+        },
+        "f0_linear_rgb": [0.926, 0.721, 0.504],
+        "f82_linear_rgb": [0.973, 0.937, 0.930],
+        "metalness": 1.0
+      },
+      "surface": {
+        "roughness_polished": 0.02,
+        "roughness_block": 0.30,
+        "roughness_raw": 0.60,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": {
+        "blackbody_temp_k": null,
+        "emissivity": 0.03,
+        "note": "Polished copper. Oxidized copper emissivity rises to 0.6-0.8."
+      },
+      "coat": null,
+      "thin_film": {
+        "note": "Copper oxide patina (Cu2O) forms naturally. Film IOR ~2.7, thickness 50-200nm.",
+        "oxide_film_ior": 2.7,
+        "typical_thickness_nm": 100
+      },
+      "dispersion": null,
+      "birefringence": null,
+      "physical": {
+        "density_kg_m3": 8960,
+        "mohs_hardness": 3.0,
+        "melting_point_k": 1358,
+        "thermal_conductivity_w_mk": 401,
+        "specific_heat_j_kgk": 385,
+        "electrical_conductivity_MS_m": 59.6
+      }
+    },
+
+    "netherite_block": {
+      "real_world_material": "Fictional — suggested analogue: Tungsten (W)",
+      "chemical_formula": null,
+      "category": "metal",
+      "is_fictional": true,
+      "suggested_analogue": "tungsten",
+      "optical": {
+        "complex_ior": {
+          "n": { "r": 3.4242, "g": 3.3850, "b": 2.8200 },
+          "k": { "r": 2.8600, "g": 2.7300, "b": 2.4500 },
+          "source": "Tungsten (W) from Ordal et al. 1988 — used as analogue"
+        },
+        "f0_linear_rgb": [0.480, 0.468, 0.445],
+        "f82_linear_rgb": [0.830, 0.840, 0.850],
+        "metalness": 1.0
+      },
+      "surface": {
+        "roughness_polished": 0.05,
+        "roughness_block": 0.50,
+        "roughness_raw": 0.75,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": null,
+      "birefringence": null,
+      "physical": {
+        "density_kg_m3": 19250,
+        "mohs_hardness": 7.5,
+        "melting_point_k": 3695,
+        "thermal_conductivity_w_mk": 174,
+        "specific_heat_j_kgk": 132,
+        "electrical_conductivity_MS_m": 18.9,
+        "note": "Based on tungsten. Netherite is fictional — highest melting point metal used as analogue."
+      }
+    },
+
+    "redstone_block": {
+      "real_world_material": "Fictional — suggested analogue: Cinnabar (HgS)",
+      "chemical_formula": null,
+      "category": "mineral",
+      "is_fictional": true,
+      "suggested_analogue": "cinnabar",
+      "optical": {
+        "ior": 2.91,
+        "f0_scalar": 0.234,
+        "metalness": 0.0,
+        "note": "Cinnabar has extremely high IOR for a non-metal. Deep red color from HgS bandgap."
+      },
+      "surface": {
+        "roughness_polished": 0.10,
+        "roughness_block": 0.50,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.9, 0.05, 0.02],
+        "radius_mm": 1.5,
+        "note": "Cinnabar is somewhat translucent in thin sections with deep red color."
+      },
+      "transmission": null,
+      "emission": {
+        "luminance_nits": 5.0,
+        "color_rgb": [1.0, 0.1, 0.05],
+        "note": "Redstone glows faintly red — purely fictional property."
+      },
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 14.6,
+        "note": "Cinnabar has extreme dispersion (high birefringence too)."
+      },
+      "birefringence": {
+        "crystal_system": "trigonal",
+        "optic_sign": "positive",
+        "n_o": 2.905,
+        "n_e": 3.256,
+        "delta_n": 0.351,
+        "note": "Cinnabar analogue. Extremely high birefringence."
+      },
+      "physical": {
+        "density_kg_m3": 8100,
+        "mohs_hardness": 2.0,
+        "melting_point_k": 853,
+        "thermal_conductivity_w_mk": 0.4,
+        "specific_heat_j_kgk": 210
+      }
+    },
+
+    "ancient_debris": {
+      "real_world_material": "Fictional — suggested analogue: Dense iron-gold alloy or meteoritic iron",
+      "chemical_formula": null,
+      "category": "metal",
+      "is_fictional": true,
+      "suggested_analogue": "meteoritic_iron",
+      "optical": {
+        "complex_ior": {
+          "n": { "r": 2.95, "g": 2.90, "b": 2.60 },
+          "k": { "r": 3.10, "g": 2.95, "b": 2.80 },
+          "source": "Estimated from iron + nickel alloy (kamacite)"
+        },
+        "f0_linear_rgb": [0.540, 0.520, 0.505],
+        "metalness": 1.0
+      },
+      "surface": {
+        "roughness_block": 0.70,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 12000,
+        "mohs_hardness": 5.5,
+        "note": "Estimated. Ancient debris is fire-resistant and extremely dense in-game."
+      }
+    },
+
+    "diamond_block": {
+      "real_world_material": "Diamond",
+      "chemical_formula": "C",
+      "category": "gem",
+      "is_fictional": false,
+      "optical": {
+        "ior": 2.417,
+        "f0_scalar": 0.172,
+        "metalness": 0.0,
+        "note": "Highest IOR of any common natural gemstone. Very high F0 for a dielectric."
+      },
+      "surface": {
+        "roughness_polished": 0.0,
+        "roughness_block": 0.03,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": {
+        "weight": 1.0,
+        "color_rgb": [1.0, 1.0, 1.0],
+        "depth_mm": 100,
+        "note": "Type IIa diamond is optically transparent across entire visible spectrum."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 55.3,
+        "sellmeier_coefficients": {
+          "B1": 4.3356,
+          "B2": 0.3306,
+          "C1_um2": 0.01060,
+          "C2_um2": 0.01750,
+          "source": "Peter 1923",
+          "note": "Diamond's strong dispersion creates 'fire' in cut gems."
+        }
+      },
+      "birefringence": {
+        "crystal_system": "cubic",
+        "is_isotropic": true,
+        "delta_n": 0.0,
+        "note": "Cubic crystal system — optically isotropic, no birefringence."
+      },
+      "physical": {
+        "density_kg_m3": 3510,
+        "mohs_hardness": 10.0,
+        "melting_point_k": 3820,
+        "thermal_conductivity_w_mk": 2200,
+        "specific_heat_j_kgk": 509,
+        "note": "Highest thermal conductivity of any natural material. Sublimes rather than melts at 1atm."
+      }
+    },
+
+    "emerald_block": {
+      "real_world_material": "Emerald (chromium-bearing beryl)",
+      "chemical_formula": "Be3Al2(SiO3)6 + Cr/V",
+      "category": "gem",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.577,
+        "f0_scalar": 0.050,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.02,
+        "roughness_block": 0.05,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.5,
+        "color_rgb": [0.15, 0.85, 0.20],
+        "radius_mm": 3.0,
+        "sigma_a_mm_inv_rgb": [1.2, 0.05, 0.8],
+        "sigma_s_prime_mm_inv_rgb": [0.5, 0.5, 0.5],
+        "note": "Green color from Cr3+ absorption bands at 600nm and 430nm. Transmits 500-550nm (green)."
+      },
+      "transmission": {
+        "weight": 0.8,
+        "color_rgb": [0.10, 0.80, 0.15],
+        "depth_mm": 10,
+        "note": "Most emeralds have inclusions ('jardin') reducing clarity. Ideal emerald transmits green."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 42,
+        "note": "Estimated from beryl dispersion data."
+      },
+      "birefringence": {
+        "crystal_system": "hexagonal",
+        "optic_sign": "negative",
+        "n_o": 1.577,
+        "n_e": 1.583,
+        "delta_n": 0.006
+      },
+      "physical": {
+        "density_kg_m3": 2700,
+        "mohs_hardness": 7.5,
+        "melting_point_k": 1650,
+        "thermal_conductivity_w_mk": 4.5,
+        "specific_heat_j_kgk": 1070
+      }
+    },
+
+    "amethyst_block": {
+      "real_world_material": "Amethyst (iron-bearing quartz)",
+      "chemical_formula": "SiO2 + Fe3+/Fe4+",
+      "category": "gem",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.544,
+        "f0_scalar": 0.046,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.02,
+        "roughness_block": 0.08,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.4,
+        "color_rgb": [0.55, 0.20, 0.75],
+        "radius_mm": 5.0,
+        "sigma_a_mm_inv_rgb": [0.15, 0.60, 0.08],
+        "sigma_s_prime_mm_inv_rgb": [0.3, 0.3, 0.3],
+        "note": "Purple from Fe3+/Fe4+ charge transfer. Absorbs green-yellow (550nm), transmits red+blue."
+      },
+      "transmission": {
+        "weight": 0.85,
+        "color_rgb": [0.55, 0.15, 0.75],
+        "depth_mm": 15
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 67.8,
+        "note": "Same as quartz — low dispersion."
+      },
+      "birefringence": {
+        "crystal_system": "trigonal",
+        "optic_sign": "positive",
+        "n_o": 1.544,
+        "n_e": 1.553,
+        "delta_n": 0.009
+      },
+      "physical": {
+        "density_kg_m3": 2650,
+        "mohs_hardness": 7.0,
+        "melting_point_k": 1986,
+        "thermal_conductivity_w_mk": 1.4,
+        "specific_heat_j_kgk": 740
+      }
+    },
+
+    "lapis_block": {
+      "real_world_material": "Lapis Lazuli (lazurite-dominant rock)",
+      "chemical_formula": "(Na,Ca)8(AlSiO4)6(SO4,S,Cl)2",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0,
+        "note": "Deep blue from S3- radical ion trapped in sodalite cage structure."
+      },
+      "surface": {
+        "roughness_polished": 0.10,
+        "roughness_block": 0.45,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.05, 0.10, 0.70],
+        "radius_mm": 1.0,
+        "note": "Opaque but can show slight translucency at thin edges. Deep blue absorption."
+      },
+      "transmission": null,
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": null,
+      "birefringence": {
+        "crystal_system": "cubic",
+        "is_isotropic": true,
+        "note": "Lazurite is cubic — optically isotropic."
+      },
+      "physical": {
+        "density_kg_m3": 2400,
+        "mohs_hardness": 5.5,
+        "melting_point_k": 1500,
+        "thermal_conductivity_w_mk": 1.5,
+        "specific_heat_j_kgk": 800
+      }
+    },
+
+    "quartz_block": {
+      "real_world_material": "Quartz",
+      "chemical_formula": "SiO2",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.544,
+        "f0_scalar": 0.046,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.02,
+        "roughness_block": 0.15,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.2,
+        "color_rgb": [0.95, 0.93, 0.90],
+        "radius_mm": 8.0,
+        "note": "Milky quartz has micro-inclusions causing strong scattering. Clear quartz has minimal SSS."
+      },
+      "transmission": {
+        "weight": 0.7,
+        "color_rgb": [0.98, 0.97, 0.95],
+        "depth_mm": 50,
+        "note": "Pure quartz is highly transparent. Milky quartz is translucent."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 67.8,
+        "sellmeier_coefficients": {
+          "B1": 0.6962,
+          "B2": 0.4079,
+          "B3": 0.8975,
+          "C1_um2": 0.00468,
+          "C2_um2": 0.01352,
+          "C3_um2": 97.934,
+          "source": "Malitson 1965"
+        }
+      },
+      "birefringence": {
+        "crystal_system": "trigonal",
+        "optic_sign": "positive",
+        "n_o": 1.544,
+        "n_e": 1.553,
+        "delta_n": 0.009
+      },
+      "physical": {
+        "density_kg_m3": 2650,
+        "mohs_hardness": 7.0,
+        "melting_point_k": 1986,
+        "thermal_conductivity_w_mk": 1.4,
+        "specific_heat_j_kgk": 740
+      }
+    },
+
+    "obsidian": {
+      "real_world_material": "Obsidian (volcanic glass)",
+      "chemical_formula": "SiO2-rich glass (~70-75% SiO2)",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0,
+        "note": "Black color from magnetite (Fe3O4) nanocrystals dispersed in glass matrix."
+      },
+      "surface": {
+        "roughness_polished": 0.0,
+        "roughness_block": 0.10,
+        "roughness_raw": 0.25,
+        "anisotropy": 0.0,
+        "note": "Conchoidal fracture produces atomically smooth surfaces. Can be polished to near-perfect mirror."
+      },
+      "subsurface": null,
+      "transmission": {
+        "weight": 0.05,
+        "color_rgb": [0.15, 0.08, 0.05],
+        "depth_mm": 0.5,
+        "note": "Extremely thin sections (< 1mm) show dark brown/red transmission."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 59,
+        "note": "Similar to soda-lime glass."
+      },
+      "birefringence": {
+        "is_isotropic": true,
+        "note": "Amorphous glass — no crystal structure, no birefringence."
+      },
+      "physical": {
+        "density_kg_m3": 2350,
+        "mohs_hardness": 5.5,
+        "melting_point_k": 1273,
+        "thermal_conductivity_w_mk": 1.2,
+        "specific_heat_j_kgk": 820
+      }
+    },
+
+    "crying_obsidian": {
+      "real_world_material": "Fictional — obsidian with luminous purple inclusions",
+      "chemical_formula": null,
+      "category": "mineral",
+      "is_fictional": true,
+      "suggested_analogue": "obsidian with fluorite inclusions",
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.12,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.2,
+        "color_rgb": [0.4, 0.1, 0.8],
+        "radius_mm": 2.0
+      },
+      "emission": {
+        "luminance_nits": 15.0,
+        "color_rgb": [0.5, 0.1, 0.9],
+        "note": "Purple glowing tears — fictional emissive property."
+      },
+      "physical": {
+        "density_kg_m3": 2350,
+        "mohs_hardness": 5.5
+      }
+    },
+
+    "calcite": {
+      "real_world_material": "Calcite",
+      "chemical_formula": "CaCO3",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.658,
+        "f0_scalar": 0.061,
+        "metalness": 0.0,
+        "note": "Very high birefringence — famous for double-image (Iceland spar)."
+      },
+      "surface": {
+        "roughness_polished": 0.05,
+        "roughness_block": 0.30,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.5,
+        "color_rgb": [0.95, 0.93, 0.88],
+        "radius_mm": 4.0,
+        "sigma_s_prime_mm_inv_rgb": [2.19, 2.62, 3.00],
+        "sigma_a_mm_inv_rgb": [0.0021, 0.0041, 0.0071],
+        "note": "SSS values from Jensen 2001 marble measurements (marble ≈ metamorphosed calcite)."
+      },
+      "transmission": {
+        "weight": 0.6,
+        "color_rgb": [0.95, 0.93, 0.88],
+        "depth_mm": 20,
+        "note": "Clear calcite (Iceland spar) is highly transparent. Massive calcite is translucent."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 51
+      },
+      "birefringence": {
+        "crystal_system": "trigonal",
+        "optic_sign": "negative",
+        "n_o": 1.658,
+        "n_e": 1.486,
+        "delta_n": -0.172,
+        "note": "Extremely high birefringence — strongest of any common mineral."
+      },
+      "physical": {
+        "density_kg_m3": 2710,
+        "mohs_hardness": 3.0,
+        "melting_point_k": 1612,
+        "thermal_conductivity_w_mk": 3.6,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "prismarine": {
+      "real_world_material": "Fictional — suggested analogue: Chrysocolla / Aquamarine",
+      "chemical_formula": null,
+      "category": "mineral",
+      "is_fictional": true,
+      "suggested_analogue": "chrysocolla",
+      "optical": {
+        "ior": 1.57,
+        "f0_scalar": 0.049,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.35,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.15, 0.70, 0.55],
+        "radius_mm": 2.0
+      },
+      "physical": {
+        "density_kg_m3": 2600,
+        "mohs_hardness": 5.0,
+        "note": "Based on chrysocolla / aquamarine analogue."
+      }
+    },
+
+    "coal_block": {
+      "real_world_material": "Coal (bituminous)",
+      "chemical_formula": "C + organics",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.70,
+        "f0_scalar": 0.067,
+        "metalness": 0.0,
+        "note": "Coal has relatively high IOR (1.6-1.8) but appears very dark due to extreme absorption."
+      },
+      "surface": {
+        "roughness_polished": 0.15,
+        "roughness_block": 0.60,
+        "anisotropy": 0.0,
+        "note": "Bituminous coal can show vitreous (glassy) luster on fresh fracture surfaces."
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": null,
+      "birefringence": null,
+      "physical": {
+        "density_kg_m3": 1300,
+        "mohs_hardness": 2.5,
+        "melting_point_k": null,
+        "thermal_conductivity_w_mk": 0.26,
+        "specific_heat_j_kgk": 1260,
+        "note": "Coal doesn't melt — it decomposes/combusts. Flash point ~670K."
+      }
+    },
+
+    "glass": {
+      "real_world_material": "Soda-lime glass",
+      "chemical_formula": "SiO2 + Na2O + CaO",
+      "category": "glass",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.52,
+        "f0_scalar": 0.043,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.0,
+        "roughness_block": 0.02,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": {
+        "weight": 1.0,
+        "color_rgb": [0.98, 0.99, 0.97],
+        "depth_mm": 100,
+        "note": "Standard window glass. Very slight green tint from iron impurities."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 59.0,
+        "sellmeier_coefficients": {
+          "B1": 1.0396,
+          "B2": 0.2318,
+          "B3": 1.0105,
+          "C1_um2": 0.00600,
+          "C2_um2": 0.02001,
+          "C3_um2": 103.56,
+          "source": "Schott BK7 equivalent"
+        }
+      },
+      "birefringence": {
+        "is_isotropic": true,
+        "note": "Amorphous — no birefringence. Stress birefringence possible under load."
+      },
+      "physical": {
+        "density_kg_m3": 2500,
+        "mohs_hardness": 5.5,
+        "melting_point_k": 1273,
+        "thermal_conductivity_w_mk": 1.05,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "ice": {
+      "real_world_material": "Water ice (Ih)",
+      "chemical_formula": "H2O",
+      "category": "glass",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.309,
+        "f0_scalar": 0.018,
+        "metalness": 0.0,
+        "note": "Very low F0 — ice reflects only ~2% at normal incidence."
+      },
+      "surface": {
+        "roughness_polished": 0.01,
+        "roughness_block": 0.08,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.5,
+        "color_rgb": [0.70, 0.85, 0.95],
+        "radius_mm": 20.0,
+        "note": "Bulk ice appears blue because red light is absorbed preferentially over long path lengths."
+      },
+      "transmission": {
+        "weight": 0.95,
+        "color_rgb": [0.75, 0.90, 0.97],
+        "depth_mm": 50,
+        "note": "Pure ice is transparent. Air bubbles and cracks cause opacity."
+      },
+      "emission": null,
+      "coat": null,
+      "thin_film": null,
+      "dispersion": {
+        "abbe_number": 56.0
+      },
+      "birefringence": {
+        "crystal_system": "hexagonal",
+        "optic_sign": "positive",
+        "n_o": 1.3090,
+        "n_e": 1.3104,
+        "delta_n": 0.0014,
+        "note": "Very weak birefringence."
+      },
+      "physical": {
+        "density_kg_m3": 917,
+        "mohs_hardness": 1.5,
+        "melting_point_k": 273,
+        "thermal_conductivity_w_mk": 2.22,
+        "specific_heat_j_kgk": 2090
+      }
+    },
+
+    "stone": {
+      "real_world_material": "Generic silicate rock (comparable to diorite/gabbro)",
+      "chemical_formula": "Mixed silicates",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.10,
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": null,
+      "physical": {
+        "density_kg_m3": 2700,
+        "mohs_hardness": 6.0,
+        "melting_point_k": 1500,
+        "thermal_conductivity_w_mk": 2.5,
+        "specific_heat_j_kgk": 790
+      }
+    },
+
+    "granite": {
+      "real_world_material": "Granite (feldspar + quartz + mica)",
+      "chemical_formula": "KAlSi3O8 + SiO2 + KAl2(AlSi3O10)",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0,
+        "note": "Aggregate of feldspar (IOR 1.52-1.57), quartz (1.54), mica (1.56-1.60)."
+      },
+      "surface": {
+        "roughness_polished": 0.05,
+        "roughness_block": 0.50,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "transmission": null,
+      "emission": null,
+      "physical": {
+        "density_kg_m3": 2650,
+        "mohs_hardness": 6.5,
+        "melting_point_k": 1530,
+        "thermal_conductivity_w_mk": 2.8,
+        "specific_heat_j_kgk": 790
+      }
+    },
+
+    "diorite": {
+      "real_world_material": "Diorite (plagioclase + hornblende)",
+      "chemical_formula": "NaAlSi3O8-CaAl2Si2O8 + Ca2(Mg,Fe)5Si8O22(OH)2",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.56,
+        "f0_scalar": 0.048,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.06,
+        "roughness_block": 0.50,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2800,
+        "mohs_hardness": 6.0,
+        "melting_point_k": 1500,
+        "thermal_conductivity_w_mk": 2.3,
+        "specific_heat_j_kgk": 800
+      }
+    },
+
+    "andesite": {
+      "real_world_material": "Andesite (plagioclase-dominated volcanic)",
+      "chemical_formula": "NaAlSi3O8-CaAl2Si2O8 (fine-grained)",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.08,
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2650,
+        "mohs_hardness": 6.0,
+        "melting_point_k": 1400,
+        "thermal_conductivity_w_mk": 2.0,
+        "specific_heat_j_kgk": 800
+      }
+    },
+
+    "deepslate": {
+      "real_world_material": "Slate (metamorphic mudstone)",
+      "chemical_formula": "Mixed phyllosilicates",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.56,
+        "f0_scalar": 0.048,
+        "metalness": 0.0,
+        "note": "Dark color from carbonaceous material and iron sulfides."
+      },
+      "surface": {
+        "roughness_polished": 0.10,
+        "roughness_block": 0.55,
+        "anisotropy": 0.15,
+        "anisotropy_note": "Slight anisotropy from foliation planes."
+      },
+      "physical": {
+        "density_kg_m3": 2750,
+        "mohs_hardness": 4.0,
+        "melting_point_k": 1500,
+        "thermal_conductivity_w_mk": 2.0,
+        "specific_heat_j_kgk": 760
+      }
+    },
+
+    "tuff": {
+      "real_world_material": "Tuff (volcanic ash rock)",
+      "chemical_formula": "Consolidated volcanic ash",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.65,
+        "anisotropy": 0.0,
+        "note": "Porous texture. Higher roughness than crystalline stone."
+      },
+      "physical": {
+        "density_kg_m3": 1600,
+        "mohs_hardness": 3.5,
+        "thermal_conductivity_w_mk": 0.8,
+        "specific_heat_j_kgk": 850
+      }
+    },
+
+    "sandstone": {
+      "real_world_material": "Sandstone (cemented quartz sand)",
+      "chemical_formula": "SiO2 grains + cement",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.54,
+        "f0_scalar": 0.046,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0,
+        "note": "Granular surface texture. Roughness depends on grain size and cementation."
+      },
+      "physical": {
+        "density_kg_m3": 2200,
+        "mohs_hardness": 6.0,
+        "thermal_conductivity_w_mk": 1.7,
+        "specific_heat_j_kgk": 920
+      }
+    },
+
+    "red_sandstone": {
+      "real_world_material": "Red Sandstone (iron-oxide cemented)",
+      "chemical_formula": "SiO2 grains + Fe2O3 cement",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.54,
+        "f0_scalar": 0.046,
+        "metalness": 0.0,
+        "note": "Red color from hematite (Fe2O3) grain coatings."
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2250,
+        "mohs_hardness": 6.0,
+        "thermal_conductivity_w_mk": 1.7,
+        "specific_heat_j_kgk": 920
+      }
+    },
+
+    "basalt": {
+      "real_world_material": "Basalt (fine-grained mafic volcanic)",
+      "chemical_formula": "Plagioclase + pyroxene + olivine",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.58,
+        "f0_scalar": 0.051,
+        "metalness": 0.0,
+        "note": "Dark color from pyroxene and olivine (high Fe/Mg silicates)."
+      },
+      "surface": {
+        "roughness_polished": 0.05,
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 3000,
+        "mohs_hardness": 6.0,
+        "melting_point_k": 1473,
+        "thermal_conductivity_w_mk": 1.7,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "blackstone": {
+      "real_world_material": "Fictional — suggested analogue: Dark basalt or gabbro",
+      "chemical_formula": null,
+      "category": "stone",
+      "is_fictional": true,
+      "suggested_analogue": "dark_basalt",
+      "optical": {
+        "ior": 1.58,
+        "f0_scalar": 0.051,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.50,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 3000,
+        "mohs_hardness": 6.0
+      }
+    },
+
+    "end_stone": {
+      "real_world_material": "Fictional — suggested analogue: Pumice / Light tuff",
+      "chemical_formula": null,
+      "category": "stone",
+      "is_fictional": true,
+      "suggested_analogue": "pumice",
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.65,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1400,
+        "mohs_hardness": 3.0,
+        "note": "Based on pumice — porous, lightweight volcanic rock."
+      }
+    },
+
+    "purpur": {
+      "real_world_material": "Fictional — suggested analogue: Porphyry",
+      "chemical_formula": null,
+      "category": "stone",
+      "is_fictional": true,
+      "suggested_analogue": "porphyry",
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.40,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2700,
+        "mohs_hardness": 6.0
+      }
+    },
+
+    "dripstone": {
+      "real_world_material": "Calcium carbonate stalactite/stalagmite",
+      "chemical_formula": "CaCO3",
+      "category": "stone",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.658,
+        "f0_scalar": 0.061,
+        "metalness": 0.0,
+        "note": "Same mineral as calcite — deposited from solution."
+      },
+      "surface": {
+        "roughness_block": 0.35,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.4,
+        "color_rgb": [0.90, 0.85, 0.75],
+        "radius_mm": 3.0,
+        "note": "Translucent when thin. SSS similar to marble/calcite."
+      },
+      "physical": {
+        "density_kg_m3": 2710,
+        "mohs_hardness": 3.0,
+        "thermal_conductivity_w_mk": 3.6,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "oak_planks": {
+      "real_world_material": "Oak wood (Quercus)",
+      "chemical_formula": "Cellulose + lignin + hemicellulose",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0,
+        "note": "Wood IOR varies 1.50-1.60. Cellulose IOR ~1.53, lignin ~1.61."
+      },
+      "surface": {
+        "roughness_sanded": 0.30,
+        "roughness_block": 0.50,
+        "roughness_raw": 0.65,
+        "anisotropy": 0.25,
+        "anisotropy_note": "Grain direction creates visible anisotropic reflection."
+      },
+      "subsurface": {
+        "weight": 0.15,
+        "color_rgb": [0.70, 0.45, 0.20],
+        "radius_mm": 1.5,
+        "note": "Wood shows slight translucency in thin sections, especially lighter species."
+      },
+      "transmission": null,
+      "emission": null,
+      "coat": {
+        "note": "Natural wood has no coating. Varnished/lacquered wood: coat_weight=0.5-1.0, coat_ior=1.50, coat_roughness=0.05."
+      },
+      "physical": {
+        "density_kg_m3": 660,
+        "mohs_hardness": null,
+        "janka_hardness_lbf": 1290,
+        "thermal_conductivity_w_mk": 0.17,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "spruce_planks": {
+      "real_world_material": "Spruce wood (Picea)",
+      "chemical_formula": "Cellulose + lignin",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.53,
+        "f0_scalar": 0.045,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.50,
+        "anisotropy": 0.20
+      },
+      "subsurface": {
+        "weight": 0.15,
+        "color_rgb": [0.55, 0.35, 0.18],
+        "radius_mm": 1.8
+      },
+      "physical": {
+        "density_kg_m3": 430,
+        "janka_hardness_lbf": 510,
+        "thermal_conductivity_w_mk": 0.11,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "birch_planks": {
+      "real_world_material": "Birch wood (Betula)",
+      "chemical_formula": "Cellulose + lignin",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.45,
+        "anisotropy": 0.20
+      },
+      "subsurface": {
+        "weight": 0.20,
+        "color_rgb": [0.85, 0.75, 0.55],
+        "radius_mm": 2.0,
+        "note": "Lighter color allows more visible subsurface scattering."
+      },
+      "physical": {
+        "density_kg_m3": 620,
+        "janka_hardness_lbf": 1260,
+        "thermal_conductivity_w_mk": 0.14,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "jungle_planks": {
+      "real_world_material": "Tropical hardwood (comparable to Mahogany)",
+      "chemical_formula": "Cellulose + lignin",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.45,
+        "anisotropy": 0.25
+      },
+      "subsurface": {
+        "weight": 0.10,
+        "color_rgb": [0.65, 0.35, 0.18],
+        "radius_mm": 1.0
+      },
+      "physical": {
+        "density_kg_m3": 700,
+        "janka_hardness_lbf": 1500,
+        "thermal_conductivity_w_mk": 0.16,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "acacia_planks": {
+      "real_world_material": "Acacia wood",
+      "chemical_formula": "Cellulose + lignin",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.45,
+        "anisotropy": 0.20
+      },
+      "subsurface": {
+        "weight": 0.10,
+        "color_rgb": [0.75, 0.40, 0.15],
+        "radius_mm": 1.2
+      },
+      "physical": {
+        "density_kg_m3": 770,
+        "janka_hardness_lbf": 1750,
+        "thermal_conductivity_w_mk": 0.18,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "dark_oak_planks": {
+      "real_world_material": "Dark Oak / Bog Oak wood (Quercus robur aged)",
+      "chemical_formula": "Cellulose + lignin + tannins",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.56,
+        "f0_scalar": 0.048,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.50,
+        "anisotropy": 0.25
+      },
+      "subsurface": {
+        "weight": 0.08,
+        "color_rgb": [0.30, 0.18, 0.08],
+        "radius_mm": 0.8,
+        "note": "Dark wood absorbs more light — less visible SSS."
+      },
+      "physical": {
+        "density_kg_m3": 720,
+        "janka_hardness_lbf": 1360,
+        "thermal_conductivity_w_mk": 0.17,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "mangrove_planks": {
+      "real_world_material": "Mangrove wood (Rhizophora)",
+      "chemical_formula": "Cellulose + lignin",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.50,
+        "anisotropy": 0.20
+      },
+      "subsurface": {
+        "weight": 0.10,
+        "color_rgb": [0.60, 0.30, 0.15],
+        "radius_mm": 1.0
+      },
+      "physical": {
+        "density_kg_m3": 850,
+        "janka_hardness_lbf": 1680,
+        "thermal_conductivity_w_mk": 0.20,
+        "specific_heat_j_kgk": 1760,
+        "note": "Mangrove is notably dense — one of the denser tropical hardwoods."
+      }
+    },
+
+    "cherry_planks": {
+      "real_world_material": "Cherry wood (Prunus)",
+      "chemical_formula": "Cellulose + lignin",
+      "category": "wood",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.40,
+        "anisotropy": 0.20,
+        "note": "Cherry takes polish well — relatively smooth grain."
+      },
+      "subsurface": {
+        "weight": 0.15,
+        "color_rgb": [0.75, 0.40, 0.25],
+        "radius_mm": 1.5
+      },
+      "physical": {
+        "density_kg_m3": 560,
+        "janka_hardness_lbf": 950,
+        "thermal_conductivity_w_mk": 0.13,
+        "specific_heat_j_kgk": 1760
+      }
+    },
+
+    "dirt": {
+      "real_world_material": "Soil (loam)",
+      "chemical_formula": "Mixed silicates + organics + water",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.85,
+        "anisotropy": 0.0
+      },
+      "subsurface": null,
+      "physical": {
+        "density_kg_m3": 1400,
+        "mohs_hardness": null,
+        "thermal_conductivity_w_mk": 1.0,
+        "specific_heat_j_kgk": 800
+      }
+    },
+
+    "sand": {
+      "real_world_material": "Silica sand (quartz grains)",
+      "chemical_formula": "SiO2",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.544,
+        "f0_scalar": 0.046,
+        "metalness": 0.0,
+        "note": "Individual grains are quartz. Bulk reflectance is diffuse."
+      },
+      "surface": {
+        "roughness_block": 0.80,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.15,
+        "color_rgb": [0.90, 0.85, 0.65],
+        "radius_mm": 2.0,
+        "note": "Sand shows slight translucency at grain-to-grain contacts."
+      },
+      "physical": {
+        "density_kg_m3": 1600,
+        "mohs_hardness": 7.0,
+        "melting_point_k": 1986,
+        "thermal_conductivity_w_mk": 0.27,
+        "specific_heat_j_kgk": 830,
+        "note": "Bulk density. Individual quartz grain density is 2650 kg/m3."
+      }
+    },
+
+    "red_sand": {
+      "real_world_material": "Red sand (iron oxide coated quartz)",
+      "chemical_formula": "SiO2 + Fe2O3",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.544,
+        "f0_scalar": 0.046,
+        "metalness": 0.0,
+        "note": "Red color from hematite (Fe2O3) grain coatings."
+      },
+      "surface": {
+        "roughness_block": 0.80,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1650,
+        "mohs_hardness": 7.0,
+        "thermal_conductivity_w_mk": 0.27,
+        "specific_heat_j_kgk": 830
+      }
+    },
+
+    "gravel": {
+      "real_world_material": "Gravel (mixed small stones)",
+      "chemical_formula": "Mixed silicates",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.75,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1800,
+        "mohs_hardness": 6.0,
+        "thermal_conductivity_w_mk": 0.7,
+        "specific_heat_j_kgk": 800
+      }
+    },
+
+    "clay": {
+      "real_world_material": "Clay (hydrous aluminium phyllosilicates)",
+      "chemical_formula": "Al2Si2O5(OH)4 (kaolinite)",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.56,
+        "f0_scalar": 0.048,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.70,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.15,
+        "color_rgb": [0.70, 0.65, 0.55],
+        "radius_mm": 1.5,
+        "note": "Wet clay shows noticeable translucency."
+      },
+      "physical": {
+        "density_kg_m3": 1750,
+        "mohs_hardness": 2.0,
+        "thermal_conductivity_w_mk": 1.3,
+        "specific_heat_j_kgk": 920
+      }
+    },
+
+    "mud": {
+      "real_world_material": "Mud (water-saturated soil)",
+      "chemical_formula": "Mixed silicates + H2O",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.48,
+        "f0_scalar": 0.037,
+        "metalness": 0.0,
+        "note": "Water saturation lowers effective IOR. Surface can show specular wetness."
+      },
+      "surface": {
+        "roughness_block": 0.75,
+        "anisotropy": 0.0
+      },
+      "coat": {
+        "weight": 0.3,
+        "roughness": 0.15,
+        "ior": 1.333,
+        "note": "Wet surface film. Creates partial specular reflection over diffuse substrate."
+      },
+      "physical": {
+        "density_kg_m3": 1700,
+        "thermal_conductivity_w_mk": 1.5,
+        "specific_heat_j_kgk": 1500
+      }
+    },
+
+    "snow_block": {
+      "real_world_material": "Compacted snow",
+      "chemical_formula": "H2O (ice + air)",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.309,
+        "f0_scalar": 0.018,
+        "metalness": 0.0,
+        "note": "Effective IOR of bulk snow is lower than solid ice due to air gaps."
+      },
+      "surface": {
+        "roughness_block": 0.70,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.8,
+        "color_rgb": [0.85, 0.90, 0.95],
+        "radius_mm": 15.0,
+        "note": "Snow is a strong multiple scatterer. Blue tint emerges in deep snow (red absorption)."
+      },
+      "physical": {
+        "density_kg_m3": 400,
+        "mohs_hardness": 1.5,
+        "melting_point_k": 273,
+        "thermal_conductivity_w_mk": 0.25,
+        "specific_heat_j_kgk": 2090,
+        "note": "Compacted snow density. Fresh powder ~100 kg/m3, glacial firn ~550-800."
+      }
+    },
+
+    "soul_sand": {
+      "real_world_material": "Fictional — suggested analogue: Diatomaceous earth",
+      "chemical_formula": null,
+      "category": "earth",
+      "is_fictional": true,
+      "suggested_analogue": "diatomaceous_earth",
+      "optical": {
+        "ior": 1.46,
+        "f0_scalar": 0.035,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.85,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 500,
+        "note": "Porous, lightweight. Based on diatomaceous earth."
+      }
+    },
+
+    "soul_soil": {
+      "real_world_material": "Fictional — suggested analogue: Peat soil",
+      "chemical_formula": null,
+      "category": "earth",
+      "is_fictional": true,
+      "suggested_analogue": "peat",
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.80,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 800,
+        "thermal_conductivity_w_mk": 0.4,
+        "specific_heat_j_kgk": 2000
+      }
+    },
+
+    "netherrack": {
+      "real_world_material": "Fictional — suggested analogue: Scoria / Vesicular basalt",
+      "chemical_formula": null,
+      "category": "stone",
+      "is_fictional": true,
+      "suggested_analogue": "scoria",
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.70,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1500,
+        "mohs_hardness": 4.0,
+        "thermal_conductivity_w_mk": 0.5,
+        "note": "Porous volcanic rock analogue."
+      }
+    },
+
+    "packed_mud": {
+      "real_world_material": "Adobe / Rammed earth",
+      "chemical_formula": "Clay + sand + straw (dried)",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.52,
+        "f0_scalar": 0.043,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.65,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1900,
+        "mohs_hardness": 2.5,
+        "thermal_conductivity_w_mk": 0.8,
+        "specific_heat_j_kgk": 850
+      }
+    },
+
+    "concrete": {
+      "real_world_material": "Concrete (Portland cement)",
+      "chemical_formula": "CaO + SiO2 + Al2O3 aggregate",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.53,
+        "f0_scalar": 0.045,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_polished": 0.15,
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2300,
+        "mohs_hardness": 3.5,
+        "thermal_conductivity_w_mk": 1.7,
+        "specific_heat_j_kgk": 880
+      }
+    },
+
+    "concrete_powder": {
+      "real_world_material": "Concrete powder (dry cement mix)",
+      "chemical_formula": "CaO + SiO2 (dry)",
+      "category": "earth",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.53,
+        "f0_scalar": 0.045,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.90,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1500,
+        "thermal_conductivity_w_mk": 0.3,
+        "specific_heat_j_kgk": 880
+      }
+    },
+
+    "bricks": {
+      "real_world_material": "Fired clay brick",
+      "chemical_formula": "Al2O3 + SiO2 + Fe2O3 (fired)",
+      "category": "ceramic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.54,
+        "f0_scalar": 0.046,
+        "metalness": 0.0,
+        "note": "Red color from iron oxide in fired clay."
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1900,
+        "mohs_hardness": 5.5,
+        "melting_point_k": 1400,
+        "thermal_conductivity_w_mk": 0.72,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "nether_bricks": {
+      "real_world_material": "Fictional — suggested analogue: Dark fired brick / clinker brick",
+      "chemical_formula": null,
+      "category": "ceramic",
+      "is_fictional": true,
+      "suggested_analogue": "clinker_brick",
+      "optical": {
+        "ior": 1.56,
+        "f0_scalar": 0.048,
+        "metalness": 0.0,
+        "note": "Over-fired brick analogue — darker color, denser, more vitrified."
+      },
+      "surface": {
+        "roughness_block": 0.50,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2200,
+        "mohs_hardness": 6.0,
+        "thermal_conductivity_w_mk": 1.0,
+        "specific_heat_j_kgk": 880
+      }
+    },
+
+    "mud_bricks": {
+      "real_world_material": "Adobe brick (sun-dried mud brick)",
+      "chemical_formula": "Clay + sand + straw",
+      "category": "ceramic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.52,
+        "f0_scalar": 0.043,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.70,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1700,
+        "mohs_hardness": 2.0,
+        "thermal_conductivity_w_mk": 0.6,
+        "specific_heat_j_kgk": 850
+      }
+    },
+
+    "terracotta": {
+      "real_world_material": "Terracotta (fired earthenware clay)",
+      "chemical_formula": "Al2O3 + SiO2 + Fe2O3",
+      "category": "ceramic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.54,
+        "f0_scalar": 0.046,
+        "metalness": 0.0,
+        "note": "Characteristic orange-red color from iron oxide."
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1900,
+        "mohs_hardness": 5.0,
+        "melting_point_k": 1350,
+        "thermal_conductivity_w_mk": 0.65,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "glazed_terracotta": {
+      "real_world_material": "Glazed ceramic (glass-coated terracotta)",
+      "chemical_formula": "SiO2 glaze over clay body",
+      "category": "ceramic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.54,
+        "f0_scalar": 0.046,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.10,
+        "anisotropy": 0.0,
+        "note": "Glaze surface is very smooth — much lower roughness than unglazed."
+      },
+      "coat": {
+        "weight": 1.0,
+        "roughness": 0.05,
+        "ior": 1.52,
+        "note": "Glass-like glaze coating over the ceramic body."
+      },
+      "physical": {
+        "density_kg_m3": 2000,
+        "mohs_hardness": 6.0,
+        "thermal_conductivity_w_mk": 0.80,
+        "specific_heat_j_kgk": 840
+      }
+    },
+
+    "wool": {
+      "real_world_material": "Wool (sheep keratin fiber)",
+      "chemical_formula": "Keratin protein (C + H + O + N + S)",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0,
+        "note": "Keratin IOR ~1.54-1.56."
+      },
+      "surface": {
+        "roughness_block": 0.90,
+        "anisotropy": 0.0
+      },
+      "sheen": {
+        "weight": 0.5,
+        "color_rgb": [1.0, 1.0, 1.0],
+        "roughness": 0.5,
+        "note": "Wool fibers create a soft sheen at grazing angles."
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.90, 0.85, 0.75],
+        "radius_mm": 3.0,
+        "note": "Fiber bundles allow light to scatter through."
+      },
+      "physical": {
+        "density_kg_m3": 100,
+        "thermal_conductivity_w_mk": 0.04,
+        "specific_heat_j_kgk": 1360,
+        "note": "Bulk density including trapped air. Fiber density ~1300 kg/m3."
+      }
+    },
+
+    "leaves": {
+      "real_world_material": "Plant leaves (generic broadleaf)",
+      "chemical_formula": "Cellulose + chlorophyll",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.47,
+        "f0_scalar": 0.036,
+        "metalness": 0.0,
+        "note": "Leaf wax cuticle IOR ~1.45-1.50. Chlorophyll absorbs red and blue, transmits green."
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.6,
+        "color_rgb": [0.15, 0.60, 0.08],
+        "radius_mm": 1.0,
+        "sigma_a_mm_inv_rgb": [2.0, 0.2, 1.5],
+        "sigma_s_prime_mm_inv_rgb": [5.0, 5.0, 5.0],
+        "note": "Chlorophyll absorption: strong red (680nm) and blue (430nm) bands. Green channel transmits."
+      },
+      "transmission": {
+        "weight": 0.3,
+        "color_rgb": [0.20, 0.70, 0.10],
+        "depth_mm": 0.3,
+        "note": "Thin leaves are noticeably translucent — backlit leaves glow green/yellow."
+      },
+      "coat": {
+        "weight": 0.4,
+        "roughness": 0.10,
+        "ior": 1.47,
+        "note": "Waxy cuticle coating on leaf surface."
+      },
+      "physical": {
+        "density_kg_m3": 300,
+        "thermal_conductivity_w_mk": 0.27,
+        "specific_heat_j_kgk": 2400,
+        "note": "Block density (including air). Leaf tissue density ~700-1100 kg/m3."
+      }
+    },
+
+    "coral": {
+      "real_world_material": "Coral (calcium carbonate skeleton)",
+      "chemical_formula": "CaCO3 (aragonite)",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.60,
+        "f0_scalar": 0.053,
+        "metalness": 0.0,
+        "note": "Aragonite polymorph of CaCO3. Higher IOR than calcite."
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.2,
+        "color_rgb": [0.90, 0.60, 0.45],
+        "radius_mm": 1.5,
+        "note": "Dead coral is white (pure CaCO3). Living coral colored by symbiotic algae."
+      },
+      "physical": {
+        "density_kg_m3": 2700,
+        "mohs_hardness": 3.5,
+        "thermal_conductivity_w_mk": 2.0,
+        "specific_heat_j_kgk": 800,
+        "note": "Dense coral skeleton. Porous coral much lighter."
+      }
+    },
+
+    "mushroom_block": {
+      "real_world_material": "Mushroom (fungal tissue — chitin + glucan)",
+      "chemical_formula": "Chitin (C8H13O5N)n + beta-glucan",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.65,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.5,
+        "color_rgb": [0.80, 0.65, 0.50],
+        "radius_mm": 3.0,
+        "note": "Mushroom flesh is highly translucent — strong subsurface scattering."
+      },
+      "physical": {
+        "density_kg_m3": 400,
+        "thermal_conductivity_w_mk": 0.25,
+        "specific_heat_j_kgk": 2500
+      }
+    },
+
+    "sponge": {
+      "real_world_material": "Natural sponge (spongin + silica spicules)",
+      "chemical_formula": "Spongin protein + SiO2",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.45,
+        "f0_scalar": 0.034,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.85,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.85, 0.80, 0.45],
+        "radius_mm": 5.0,
+        "note": "Porous structure allows significant internal light scattering."
+      },
+      "physical": {
+        "density_kg_m3": 250,
+        "thermal_conductivity_w_mk": 0.05,
+        "specific_heat_j_kgk": 1500,
+        "note": "Dry sponge. Saturated sponge approaches water density."
+      }
+    },
+
+    "hay_block": {
+      "real_world_material": "Hay / dried grass (cellulose fibers)",
+      "chemical_formula": "Cellulose (C6H10O5)n",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.53,
+        "f0_scalar": 0.045,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.85,
+        "anisotropy": 0.15,
+        "anisotropy_note": "Hay bales have directional fiber alignment."
+      },
+      "physical": {
+        "density_kg_m3": 150,
+        "thermal_conductivity_w_mk": 0.06,
+        "specific_heat_j_kgk": 1760,
+        "note": "Baled hay density. Individual straw fiber density ~500 kg/m3."
+      }
+    },
+
+    "bone_block": {
+      "real_world_material": "Bone (hydroxyapatite + collagen)",
+      "chemical_formula": "Ca5(PO4)3(OH) + collagen",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.63,
+        "f0_scalar": 0.057,
+        "metalness": 0.0,
+        "note": "Hydroxyapatite crystal IOR. Composite with collagen gives effective ~1.55-1.63."
+      },
+      "surface": {
+        "roughness_polished": 0.10,
+        "roughness_block": 0.45,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.92, 0.88, 0.75],
+        "radius_mm": 2.0,
+        "note": "Thin bone sections are translucent — ivory shows strong SSS."
+      },
+      "physical": {
+        "density_kg_m3": 1900,
+        "mohs_hardness": 5.0,
+        "thermal_conductivity_w_mk": 0.58,
+        "specific_heat_j_kgk": 1260
+      }
+    },
+
+    "moss_block": {
+      "real_world_material": "Moss (bryophyte plant tissue)",
+      "chemical_formula": "Cellulose + chlorophyll",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.47,
+        "f0_scalar": 0.036,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.90,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.3,
+        "color_rgb": [0.15, 0.55, 0.10],
+        "radius_mm": 2.0
+      },
+      "physical": {
+        "density_kg_m3": 200,
+        "thermal_conductivity_w_mk": 0.07,
+        "specific_heat_j_kgk": 2400
+      }
+    },
+
+    "sculk": {
+      "real_world_material": "Fictional — suggested analogue: Bioluminescent fungal biofilm",
+      "chemical_formula": null,
+      "category": "organic",
+      "is_fictional": true,
+      "suggested_analogue": "bioluminescent_biofilm",
+      "optical": {
+        "ior": 1.48,
+        "f0_scalar": 0.037,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.75,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.4,
+        "color_rgb": [0.05, 0.15, 0.35],
+        "radius_mm": 3.0
+      },
+      "emission": {
+        "luminance_nits": 5.0,
+        "color_rgb": [0.05, 0.25, 0.60],
+        "note": "Deep blue bioluminescent glow."
+      },
+      "physical": {
+        "density_kg_m3": 600
+      }
+    },
+
+    "nether_wart_block": {
+      "real_world_material": "Fictional — suggested analogue: Dense fungal tissue",
+      "chemical_formula": null,
+      "category": "organic",
+      "is_fictional": true,
+      "suggested_analogue": "dense_fungal_mass",
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.65,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.4,
+        "color_rgb": [0.70, 0.10, 0.08],
+        "radius_mm": 2.0
+      },
+      "physical": {
+        "density_kg_m3": 500
+      }
+    },
+
+    "warped_nylium": {
+      "real_world_material": "Fictional — suggested analogue: Mycelium-covered stone",
+      "chemical_formula": null,
+      "category": "organic",
+      "is_fictional": true,
+      "suggested_analogue": "mycelium_stone",
+      "optical": {
+        "ior": 1.52,
+        "f0_scalar": 0.043,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2000
+      }
+    },
+
+    "crimson_nylium": {
+      "real_world_material": "Fictional — suggested analogue: Mycelium-covered stone (red variant)",
+      "chemical_formula": null,
+      "category": "organic",
+      "is_fictional": true,
+      "suggested_analogue": "mycelium_stone_red",
+      "optical": {
+        "ior": 1.52,
+        "f0_scalar": 0.043,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 2000
+      }
+    },
+
+    "shroomlight": {
+      "real_world_material": "Fictional — suggested analogue: Bioluminescent fungal fruiting body",
+      "chemical_formula": null,
+      "category": "organic",
+      "is_fictional": true,
+      "suggested_analogue": "bioluminescent_fungus",
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.6,
+        "color_rgb": [0.95, 0.75, 0.40],
+        "radius_mm": 5.0,
+        "note": "Warm bioluminescent glow permeates the entire block."
+      },
+      "emission": {
+        "luminance_nits": 100.0,
+        "color_rgb": [1.0, 0.85, 0.50],
+        "note": "Bright warm emitter — Minecraft light level 15."
+      },
+      "physical": {
+        "density_kg_m3": 400
+      }
+    },
+
+    "honeycomb_block": {
+      "real_world_material": "Beeswax (honeycomb)",
+      "chemical_formula": "C15H31COOC30H61 (myricyl palmitate)",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.44,
+        "f0_scalar": 0.032,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.45,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.6,
+        "color_rgb": [0.95, 0.80, 0.30],
+        "radius_mm": 5.0,
+        "note": "Beeswax is notably translucent — strong warm-toned SSS."
+      },
+      "transmission": {
+        "weight": 0.3,
+        "color_rgb": [0.95, 0.80, 0.30],
+        "depth_mm": 5
+      },
+      "physical": {
+        "density_kg_m3": 960,
+        "melting_point_k": 335,
+        "thermal_conductivity_w_mk": 0.25,
+        "specific_heat_j_kgk": 3430
+      }
+    },
+
+    "melon": {
+      "real_world_material": "Melon (Cucumis melo / watermelon)",
+      "chemical_formula": "Plant tissue (cellulose + water)",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.47,
+        "f0_scalar": 0.036,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.5,
+        "color_rgb": [0.70, 0.85, 0.30],
+        "radius_mm": 5.0,
+        "note": "Outer rind is somewhat translucent (green). Flesh is highly translucent (red/pink)."
+      },
+      "coat": {
+        "weight": 0.3,
+        "roughness": 0.10,
+        "ior": 1.47,
+        "note": "Waxy rind coating."
+      },
+      "physical": {
+        "density_kg_m3": 950,
+        "specific_heat_j_kgk": 3800,
+        "note": "Mostly water (92%). High specific heat."
+      }
+    },
+
+    "pumpkin": {
+      "real_world_material": "Pumpkin (Cucurbita)",
+      "chemical_formula": "Plant tissue (cellulose + carotenes)",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.47,
+        "f0_scalar": 0.036,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.4,
+        "color_rgb": [0.90, 0.55, 0.10],
+        "radius_mm": 4.0,
+        "note": "Orange color from beta-carotene. Rind is somewhat translucent."
+      },
+      "physical": {
+        "density_kg_m3": 900,
+        "specific_heat_j_kgk": 3600
+      }
+    },
+
+    "dried_kelp_block": {
+      "real_world_material": "Dried kelp / seaweed (Laminaria)",
+      "chemical_formula": "Cellulose + alginates + minerals",
+      "category": "organic",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.70,
+        "anisotropy": 0.10
+      },
+      "physical": {
+        "density_kg_m3": 700,
+        "thermal_conductivity_w_mk": 0.15,
+        "specific_heat_j_kgk": 1900
+      }
+    },
+
+    "raw_iron_block": {
+      "real_world_material": "Raw iron ore (hematite/magnetite)",
+      "chemical_formula": "Fe2O3 / Fe3O4 + gangue",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 2.94,
+        "f0_scalar": 0.236,
+        "metalness": 0.3,
+        "note": "Hematite IOR ~2.94 (very high for oxide). Not fully metallic — ore is oxide."
+      },
+      "surface": {
+        "roughness_block": 0.65,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 5150,
+        "mohs_hardness": 6.0,
+        "note": "Hematite density. Mixed ore is lower (~4000-5000)."
+      }
+    },
+
+    "raw_gold_block": {
+      "real_world_material": "Raw gold ore (native gold in quartz matrix)",
+      "chemical_formula": "Au + SiO2",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "complex_ior": {
+          "note": "Mix of gold metal and quartz. Effective F0 between gold (0.94) and quartz (0.046)."
+        },
+        "f0_estimated_rgb": [0.60, 0.45, 0.20],
+        "metalness": 0.6,
+        "note": "Partially metallic — gold veins in quartz matrix."
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 5000,
+        "mohs_hardness": 3.0,
+        "note": "Lower density than pure gold — contains quartz gangue."
+      }
+    },
+
+    "raw_copper_block": {
+      "real_world_material": "Raw copper ore (chalcopyrite/malachite)",
+      "chemical_formula": "CuFeS2 / Cu2CO3(OH)2",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.88,
+        "f0_scalar": 0.090,
+        "metalness": 0.2,
+        "note": "Malachite IOR ~1.66-1.88. Not metallic — copper carbonate mineral."
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.2,
+        "color_rgb": [0.20, 0.65, 0.30],
+        "radius_mm": 1.0,
+        "note": "Malachite shows banded green translucency."
+      },
+      "physical": {
+        "density_kg_m3": 3900,
+        "mohs_hardness": 4.0,
+        "note": "Malachite analogue. Chalcopyrite is denser (~4200 kg/m3)."
+      }
+    },
+
+    "gilded_blackstone": {
+      "real_world_material": "Fictional — suggested analogue: Gold-veined dark basalt",
+      "chemical_formula": null,
+      "category": "stone",
+      "is_fictional": true,
+      "suggested_analogue": "gold_veined_basalt",
+      "optical": {
+        "ior": 1.58,
+        "f0_scalar": 0.051,
+        "metalness": 0.2,
+        "note": "Mostly stone with metallic gold veins. Partial metalness."
+      },
+      "surface": {
+        "roughness_block": 0.50,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 3500
+      }
+    },
+
+    "lodestone": {
+      "real_world_material": "Lodestone (magnetite)",
+      "chemical_formula": "Fe3O4",
+      "category": "mineral",
+      "is_fictional": false,
+      "optical": {
+        "complex_ior": {
+          "n": { "r": 2.42, "g": 2.42, "b": 2.42 },
+          "k": { "r": 0.33, "g": 0.33, "b": 0.33 },
+          "source": "Magnetite optical constants — Schlegel et al. 1979"
+        },
+        "f0_scalar": 0.170,
+        "metalness": 0.3,
+        "note": "Semi-metallic oxide. High IOR but low k compared to true metals."
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 5175,
+        "mohs_hardness": 6.0,
+        "melting_point_k": 1870,
+        "thermal_conductivity_w_mk": 5.1,
+        "specific_heat_j_kgk": 610,
+        "note": "Natural permanent magnet. The original 'magnet'."
+      }
+    },
+
+    "water": {
+      "real_world_material": "Water",
+      "chemical_formula": "H2O",
+      "category": "liquid",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.333,
+        "f0_scalar": 0.020,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_calm": 0.0,
+        "roughness_block": 0.05,
+        "note": "Calm water is a near-perfect mirror. Waves add roughness."
+      },
+      "subsurface": {
+        "weight": 1.0,
+        "color_rgb": [0.20, 0.50, 0.85],
+        "radius_mm": 500.0,
+        "sigma_a_mm_inv_rgb": [0.00045, 0.000058, 0.000019],
+        "note": "Pure water absorption: red >> green >> blue. Blue color emerges over meters of path length."
+      },
+      "transmission": {
+        "weight": 1.0,
+        "color_rgb": [0.60, 0.85, 0.95],
+        "depth_mm": 5000,
+        "note": "Extremely transparent. Absorption only visible over long distances."
+      },
+      "dispersion": {
+        "abbe_number": 55.8,
+        "sellmeier_coefficients": {
+          "B1": 0.75831,
+          "B2": 0.08495,
+          "C1_um2": 0.01007,
+          "C2_um2": 8.91377,
+          "source": "Daimon & Masumura 2007"
+        }
+      },
+      "physical": {
+        "density_kg_m3": 997,
+        "melting_point_k": 273,
+        "boiling_point_k": 373,
+        "thermal_conductivity_w_mk": 0.606,
+        "specific_heat_j_kgk": 4186,
+        "viscosity_mpa_s": 0.89,
+        "surface_tension_mn_m": 72.8
+      }
+    },
+
+    "lava": {
+      "real_world_material": "Basaltic lava (molten rock)",
+      "chemical_formula": "SiO2-rich silicate melt (~50% SiO2)",
+      "category": "liquid",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.50,
+        "f0_scalar": 0.040,
+        "metalness": 0.0,
+        "note": "Essentially molten glass. IOR similar to solid obsidian."
+      },
+      "surface": {
+        "roughness_block": 0.30,
+        "anisotropy": 0.0,
+        "note": "Molten lava surface has moderate roughness from convection currents."
+      },
+      "emission": {
+        "blackbody_temp_k": 1200,
+        "emissivity": 0.90,
+        "luminance_nits": 25000,
+        "color_note": "Planckian blackbody at 1000-1200K: deep orange-red. Emissivity ~0.9 for rough molten rock."
+      },
+      "physical": {
+        "density_kg_m3": 2700,
+        "melting_point_k": 1073,
+        "thermal_conductivity_w_mk": 1.5,
+        "specific_heat_j_kgk": 1600,
+        "viscosity_mpa_s": 100000,
+        "note": "Basaltic lava. Viscosity varies enormously (10^2 to 10^10 Pa·s) with composition and temperature."
+      }
+    },
+
+    "honey": {
+      "real_world_material": "Honey",
+      "chemical_formula": "Fructose + glucose + water (~80% sugars)",
+      "category": "liquid",
+      "is_fictional": false,
+      "optical": {
+        "ior": 1.504,
+        "f0_scalar": 0.040,
+        "metalness": 0.0,
+        "note": "IOR increases with sugar concentration. Typical honey ~1.49-1.51."
+      },
+      "surface": {
+        "roughness_block": 0.05,
+        "anisotropy": 0.0,
+        "note": "Honey surface is very smooth and glossy."
+      },
+      "subsurface": {
+        "weight": 0.8,
+        "color_rgb": [0.90, 0.65, 0.10],
+        "radius_mm": 8.0,
+        "note": "Honey is translucent with warm golden SSS."
+      },
+      "transmission": {
+        "weight": 0.7,
+        "color_rgb": [0.95, 0.70, 0.15],
+        "depth_mm": 20,
+        "note": "Clear honey is quite transparent with golden tint."
+      },
+      "physical": {
+        "density_kg_m3": 1420,
+        "thermal_conductivity_w_mk": 0.50,
+        "specific_heat_j_kgk": 2430,
+        "viscosity_mpa_s": 10000,
+        "note": "Viscosity varies enormously with temperature and water content."
+      }
+    },
+
+    "slime_block": {
+      "real_world_material": "Gelatin / slime (hydrogel)",
+      "chemical_formula": "Cross-linked polymer + H2O",
+      "category": "liquid",
+      "is_fictional": true,
+      "suggested_analogue": "gelatin_hydrogel",
+      "optical": {
+        "ior": 1.35,
+        "f0_scalar": 0.022,
+        "metalness": 0.0,
+        "note": "IOR between water (1.333) and polymer (1.50). Mostly water."
+      },
+      "surface": {
+        "roughness_block": 0.08,
+        "anisotropy": 0.0
+      },
+      "subsurface": {
+        "weight": 0.7,
+        "color_rgb": [0.30, 0.75, 0.20],
+        "radius_mm": 10.0,
+        "note": "Highly translucent green gel — strong SSS."
+      },
+      "transmission": {
+        "weight": 0.6,
+        "color_rgb": [0.35, 0.80, 0.25],
+        "depth_mm": 30
+      },
+      "physical": {
+        "density_kg_m3": 1100,
+        "thermal_conductivity_w_mk": 0.55,
+        "specific_heat_j_kgk": 4000,
+        "note": "Properties similar to water-based hydrogels."
+      }
+    },
+
+    "bookshelf": {
+      "real_world_material": "Mixed — wood shelves + paper books",
+      "chemical_formula": null,
+      "category": "misc",
+      "is_fictional": false,
+      "is_mixed_material": true,
+      "primary_material": "wood + paper",
+      "optical": {
+        "ior": 1.53,
+        "f0_scalar": 0.045,
+        "metalness": 0.0,
+        "note": "Mix of wood (1.55) and paper/cellulose (1.48). Averaged."
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 500,
+        "note": "Approximate — depends on book density."
+      }
+    },
+
+    "crafting_table": {
+      "real_world_material": "Mixed — wood planks with tool marks",
+      "chemical_formula": null,
+      "category": "misc",
+      "is_fictional": false,
+      "is_mixed_material": true,
+      "primary_material": "wood",
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 660
+      }
+    },
+
+    "tnt": {
+      "real_world_material": "TNT wrapped in paper/canvas",
+      "chemical_formula": "C6H2(NO2)3CH3 (trinitrotoluene)",
+      "category": "misc",
+      "is_fictional": false,
+      "is_mixed_material": true,
+      "primary_material": "TNT crystalline explosive",
+      "optical": {
+        "ior": 1.543,
+        "f0_scalar": 0.046,
+        "metalness": 0.0,
+        "note": "TNT crystal IOR ~1.543. Block is wrapped in paper/canvas."
+      },
+      "surface": {
+        "roughness_block": 0.60,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 1654,
+        "melting_point_k": 354,
+        "thermal_conductivity_w_mk": 0.24,
+        "specific_heat_j_kgk": 1394
+      }
+    },
+
+    "smithing_table": {
+      "real_world_material": "Mixed — wood + iron fittings",
+      "chemical_formula": null,
+      "category": "misc",
+      "is_fictional": false,
+      "is_mixed_material": true,
+      "primary_material": "wood with iron",
+      "optical": {
+        "ior": 1.55,
+        "f0_scalar": 0.047,
+        "metalness": 0.0
+      },
+      "surface": {
+        "roughness_block": 0.55,
+        "anisotropy": 0.0
+      },
+      "physical": {
+        "density_kg_m3": 800
+      }
+    }
+  }
+}

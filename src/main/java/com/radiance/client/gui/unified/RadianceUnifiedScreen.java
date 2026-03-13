@@ -256,29 +256,33 @@ public class RadianceUnifiedScreen extends Screen {
     }
 
     private void renderHeader(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Header background (responds to global transparency slider)
-        context.fill(0, 0, this.width, HEADER_HEIGHT, RadianceTheme.unifiedHeaderBg);
+        // Header background (hidden during slider drag)
+        float fade = RadianceTheme.inactiveFadeFactor();
+        context.fill(0, 0, this.width, HEADER_HEIGHT,
+            RadianceTheme.scaleAlpha(RadianceTheme.unifiedHeaderBg, fade));
 
-        // Title in accent color
-        RadianceTheme.drawOutlinedText(context, this.textRenderer,
-            Text.translatable("radiance.settings.title"),
-            8, (HEADER_HEIGHT - 8) / 2, RadianceTheme.textAccent);
+        if (fade > 0.005f) {
+            // Title in accent color
+            RadianceTheme.drawOutlinedText(context, this.textRenderer,
+                Text.translatable("radiance.settings.title"),
+                8, (HEADER_HEIGHT - 8) / 2, RadianceTheme.textAccent, fade);
 
-        // Re-render the header widgets on top of the background
-        // (super.render drew them but the bg was painted over them)
-        if (opacitySlider != null) {
-            opacitySlider.render(context, mouseX, mouseY, delta);
-        }
-        if (resetDefaultsButton != null) {
-            // Custom render for the reset button
-            int x = resetDefaultsButton.getX();
-            int y = resetDefaultsButton.getY();
-            int w = resetDefaultsButton.getWidth();
-            int h = resetDefaultsButton.getHeight();
-            boolean hovered = mouseX >= x && mouseX < x + w
-                && mouseY >= y && mouseY < y + h;
-            RadianceTheme.drawCustomButton(context, x, y, w, h,
-                hovered, this.textRenderer, resetDefaultsButton.getMessage());
+            // Re-render the header widgets on top of the background
+            // (super.render drew them but the bg was painted over them)
+            if (opacitySlider != null) {
+                opacitySlider.render(context, mouseX, mouseY, delta);
+            }
+            if (resetDefaultsButton != null) {
+                // Custom render for the reset button
+                int x = resetDefaultsButton.getX();
+                int y = resetDefaultsButton.getY();
+                int w = resetDefaultsButton.getWidth();
+                int h = resetDefaultsButton.getHeight();
+                boolean hovered = mouseX >= x && mouseX < x + w
+                    && mouseY >= y && mouseY < y + h;
+                RadianceTheme.drawCustomButton(context, x, y, w, h,
+                    hovered, this.textRenderer, resetDefaultsButton.getMessage());
+            }
         }
     }
 

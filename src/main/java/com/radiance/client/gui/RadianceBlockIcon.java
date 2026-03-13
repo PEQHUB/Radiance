@@ -43,7 +43,7 @@ public final class RadianceBlockIcon {
         float scale = size / 16f;
         context.getMatrices().push();
         context.getMatrices().translate(x, y, 0);
-        context.getMatrices().scale(scale, scale, 1f);
+        context.getMatrices().scale(scale, scale, scale);
         context.drawItem(stack, 0, 0);
         context.getMatrices().pop();
     }

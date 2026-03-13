@@ -5,6 +5,7 @@ import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.util.LightSourceDef;
 import com.radiance.client.util.LightSourceRegistry;
+import com.radiance.client.util.MaterialBlock;
 import com.radiance.client.vertex.PBRVertexConsumer;
 import static net.minecraft.client.render.block.FluidRenderer.shouldRenderSide;
 
@@ -165,6 +166,14 @@ public abstract class FluidRendererMixins {
                         ChunkLightCollector.addLight(pos, lightDef);
                     }
                 }
+            }
+        }
+
+        // Tag material block type for water/lava material overrides
+        if (vertexConsumer instanceof PBRVertexConsumer pbrVc) {
+            MaterialBlock mb = MaterialBlock.fromBlock(fluidState.getBlockState().getBlock());
+            if (mb != null) {
+                pbrVc.setPendingMaterialBlockType(mb.ordinal());
             }
         }
 
@@ -710,6 +719,11 @@ u1 = stillSprite.getFrameU(0.0F);
                     }
                 }
             }
+        }
+
+        // Clear material block type after all vertices are emitted
+        if (vertexConsumer instanceof PBRVertexConsumer pbrVc) {
+            pbrVc.setPendingMaterialBlockType(255);
         }
 
         ci.cancel();
