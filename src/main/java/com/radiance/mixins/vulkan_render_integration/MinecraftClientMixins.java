@@ -142,11 +142,6 @@ public class MinecraftClientMixins {
             RendererProxy.submitCommandAndPresent();
             RendererProxy.acquireContext();
         }
-        // After swapchain recreate (alt-tab/minimize), pending texture uploads are lost.
-        // Trigger a full resource reload to re-upload all textures — same path as F3+T.
-        if (RendererProxy.needsTextureReload()) {
-            MinecraftClient.getInstance().reloadResources();
-        }
     }
 
     @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;draw(II)V"))

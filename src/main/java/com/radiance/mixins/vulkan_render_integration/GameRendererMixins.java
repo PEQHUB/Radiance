@@ -55,6 +55,12 @@ public class GameRendererMixins implements IGameRendererExt {
     @Unique
     private Matrix4f viewMatrix;
 
+    // Track whether window lost focus during initial load (causes texture corruption)
+    @Unique
+    private static boolean loadingPhase = true;
+    @Unique
+    private static boolean lostFocusDuringLoad = false;
+
     @Redirect(method = "preloadPrograms(Lnet/minecraft/resource/ResourceFactory;)V",
         at = @At(value = "INVOKE",
             target =
@@ -144,8 +150,28 @@ public class GameRendererMixins implements IGameRendererExt {
 
     @Inject(method = "render(Lnet/minecraft/client/render/RenderTickCounter;Z)V", at = @At(value = "HEAD"))
     public void shouldRenderWorld(RenderTickCounter tickCounter, boolean tick, CallbackInfo ci) {
+        boolean finishedLoading = client.isFinishedLoading();
+
+        // Detect focus loss during initial load (alt-tab corrupts textures)
+        if (loadingPhase) {
+            if (!finishedLoading) {
+                // Still loading — check if window lost focus
+                if (!client.isWindowFocused()) {
+                    lostFocusDuringLoad = true;
+                }
+            } else {
+                // Loading just finished
+                loadingPhase = false;
+                if (lostFocusDuringLoad) {
+                    lostFocusDuringLoad = false;
+                    // Reload textures — same path as F3+T
+                    client.reloadResources();
+                }
+            }
+        }
+
         RendererProxy.shouldRenderWorld(
-            !this.client.skipGameRender && client.isFinishedLoading() && tick
+            !this.client.skipGameRender && finishedLoading && tick
                 && client.world != null);
     }
 
