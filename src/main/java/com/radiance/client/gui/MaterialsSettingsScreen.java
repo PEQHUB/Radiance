@@ -885,7 +885,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
         // Blend amount — prominent, full-width, shown first
         ResettableSliderWidget textureBlend = new ResettableSliderWidget(0, 0, 150, 20,
-            0, 100, Options.materialTextureBlend[i], 30,
+            0, 100, Options.materialTextureBlend[i], 0,
             v -> getGenericValueText(
                 Text.literal("Blend Amount"),
                 Text.literal(v > 0 ? v + "% (overrides roughness)" : "0% (off)")),

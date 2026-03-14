@@ -535,13 +535,9 @@ public class Options {
             materialChannelR[i] = 213;      // 0.2126
             materialChannelG[i] = 715;      // 0.7152
             materialChannelB[i] = 72;       // 0.0722
-            // Texture blend defaults by category
-            int blend = 30; // default for most
-            MaterialBlock.MaterialCategory cat = mb.getCategory();
-            if (cat == MaterialBlock.MaterialCategory.METALS) blend = 60;
-            else if (cat == MaterialBlock.MaterialCategory.WOOD) blend = 40;
-            else if (cat == MaterialBlock.MaterialCategory.GEMS) blend = 20;
-            materialTextureBlend[i] = blend;
+            // Texture blend default: 0 (off). Users opt in explicitly.
+            // Previously defaulted to 30-60% which silently overrode the roughness slider.
+            materialTextureBlend[i] = 0;
             materialGamutBoost[i] = 100;    // 1.0× (neutral)
         }
     }
