@@ -636,17 +636,29 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             regeneratePreview();
         }
 
-        // === Material Actions (Copy/Paste | Export/Browser) ===
+        // === Reset to Defaults ===
         final int currentIdx = i;
+        ButtonWidget resetDefaultsBtn = ButtonWidget.builder(
+            Text.literal("Reset to Defaults"),
+            btn -> {
+                MaterialData defaults = MaterialData.fromBlock(block);
+                if (defaults != null) {
+                    defaults.applyToOptions(currentIdx);
+                    MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
+                }
+            }).width(150).build();
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(resetDefaultsBtn, null, body));
+
+        // === Material Actions (all in one row) ===
         ButtonWidget copyBtn = ButtonWidget.builder(
-            Text.translatable("radiance.materials.copy"),
+            Text.literal("Copy"),
             btn -> {
                 MaterialClipboard.copy(currentIdx);
-                btn.setMessage(Text.translatable("radiance.materials.copied"));
+                btn.setMessage(Text.literal("Copied!"));
             }).width(70).build();
 
         ButtonWidget pasteBtn = ButtonWidget.builder(
-            Text.translatable("radiance.materials.paste"),
+            Text.literal("Paste"),
             btn -> {
                 if (MaterialClipboard.paste(currentIdx)) {
                     MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
@@ -654,7 +666,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             }).width(70).build();
 
         ButtonWidget exportBtn = ButtonWidget.builder(
-            Text.translatable("radiance.materials.export"),
+            Text.literal("Export"),
             btn -> {
                 MaterialData data = MaterialData.fromOptions(currentIdx);
                 if (data != null) {
@@ -664,12 +676,11 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             }).width(70).build();
 
         ButtonWidget browserBtn = ButtonWidget.builder(
-            Text.translatable("radiance.materials.browser"),
+            Text.literal("Browser"),
             btn -> MinecraftClient.getInstance().setScreen(new MaterialBrowserScreen(this))
         ).width(70).build();
 
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(copyBtn, pasteBtn, body));
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(exportBtn, browserBtn, body));
+        this.body.addEntry(new RadianceSettingsScreen.FourColumnButtonEntry(copyBtn, pasteBtn, exportBtn, browserBtn, body));
 
         // === Parent/Child indicator ===
         if (!block.isParent()) {
@@ -750,7 +761,17 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(
                 Text.translatable("options.video.materials.metallic"),
                 Text.literal(String.format("%.1f%%", v / 10.0))),
-            v -> { Options.materialMetallic[i] = v; onSliderChanged(i); });
+            v -> {
+                Options.materialMetallic[i] = v;
+                // Auto-set minimum F0 when turning metallic on for blocks with zero F0 (e.g. obsidian).
+                // Without F0, metals are invisible black (albedo = F0 = 0,0,0).
+                if (v >= 500 && Options.materialF0R[i] == 0 && Options.materialF0G[i] == 0 && Options.materialF0B[i] == 0) {
+                    Options.materialF0R[i] = 500;
+                    Options.materialF0G[i] = 500;
+                    Options.materialF0B[i] = 500;
+                }
+                onSliderChanged(i);
+            });
         ResettableSliderWidget roughness = new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.materialRoughness[i], block.getDefaultRoughness(),
             v -> getGenericValueText(

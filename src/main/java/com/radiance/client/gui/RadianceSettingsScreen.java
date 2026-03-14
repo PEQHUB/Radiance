@@ -296,6 +296,17 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         satSlider.settingKey = "saturationPercent";
         this.body.addEntry(new SliderEntry(satSlider, body));
 
+        // [Color Expansion (per-block vivid chroma boost, full-width slider)]
+        ResettableSliderWidget ceSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            0, 200, Options.colorExpansionPercent, Options.COLOR_EXPANSION_DEFAULT_PERCENT,
+            v -> getGenericValueText(
+                Text.translatable(Options.COLOR_EXPANSION_KEY),
+                Text.literal(String.format("%.2f", v / 100.0))),
+            v -> Options.setColorExpansion(v, true));
+        ceSlider.settingKey = "colorExpansionPercent";
+        this.body.addEntry(new SliderEntry(ceSlider, body));
+
         // [PsychoV Settings... | (empty)]
         this.body.addEntry(new TwoColumnOptionEntry(
             subScreenButton(Options.CATEGORY_PSYCHO, new PsychoVSettingsScreen(this)),
@@ -899,6 +910,50 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         public List<? extends Selectable> selectableChildren() {
             return right != null ? ImmutableList.of(left, right) : ImmutableList.of(left);
         }
+    }
+
+    /** WidgetEntry that renders four ClickableWidgets (buttons) in a single row. */
+    static class FourColumnButtonEntry extends OptionListWidget.WidgetEntry {
+        private final ClickableWidget b0, b1, b2, b3;
+
+        FourColumnButtonEntry(ClickableWidget b0, ClickableWidget b1,
+                              ClickableWidget b2, ClickableWidget b3,
+                              OptionListWidget parent) {
+            super(buildBtnList(b0, b1, b2, b3), null);
+            this.b0 = b0; this.b1 = b1; this.b2 = b2; this.b3 = b3;
+        }
+
+        private static ImmutableList<ClickableWidget> buildBtnList(
+                ClickableWidget a, ClickableWidget b, ClickableWidget c, ClickableWidget d) {
+            var builder = ImmutableList.<ClickableWidget>builder();
+            if (a != null) builder.add(a);
+            if (b != null) builder.add(b);
+            if (c != null) builder.add(c);
+            if (d != null) builder.add(d);
+            return builder.build();
+        }
+
+        @Override
+        public void render(DrawContext context, int index, int y, int x, int entryWidth,
+            int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
+            int gap = 4;
+            var btns = buildBtnList(b0, b1, b2, b3);
+            int bw = (entryWidth - gap * (btns.size() - 1)) / btns.size();
+            int bx = x;
+            for (var btn : btns) {
+                btn.setX(bx);
+                btn.setY(y);
+                btn.setWidth(bw);
+                btn.render(context, mouseX, mouseY, tickDelta);
+                bx += bw + gap;
+            }
+        }
+
+        @Override
+        public List<? extends Element> children() { return buildBtnList(b0, b1, b2, b3); }
+
+        @Override
+        public List<? extends Selectable> selectableChildren() { return buildBtnList(b0, b1, b2, b3); }
     }
 
     /** WidgetEntry that renders a single ButtonWidget, full-width like SliderEntry. */

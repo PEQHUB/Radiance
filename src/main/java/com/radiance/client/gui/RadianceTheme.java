@@ -169,9 +169,10 @@ public final class RadianceTheme {
         textSecondary = withAlpha(BASE_TEXT_SECONDARY, 0.8f);
         textAccent    = withAlpha(BASE_TEXT_ACCENT, 1.0f);
 
-        // Custom widget colors
-        sliderTrack   = withAlpha(BASE_SLIDER_TRACK, effectiveAlpha);
-        sliderFill    = withAlpha(BASE_SLIDER_FILL, effectiveAlpha);
+        // Custom widget colors — minimum 0.3 alpha so the opacity slider never fades itself out
+        float sliderAlpha = Math.max(effectiveAlpha, 0.3f);
+        sliderTrack   = withAlpha(BASE_SLIDER_TRACK, sliderAlpha);
+        sliderFill    = withAlpha(BASE_SLIDER_FILL, sliderAlpha);
         sliderThumb   = withAlpha(BASE_SLIDER_THUMB, 1.0f);
         toggleOn      = withAlpha(BASE_TOGGLE_ON, effectiveAlpha);
         toggleOff     = withAlpha(BASE_TOGGLE_OFF, effectiveAlpha);
@@ -227,13 +228,14 @@ public final class RadianceTheme {
 
         long elapsed = System.currentTimeMillis() - fadeStartMs;
         if (fadingOut || activeSlider != null) {
-            // Fading out to 0
-            return Math.max(0f, 1f - (elapsed / (float) FADE_OUT_MS));
+            // Fade out to a floor (never fully invisible so user retains context)
+            float t = Math.min(1f, elapsed / (float) FADE_OUT_MS);
+            return 0.15f + (1f - 0.15f) * (1f - t);
         } else {
-            // Fading back in from 0
-            float factor = Math.min(1f, elapsed / (float) FADE_IN_MS);
-            if (factor >= 1f) fadeStartMs = 0; // Animation complete
-            return factor;
+            // Fading back in from floor
+            float t = Math.min(1f, elapsed / (float) FADE_IN_MS);
+            if (t >= 1f) fadeStartMs = 0; // Animation complete
+            return 0.15f + (1f - 0.15f) * t;
         }
     }
 
@@ -283,7 +285,7 @@ public final class RadianceTheme {
      */
     public static void drawOutlinedText(DrawContext ctx, TextRenderer renderer,
             Text text, int x, int y, int color, float alphaMult) {
-        int outlineColor = withAlpha(0x000000, 0.4f * alphaMult);
+        int outlineColor = withAlpha(0x000000, 0.7f * alphaMult);
         int mainColor = scaleAlpha(color, alphaMult);
 
         // 4-direction outline
@@ -493,15 +495,22 @@ public final class RadianceTheme {
     public static void drawCustomSlider(DrawContext ctx, int x, int y, int w, int h,
             double value, boolean hovered, boolean active,
             TextRenderer renderer, Text message) {
-        // Track background
+        // Dark backdrop behind slider so it remains visible over the game scene.
+        // Always drawn (not just when active) so sliders are readable in the menu.
+        float bgAlpha = active ? 0.6f : 0.35f;
+        ctx.fill(x - 2, y - 1, x + w + 2, y + h + 1, withAlpha(0x000000, bgAlpha));
+
+        // Track background — use higher alpha when active for visibility
         int trackH = 4;
         int trackY = y + (h - trackH) / 2;
-        ctx.fill(x, trackY, x + w, trackY + trackH, sliderTrack);
+        int trackColor = active ? withAlpha(BASE_SLIDER_TRACK, 0.9f) : sliderTrack;
+        ctx.fill(x, trackY, x + w, trackY + trackH, trackColor);
 
         // Filled portion (accent color)
         int fillW = (int) (w * value);
+        int fillColor = active ? withAlpha(BASE_SLIDER_FILL, 0.95f) : sliderFill;
         if (fillW > 0) {
-            ctx.fill(x, trackY, x + fillW, trackY + trackH, sliderFill);
+            ctx.fill(x, trackY, x + fillW, trackY + trackH, fillColor);
         }
 
         // Thumb
