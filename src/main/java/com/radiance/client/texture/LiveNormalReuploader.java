@@ -51,7 +51,11 @@ public final class LiveNormalReuploader {
     public static void reuploadAllAutoPBR() {
         reuploadNormals();
         reuploadSpeculars();
-        BufferProxy.performQueuedUpload();
+        // Don't call performQueuedUpload() here — the queued uploads will be
+        // flushed by the regular submitCommand() path on the next frame.
+        // Calling it here risks double-processing (upload queue isn't cleared
+        // after processing) and command buffer state corruption if this runs
+        // before acquireContext() has begun the upload command buffer.
     }
 
     private static void reuploadNormals() {
