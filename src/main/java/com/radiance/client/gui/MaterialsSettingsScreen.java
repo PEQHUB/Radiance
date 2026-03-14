@@ -573,7 +573,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.autoPBREnabled,
             value -> {
                 Options.autoPBREnabled = value;
-                MinecraftClient.getInstance().reloadResources();
+                LiveNormalReuploader.scheduleReupload();
             });
 
         this.body.addAll(new SimpleOption[]{overridesToggle, autoPBRToggle});
@@ -601,9 +601,8 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             btn -> {
                 Options.materialAutoPBR[blockIdx_apbr] = !Options.materialAutoPBR[blockIdx_apbr];
                 btn.setMessage(Text.literal("Auto-PBR: " + (Options.materialAutoPBR[blockIdx_apbr] ? "ON" : "OFF")));
-                // Toggling AutoPBR needs a resource reload to regenerate textures
-                // because the albedo cache may not exist for blocks that weren't AutoPBR on load
-                MinecraftClient.getInstance().reloadResources();
+                // Hot-swap: re-upload Auto-PBR textures without disrupting DLSS-RR temporal history
+                LiveNormalReuploader.scheduleReupload();
             }).width(150).build();
         // Normal Source dropdown: Auto / Custom / Flat / Blender PBR
         final String[] inputTypeLabels = {"Auto", "Custom", "Flat", "Blender PBR"};
