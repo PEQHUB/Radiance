@@ -712,29 +712,60 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> { Options.materialGamutBoost[i] = v; onSliderChanged(i); });
         this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(textureBlend, gamutBoost, body));
 
-        // Procedural Noise (compact)
+        // Procedural Noise
         noiseDropdown = new NoiseTypeDropdownWidget(0, 0, 100, 20, type -> {
             Options.materialNoiseType[i] = type; onSliderChanged(i); });
         noiseDropdown.setNoiseType(Options.materialNoiseType[i]);
-        ResettableSliderWidget noiseStrength = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 1000, Options.materialNoiseStrength[i], 0,
-            v -> getGenericValueText(Text.literal("Noise"), Text.literal(String.format("%.1f%%", v / 10.0))),
-            v -> { Options.materialNoiseStrength[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(noiseDropdown, noiseStrength, body));
-
-        ResettableSliderWidget noiseScale = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 1000, Options.materialNoiseScale[i], 50,
-            v -> getGenericValueText(Text.literal("Scale"), Text.literal(String.format("%.1f", v / 10.0))),
-            v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget noiseOctaves = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 8, Options.materialNoiseOctaves[i], 2,
-            v -> getGenericValueText(Text.literal("Octaves"), Text.literal(String.valueOf(v))),
-            v -> { Options.materialNoiseOctaves[i] = v; onSliderChanged(i); });
         ResettableSliderWidget noiseSeed = new ResettableSliderWidget(0, 0, 100, 20,
             0, 999, Options.materialNoiseSeed[i], 0,
             v -> getGenericValueText(Text.literal("Seed"), Text.literal(String.valueOf(v))),
             v -> { Options.materialNoiseSeed[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(noiseScale, noiseOctaves, noiseSeed, null, body));
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(noiseDropdown, noiseSeed, body));
+
+        ResettableSliderWidget noiseStrength = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 1000, Options.materialNoiseStrength[i], 0,
+            v -> getGenericValueText(Text.literal("Noise Strength"), Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> { Options.materialNoiseStrength[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget noiseScale = new ResettableSliderWidget(0, 0, 100, 20,
+            1, 1000, Options.materialNoiseScale[i], 50,
+            v -> getGenericValueText(Text.literal("Scale"), Text.literal(String.format("%.1f", v / 10.0))),
+            v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(noiseStrength, noiseScale, body));
+
+        ResettableSliderWidget noiseOctaves = new ResettableSliderWidget(0, 0, 150, 20,
+            1, 8, Options.materialNoiseOctaves[i], 2,
+            v -> getGenericValueText(Text.literal("Octaves"), Text.literal(String.valueOf(v))),
+            v -> { Options.materialNoiseOctaves[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(noiseOctaves, body));
+
+        // Auto-PBR (texture-to-PBR generation from albedo)
+        this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Auto-PBR"), body));
+
+        SimpleOption<Boolean> autoPBRToggle = SimpleOption.ofBoolean(
+            "options.video.materials.autoPBR",
+            Options.autoPBREnabled,
+            value -> { Options.autoPBREnabled = value; LiveNormalReuploader.scheduleReupload(); });
+        this.body.addAll(new SimpleOption[]{autoPBRToggle});
+
+        ResettableSliderWidget roughGamma = new ResettableSliderWidget(0, 0, 150, 20,
+            10, 200, Options.autoPBRRoughnessGamma, 50,
+            v -> getGenericValueText(Text.literal("Roughness Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
+            v -> { Options.autoPBRRoughnessGamma = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget normStr = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 1000, Options.autoPBRNormalStrength, 250,
+            v -> getGenericValueText(Text.literal("Normal Strength"), Text.literal(String.format("%.1f", v / 100.0))),
+            v -> { Options.autoPBRNormalStrength = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(roughGamma, normStr, body));
+
+        ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 100, Options.autoPBRRoughnessMin, 30,
+            v -> getGenericValueText(Text.literal("Roughness Min"), Text.literal(v + "%")),
+            v -> { Options.autoPBRRoughnessMin = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget roughMax = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 100, Options.autoPBRRoughnessMax, 95,
+            v -> getGenericValueText(Text.literal("Roughness Max"), Text.literal(v + "%")),
+            v -> { Options.autoPBRRoughnessMax = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(roughMin, roughMax, body));
 
         // === Parent/Child ===
         if (!block.isParent()) {
