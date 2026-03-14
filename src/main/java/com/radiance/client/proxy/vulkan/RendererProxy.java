@@ -59,6 +59,8 @@ public class RendererProxy {
 
     public static native void shouldRenderWorld(boolean renderWorld);
 
+    public static native boolean needsTextureReload();
+
     public static native void takeScreenshot(boolean withUI, int width, int height, int channel,
         long pointer);
 
