@@ -271,10 +271,9 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         // Block icon next to the block selector
         MaterialBlock[] blocks = MaterialBlock.values();
         if (currentBlockIndex < blocks.length) {
-            MaterialBlock mb = blocks[currentBlockIndex];
-            Block block = Registries.BLOCK.get(Identifier.of("minecraft", mb.getId()));
-            if (block != null) {
-                RadianceBlockIcon.drawBlockIcon(context, block, this.width - 44, 20, 24);
+            Block iconBlock = blocks[currentBlockIndex].getPrimaryBlock();
+            if (iconBlock != null) {
+                RadianceBlockIcon.drawBlockIcon(context, iconBlock, this.width - 44, 20, 24);
             }
         }
 
@@ -574,6 +573,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.autoPBREnabled,
             value -> {
                 Options.autoPBREnabled = value;
+                MinecraftClient.getInstance().reloadResources();
             });
 
         this.body.addAll(new SimpleOption[]{overridesToggle, autoPBRToggle});
@@ -601,6 +601,9 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             btn -> {
                 Options.materialAutoPBR[blockIdx_apbr] = !Options.materialAutoPBR[blockIdx_apbr];
                 btn.setMessage(Text.literal("Auto-PBR: " + (Options.materialAutoPBR[blockIdx_apbr] ? "ON" : "OFF")));
+                // Toggling AutoPBR needs a resource reload to regenerate textures
+                // because the albedo cache may not exist for blocks that weren't AutoPBR on load
+                MinecraftClient.getInstance().reloadResources();
             }).width(150).build();
         // Normal Source dropdown: Auto / Custom / Flat / Blender PBR
         final String[] inputTypeLabels = {"Auto", "Custom", "Flat", "Blender PBR"};
