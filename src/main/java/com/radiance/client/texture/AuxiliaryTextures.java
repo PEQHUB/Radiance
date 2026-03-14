@@ -161,12 +161,16 @@ public enum AuxiliaryTextures {
                 VulkanConstants.VkFormat auxFormat = texture.format().toUnorm();
                 if (!auxiliaryTexture.GLIDMapping.containsKey(targetId)) {
                     auxiliaryTargetId = TextureProxy.generateTextureId();
-//                    System.out.println(
-//                        "generate " + auxiliaryTexture.name + " texture for " + targetId + ": "
-//                            + auxiliaryTargetId);
 
                     TextureProxy.prepareImage(auxiliaryTargetId, texture.maxLayer() + 1,
                         texture.width(), texture.height(), auxFormat);
+                    // Specular and normal textures use LINEAR filtering so PBR data
+                    // interpolates smoothly between texels. Without this, DLSS-RR camera
+                    // jitter causes sub-pixel snapping between NEAREST texels each frame,
+                    // producing permanent reflection boiling.
+                    if (auxiliaryTexture == SPECULAR || auxiliaryTexture == NORMAL) {
+                        TextureProxy.setFilter(auxiliaryTargetId, 1, 1); // LINEAR, LINEAR_MIPMAP
+                    }
                     TextureTracker.GLID2Texture.put(auxiliaryTargetId,
                         new TextureTracker.Texture(texture.width(), texture.height(),
                             texture.channel(), auxFormat, texture.maxLayer()));
