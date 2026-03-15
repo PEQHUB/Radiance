@@ -34,7 +34,7 @@ import org.lwjgl.system.MemoryStack;
 public class BufferProxy {
 
     // Material UBO dirty-tracking cache: direct ByteBuffer for zero-copy memCopy
-    private static final int MATERIAL_UBO_SIZE = Options.MAX_MATERIALS * 6 * 16; // 15360 bytes
+    private static final int MATERIAL_UBO_SIZE = Options.MAX_MATERIALS * 7 * 16; // 17920 bytes
     private static final ByteBuffer materialUBOCacheBuf = ByteBuffer.allocateDirect(MATERIAL_UBO_SIZE);
     private static final long materialUBOCacheAddr = memAddress(materialUBOCacheBuf);
     private static boolean materialCacheValid = false;
@@ -219,7 +219,7 @@ public class BufferProxy {
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
         try (MemoryStack stack = stackPush()) {
-            int size = 560 + 50 * 16 + 13 * 16 + Options.MAX_MATERIALS * 6 * 16; // base + emissionData[50] + emissiveGamut[13] + materialData[MAX*6]
+            int size = 560 + 50 * 16 + 13 * 16 + Options.MAX_MATERIALS * 7 * 16; // base + emissionData[50] + emissiveGamut[13] + materialData[MAX*7]
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -360,6 +360,7 @@ public class BufferProxy {
                     int p3 = baseAddr + (3 * N + i) * 16;  // Pack 3
                     int p4 = baseAddr + (4 * N + i) * 16;  // Pack 4
                     int p5 = baseAddr + (5 * N + i) * 16;  // Pack 5
+                    int p6 = baseAddr + (6 * N + i) * 16;  // Pack 6
                     if (matEnabled && i < MaterialBlock.COUNT) {
                         // Pack 0: F0 RGB + roughness
                         bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
@@ -380,22 +381,31 @@ public class BufferProxy {
                         bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
                         bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-100.0
                         bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 1000.0f);  // 0.0-1.0
-                        // Pack octaves (bits 0-3), noiseType (bits 4-7), seed (bits 8-17), noiseTarget (bits 20-23)
+                        // Pack octaves(0-3) | type(4-8) | seed(9-17) | target(20-23) — fits in 24 bits (float-safe)
                         int noisePacked = Options.materialNoiseOctaves[i]
                                         | (Options.materialNoiseType[i] << 4)
-                                        | (Options.materialNoiseSeed[i] << 8)
+                                        | (Options.materialNoiseSeed[i] << 9)
                                         | (Options.materialNoiseTarget[i] << 20);
-                        bb.putFloat(p3 + 12, (float) noisePacked); // REVERTED: HEAD shader uses int(pack3.w), not floatBitsToInt
+                        bb.putFloat(p3 + 12, (float) noisePacked);
                         // Pack 4: texture roughness channel routing
                         bb.putFloat(p4,      Options.materialChannelR[i] / 1000.0f);
                         bb.putFloat(p4 + 4,  Options.materialChannelG[i] / 1000.0f);
                         bb.putFloat(p4 + 8,  Options.materialChannelB[i] / 1000.0f);
                         bb.putFloat(p4 + 12, Options.materialTextureBlend[i] / 100.0f);
-                        // Pack 5: gamut boost, POM depth, normal smoothing, normal strength
+                        // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
                         bb.putFloat(p5,      Options.materialGamutBoost[i] / 100.0f);
-                        bb.putFloat(p5 + 4,  Options.materialPomDepth[i] / 100.0f);
-                        bb.putFloat(p5 + 8,  Options.materialNormalSmoothing[i] / 100.0f);
+                        bb.putFloat(p5 + 4,  Options.materialNoiseMaskThreshold[i] / 1000.0f);
+                        // maskMode(0-2) | invert(3) | wrapMode(4-6) packed as small float
+                        int maskPacked = Options.materialNoiseMaskMode[i]
+                                       | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 3)
+                                       | (Options.materialNoiseWrap[i] << 4);
+                        bb.putFloat(p5 + 8,  (float) maskPacked);
                         bb.putFloat(p5 + 12, Options.materialNormalStrength[i] / 100.0f);
+                        // Pack 6: rotation, aspect, lacunarity, contrast
+                        bb.putFloat(p6,      (float) Math.toRadians(Options.materialNoiseRotation[i] / 10.0));
+                        bb.putFloat(p6 + 4,  Options.materialNoiseAspect[i] / 100.0f);
+                        bb.putFloat(p6 + 8,  Options.materialNoiseLacunarity[i] / 10.0f);
+                        bb.putFloat(p6 + 12, Options.materialNoiseContrast[i] / 100.0f);
                     } else if (i < MaterialBlock.COUNT) {
                         // Overrides disabled: write physics-accurate defaults so water/ice/metals
                         // retain essential properties (IOR, transmission, metallic, F0).
@@ -418,6 +428,9 @@ public class BufferProxy {
                         // Pack 5: neutral gamut (1.0) and POM depth (1.0)
                         bb.putFloat(p5, 1.0f); bb.putFloat(p5 + 4, 1.0f);
                         bb.putFloat(p5 + 8, 0); bb.putFloat(p5 + 12, 0);
+                        // Pack 6: defaults (rotation=0, aspect=1, lacunarity=2, contrast=1)
+                        bb.putFloat(p6, 0); bb.putFloat(p6 + 4, 1.0f);
+                        bb.putFloat(p6 + 8, 2.0f); bb.putFloat(p6 + 12, 1.0f);
                     } else {
                         // Unused slot beyond MaterialBlock.COUNT: zeros + transmission sentinel
                         for (int p : new int[]{p0, p2, p3, p4}) {
@@ -429,6 +442,8 @@ public class BufferProxy {
                         bb.putFloat(p1 + 8, 0); bb.putFloat(p1 + 12, 0);
                         bb.putFloat(p5, 1.0f); bb.putFloat(p5 + 4, 1.0f);
                         bb.putFloat(p5 + 8, 0); bb.putFloat(p5 + 12, 0);
+                        bb.putFloat(p6, 0); bb.putFloat(p6 + 4, 1.0f);
+                        bb.putFloat(p6 + 8, 2.0f); bb.putFloat(p6 + 12, 1.0f);
                     }
                 }
                 // Cache the packed bytes for future frames
@@ -436,7 +451,7 @@ public class BufferProxy {
                 materialCacheValid = true;
                 Options.materialDirty = false;
             }
-            baseAddr += N * 6 * 16; // MAX_MATERIALS × 6 vec4
+            baseAddr += N * 7 * 16; // MAX_MATERIALS × 7 vec4
 
             updateWorldUniform(addr);
         }

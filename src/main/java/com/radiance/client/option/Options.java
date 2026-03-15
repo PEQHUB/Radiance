@@ -238,6 +238,8 @@ public class Options {
     public static int windowPosY = -1;
     public static int windowWidth = -1;
     public static int windowHeight = -1;
+    public static boolean windowRestoreSucceeded = false;
+    public static int pendingWindowX = -1, pendingWindowY = -1; // deferred position set (OS needs time after resize)
     public static boolean suppressResizeCallback = false;
 
     // Diagnostics
@@ -545,6 +547,14 @@ public class Options {
     public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-8
     public static final int[] materialNoiseType = new int[MAX_MATERIALS];     // 0-15 (noise algorithm)
     public static final int[] materialNoiseSeed = new int[MAX_MATERIALS];     // 0-999
+    public static final int[] materialNoiseMaskMode = new int[MAX_MATERIALS];  // 0=none,1=lum,2=rough,3=edge,4=normal
+    public static final boolean[] materialNoiseMaskInvert = new boolean[MAX_MATERIALS];
+    public static final int[] materialNoiseMaskThreshold = new int[MAX_MATERIALS]; // 0-1000 (0.0-1.0)
+    public static final int[] materialNoiseWrap = new int[MAX_MATERIALS];          // 0=3D,1=surface,2=triplanar,3=XZ,4=XY,5=YZ
+    public static final int[] materialNoiseRotation = new int[MAX_MATERIALS];     // 0-3600 (0.0-360.0 degrees)
+    public static final int[] materialNoiseAspect = new int[MAX_MATERIALS];       // 10-1000 (0.1x-10.0x)
+    public static final int[] materialNoiseLacunarity = new int[MAX_MATERIALS];   // 10-40 (1.0-4.0)
+    public static final int[] materialNoiseContrast = new int[MAX_MATERIALS];     // 0-200 (0.0-2.0)
     // Texture roughness channel routing: per-material weights for deriving roughness from albedo
     public static final int[] materialChannelR = new int[MAX_MATERIALS];       // 0-1000 permille
     public static final int[] materialChannelG = new int[MAX_MATERIALS];       // 0-1000 permille
@@ -585,6 +595,14 @@ public class Options {
             materialNoiseOctaves[i] = 2;    // default 2 octaves
             materialNoiseType[i] = 0;       // Simplex
             materialNoiseSeed[i] = 0;       // no seed offset
+            materialNoiseMaskMode[i] = 0;   // no mask
+            materialNoiseMaskInvert[i] = false;
+            materialNoiseMaskThreshold[i] = 500; // 50%
+            materialNoiseWrap[i] = 1;       // Surface default
+            materialNoiseRotation[i] = 0;   // no rotation
+            materialNoiseAspect[i] = 100;   // 1.0x (uniform)
+            materialNoiseLacunarity[i] = 20; // 2.0
+            materialNoiseContrast[i] = 100;  // 1.0
             // Channel weights default to BT.709 luminance
             materialChannelR[i] = 213;      // 0.2126
             materialChannelG[i] = 715;      // 0.7152
@@ -780,6 +798,15 @@ public class Options {
                 materialNoiseOctaves[ci] = materialNoiseOctaves[parentOrdinal];
                 materialNoiseType[ci] = materialNoiseType[parentOrdinal];
                 materialNoiseSeed[ci] = materialNoiseSeed[parentOrdinal];
+                materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
+                materialNoiseMaskMode[ci] = materialNoiseMaskMode[parentOrdinal];
+                materialNoiseMaskInvert[ci] = materialNoiseMaskInvert[parentOrdinal];
+                materialNoiseMaskThreshold[ci] = materialNoiseMaskThreshold[parentOrdinal];
+                materialNoiseWrap[ci] = materialNoiseWrap[parentOrdinal];
+                materialNoiseRotation[ci] = materialNoiseRotation[parentOrdinal];
+                materialNoiseAspect[ci] = materialNoiseAspect[parentOrdinal];
+                materialNoiseLacunarity[ci] = materialNoiseLacunarity[parentOrdinal];
+                materialNoiseContrast[ci] = materialNoiseContrast[parentOrdinal];
                 materialChannelR[ci] = materialChannelR[parentOrdinal];
                 materialChannelG[ci] = materialChannelG[parentOrdinal];
                 materialChannelB[ci] = materialChannelB[parentOrdinal];
@@ -1177,9 +1204,17 @@ public class Options {
                 materialCoatRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialCoatRoughness." + pid, String.valueOf(mb.getDefaultCoatRoughness()))), 0, 100);
                 materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 1000);
                 materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 1000);
-                materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 8);
-                materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 15);
+                materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 12);
+                materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 23);
                 materialNoiseSeed[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseSeed." + pid, "0")), 0, 999);
+                materialNoiseMaskMode[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseMaskMode." + pid, "0")), 0, 4);
+                materialNoiseMaskInvert[i] = Boolean.parseBoolean(props.getProperty("materialNoiseMaskInvert." + pid, "false"));
+                materialNoiseMaskThreshold[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseMaskThreshold." + pid, "500")), 0, 1000);
+                materialNoiseWrap[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseWrap." + pid, "0")), 0, 5);
+                materialNoiseRotation[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseRotation." + pid, "0")), 0, 3600);
+                materialNoiseAspect[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseAspect." + pid, "100")), 10, 1000);
+                materialNoiseLacunarity[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseLacunarity." + pid, "20")), 10, 40);
+                materialNoiseContrast[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseContrast." + pid, "100")), 0, 200);
                 materialChannelR[i] = clamp(Integer.parseInt(props.getProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]))), 0, 1000);
                 materialChannelG[i] = clamp(Integer.parseInt(props.getProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]))), 0, 1000);
                 materialChannelB[i] = clamp(Integer.parseInt(props.getProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]))), 0, 1000);
@@ -1532,19 +1567,22 @@ public class Options {
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
         props.setProperty("noiseLOD", String.valueOf(noiseLOD));
-        // Save current window position/size via LWJGL
-        try {
-            long handle = net.minecraft.client.MinecraftClient.getInstance().getWindow().getHandle();
-            int[] xBuf = new int[1], yBuf = new int[1], wBuf = new int[1], hBuf = new int[1];
-            org.lwjgl.glfw.GLFW.glfwGetWindowPos(handle, xBuf, yBuf);
-            org.lwjgl.glfw.GLFW.glfwGetWindowSize(handle, wBuf, hBuf);
-            if (wBuf[0] > 0 && hBuf[0] > 0) {
-                windowPosX = xBuf[0];
-                windowPosY = yBuf[0];
-                windowWidth = wBuf[0];
-                windowHeight = hBuf[0];
-            }
-        } catch (Exception ignored) {}
+        // Save current window position/size via LWJGL — only if restore succeeded
+        // (prevents PrismLauncher's default centered position from overwriting saved values after a crash)
+        if (windowRestoreSucceeded) {
+            try {
+                long handle = net.minecraft.client.MinecraftClient.getInstance().getWindow().getHandle();
+                int[] xBuf = new int[1], yBuf = new int[1], wBuf = new int[1], hBuf = new int[1];
+                org.lwjgl.glfw.GLFW.glfwGetWindowPos(handle, xBuf, yBuf);
+                org.lwjgl.glfw.GLFW.glfwGetWindowSize(handle, wBuf, hBuf);
+                if (wBuf[0] > 0 && hBuf[0] > 0) {
+                    windowPosX = xBuf[0];
+                    windowPosY = yBuf[0];
+                    windowWidth = wBuf[0];
+                    windowHeight = hBuf[0];
+                }
+            } catch (Exception ignored) {}
+        }
         props.setProperty("windowPosX", String.valueOf(windowPosX));
         props.setProperty("windowPosY", String.valueOf(windowPosY));
         props.setProperty("windowWidth", String.valueOf(windowWidth));
@@ -1620,6 +1658,14 @@ public class Options {
             props.setProperty("materialNoiseOctaves." + pid, String.valueOf(materialNoiseOctaves[i]));
             props.setProperty("materialNoiseType." + pid, String.valueOf(materialNoiseType[i]));
             props.setProperty("materialNoiseSeed." + pid, String.valueOf(materialNoiseSeed[i]));
+            props.setProperty("materialNoiseMaskMode." + pid, String.valueOf(materialNoiseMaskMode[i]));
+            props.setProperty("materialNoiseMaskInvert." + pid, String.valueOf(materialNoiseMaskInvert[i]));
+            props.setProperty("materialNoiseMaskThreshold." + pid, String.valueOf(materialNoiseMaskThreshold[i]));
+            props.setProperty("materialNoiseWrap." + pid, String.valueOf(materialNoiseWrap[i]));
+            props.setProperty("materialNoiseRotation." + pid, String.valueOf(materialNoiseRotation[i]));
+            props.setProperty("materialNoiseAspect." + pid, String.valueOf(materialNoiseAspect[i]));
+            props.setProperty("materialNoiseLacunarity." + pid, String.valueOf(materialNoiseLacunarity[i]));
+            props.setProperty("materialNoiseContrast." + pid, String.valueOf(materialNoiseContrast[i]));
             props.setProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]));
             props.setProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]));
             props.setProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]));
@@ -3235,16 +3281,22 @@ public class Options {
             if (w > 0 && h > 0) {
                 w = Math.min(w, monW);
                 h = Math.min(h, monH);
-                org.lwjgl.glfw.GLFW.glfwSetWindowSize(handle, w, h);
-                System.out.println("[Radiance] Restored window size: " + w + "x" + h);
             }
 
             // Clamp position so window stays on-screen
             if (x != -1 && y != -1 && w > 0 && h > 0) {
                 x = Math.max(monX, Math.min(x, monX + monW - w));
                 y = Math.max(monY, Math.min(y, monY + monH - h));
+
+                // Set size first, then schedule position for next tick
+                // (OS window manager moves the window asynchronously after resize)
+                org.lwjgl.glfw.GLFW.glfwSetWindowSize(handle, w, h);
                 org.lwjgl.glfw.GLFW.glfwSetWindowPos(handle, x, y);
-                System.out.println("[Radiance] Restored window pos: " + x + ", " + y);
+                // Also schedule a deferred position set for next tick to override OS drift
+                pendingWindowX = x;
+                pendingWindowY = y;
+                System.out.println("[Radiance] Restored window: " + w + "x" + h + " at (" + x + "," + y + ") + deferred");
+                windowRestoreSucceeded = true;
             }
         } catch (Exception e) {
             System.err.println("[Radiance] Failed to restore window: " + e.getMessage());

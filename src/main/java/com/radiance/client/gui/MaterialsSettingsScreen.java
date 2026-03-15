@@ -328,7 +328,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         if (currentBlockIndex < blocks.length) {
             Block iconBlock = blocks[currentBlockIndex].getPrimaryBlock();
             if (iconBlock != null) {
-                RadianceBlockIcon.drawBlockIcon(context, iconBlock, this.width - 44, 20, 24);
+                RadianceBlockIcon.drawBlockIcon(context, iconBlock, this.width / 2 + 120, 18, 64);
             }
         }
 
@@ -899,25 +899,82 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 onSliderChanged(i);
                 MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
             }).width(100).build();
+        // Row 1a: Dropdown + Target
+        String[] wrapLabels = {"3D", "Surface", "Triplanar", "XZ", "XY", "YZ"};
+        net.minecraft.client.gui.widget.ButtonWidget wrapBtn = net.minecraft.client.gui.widget.ButtonWidget.builder(
+            Text.literal("Wrap: " + wrapLabels[Options.materialNoiseWrap[i]]),
+            btn -> {
+                int next = (Options.materialNoiseWrap[i] + 1) % wrapLabels.length;
+                Options.materialNoiseWrap[i] = next;
+                btn.setMessage(Text.literal("Wrap: " + wrapLabels[next]));
+                onSliderChanged(i);
+            }).dimensions(0, 0, 100, 20).build();
+        String[] maskModeLabels = {"None", "Lum", "Rough", "Metal", "NrmDev"};
+        net.minecraft.client.gui.widget.ButtonWidget maskModeBtn = net.minecraft.client.gui.widget.ButtonWidget.builder(
+            Text.literal("Mask: " + maskModeLabels[Options.materialNoiseMaskMode[i]]),
+            btn -> {
+                int next = (Options.materialNoiseMaskMode[i] + 1) % maskModeLabels.length;
+                Options.materialNoiseMaskMode[i] = next;
+                btn.setMessage(Text.literal("Mask: " + maskModeLabels[next]));
+                onSliderChanged(i);
+            }).dimensions(0, 0, 100, 20).build();
         this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(noiseDropdown, noiseTargetBtn, body));
+        // Row 1b: Wrap + Mask
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(wrapBtn, maskModeBtn, body));
 
+        // Row 2: Strength / Scale / Octaves / Seed
+        ResettableSliderWidget noiseStrength = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 1000, Options.materialNoiseStrength[i], 0,
+            v -> getGenericValueText(Text.literal("Str"), Text.literal(String.format("%.0f%%", v / 10.0))),
+            v -> { Options.materialNoiseStrength[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget noiseScale = new ResettableSliderWidget(0, 0, 100, 20,
+            1, 500, Math.min(Options.materialNoiseScale[i], 500), 30,
+            v -> getGenericValueText(Text.literal("Scale"), Text.literal(String.format("%.1fx", v / 10.0))),
+            v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget noiseOctaves = new ResettableSliderWidget(0, 0, 100, 20,
+            1, 12, Options.materialNoiseOctaves[i], 2,
+            v -> getGenericValueText(Text.literal("Oct"), Text.literal(String.valueOf(v))),
+            v -> { Options.materialNoiseOctaves[i] = v; onSliderChanged(i); });
         ResettableSliderWidget noiseSeed = new ResettableSliderWidget(0, 0, 100, 20,
             0, 999, Options.materialNoiseSeed[i], 0,
             v -> getGenericValueText(Text.literal("Seed"), Text.literal(String.valueOf(v))),
             v -> { Options.materialNoiseSeed[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget noiseStrength = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 1000, Options.materialNoiseStrength[i], 0,
-            v -> getGenericValueText(Text.literal("Strength"), Text.literal(String.format("%.1f%%", v / 10.0))),
-            v -> { Options.materialNoiseStrength[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget noiseScale = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 1000, Options.materialNoiseScale[i], 50,
-            v -> getGenericValueText(Text.literal("Scale"), Text.literal(String.format("%.1f", v / 10.0))),
-            v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget noiseOctaves = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 8, Options.materialNoiseOctaves[i], 2,
-            v -> getGenericValueText(Text.literal("Octaves"), Text.literal(String.valueOf(v))),
-            v -> { Options.materialNoiseOctaves[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(noiseSeed, noiseStrength, noiseScale, noiseOctaves, body));
+        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(noiseStrength, noiseScale, noiseOctaves, noiseSeed, body));
+
+        // Row 3: Rotation / Aspect / Lacunarity / Contrast
+        ResettableSliderWidget noiseRotation = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 3600, Options.materialNoiseRotation[i], 0,
+            v -> getGenericValueText(Text.literal("Rot"), Text.literal(v / 10 + "\u00B0")),
+            v -> { Options.materialNoiseRotation[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget noiseAspect = new ResettableSliderWidget(0, 0, 100, 20,
+            10, 500, Options.materialNoiseAspect[i], 100,
+            v -> getGenericValueText(Text.literal("Asp"), Text.literal(String.format("%.1fx", v / 100.0))),
+            v -> { Options.materialNoiseAspect[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget noiseLacunarity = new ResettableSliderWidget(0, 0, 100, 20,
+            10, 40, Options.materialNoiseLacunarity[i], 20,
+            v -> getGenericValueText(Text.literal("Lac"), Text.literal(String.format("%.1f", v / 10.0))),
+            v -> { Options.materialNoiseLacunarity[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget noiseContrast = new ResettableSliderWidget(0, 0, 100, 20,
+            10, 200, Options.materialNoiseContrast[i], 100,
+            v -> getGenericValueText(Text.literal("Con"), Text.literal(String.format("%.1f", v / 100.0))),
+            v -> { Options.materialNoiseContrast[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(noiseRotation, noiseAspect, noiseLacunarity, noiseContrast, body));
+
+        // Row 4 (conditional): Mask Threshold + Invert — only when mask is active
+        if (Options.materialNoiseMaskMode[i] > 0) {
+            ResettableSliderWidget maskThreshold = new ResettableSliderWidget(0, 0, 100, 20,
+                0, 1000, Options.materialNoiseMaskThreshold[i], 500,
+                v -> getGenericValueText(Text.literal("Threshold"), Text.literal(String.format("%.0f%%", v / 10.0))),
+                v -> { Options.materialNoiseMaskThreshold[i] = v; onSliderChanged(i); });
+            net.minecraft.client.gui.widget.ButtonWidget maskInvertBtn = net.minecraft.client.gui.widget.ButtonWidget.builder(
+                Text.literal("Invert: " + (Options.materialNoiseMaskInvert[i] ? "ON" : "OFF")),
+                btn -> {
+                    Options.materialNoiseMaskInvert[i] = !Options.materialNoiseMaskInvert[i];
+                    btn.setMessage(Text.literal("Invert: " + (Options.materialNoiseMaskInvert[i] ? "ON" : "OFF")));
+                    onSliderChanged(i);
+                }).dimensions(0, 0, 100, 20).build();
+            this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(maskThreshold, maskInvertBtn, body));
+        }
 
         // === Auto-PBR (This Block) — mask-specific controls ===
         String[] maskNames = {"Albedo", "Normal", "Roughness", "Height"};

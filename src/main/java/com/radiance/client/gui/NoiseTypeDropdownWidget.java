@@ -11,24 +11,47 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * Dropdown widget for selecting a procedural noise type (0-7).
- * Modeled on MaterialDropdownWidget with the same themed rendering.
+ * Noise type selector: grid popup showing all types at once, grouped by category.
+ * No scrolling — everything visible in a compact grid.
  */
 public class NoiseTypeDropdownWidget extends ClickableWidget {
 
     private static final List<NoiseTypeDropdownWidget> ALL_INSTANCES = new ArrayList<>();
 
-    private static final String[] LABELS = {
-        "Simplex", "Worley F1", "Worley F2-F1", "Voronoi",
-        "Ridged", "Turbulence", "Marble", "Wood",
-        "Checker", "Brick", "Hex", "Scratches",
-        "Dots", "Gradient", "Rings", "Crackle"
+    // Categories with their noise type IDs
+    private static final int[][] CATEGORIES = {
+        {0, 20, 4, 5},           // Smooth: Simplex, Value, Ridged, Turbulence
+        {1, 2, 3, 17},           // Cellular: Worley F1, F2-F1, Voronoi, Cellular
+        {8, 9, 10, 12, 23, 19},  // Geometric: Checker, Brick, Hex, Dots, Diamond, Fabric
+        {6, 7, 15, 18, 11},      // Organic: Marble, Wood, Crackle, Erosion, Scratches
+        {16, 14, 13, 22, 21},    // Simple: Waves, Rings, Gradient, Sine Lines, Hash Grid
     };
-    private static final int ITEM_HEIGHT = 16;
+    private static final String[] CAT_NAMES = {"Smooth", "Cellular", "Geometric", "Organic", "Simple"};
+
+    private static final String[] TYPE_LABELS = new String[24];
+    private static final int[] TYPE_COST = new int[24]; // 0=light 1=med 2=heavy
+    static {
+        String[] labels = {
+            "Simplex",  "Worley F1", "Worley F2-F1", "Voronoi",
+            "Ridged",   "Turbulence","Marble",        "Wood",
+            "Checker",  "Brick",     "Hex",           "Scratches",
+            "Dots",     "Gradient",  "Rings",         "Crackle",
+            "Waves",    "Cellular",  "Erosion",       "Fabric",
+            "Value",    "Hash Grid", "Sine Lines",    "Diamond"
+        };
+        int[] costs = {1,2,2,2, 1,1,1,1, 0,0,0,1, 0,0,0,2, 0,2,1,0, 0,0,0,0};
+        for (int i = 0; i < labels.length; i++) { TYPE_LABELS[i] = labels[i]; TYPE_COST[i] = costs[i]; }
+    }
+    private static final int[] COST_COLORS = {0xFF55FF55, 0xFFFFFF55, 0xFFFF5555};
+
+    private static final int CELL_W = 72;
+    private static final int CELL_H = 14;
+    private static final int CAT_HEADER_H = 11;
+    private static final int COLS = 6; // max items per row
 
     private int selected;
     private boolean open = false;
-    private int hoveredIndex = -1;
+    private int hoveredTypeId = -1;
     private final Consumer<Integer> onSelect;
 
     public NoiseTypeDropdownWidget(int x, int y, int width, int height, Consumer<Integer> onSelect) {
@@ -40,35 +63,36 @@ public class NoiseTypeDropdownWidget extends ClickableWidget {
     }
 
     private void updateMessage() {
-        setMessage(Text.literal(LABELS[selected]));
+        String label = (selected >= 0 && selected < TYPE_LABELS.length && TYPE_LABELS[selected] != null)
+                ? TYPE_LABELS[selected] : "Simplex";
+        setMessage(Text.literal(label));
     }
 
-    public void setNoiseType(int type) {
-        this.selected = Math.max(0, Math.min(type, LABELS.length - 1));
-        updateMessage();
-    }
-
-    public int getSelected() {
-        return selected;
-    }
-
-    public boolean isOpen() {
-        return open;
-    }
-
+    public void setNoiseType(int type) { this.selected = Math.max(0, Math.min(type, 23)); updateMessage(); }
+    public int getSelected() { return selected; }
+    public boolean isOpen() { return open; }
     public static String getLabel(int type) {
-        if (type >= 0 && type < LABELS.length) return LABELS[type];
-        return LABELS[0];
+        return (type >= 0 && type < TYPE_LABELS.length && TYPE_LABELS[type] != null) ? TYPE_LABELS[type] : "Simplex";
     }
-
     private static void closeAllExcept(NoiseTypeDropdownWidget keep) {
-        for (NoiseTypeDropdownWidget w : ALL_INSTANCES) {
-            if (w != keep) w.open = false;
-        }
+        for (NoiseTypeDropdownWidget w : ALL_INSTANCES) { if (w != keep) w.open = false; }
+    }
+    public static void clearInstances() { ALL_INSTANCES.clear(); }
+
+    private int gridWidth() {
+        int maxCols = 0;
+        for (int[] cat : CATEGORIES) maxCols = Math.max(maxCols, cat.length);
+        return Math.min(maxCols, COLS) * CELL_W + 8;
     }
 
-    public static void clearInstances() {
-        ALL_INSTANCES.clear();
+    private int gridHeight() {
+        int h = 4;
+        for (int[] cat : CATEGORIES) {
+            h += CAT_HEADER_H; // category label
+            int rows = (cat.length + COLS - 1) / COLS;
+            h += rows * CELL_H;
+        }
+        return h;
     }
 
     @Override
@@ -78,67 +102,78 @@ public class NoiseTypeDropdownWidget extends ClickableWidget {
         float alphaMult = isActive ? 1f : fade;
         if (alphaMult <= 0f) return;
 
-        int x = getX();
-        int y = getY();
-        int w = getWidth();
-        int h = getHeight();
-
+        int x = getX(), y = getY(), w = getWidth(), h = getHeight();
         context.fill(x, y, x + w, y + h, RadianceTheme.scaleAlpha(RadianceTheme.dropdownBg, alphaMult));
         int borderColor = (this.isFocused() || open)
                 ? RadianceTheme.scaleAlpha(RadianceTheme.borderFocused, alphaMult)
                 : RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, alphaMult);
         context.drawBorder(x, y, w, h, borderColor);
 
-        String label = LABELS[selected];
         var tr = MinecraftClient.getInstance().textRenderer;
-        int textWidth = tr.getWidth(label);
-        int textX = x + (w - textWidth) / 2;
-        int textY = y + (h - 8) / 2;
-        RadianceTheme.drawOutlinedText(context, tr, Text.literal(label), textX, textY,
+        String label = getMessage().getString();
+        RadianceTheme.drawOutlinedText(context, tr, Text.literal(label),
+                x + (w - tr.getWidth(label)) / 2, y + (h - 8) / 2,
                 RadianceTheme.textPrimary, alphaMult);
-
-        String arrow = open ? "\u25B2" : "\u25BC";
-        RadianceTheme.drawOutlinedText(context, tr, Text.literal(arrow), x + w - 10, textY,
-                RadianceTheme.textSecondary, alphaMult);
+        RadianceTheme.drawOutlinedText(context, tr, Text.literal(open ? "\u25B2" : "\u25BC"),
+                x + w - 10, y + (h - 8) / 2, RadianceTheme.textSecondary, alphaMult);
     }
 
     public void renderDropdownOverlay(DrawContext context, int mouseX, int mouseY) {
         if (!open) return;
 
-        float fade = RadianceTheme.inactiveFadeFactor();
-        boolean isActive = (RadianceTheme.activeSlider == this);
-        float alphaMult = isActive ? 1f : fade;
-        if (alphaMult <= 0f) return;
-
         context.getMatrices().push();
-        context.getMatrices().translate(0, 0, 200);
+        context.getMatrices().translate(0, 0, 300);
 
-        int x = getX();
-        int y = getY() + getHeight();
-        int w = getWidth();
-        int totalHeight = LABELS.length * ITEM_HEIGHT + 2;
+        int gx = getX(), gy = getY() + getHeight();
+        int gw = gridWidth(), gh = gridHeight();
 
-        context.fill(x - 1, y - 1, x + w + 1, y + totalHeight + 1,
-                RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, alphaMult));
-        context.fill(x, y, x + w, y + totalHeight,
-                RadianceTheme.scaleAlpha(RadianceTheme.dropdownBg, alphaMult));
+        // Background
+        context.fill(gx - 1, gy - 1, gx + gw + 1, gy + gh + 1,
+                RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, 1f));
+        context.fill(gx, gy, gx + gw, gy + gh,
+                RadianceTheme.scaleAlpha(0xFF1a1a24, 1f));
 
         var tr = MinecraftClient.getInstance().textRenderer;
-        hoveredIndex = -1;
-        for (int i = 0; i < LABELS.length; i++) {
-            int itemY = y + 1 + i * ITEM_HEIGHT;
-            boolean hovered = mouseX >= x && mouseX < x + w && mouseY >= itemY && mouseY < itemY + ITEM_HEIGHT;
-            if (hovered) {
-                hoveredIndex = i;
-                context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT,
-                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, alphaMult));
+        hoveredTypeId = -1;
+        int drawY = gy + 2;
+
+        for (int ci = 0; ci < CATEGORIES.length; ci++) {
+            // Category header
+            int headerColor = 0xFF333344;
+            context.fill(gx + 2, drawY, gx + gw - 2, drawY + CAT_HEADER_H, headerColor);
+            String catName = CAT_NAMES[ci];
+            context.drawText(tr, catName, gx + (gw - tr.getWidth(catName)) / 2, drawY + 2, 0xFF7777AA, false);
+            drawY += CAT_HEADER_H;
+
+            // Grid items
+            int[] ids = CATEGORIES[ci];
+            for (int j = 0; j < ids.length; j++) {
+                int col = j % COLS;
+                int ix = gx + 4 + col * CELL_W;
+                int iy = drawY + (j / COLS) * CELL_H;
+                int id = ids[j];
+
+                boolean hovered = mouseX >= ix && mouseX < ix + CELL_W - 2
+                        && mouseY >= iy && mouseY < iy + CELL_H;
+                if (hovered) {
+                    hoveredTypeId = id;
+                    context.fill(ix, iy, ix + CELL_W - 2, iy + CELL_H, 0xFF3a3a50);
+                }
+                if (id == selected) {
+                    context.fill(ix, iy, ix + 2, iy + CELL_H, RadianceTheme.SELECTED_BAR);
+                }
+
+                // Name
+                String name = TYPE_LABELS[id];
+                int textY = iy + (CELL_H - 8) / 2;
+                context.drawText(tr, name, ix + 4, textY, hovered ? 0xFFFFFFFF : 0xFFCCCCCC, false);
+
+                // Cost dot (small colored circle indicator)
+                int costColor = COST_COLORS[TYPE_COST[id]];
+                context.fill(ix + CELL_W - 8, textY + 2, ix + CELL_W - 4, textY + 6, costColor);
             }
-            if (i == selected) {
-                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT,
-                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
-            }
-            RadianceTheme.drawOutlinedText(context, tr, Text.literal(LABELS[i]),
-                    x + 6, itemY + 4, RadianceTheme.textPrimary, alphaMult);
+            int rows = (ids.length + COLS - 1) / COLS;
+            drawY += rows * CELL_H;
         }
 
         context.getMatrices().pop();
@@ -146,42 +181,40 @@ public class NoiseTypeDropdownWidget extends ClickableWidget {
 
     public boolean isInDropdownBounds(double mouseX, double mouseY) {
         if (!open) return false;
-        int x = getX();
-        int y = getY() + getHeight();
-        int w = getWidth();
-        int totalHeight = LABELS.length * ITEM_HEIGHT + 2;
-        return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + totalHeight;
+        int gx = getX(), gy = getY() + getHeight();
+        return mouseX >= gx && mouseX < gx + gridWidth() && mouseY >= gy && mouseY < gy + gridHeight();
     }
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return false;
-
         if (open && isInDropdownBounds(mouseX, mouseY)) {
-            if (hoveredIndex >= 0 && hoveredIndex < LABELS.length) {
-                selected = hoveredIndex;
+            if (hoveredTypeId >= 0) {
+                selected = hoveredTypeId;
                 updateMessage();
                 onSelect.accept(selected);
             }
             open = false;
             return true;
         }
-
         if (this.isMouseOver(mouseX, mouseY)) {
-            if (!open) {
-                closeAllExcept(this);
-                open = true;
-            } else {
-                open = false;
-            }
+            if (!open) { closeAllExcept(this); open = true; }
+            else { open = false; }
             return true;
         }
+        if (open) { open = false; return true; }
+        return false;
+    }
 
-        if (open) {
-            open = false;
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (this.isMouseOver(mouseX, mouseY) || (open && isInDropdownBounds(mouseX, mouseY))) {
+            int dir = verticalAmount > 0 ? -1 : 1;
+            selected = Math.floorMod(selected + dir, 24);
+            updateMessage();
+            onSelect.accept(selected);
             return true;
         }
-
         return false;
     }
 
