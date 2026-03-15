@@ -456,8 +456,29 @@ public class Pipeline {
 
             connect(dlssModule.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
+        } else if (isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
+            // DLSS unavailable (AMD/Intel GPU): use FSR3 as upscaler fallback.
+            Module fsr3Module = addModule("render_pipeline.module.fsr3_upscaler.name");
+
+            connect(rayTracingModule.getOutputImageConfig("radiance"),
+                fsr3Module.getInputImageConfig("color"));
+
+            connect(rayTracingModule.getOutputImageConfig("linear_depth"),
+                fsr3Module.getInputImageConfig("depth"));
+
+            connect(rayTracingModule.getOutputImageConfig("motion_vector"),
+                fsr3Module.getInputImageConfig("motion_vector"));
+
+            connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
+                fsr3Module.getInputImageConfig("first_hit_depth"));
+
+            connect(fsr3Module.getOutputImageConfig("upscaled_radiance"),
+                toneMappingModule.getInputImageConfig("denoised_radiance"));
+
+            connect(fsr3Module.getOutputImageConfig("upscaled_first_hit_depth"),
+                postRenderModule.getInputImageConfig("first_hit_depth"));
         } else {
-            // DLSS disabled/unavailable: feed raw ray tracing radiance to tone mapping.
+            // No upscaler available: feed raw ray tracing radiance to tone mapping.
             connect(rayTracingModule.getOutputImageConfig("radiance"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
 
@@ -645,7 +666,9 @@ public class Pipeline {
         }
 
         boolean dlssAvailable = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
+        boolean fsr3Available = !dlssAvailable && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name");
         boolean savedPipelineHasDlss = false;
+        boolean savedPipelineHasFsr3 = false;
         for (int index = 0; index < pipelineStorage.modules.size(); index++) {
             StoredModule storedModule = pipelineStorage.modules.get(index);
 
@@ -655,16 +678,18 @@ public class Pipeline {
 
             if ("render_pipeline.module.dlss.name".equals(storedModule.entryName)) {
                 savedPipelineHasDlss = true;
-                break;
+            }
+            if ("render_pipeline.module.fsr3_upscaler.name".equals(storedModule.entryName)) {
+                savedPipelineHasFsr3 = true;
             }
         }
 
-        if (savedPipelineHasDlss != dlssAvailable) {
+        if (savedPipelineHasDlss != dlssAvailable || savedPipelineHasFsr3 != fsr3Available) {
             assembleDefault();
             savePipeline();
-            RadianceClient.LOGGER.error(
-                "Saved pipeline DLSS state ({}) does not match current DLSS availability ({}). Rebuilding default pipeline.",
-                savedPipelineHasDlss, dlssAvailable);
+            RadianceClient.LOGGER.warn(
+                "Saved pipeline upscaler state (DLSS={}, FSR3={}) does not match current availability (DLSS={}, FSR3={}). Rebuilding default pipeline.",
+                savedPipelineHasDlss, savedPipelineHasFsr3, dlssAvailable, fsr3Available);
             return;
         }
 
