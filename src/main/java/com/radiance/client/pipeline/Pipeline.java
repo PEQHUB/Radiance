@@ -457,24 +457,61 @@ public class Pipeline {
             connect(dlssModule.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
         } else if (isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
-            // DLSS unavailable (AMD/Intel GPU): use FSR3 as upscaler fallback.
+            // DLSS unavailable (AMD/Intel GPU): use NRD denoiser + FSR3 upscaler.
+            // DLSS-RR is a combined denoiser+upscaler; without it we need both stages.
+            boolean useNrd = isNativeModuleAvailable("render_pipeline.module.nrd.name");
             Module fsr3Module = addModule("render_pipeline.module.fsr3_upscaler.name");
 
-            connect(rayTracingModule.getOutputImageConfig("radiance"),
-                fsr3Module.getInputImageConfig("color"));
+            if (useNrd) {
+                // RT → NRD (denoise) → FSR3 (upscale) → tone mapping
+                Module nrdModule = addModule("render_pipeline.module.nrd.name");
 
+                // NRD inputs: 12 images from RT (separated lighting for REBLUR denoising)
+                connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_indirect_light"),
+                    nrdModule.getInputImageConfig("diffuse_radiance"));
+                connect(rayTracingModule.getOutputImageConfig("first_hit_specular"),
+                    nrdModule.getInputImageConfig("specular_radiance"));
+                connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_direct_light"),
+                    nrdModule.getInputImageConfig("direct_radiance"));
+                connect(rayTracingModule.getOutputImageConfig("diffuse_albedo_metallic"),
+                    nrdModule.getInputImageConfig("diffuse_albedo"));
+                connect(rayTracingModule.getOutputImageConfig("specular_albedo"),
+                    nrdModule.getInputImageConfig("specular_albedo"));
+                connect(rayTracingModule.getOutputImageConfig("normal_roughness"),
+                    nrdModule.getInputImageConfig("normal_roughness"));
+                connect(rayTracingModule.getOutputImageConfig("motion_vector"),
+                    nrdModule.getInputImageConfig("motion_vector"));
+                connect(rayTracingModule.getOutputImageConfig("linear_depth"),
+                    nrdModule.getInputImageConfig("linear_depth"));
+                connect(rayTracingModule.getOutputImageConfig("first_hit_clear"),
+                    nrdModule.getInputImageConfig("first_hit_clear"));
+                connect(rayTracingModule.getOutputImageConfig("first_hit_base_emission"),
+                    nrdModule.getInputImageConfig("first_hit_base_emission"));
+                connect(rayTracingModule.getOutputImageConfig("direct_light_depth"),
+                    nrdModule.getInputImageConfig("diffuseHitDepthImage"));
+                connect(rayTracingModule.getOutputImageConfig("specular_hit_depth"),
+                    nrdModule.getInputImageConfig("specularHitDepthImage"));
+
+                // NRD denoised output → FSR3 color input
+                connect(nrdModule.getOutputImageConfig("denoised_radiance"),
+                    fsr3Module.getInputImageConfig("color"));
+            } else {
+                // No NRD available: feed raw radiance to FSR3 (noisy but functional)
+                connect(rayTracingModule.getOutputImageConfig("radiance"),
+                    fsr3Module.getInputImageConfig("color"));
+            }
+
+            // FSR3 needs depth + MVs from RT directly (bypasses denoiser)
             connect(rayTracingModule.getOutputImageConfig("linear_depth"),
                 fsr3Module.getInputImageConfig("depth"));
-
             connect(rayTracingModule.getOutputImageConfig("motion_vector"),
                 fsr3Module.getInputImageConfig("motion_vector"));
-
             connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
                 fsr3Module.getInputImageConfig("first_hit_depth"));
 
+            // FSR3 upscaled output → tone mapping → post
             connect(fsr3Module.getOutputImageConfig("upscaled_radiance"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
-
             connect(fsr3Module.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
         } else {
