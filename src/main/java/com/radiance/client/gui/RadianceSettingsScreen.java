@@ -32,8 +32,51 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
         this.parentScreen = parent;
     }
 
+    // ── Fixed scaling: override Minecraft GUI scale for consistent menu size ──
+    static double savedScaleFactor = -1;
+    static int savedScaledWidth = -1;
+    static int savedScaledHeight = -1;
+
+    private void applyRadianceScale() {
+        var window = this.client.getWindow();
+        var accessor = (com.radiance.mixins.vulkan_render_integration.WindowAccessorMixin) (Object) window;
+
+        // Save original
+        if (savedScaleFactor < 0) {
+            savedScaleFactor = accessor.radiance$getScaleFactor();
+            savedScaledWidth = accessor.radiance$getScaledWidth();
+            savedScaledHeight = accessor.radiance$getScaledHeight();
+        }
+
+        // Compute our scale: target ~900px effective width
+        int pixelWidth = window.getWidth();
+        int pixelHeight = window.getHeight();
+        int targetWidth = 900;
+        double radianceScale = Math.max(1.0, Math.round((double) pixelWidth / targetWidth));
+
+        accessor.radiance$setScaleFactor(radianceScale);
+        accessor.radiance$setScaledWidth((int) Math.ceil((double) pixelWidth / radianceScale));
+        accessor.radiance$setScaledHeight((int) Math.ceil((double) pixelHeight / radianceScale));
+
+        // Update Screen's own width/height fields
+        this.width = accessor.radiance$getScaledWidth();
+        this.height = accessor.radiance$getScaledHeight();
+    }
+
+    public static void restoreOriginalScale() {
+        if (savedScaleFactor < 0) return;
+        var mc = MinecraftClient.getInstance();
+        if (mc == null || mc.getWindow() == null) return;
+        var accessor = (com.radiance.mixins.vulkan_render_integration.WindowAccessorMixin) (Object) mc.getWindow();
+        accessor.radiance$setScaleFactor(savedScaleFactor);
+        accessor.radiance$setScaledWidth(savedScaledWidth);
+        accessor.radiance$setScaledHeight(savedScaledHeight);
+        savedScaleFactor = -1;
+    }
+
     @Override
     protected void init() {
+        applyRadianceScale();
         super.init();
         this.searchOverlay = new RadianceSearchOverlay(this);
 
@@ -161,8 +204,21 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    public void removed() {
+        super.removed();
+        // Restore scale when leaving Radiance screens (but not when navigating between them)
+        Screen next = this.client != null ? this.client.currentScreen : null;
+        if (!(next instanceof RadianceSettingsScreen) && !(next instanceof MaterialsSettingsScreen)) {
+            restoreOriginalScale();
+        }
+    }
+
+    @Override
     public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Transparent — game world shows through
+        // Frosted glass: heavy dark overlay so game world is barely visible
+        if (!RadianceTheme.peekActive) {
+            context.fill(0, 0, this.width, this.height, 0xF0080808); // ~94% dark overlay
+        }
     }
 
     @Override
@@ -267,23 +323,21 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             body));
 
         // [SDR Transfer Function | PsychoV: ON/OFF]
-        SimpleOption<Integer> sdrTransferFn = new SimpleOption<>(
-            Options.SDR_TRANSFER_FUNCTION_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(value == Options.SDR_TRANSFER_FUNCTION_SRGB
-                    ? Options.SDR_TRANSFER_FUNCTION_SRGB_KEY
-                    : Options.SDR_TRANSFER_FUNCTION_GAMMA_22_KEY)),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 1),
-            Codec.intRange(0, 1),
-            Options.sdrTransferFunction,
-            value -> Options.setSdrTransferFunction(value, true));
+        // SDR Transfer Function as a cycle button: click to toggle between sRGB and Gamma 2.2
+        ButtonWidget sdrTransferBtn = ButtonWidget.builder(
+            Text.literal("SDR: " + (Options.sdrTransferFunction == Options.SDR_TRANSFER_FUNCTION_SRGB ? "sRGB" : "Gamma 2.2")),
+            btn -> {
+                int next = Options.sdrTransferFunction == Options.SDR_TRANSFER_FUNCTION_SRGB
+                    ? Options.SDR_TRANSFER_FUNCTION_GAMMA_22 : Options.SDR_TRANSFER_FUNCTION_SRGB;
+                Options.setSdrTransferFunction(next, true);
+                btn.setMessage(Text.literal("SDR: " + (next == Options.SDR_TRANSFER_FUNCTION_SRGB ? "sRGB" : "Gamma 2.2")));
+            }).width(150).build();
         SimpleOption<Boolean> psychoToggle = SimpleOption.ofBoolean(
             Options.PSYCHO_ENABLED_KEY,
             Options.psychoEnabled,
             value -> Options.setPsychoEnabled(value, true));
         this.body.addEntry(new TwoColumnOptionEntry(
-            sdrTransferFn.createWidget(gameOptions), psychoToggle.createWidget(gameOptions), body));
+            sdrTransferBtn, psychoToggle.createWidget(gameOptions), body));
 
         // [Saturation (full-width slider)]
         ResettableSliderWidget satSlider = new ResettableSliderWidget(
@@ -295,6 +349,17 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             v -> Options.setSaturation(v, true));
         satSlider.settingKey = "saturationPercent";
         this.body.addEntry(new SliderEntry(satSlider, body));
+
+        SimpleOption<Boolean> satAdaptive = SimpleOption.ofBoolean(
+            "options.video.saturation_adaptive",
+            Options.saturationAdaptive,
+            value -> Options.setSaturationAdaptive(value, true));
+        SimpleOption<Boolean> noiseLodToggle = SimpleOption.ofBoolean(
+            "options.video.noise_lod",
+            Options.noiseLOD,
+            value -> Options.setNoiseLOD(value, true));
+        this.body.addEntry(new TwoColumnOptionEntry(
+            satAdaptive.createWidget(gameOptions), noiseLodToggle.createWidget(gameOptions), body));
 
         // [Color Expansion (per-block vivid chroma boost, full-width slider)]
         ResettableSliderWidget ceSlider = new ResettableSliderWidget(
@@ -496,29 +561,14 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             Codec.intRange(0, 32),
             Options.rayBounces,
             value -> Options.setRayBounces(value, true));
-        SimpleOption<Boolean> ommEnabled = SimpleOption.ofBoolean(
-            Options.OMM_ENABLED_KEY,
-            Options.ommEnabled,
-            value -> Options.setOMMEnabled(value, true));
-        this.body.addEntry(new TwoColumnOptionEntry(
-            rayBounces.createWidget(gameOptions), ommEnabled.createWidget(gameOptions), body));
+        this.body.addEntry(new TwoColumnOptionEntry(rayBounces.createWidget(gameOptions), null, body));
 
-        // [OMM Baker Level | Simplified Indirect]
-        SimpleOption<Integer> ommBakerLevel = new SimpleOption<>(
-            Options.OMM_BAKER_LEVEL_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(Integer.toString(value))),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 8),
-            Codec.intRange(1, 8),
-            Options.ommBakerLevel,
-            value -> Options.setOMMBakerLevel(value, true));
-        SimpleOption<Boolean> simplifiedIndirect = SimpleOption.ofBoolean(
-            Options.SIMPLIFIED_INDIRECT_KEY,
-            Options.simplifiedIndirect,
-            value -> Options.setSimplifiedIndirect(value, true));
-        this.body.addEntry(new TwoColumnOptionEntry(
-            ommBakerLevel.createWidget(gameOptions), simplifiedIndirect.createWidget(gameOptions), body));
+        // ── DIAGNOSTICS ──
+        SimpleOption<Boolean> loggingToggle = SimpleOption.ofBoolean(
+            "options.video.logging_enabled",
+            Options.loggingEnabled,
+            value -> Options.setLoggingEnabled(value, true));
+        this.body.addAll(new SimpleOption[]{loggingToggle});
 
         // ── SHARC RADIANCE CACHE ──
         this.body.addEntry(
@@ -764,11 +814,29 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
             float fadeFactor = RadianceTheme.isActiveEntry(children()) ? 1f : RadianceTheme.inactiveFadeFactor();
             if (fadeFactor <= 0f) return;
-            int sw = Math.min(100, entryWidth / 4 - 10);
-            renderSlot(s0, x, y, entryWidth, sw, 1, mouseX, mouseY, tickDelta, context);
-            renderSlot(s1, x, y, entryWidth, sw, 3, mouseX, mouseY, tickDelta, context);
-            renderSlot(s2, x, y, entryWidth, sw, 5, mouseX, mouseY, tickDelta, context);
-            renderSlot(s3, x, y, entryWidth, sw, 7, mouseX, mouseY, tickDelta, context);
+            // Count populated slots to determine layout
+            int count = (s0 != null ? 1 : 0) + (s1 != null ? 1 : 0) + (s2 != null ? 1 : 0) + (s3 != null ? 1 : 0);
+            if (count <= 3 && s3 == null) {
+                // 3-column layout: wider sliders, evenly spaced
+                int gap = 8;
+                int colW = (entryWidth - gap * (count - 1)) / count;
+                int slot = 0;
+                for (ResettableSliderWidget s : new ResettableSliderWidget[]{s0, s1, s2}) {
+                    if (s == null) continue;
+                    s.setX(x + slot * (colW + gap));
+                    s.setY(y);
+                    s.setWidth(colW);
+                    s.render(context, mouseX, mouseY, tickDelta);
+                    slot++;
+                }
+            } else {
+                // 4-column layout (original)
+                int sw = Math.min(100, entryWidth / 4 - 10);
+                renderSlot(s0, x, y, entryWidth, sw, 1, mouseX, mouseY, tickDelta, context);
+                renderSlot(s1, x, y, entryWidth, sw, 3, mouseX, mouseY, tickDelta, context);
+                renderSlot(s2, x, y, entryWidth, sw, 5, mouseX, mouseY, tickDelta, context);
+                renderSlot(s3, x, y, entryWidth, sw, 7, mouseX, mouseY, tickDelta, context);
+            }
         }
 
         private void renderSlot(ResettableSliderWidget s, int x, int y, int ew, int sw, int col,

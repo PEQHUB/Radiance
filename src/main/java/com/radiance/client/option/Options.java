@@ -9,6 +9,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,7 +24,7 @@ public class Options {
     public static final String OPTION_PROPERTIES = "options.properties";
     public static final int CURRENT_OPTIONS_VERSION = 18;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
-    public static final int SATURATION_DEFAULT_PERCENT = 130;
+    public static final int SATURATION_DEFAULT_PERCENT = 100;
     public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
 
     // SDR transfer function
@@ -223,22 +225,41 @@ public class Options {
     // 1 = DLSS (Ray Reconstruction)
     public static int upscalerMode = 1;
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
-    public static int upscalerResOverride = 100; // 33-100%
+    public static int upscalerResOverride = 99; // 33-100%
     public static boolean dlssDEnabled = true;
-    public static int rayBounces = 16;
+    public static int rayBounces = 32;
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
+    public static boolean noiseLOD = true;  // Noise quality LOD (default ON for performance)
+
+    // Window persistence
+    public static int windowPosX = -1;  // -1 = not set (use OS default)
+    public static int windowPosY = -1;
+    public static int windowWidth = -1;
+    public static int windowHeight = -1;
+    public static boolean suppressResizeCallback = false;
+
+    // Diagnostics
+    public static boolean loggingEnabled = false;
+    public static native void nativeSetLoggingEnabled(boolean enabled, boolean write);
+
+    // POM (Parallax Occlusion Mapping)
+    public static boolean pomEnabled = false;
+    public static int pomHeightScalePercent = 5;    // 1-50, /100 = 0.01-0.50
+    public static int pomSteps = 64;                // 8-512
+    public static int pomRefinement = 4;            // 0-8
+    public static int pomFadeDistance = 64;          // 8-256 blocks
     public static boolean sharcEnabled = true;
-    public static int sharcSceneScaleTenths = 40;          // 10-200 → 1.0-20.0
-    public static int sharcRoughnessThresholdPercent = 25;  // 0-100 → 0.0-1.0
+    public static int sharcSceneScaleTenths = 200;          // 10-200 → 1.0-20.0
+    public static int sharcRoughnessThresholdPercent = 70;  // 0-100 → 0.0-1.0
     public static int sharcAccumulationFrames = 32;         // 4-256
     public static int sharcStaleFrames = 16;                // 4-128
     public static int sharcDownscale = 1;                   // 1-8
-    public static int sharcUpdateBlockSize = 5;             // 2-8 (NxN sparse block)
-    public static int sharcUpdateBounces = 4;               // 2-8 (max bounces in update pass)
+    public static int sharcUpdateBlockSize = 2;             // 2-8 (NxN sparse block)
+    public static int sharcUpdateBounces = 16;               // 2-16 (max bounces in update pass)
     public static int sharcCapacityExponent = 21;           // 18-26 (2^N entries)
-    public static int sharcQualityPreset = 1;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
+    public static int sharcQualityPreset = 5;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
 
     /** SHARC quality preset definitions. Each row: {sceneScaleTenths, roughnessPercent, accumFrames,
      *  staleFrames, downscale, updateBlockSize, updateBounces, capacityExponent} */
@@ -267,7 +288,7 @@ public class Options {
     public static int offlineAperturePercent = 0;    // 0-100 → 0.0-0.1 aperture
     public static int offlineFocalDistance = 10;     // 1-256 blocks
 
-    public static boolean areaLightsEnabled = true;
+    public static boolean areaLightsEnabled = false;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
     public static int areaLightIntensityPercent = 100;  // 0-500%
     public static int areaLightRange = 128;  // 8-512 blocks
@@ -363,8 +384,9 @@ public class Options {
     public static boolean reflexEnabled = false;
     public static boolean reflexBoost = false;
     public static boolean vrrMode = false;
-    public static int chunkBuildingBatchSize = 6;
-    public static int chunkBuildingTotalBatches = 6;
+    private static boolean reflexExplicitlyConfigured = false; // true if user saved a preference
+    public static int chunkBuildingBatchSize = 32;
+    public static int chunkBuildingTotalBatches = 32;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
@@ -378,7 +400,7 @@ public class Options {
     public static int casSharpnessPercent = 50;
     // Treat speeds as max EV change per second (rate-limited adaptation).
     // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
-    public static int exposureUpSpeedTenths = 8;              // 1-200 → 0.1 to 20.0 (0.8 EV/s dark adapt)
+    public static int exposureUpSpeedTenths = 13;              // 1-200 → 0.1 to 20.0 (1.3 EV/s dark adapt)
     public static int exposureDownSpeedTenths = 15;           // 1-200 → 0.1 to 20.0 (1.5 EV/s bright adapt)
     public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0 (1.0× no boost, eliminates asymmetry)
     public static int exposureHighlightProtectionPercent = 30; // 0-100 → 0.0 to 1.0 (soft nudge, tonemapper clips)
@@ -388,6 +410,7 @@ public class Options {
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
+    public static boolean saturationAdaptive = false;  // Adaptive saturation: brightness+chroma-dependent
     public static int colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
     public static int upscalerPreset = 4; // DLSS: 4=D (default), 5=E. Generic for future upscalers.
 
@@ -396,7 +419,7 @@ public class Options {
     public static int psychoHighlightsPercent = 100;     // 0-300 → 0.0 to 3.0
     public static int psychoShadowsPercent = 100;        // 0-300 → 0.0 to 3.0
     public static int psychoContrastPercent = 100;       // 0-300 → 0.0 to 3.0
-    public static int psychoPurityPercent = 105;         // 0-300 → 0.0 to 3.0
+    public static int psychoPurityPercent = 100;         // 0-300 → 0.0 to 3.0
     public static int psychoBleachingPercent = 0;        // 0-100 → 0.0 to 1.0
     public static int psychoClipPointTenths = 1000;      // 10-5000 → 1.0 to 500.0
     public static int psychoHueRestorePercent = 0;       // 0-100 → 0.0 to 1.0
@@ -406,7 +429,7 @@ public class Options {
 
     // HDR10 output (default: disabled, pure SDR)
     public static boolean hdrEnabled = false;
-    public static int hdrPeakNits = 1000;          // 100–10000 nits
+    public static int hdrPeakNits = 1070;          // 100–10000 nits
     public static int hdrPaperWhiteNits = 203;     // 80–500 nits, ITU-R BT.2408 reference white
     public static int hdrUiBrightnessNits = 100;   // 50–300 nits, UI brightness in HDR mode
 
@@ -493,6 +516,12 @@ public class Options {
 
     // Material block overrides (physically accurate F0/roughness applied in CHS shader)
     public static boolean materialOverridesEnabled = true;
+    public static volatile boolean materialDirty = true;  // starts dirty — first frame must upload
+    public static void markMaterialDirty() {
+        materialDirty = true;
+        com.radiance.client.debug.CrashContext.recordChange("materialDirty");
+        com.radiance.client.debug.RadianceLogger.logMaterialDirty("markMaterialDirty");
+    }
     // Material overrides: max 160 blocks (4 vec4 per block × 160 = 640 vec4 in UBO)
     public static final int MAX_MATERIALS = 160;
     // Per-block properties (indexed by MaterialBlock.ordinal())
@@ -514,7 +543,7 @@ public class Options {
     public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-1000 (/10 = 0.1-100.0 world units)
     public static final int[] materialNoiseStrength = new int[MAX_MATERIALS];  // 0-1000 permille (0.0-100.0%)
     public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-8
-    public static final int[] materialNoiseType = new int[MAX_MATERIALS];     // 0-7 (noise algorithm)
+    public static final int[] materialNoiseType = new int[MAX_MATERIALS];     // 0-15 (noise algorithm)
     public static final int[] materialNoiseSeed = new int[MAX_MATERIALS];     // 0-999
     // Texture roughness channel routing: per-material weights for deriving roughness from albedo
     public static final int[] materialChannelR = new int[MAX_MATERIALS];       // 0-1000 permille
@@ -522,6 +551,19 @@ public class Options {
     public static final int[] materialChannelB = new int[MAX_MATERIALS];       // 0-1000 permille
     public static final int[] materialTextureBlend = new int[MAX_MATERIALS];   // 0-100 percent
     public static final int[] materialGamutBoost = new int[MAX_MATERIALS];    // 0-200 (×0.01 = 0.00-2.00 multiplier)
+    public static final int[] materialPomDepth = new int[MAX_MATERIALS];     // 0-200 (×0.01 = 0.00-2.00, per-block POM depth, 0=off)
+    public static final int[] materialNormalSmoothing = new int[MAX_MATERIALS]; // 0-100 (×0.01 = 0.0-1.0 LOD bias)
+    public static final int[] materialNormalStrength = new int[MAX_MATERIALS];  // 0-200 (×0.01 = 0.00-2.00 multiplier, 100=neutral)
+    public static final int[] materialAutoPBRRoughnessMin = new int[MAX_MATERIALS]; // 0-100, per-block roughness min %
+    public static final int[] materialAutoPBRRoughnessMax = new int[MAX_MATERIALS]; // 0-100, per-block roughness max %
+    public static final int[] materialAutoPBRGamma = new int[MAX_MATERIALS];          // 1-2000, /100 (legacy, kept for compat)
+    public static final int[] materialPercentileCenter = new int[MAX_MATERIALS];      // 0-100, what brightness = mid-roughness
+    public static final int[] materialPercentileSpread = new int[MAX_MATERIALS];      // 1-100, roughness contrast width
+    public static final int[] materialAutoPBRNormalStrength = new int[MAX_MATERIALS];  // 0-1000, /100
+    public static final int[] materialAutoPBRVarianceWeight = new int[MAX_MATERIALS];  // 0-100, /100 (legacy)
+    public static final int[] materialAutoPBREdgeWeight = new int[MAX_MATERIALS];      // 0-100, /100 (legacy)
+    public static final int[] materialAutoPBRHeightGamma = new int[MAX_MATERIALS];     // 10-300, /100
+    public static final int[] materialAutoPBRFlags = new int[MAX_MATERIALS];           // bit 0=invertRoughness, bit 1=invertNormal, bit 2=invertHeight
     static {
         for (MaterialBlock mb : MaterialBlock.values()) {
             int i = mb.ordinal();
@@ -551,7 +593,164 @@ public class Options {
             // Previously defaulted to 30-60% which silently overrode the roughness slider.
             materialTextureBlend[i] = 0;
             materialGamutBoost[i] = 100;    // 1.0× (neutral)
+            materialPomDepth[i] = 0;        // off by default (per-block POM disabled)
+            materialNormalSmoothing[i] = 0;  // sharp (no LOD bias)
+            materialNormalStrength[i] = 100; // 1.0× (neutral)
+            materialAutoPBRRoughnessMin[i] = 30;  // default roughness min 30%
+            materialAutoPBRRoughnessMax[i] = 95;  // default roughness max 95%
+            materialAutoPBRGamma[i] = 50;          // legacy, kept for compat
+            materialPercentileCenter[i] = 50;      // 50% = linear midpoint
+            materialPercentileSpread[i] = 80;      // 80% = moderate contrast
+            materialAutoPBRNormalStrength[i] = 25;  // 0.25 normal strength
+            materialAutoPBRVarianceWeight[i] = 30;  // legacy
+            materialAutoPBREdgeWeight[i] = 15;      // legacy
+            materialAutoPBRHeightGamma[i] = 100;    // matches autoPBRHeightGamma default
+            materialAutoPBRFlags[i] = 0;            // no inversions (base convention is now correct)
         }
+
+        // ── Per-block visual defaults (tuned) ──
+        // Metals: mirror-smooth base with texture roughness variation
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.ANVIL, MaterialBlock.CAULDRON, MaterialBlock.CHAIN,
+                MaterialBlock.HEAVY_WEIGHTED_PRESSURE_PLATE, MaterialBlock.HOPPER,
+                MaterialBlock.IRON_BARS, MaterialBlock.IRON_BLOCK, MaterialBlock.IRON_DOOR,
+                MaterialBlock.RAIL}) {
+            int j = mb.ordinal();
+            materialRoughness[j] = 0;
+            materialNormalStrength[j] = 200;
+            materialTextureBlend[j] = 100;
+            materialAutoPBRNormalStrength[j] = 0;
+        }
+        // Iron door: higher F0 than enum default
+        materialF0R[MaterialBlock.IRON_DOOR.ordinal()] = 560;
+        materialF0G[MaterialBlock.IRON_DOOR.ordinal()] = 570;
+        materialF0B[MaterialBlock.IRON_DOOR.ordinal()] = 580;
+
+        // Gold family: mirror-smooth with procedural noise
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.BELL, MaterialBlock.GOLD_BLOCK,
+                MaterialBlock.LIGHT_WEIGHTED_PRESSURE_PLATE, MaterialBlock.RAW_GOLD_BLOCK}) {
+            int j = mb.ordinal();
+            materialRoughness[j] = 0;
+            materialNoiseScale[j] = 112;
+            materialNoiseOctaves[j] = 4;
+            materialNoiseType[j] = 2;
+            materialTextureBlend[j] = 25;
+            materialSheenTint[j] = 0;
+            materialCoatRoughness[j] = 0;
+            materialAutoPBRNormalStrength[j] = 0;
+        }
+
+        // Other metals
+        materialRoughness[MaterialBlock.COPPER_BLOCK.ordinal()] = 5;
+        materialTextureBlend[MaterialBlock.COPPER_BLOCK.ordinal()] = 100;
+        materialIOR[MaterialBlock.COPPER_BLOCK.ordinal()] = 1000;
+
+        materialRoughness[MaterialBlock.LIGHTNING_ROD.ordinal()] = 0;
+        materialTextureBlend[MaterialBlock.LIGHTNING_ROD.ordinal()] = 100;
+        materialIOR[MaterialBlock.LIGHTNING_ROD.ordinal()] = 1000;
+
+        materialRoughness[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 0;
+        materialTextureBlend[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 100;
+        materialIOR[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 1000;
+
+        // Raw iron: dielectric treatment
+        materialRoughness[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 100;
+        materialMetallic[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 0;
+
+        // Gems & minerals
+        materialRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
+        materialTransmission[MaterialBlock.EMERALD_BLOCK.ordinal()] = 1000;
+        materialGamutBoost[MaterialBlock.EMERALD_BLOCK.ordinal()] = 142;
+        materialTextureBlend[MaterialBlock.EMERALD_BLOCK.ordinal()] = 1;
+        materialCoatRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
+        // emerald: no inversion flags needed (base convention is correct)
+        materialAutoPBRNormalStrength[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
+        materialAutoPBRRoughnessMin[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.EMERALD_BLOCK.ordinal()] = 100;
+        materialNormalStrength[MaterialBlock.EMERALD_BLOCK.ordinal()] = 200;
+
+        materialRoughness[MaterialBlock.OBSIDIAN.ordinal()] = 0;
+        materialGamutBoost[MaterialBlock.OBSIDIAN.ordinal()] = 142;
+
+        materialRoughness[MaterialBlock.CRYING_OBSIDIAN.ordinal()] = 0;
+        materialGamutBoost[MaterialBlock.CRYING_OBSIDIAN.ordinal()] = 142;
+
+        // Transmissives
+        materialRoughness[MaterialBlock.HONEY_MAT.ordinal()] = 0;
+        materialTransmission[MaterialBlock.HONEY_MAT.ordinal()] = 1000;
+        materialTextureBlend[MaterialBlock.HONEY_MAT.ordinal()] = 8;
+        materialAutoPBRFlags[MaterialBlock.HONEY_MAT.ordinal()] = 1; // invertRoughness
+        materialAutoPBRNormalStrength[MaterialBlock.HONEY_MAT.ordinal()] = 0;
+        materialAutoPBRRoughnessMin[MaterialBlock.HONEY_MAT.ordinal()] = 0;
+
+        materialRoughness[MaterialBlock.ICE.ordinal()] = 0;
+        materialCoatRoughness[MaterialBlock.ICE.ordinal()] = 28;
+        materialTextureBlend[MaterialBlock.ICE.ordinal()] = 50;
+
+        materialRoughness[MaterialBlock.SLIME_MAT.ordinal()] = 2;
+        materialTransmission[MaterialBlock.SLIME_MAT.ordinal()] = 1000;
+        materialTextureBlend[MaterialBlock.SLIME_MAT.ordinal()] = 29;
+        materialAutoPBRRoughnessMin[MaterialBlock.SLIME_MAT.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.SLIME_MAT.ordinal()] = 0;
+        materialAutoPBRVarianceWeight[MaterialBlock.SLIME_MAT.ordinal()] = 0;
+        materialAutoPBRNormalStrength[MaterialBlock.SLIME_MAT.ordinal()] = 0;
+
+        materialRoughness[MaterialBlock.WATER_MAT.ordinal()] = 4;
+        materialF0R[MaterialBlock.WATER_MAT.ordinal()] = 20;
+        materialF0G[MaterialBlock.WATER_MAT.ordinal()] = 20;
+        materialF0B[MaterialBlock.WATER_MAT.ordinal()] = 20;
+        materialCoatWeight[MaterialBlock.WATER_MAT.ordinal()] = 1000;
+        materialCoatRoughness[MaterialBlock.WATER_MAT.ordinal()] = 0;
+        materialTransmission[MaterialBlock.WATER_MAT.ordinal()] = 1000;
+        materialTextureBlend[MaterialBlock.WATER_MAT.ordinal()] = 1;
+        materialAutoPBRFlags[MaterialBlock.WATER_MAT.ordinal()] = 1; // invertRoughness
+        materialAutoPBRRoughnessMin[MaterialBlock.WATER_MAT.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.WATER_MAT.ordinal()] = 30;
+
+        // Stones: slight metallic sparkle
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.STONE, MaterialBlock.COBBLESTONE_MAT, MaterialBlock.MOSSY_COBBLESTONE_MAT,
+                MaterialBlock.STONE_BRICKS_MAT, MaterialBlock.MOSSY_STONE_BRICKS_MAT, MaterialBlock.SMOOTH_STONE}) {
+            int j = mb.ordinal();
+            materialMetallic[j] = 174;
+            materialTextureBlend[j] = 1;
+        }
+        // Stone family roughness overrides
+        materialRoughness[MaterialBlock.COBBLESTONE_MAT.ordinal()] = 80;
+        materialRoughness[MaterialBlock.MOSSY_COBBLESTONE_MAT.ordinal()] = 80;
+        materialRoughness[MaterialBlock.STONE_BRICKS_MAT.ordinal()] = 80;
+        materialRoughness[MaterialBlock.MOSSY_STONE_BRICKS_MAT.ordinal()] = 80;
+        materialRoughness[MaterialBlock.SMOOTH_STONE.ordinal()] = 80;
+
+        // Redstone: dielectric treatment
+        materialF0R[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 4;
+        materialF0G[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 4;
+        materialF0B[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 4;
+        materialMetallic[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
+        materialRoughness[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 49;
+        materialIOR[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1127;
+        materialGamutBoost[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 143;
+        materialAutoPBRNormalStrength[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
+        materialAutoPBRRoughnessMin[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 100;
+
+        // Special blocks
+        materialF0R[MaterialBlock.DIRT_MAT.ordinal()] = 2;
+        materialF0G[MaterialBlock.DIRT_MAT.ordinal()] = 2;
+        materialF0B[MaterialBlock.DIRT_MAT.ordinal()] = 2;
+        materialIOR[MaterialBlock.DIRT_MAT.ordinal()] = 1088;
+        materialRoughness[MaterialBlock.DIRT_MAT.ordinal()] = 100;
+        materialNormalStrength[MaterialBlock.DIRT_MAT.ordinal()] = 0;
+        materialGamutBoost[MaterialBlock.DIRT_MAT.ordinal()] = 142;
+
+        materialRoughness[MaterialBlock.PUMPKIN_MAT.ordinal()] = 0;
+        materialCoatRoughness[MaterialBlock.PUMPKIN_MAT.ordinal()] = 0;
+        materialTextureBlend[MaterialBlock.PUMPKIN_MAT.ordinal()] = 100;
+        materialGamutBoost[MaterialBlock.PUMPKIN_MAT.ordinal()] = 142;
+
+        materialGamutBoost[MaterialBlock.SAND_MAT.ordinal()] = 142;
+        materialGamutBoost[MaterialBlock.WOOL_MAT.ordinal()] = 142;
     }
 
     // Child override tracking: true = child has been independently customized, won't inherit parent changes
@@ -586,6 +785,19 @@ public class Options {
                 materialChannelB[ci] = materialChannelB[parentOrdinal];
                 materialTextureBlend[ci] = materialTextureBlend[parentOrdinal];
                 materialGamutBoost[ci] = materialGamutBoost[parentOrdinal];
+                materialPomDepth[ci] = materialPomDepth[parentOrdinal];
+                materialNormalSmoothing[ci] = materialNormalSmoothing[parentOrdinal];
+                materialNormalStrength[ci] = materialNormalStrength[parentOrdinal];
+                materialAutoPBRRoughnessMin[ci] = materialAutoPBRRoughnessMin[parentOrdinal];
+                materialAutoPBRRoughnessMax[ci] = materialAutoPBRRoughnessMax[parentOrdinal];
+                materialAutoPBRGamma[ci] = materialAutoPBRGamma[parentOrdinal];
+                materialPercentileCenter[ci] = materialPercentileCenter[parentOrdinal];
+                materialPercentileSpread[ci] = materialPercentileSpread[parentOrdinal];
+                materialAutoPBRNormalStrength[ci] = materialAutoPBRNormalStrength[parentOrdinal];
+                materialAutoPBRVarianceWeight[ci] = materialAutoPBRVarianceWeight[parentOrdinal];
+                materialAutoPBREdgeWeight[ci] = materialAutoPBREdgeWeight[parentOrdinal];
+                materialAutoPBRHeightGamma[ci] = materialAutoPBRHeightGamma[parentOrdinal];
+                materialAutoPBRFlags[ci] = materialAutoPBRFlags[parentOrdinal];
                 materialNormalInputType[ci] = materialNormalInputType[parentOrdinal];
                 materialSpecularInputType[ci] = materialSpecularInputType[parentOrdinal];
                 materialCustomNormalPath[ci] = materialCustomNormalPath[parentOrdinal];
@@ -594,19 +806,44 @@ public class Options {
                 materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
             }
         }
+        markMaterialDirty();
+    }
+
+    /** Validate material properties for physical plausibility. Returns list of warning strings. */
+    public static List<String> validateMaterial(int blockIndex) {
+        List<String> warnings = new ArrayList<>();
+        if (blockIndex < 0 || blockIndex >= MAX_MATERIALS) return warnings;
+
+        boolean isMetal = materialMetallic[blockIndex] > 500;
+        boolean hasTransmission = materialTransmission[blockIndex] > 0;
+        boolean hasSSS = materialSubsurface[blockIndex] > 0;
+        int ior = materialIOR[blockIndex];
+
+        if (isMetal && hasTransmission)
+            warnings.add("Metals cannot transmit light");
+        if (isMetal && hasSSS)
+            warnings.add("SSS has no effect on metals");
+        if (hasTransmission && ior < 1000)
+            warnings.add("IOR below 1.0 is unphysical");
+        if (hasTransmission && ior == 1000)
+            warnings.add("IOR = 1.0 won't refract");
+
+        return warnings;
     }
 
     // Auto-PBR generation (roughness + normals from vanilla albedo textures)
     public static boolean autoPBREnabled = true; // Global kill switch (default on; disable to suppress all)
-    public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // per-block toggle, default false
+    public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // per-block toggle, default true
+    static { java.util.Arrays.fill(materialAutoPBR, true); }
     public static int autoPBRRoughnessGamma = 50;    // 10-200, /100 = 0.1-2.0
     public static int autoPBRRoughnessMin = 30;       // 0-100, /100 = 0.0-1.0
     public static int autoPBRRoughnessMax = 95;       // 0-100, /100 = 0.0-1.0
-    public static int autoPBRNormalStrength = 250;     // 0-1000, /100 = 0.0-10.0
+    public static int autoPBRNormalStrength = 25;      // 0-100, /100 = 0.00-1.00
     public static int autoPBRVarianceWeight = 30;      // 0-100, /100 = 0.0-1.0
     public static int autoPBREdgeWeight = 15;          // 0-100, /100 = 0.0-1.0
-    public static boolean autoPBRInvertNormal = false;   // Invert luminance for normal map generation
-    public static boolean autoPBRInvertRoughness = false; // Invert luminance for roughness generation
+    // Global invert toggles removed — per-block materialAutoPBRFlags is the sole authority
+    // (bit 0 = invertRoughness, bit 1 = invertNormal, bit 2 = invertHeight)
+    public static int autoPBRHeightGamma = 100;          // 10-300, /100 = 0.1-3.0 (height contrast for POM)
 
     // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat, 3=Blender PBR
     public static final int[] materialNormalInputType = new int[MAX_MATERIALS];
@@ -788,6 +1025,27 @@ public class Options {
 
             simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
+            noiseLOD = Boolean.parseBoolean(props.getProperty("noiseLOD", String.valueOf(noiseLOD)));
+            try { nativeSetNoiseLOD(noiseLOD, false); } catch (UnsatisfiedLinkError ignored) {}
+
+            windowPosX = Integer.parseInt(props.getProperty("windowPosX", String.valueOf(windowPosX)));
+            windowPosY = Integer.parseInt(props.getProperty("windowPosY", String.valueOf(windowPosY)));
+            windowWidth = Integer.parseInt(props.getProperty("windowWidth", String.valueOf(windowWidth)));
+            windowHeight = Integer.parseInt(props.getProperty("windowHeight", String.valueOf(windowHeight)));
+
+            loggingEnabled = Boolean.parseBoolean(props.getProperty("loggingEnabled", String.valueOf(loggingEnabled)));
+            // Don't call nativeSetLoggingEnabled here — C++ not initialized yet. Applied after renderer init.
+
+            pomEnabled = Boolean.parseBoolean(props.getProperty("pomEnabled", String.valueOf(pomEnabled)));
+            nativeSetPOMEnabled(pomEnabled, false);
+            pomHeightScalePercent = clamp(Integer.parseInt(props.getProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent))), 1, 50);
+            nativeSetPOMHeightScale(pomHeightScalePercent / 100.0f, false);
+            pomSteps = clamp(Integer.parseInt(props.getProperty("pomSteps", String.valueOf(pomSteps))), 8, 512);
+            nativeSetPOMSteps(pomSteps, false);
+            pomRefinement = clamp(Integer.parseInt(props.getProperty("pomRefinement", String.valueOf(pomRefinement))), 0, 8);
+            nativeSetPOMRefinement(pomRefinement, false);
+            pomFadeDistance = clamp(Integer.parseInt(props.getProperty("pomFadeDistance", String.valueOf(pomFadeDistance))), 8, 256);
+            nativeSetPOMFadeDistance((float) pomFadeDistance, false);
 
             sharcEnabled = Boolean.parseBoolean(props.getProperty("sharcEnabled", String.valueOf(sharcEnabled)));
             nativeSetSharcEnabled(sharcEnabled, false);
@@ -859,15 +1117,19 @@ public class Options {
 
             // Offline accumulation preferences
             offlineBounces = Integer.parseInt(props.getProperty("offlineBounces", String.valueOf(offlineBounces)));
-            nativeSetOfflineBounces(offlineBounces, false);
             offlineDisableRR = Boolean.parseBoolean(props.getProperty("offlineDisableRR", String.valueOf(offlineDisableRR)));
-            nativeSetOfflineDisableRR(offlineDisableRR, false);
             offlineDisableClamp = Boolean.parseBoolean(props.getProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp)));
-            nativeSetOfflineDisableClamp(offlineDisableClamp, false);
             offlineAperturePercent = Integer.parseInt(props.getProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent)));
-            nativeSetOfflineAperture(offlineAperturePercent / 1000.0f, false);
             offlineFocalDistance = Integer.parseInt(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
-            nativeSetOfflineFocalDistance(offlineFocalDistance, false);
+            try {
+                nativeSetOfflineBounces(offlineBounces, false);
+                nativeSetOfflineDisableRR(offlineDisableRR, false);
+                nativeSetOfflineDisableClamp(offlineDisableClamp, false);
+                nativeSetOfflineAperture(offlineAperturePercent / 1000.0f, false);
+                nativeSetOfflineFocalDistance(offlineFocalDistance, false);
+            } catch (UnsatisfiedLinkError ignored) {
+                // Offline accumulation JNI not available in this core.dll build
+            }
 
             for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
                 areaLightBlockIntensity[i] = clamp(Integer.parseInt(props.getProperty("areaLightBlock." + i, "100")), 0, 500);
@@ -916,19 +1178,32 @@ public class Options {
                 materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 1000);
                 materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 1000);
                 materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 8);
-                materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 7);
+                materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 15);
                 materialNoiseSeed[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseSeed." + pid, "0")), 0, 999);
                 materialChannelR[i] = clamp(Integer.parseInt(props.getProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]))), 0, 1000);
                 materialChannelG[i] = clamp(Integer.parseInt(props.getProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]))), 0, 1000);
                 materialChannelB[i] = clamp(Integer.parseInt(props.getProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]))), 0, 1000);
                 materialTextureBlend[i] = clamp(Integer.parseInt(props.getProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]))), 0, 100);
                 materialGamutBoost[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]))), 0, 200);
+                materialPomDepth[i] = clamp(Integer.parseInt(props.getProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]))), 0, 200);
+                materialNormalSmoothing[i] = clamp(Integer.parseInt(props.getProperty("materialNormalSmoothing." + pid, String.valueOf(materialNormalSmoothing[i]))), 0, 100);
+                materialNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]))), 0, 200);
+                materialAutoPBRRoughnessMin[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]))), 0, 100);
+                materialAutoPBRRoughnessMax[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]))), 0, 100);
+                materialAutoPBRGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRGamma." + pid, String.valueOf(materialAutoPBRGamma[i]))), 1, 2000);
+                materialPercentileCenter[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]))), 0, 100);
+                materialPercentileSpread[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]))), 1, 100);
+                materialAutoPBRNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRNormalStrength." + pid, String.valueOf(materialAutoPBRNormalStrength[i]))), 0, 100);
+                materialAutoPBRVarianceWeight[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRVarianceWeight." + pid, String.valueOf(materialAutoPBRVarianceWeight[i]))), 0, 100);
+                materialAutoPBREdgeWeight[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBREdgeWeight." + pid, String.valueOf(materialAutoPBREdgeWeight[i]))), 0, 100);
+                materialAutoPBRHeightGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]))), 10, 300);
+                materialAutoPBRFlags[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]))), 0, 7);
                 materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 3);
                 materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, 3);
                 materialBlenderFolder[i] = props.getProperty("materialBlenderFolder." + pid, "");
                 materialCustomNormalPath[i] = props.getProperty("materialCustomNormalPath." + pid, "");
                 materialCustomSpecularPath[i] = props.getProperty("materialCustomSpecularPath." + pid, "");
-                materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 7);
+                materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 15);
             }
 
             // Child override flags
@@ -936,26 +1211,27 @@ public class Options {
                 int i = mb.ordinal();
                 materialChildOverride[i] = Boolean.parseBoolean(props.getProperty("materialChildOverride." + mb.getId(), "false"));
             }
+            markMaterialDirty();
 
             // Auto-PBR generation
             autoPBREnabled = Boolean.parseBoolean(props.getProperty("autoPBREnabled", String.valueOf(autoPBREnabled)));
             for (MaterialBlock mb : MaterialBlock.values()) {
                 int i = mb.ordinal();
                 String pid = mb.getId();
-                materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "false"));
+                materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "true"));
             }
-            autoPBRRoughnessGamma = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessGamma", String.valueOf(autoPBRRoughnessGamma))), 10, 200);
+            autoPBRRoughnessGamma = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessGamma", String.valueOf(autoPBRRoughnessGamma))), 1, 2000);
             autoPBRRoughnessMin = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin))), 0, 100);
             autoPBRRoughnessMax = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax))), 0, 100);
-            autoPBRNormalStrength = clamp(Integer.parseInt(props.getProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength))), 0, 1000);
+            autoPBRNormalStrength = clamp(Integer.parseInt(props.getProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength))), 0, 100);
             autoPBRVarianceWeight = clamp(Integer.parseInt(props.getProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight))), 0, 100);
             autoPBREdgeWeight = clamp(Integer.parseInt(props.getProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight))), 0, 100);
-            autoPBRInvertNormal = Boolean.parseBoolean(props.getProperty("autoPBRInvertNormal", String.valueOf(autoPBRInvertNormal)));
-            autoPBRInvertRoughness = Boolean.parseBoolean(props.getProperty("autoPBRInvertRoughness", String.valueOf(autoPBRInvertRoughness)));
+            autoPBRHeightGamma = clamp(Integer.parseInt(props.getProperty("autoPBRHeightGamma", String.valueOf(autoPBRHeightGamma))), 10, 300);
 
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 
+            reflexExplicitlyConfigured = props.containsKey("reflexEnabled") || props.containsKey("vrrMode");
             reflexEnabled = Boolean.parseBoolean(props.getProperty("reflexEnabled", String.valueOf(reflexEnabled)));
             nativeSetReflexEnabled(reflexEnabled, false);
             reflexBoost = Boolean.parseBoolean(props.getProperty("reflexBoost", String.valueOf(reflexBoost)));
@@ -980,6 +1256,8 @@ public class Options {
                 "LwhiteTenths", String.valueOf(LwhiteTenths)));
             saturationPercent = Integer.parseInt(props.getProperty(
                 "saturationPercent", String.valueOf(saturationPercent)));
+            saturationAdaptive = Boolean.parseBoolean(props.getProperty(
+                "saturationAdaptive", String.valueOf(saturationAdaptive)));
             colorExpansionPercent = Integer.parseInt(props.getProperty(
                 "colorExpansionPercent", String.valueOf(colorExpansionPercent)));
 
@@ -1041,6 +1319,7 @@ public class Options {
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
             nativeSetSaturation(saturationPercent / 100.0f, false);
+            try { nativeSetSaturationAdaptive(saturationAdaptive, false); } catch (UnsatisfiedLinkError ignored) {}
             nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
             nativeSetLegacyExposure(legacyExposure, false);
             nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
@@ -1177,7 +1456,8 @@ public class Options {
             }
             // Per-emissive-block gamut boost
             for (EmissiveBlock b : EmissiveBlock.values()) {
-                int gb = clamp(Integer.parseInt(props.getProperty("blockGamut_" + b.getId(), "100")), 0, 200);
+                int gbDefault = b.getId().equals("lava") ? 200 : 100;
+                int gb = clamp(Integer.parseInt(props.getProperty("blockGamut_" + b.getId(), String.valueOf(gbDefault))), 0, 200);
                 blockGamutBoosts.put(b.getId(), gb);
             }
             emissionLava = Float.parseFloat(props.getProperty("emissionLava", String.valueOf(emissionLava)));
@@ -1251,6 +1531,30 @@ public class Options {
         props.setProperty("ommEnabled", String.valueOf(ommEnabled));
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
+        props.setProperty("noiseLOD", String.valueOf(noiseLOD));
+        // Save current window position/size via LWJGL
+        try {
+            long handle = net.minecraft.client.MinecraftClient.getInstance().getWindow().getHandle();
+            int[] xBuf = new int[1], yBuf = new int[1], wBuf = new int[1], hBuf = new int[1];
+            org.lwjgl.glfw.GLFW.glfwGetWindowPos(handle, xBuf, yBuf);
+            org.lwjgl.glfw.GLFW.glfwGetWindowSize(handle, wBuf, hBuf);
+            if (wBuf[0] > 0 && hBuf[0] > 0) {
+                windowPosX = xBuf[0];
+                windowPosY = yBuf[0];
+                windowWidth = wBuf[0];
+                windowHeight = hBuf[0];
+            }
+        } catch (Exception ignored) {}
+        props.setProperty("windowPosX", String.valueOf(windowPosX));
+        props.setProperty("windowPosY", String.valueOf(windowPosY));
+        props.setProperty("windowWidth", String.valueOf(windowWidth));
+        props.setProperty("windowHeight", String.valueOf(windowHeight));
+        props.setProperty("loggingEnabled", String.valueOf(loggingEnabled));
+        props.setProperty("pomEnabled", String.valueOf(pomEnabled));
+        props.setProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent));
+        props.setProperty("pomSteps", String.valueOf(pomSteps));
+        props.setProperty("pomRefinement", String.valueOf(pomRefinement));
+        props.setProperty("pomFadeDistance", String.valueOf(pomFadeDistance));
         props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
         props.setProperty("sharcSceneScaleTenths", String.valueOf(sharcSceneScaleTenths));
         props.setProperty("sharcRoughnessThresholdPercent", String.valueOf(sharcRoughnessThresholdPercent));
@@ -1321,6 +1625,19 @@ public class Options {
             props.setProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]));
             props.setProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]));
             props.setProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]));
+            props.setProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]));
+            props.setProperty("materialNormalSmoothing." + pid, String.valueOf(materialNormalSmoothing[i]));
+            props.setProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]));
+            props.setProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]));
+            props.setProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]));
+            props.setProperty("materialAutoPBRGamma." + pid, String.valueOf(materialAutoPBRGamma[i]));
+            props.setProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]));
+            props.setProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]));
+            props.setProperty("materialAutoPBRNormalStrength." + pid, String.valueOf(materialAutoPBRNormalStrength[i]));
+            props.setProperty("materialAutoPBRVarianceWeight." + pid, String.valueOf(materialAutoPBRVarianceWeight[i]));
+            props.setProperty("materialAutoPBREdgeWeight." + pid, String.valueOf(materialAutoPBREdgeWeight[i]));
+            props.setProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]));
+            props.setProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]));
             props.setProperty("materialNormalInputType." + pid, String.valueOf(materialNormalInputType[i]));
             props.setProperty("materialSpecularInputType." + pid, String.valueOf(materialSpecularInputType[i]));
             if (!materialCustomNormalPath[i].isEmpty()) {
@@ -1353,8 +1670,7 @@ public class Options {
         props.setProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength));
         props.setProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight));
         props.setProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight));
-        props.setProperty("autoPBRInvertNormal", String.valueOf(autoPBRInvertNormal));
-        props.setProperty("autoPBRInvertRoughness", String.valueOf(autoPBRInvertRoughness));
+        props.setProperty("autoPBRHeightGamma", String.valueOf(autoPBRHeightGamma));
 
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
@@ -1383,6 +1699,7 @@ public class Options {
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
+        props.setProperty("saturationAdaptive", String.valueOf(saturationAdaptive));
         props.setProperty("colorExpansionPercent", String.valueOf(colorExpansionPercent));
         // PsychoV tonemapper
         props.setProperty("psychoEnabled", String.valueOf(psychoEnabled));
@@ -2377,6 +2694,7 @@ public class Options {
     public native static void nativeSetRayBounces(int bounces, boolean write);
 
     public static void setRayBounces(int bounces, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("rayBounces=" + bounces);
         Options.rayBounces = bounces;
         nativeSetRayBounces(bounces, write);
         if (write) {
@@ -2415,6 +2733,55 @@ public class Options {
         if (write) {
             overwriteConfig();
         }
+    }
+
+    // --- Noise LOD ---
+    public native static void nativeSetNoiseLOD(boolean enabled, boolean write);
+
+    public static void setNoiseLOD(boolean enabled, boolean write) {
+        Options.noiseLOD = enabled;
+        try { nativeSetNoiseLOD(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- POM (Parallax Occlusion Mapping) ---
+    public native static void nativeSetPOMEnabled(boolean enabled, boolean write);
+    public native static void nativeSetPOMHeightScale(float scale, boolean write);
+    public native static void nativeSetPOMSteps(int steps, boolean write);
+    public native static void nativeSetPOMRefinement(int refinement, boolean write);
+    public native static void nativeSetPOMFadeDistance(float distance, boolean write);
+
+    public static void setPOMEnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("pomEnabled=" + enabled);
+        Options.pomEnabled = enabled;
+        nativeSetPOMEnabled(enabled, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMHeightScalePercent(int percent, boolean write) {
+        Options.pomHeightScalePercent = Math.max(1, Math.min(50, percent));
+        nativeSetPOMHeightScale(Options.pomHeightScalePercent / 100.0f, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMSteps(int steps, boolean write) {
+        Options.pomSteps = Math.max(8, Math.min(512, steps));
+        nativeSetPOMSteps(Options.pomSteps, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMRefinement(int refinement, boolean write) {
+        Options.pomRefinement = Math.max(0, Math.min(8, refinement));
+        nativeSetPOMRefinement(Options.pomRefinement, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMFadeDistance(int distance, boolean write) {
+        Options.pomFadeDistance = Math.max(8, Math.min(256, distance));
+        nativeSetPOMFadeDistance((float) Options.pomFadeDistance, write);
+        if (write) { overwriteConfig(); }
     }
 
     // --- SHARC Radiance Cache ---
@@ -2833,6 +3200,68 @@ public class Options {
         }
     }
 
+    public static void setLoggingEnabled(boolean enabled, boolean write) {
+        Options.loggingEnabled = enabled;
+        nativeSetLoggingEnabled(enabled, write);
+        com.radiance.client.debug.RadianceLogger.setEnabled(enabled);
+        if (write) overwriteConfig();
+    }
+
+    /** Apply deferred settings that require renderer to be initialized. */
+    public static void applyDeferredSettings() {
+        if (loggingEnabled) {
+            nativeSetLoggingEnabled(true, false);
+            com.radiance.client.debug.RadianceLogger.setEnabled(true);
+        }
+    }
+
+    /** Restore saved window size and position, clamped to monitor work area. */
+    public static void restoreWindow() {
+        try {
+            var window = net.minecraft.client.MinecraftClient.getInstance().getWindow();
+            if (window.isFullscreen()) return;
+            long handle = window.getHandle();
+
+            // Get primary monitor work area (excludes taskbar)
+            int[] mx = new int[1], my = new int[1], mw = new int[1], mh = new int[1];
+            long monitor = org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
+            if (monitor == 0) return;
+            org.lwjgl.glfw.GLFW.glfwGetMonitorWorkarea(monitor, mx, my, mw, mh);
+            int monX = mx[0], monY = my[0], monW = mw[0], monH = mh[0];
+
+            int w = windowWidth, h = windowHeight, x = windowPosX, y = windowPosY;
+
+            // Clamp size to monitor work area
+            if (w > 0 && h > 0) {
+                w = Math.min(w, monW);
+                h = Math.min(h, monH);
+                org.lwjgl.glfw.GLFW.glfwSetWindowSize(handle, w, h);
+                System.out.println("[Radiance] Restored window size: " + w + "x" + h);
+            }
+
+            // Clamp position so window stays on-screen
+            if (x != -1 && y != -1 && w > 0 && h > 0) {
+                x = Math.max(monX, Math.min(x, monX + monW - w));
+                y = Math.max(monY, Math.min(y, monY + monH - h));
+                org.lwjgl.glfw.GLFW.glfwSetWindowPos(handle, x, y);
+                System.out.println("[Radiance] Restored window pos: " + x + ", " + y);
+            }
+        } catch (Exception e) {
+            System.err.println("[Radiance] Failed to restore window: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /** Auto-enable Reflex + VRR on first run if hardware supports it. */
+    public static void autoDetectReflexVrr() {
+        if (reflexExplicitlyConfigured) return; // user already made a choice
+        if (isReflexSupported()) {
+            setReflexEnabled(true, true);
+            setVrrMode(true, true);
+            System.out.println("[Radiance] Auto-enabled Reflex + VRR (hardware supported)");
+        }
+    }
+
     // --- NVIDIA Reflex ---
     public native static void nativeSetReflexEnabled(boolean enabled, boolean write);
     public native static void nativeSetReflexBoost(boolean enabled, boolean write);
@@ -3073,10 +3502,19 @@ public class Options {
 
     // --- Saturation ---
     public native static void nativeSetSaturation(float saturation, boolean write);
+    public native static void nativeSetSaturationAdaptive(boolean enabled, boolean write);
 
     public static void setSaturation(int percent, boolean write) {
         Options.saturationPercent = percent;
         nativeSetSaturation(percent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setSaturationAdaptive(boolean enabled, boolean write) {
+        Options.saturationAdaptive = enabled;
+        nativeSetSaturationAdaptive(enabled, write);
         if (write) {
             overwriteConfig();
         }

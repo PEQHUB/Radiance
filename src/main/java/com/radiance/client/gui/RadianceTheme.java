@@ -17,22 +17,23 @@ public final class RadianceTheme {
 
     // ── Base palette (RGB only, alpha applied dynamically) ──
     private static final int BASE_PANEL       = 0x0A0A0A;
-    private static final int BASE_WIDGET      = 0x1A1A1E;
-    private static final int BASE_HOVER       = 0x2A2A30;
-    private static final int BASE_ACTIVE      = 0x3A3A42;
+    private static final int BASE_WIDGET      = 0x1E1E24;
+    private static final int BASE_HOVER       = 0x2E2E36;
+    private static final int BASE_ACTIVE      = 0x3E3E48;
     private static final int BASE_DROPDOWN    = 0x101014;
     private static final int BASE_HEADER      = 0x0A0A0A;
     private static final int BASE_BORDER      = 0x808080;
     private static final int BASE_BORDER_FOCUS = 0xD0C0B0;
-    private static final int BASE_TEXT_PRIMARY = 0xE0E0E0;
-    private static final int BASE_TEXT_SECONDARY = 0x909090;
+    private static final int BASE_TEXT_PRIMARY = 0xFFFFFF;
+    private static final int BASE_TEXT_SECONDARY = 0xB0B0B0;
     private static final int BASE_TEXT_ACCENT  = 0xE8712A;
 
     // ── Custom widget rendering palette ──
     private static final int BASE_SLIDER_TRACK = 0x252528;
     private static final int BASE_SLIDER_FILL  = 0xE8712A;
     private static final int BASE_SLIDER_THUMB = 0xE0E0E0;
-    private static final int BASE_TOGGLE_ON    = 0xE8712A;
+    private static final int BASE_TEAL         = 0x2AB5A0;
+    private static final int BASE_TOGGLE_ON    = 0x2AB5A0; // teal for ON state
     private static final int BASE_TOGGLE_OFF   = 0x404046;
     private static final int BASE_BUTTON_BG    = 0x1E1E24;
     private static final int BASE_BUTTON_HOVER = 0x2A2A32;
@@ -58,6 +59,9 @@ public final class RadianceTheme {
     public static int textPrimary;
     public static int textSecondary;
     public static int textAccent;
+    public static int textCategory;   // teal for category headers
+    public static int dividerLine;    // teal divider
+    public static int modifiedDot;    // teal modified indicator
 
     // ── Custom widget derived colors ──
     public static int sliderTrack;
@@ -75,8 +79,8 @@ public final class RadianceTheme {
     public static int unifiedHeaderBg;
 
     // ── Alpha state ──
-    private static float globalAlpha = 0.55f;
-    private static float effectiveAlpha = 0.55f; // after adaptive dimming
+    private static float globalAlpha = 0.85f;
+    private static float effectiveAlpha = 0.85f; // after adaptive dimming
 
     // ── Per-screen alpha overrides (screen class simple name → alpha, -1 = use global) ──
     private static final java.util.Map<String, Float> screenAlphaOverrides = new java.util.HashMap<>();
@@ -157,7 +161,7 @@ public final class RadianceTheme {
             effectiveAlpha = Math.max(0f, Math.min(1f, globalAlpha + adjustment));
         }
 
-        panelBg       = withAlpha(BASE_PANEL, effectiveAlpha * 0.7f);
+        panelBg       = withAlpha(BASE_PANEL, effectiveAlpha * 0.95f);
         widgetBg      = withAlpha(BASE_WIDGET, effectiveAlpha);
         widgetBgHover = withAlpha(BASE_HOVER, effectiveAlpha);
         widgetBgActive= withAlpha(BASE_ACTIVE, effectiveAlpha);
@@ -166,8 +170,11 @@ public final class RadianceTheme {
         borderDefault = withAlpha(BASE_BORDER, effectiveAlpha * 0.6f);
         borderFocused = withAlpha(BASE_BORDER_FOCUS, effectiveAlpha);
         textPrimary   = withAlpha(BASE_TEXT_PRIMARY, 1.0f);
-        textSecondary = withAlpha(BASE_TEXT_SECONDARY, 0.8f);
+        textSecondary = withAlpha(BASE_TEXT_SECONDARY, 0.9f);
         textAccent    = withAlpha(BASE_TEXT_ACCENT, 1.0f);
+        textCategory  = withAlpha(BASE_TEAL, 1.0f);
+        dividerLine   = withAlpha(BASE_TEAL, 0.4f);
+        modifiedDot   = withAlpha(BASE_TEAL, 0.8f);
 
         // Custom widget colors — minimum 0.3 alpha so the opacity slider never fades itself out
         float sliderAlpha = Math.max(effectiveAlpha, 0.3f);
@@ -285,7 +292,7 @@ public final class RadianceTheme {
      */
     public static void drawOutlinedText(DrawContext ctx, TextRenderer renderer,
             Text text, int x, int y, int color, float alphaMult) {
-        int outlineColor = withAlpha(0x000000, 0.7f * alphaMult);
+        int outlineColor = withAlpha(0x000000, 0.9f * alphaMult);
         int mainColor = scaleAlpha(color, alphaMult);
 
         // 4-direction outline
@@ -400,7 +407,7 @@ public final class RadianceTheme {
      */
     public static boolean handleBreadcrumbClick(double mouseX, double mouseY, Screen parent) {
         if (parent != null
-                && mouseY >= BREADCRUMB_Y - 2 && mouseY <= BREADCRUMB_Y + 12
+                && mouseY >= BREADCRUMB_Y - 6 && mouseY <= BREADCRUMB_Y + 16
                 && mouseX >= 20 && mouseX <= breadcrumbTextEndX) {
             net.minecraft.client.MinecraftClient.getInstance().setScreen(parent);
             return true;
@@ -446,11 +453,11 @@ public final class RadianceTheme {
             Text text, int x, int y, int width, int entryHeight, float alphaMult) {
         if (alphaMult <= 0f) return;
 
-        int lineY = y + entryHeight / 2;
         int textW = renderer.getWidth(text);
         int textX = x + (width - textW) / 2;
-        int textY = y + entryHeight - 9 - 1;
-        int lineColor = withAlpha(BASE_TEXT_ACCENT, 0.3f * alphaMult);
+        int textY = y + (entryHeight - 9) / 2; // vertically centered text
+        int lineY = textY + 4; // line through text midline
+        int lineColor = withAlpha(BASE_TEAL, 0.4f * alphaMult);
 
         // Accent line left of text
         if (textX > x + 4) {
@@ -462,7 +469,7 @@ public final class RadianceTheme {
         }
         // Text
         drawOutlinedText(ctx, renderer, text, textX, textY,
-                textAccent & 0x00FFFFFF | 0xFF000000, alphaMult);
+                textCategory & 0x00FFFFFF | 0xFF000000, alphaMult);
     }
 
     // ── Modern section header (left-aligned, thin underline) ──
@@ -497,7 +504,7 @@ public final class RadianceTheme {
             TextRenderer renderer, Text message) {
         // Dark backdrop behind slider so it remains visible over the game scene.
         // Always drawn (not just when active) so sliders are readable in the menu.
-        float bgAlpha = active ? 0.6f : 0.35f;
+        float bgAlpha = active ? 0.75f : 0.55f;
         ctx.fill(x - 2, y - 1, x + w + 2, y + h + 1, withAlpha(0x000000, bgAlpha));
 
         // Track background — use higher alpha when active for visibility

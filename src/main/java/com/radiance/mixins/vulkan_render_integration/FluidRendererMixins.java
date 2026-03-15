@@ -114,18 +114,19 @@ public abstract class FluidRendererMixins {
         float ny,
         float nz,
         float emission) {
+        // Set emission via pending mechanism so PBRVertexConsumer.vertex() packs both
+        // emissive block type AND material block type together (preserving material bits)
+        if (vertexConsumer instanceof PBRVertexConsumer pbrVertexConsumer) {
+            if (emission != 0.0f) {
+                pbrVertexConsumer.setPendingEmissiveBlockType(EmissiveBlock.LAVA.ordinal());
+            }
+            pbrVertexConsumer.setPendingEmission(emission);
+        }
         vertexConsumer.vertex(x, y, z)
             .color(red, green, blue, 1.0F)
             .texture(u, v)
             .light(light)
             .normal(nx, ny, nz);
-        
-        if (vertexConsumer instanceof PBRVertexConsumer pbrVertexConsumer) {
-            pbrVertexConsumer.albedoEmission(emission);
-            if (emission != 0.0f) {
-                pbrVertexConsumer.emissiveBlockType(EmissiveBlock.LAVA.ordinal());
-            }
-        }
     }
 
     @Inject(method =
@@ -155,8 +156,10 @@ public abstract class FluidRendererMixins {
                 } else if (configuredMode == Options.LIGHT_MODE_FORCE_EMISSIVE) {
                     effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
                 } else {
-                    // Auto: always prefer area light (ReSTIR handles lighting)
-                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
+                    // Auto: area lights on → route to ReSTIR; off → emissive bounce lighting
+                    effectiveMode = Options.areaLightsEnabled
+                        ? Options.LIGHT_MODE_FORCE_AREA
+                        : Options.LIGHT_MODE_FORCE_EMISSIVE;
                 }
 
                 if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA) {
@@ -721,9 +724,11 @@ u1 = stillSprite.getFrameU(0.0F);
             }
         }
 
-        // Clear material block type after all vertices are emitted
+        // Clear pending state after all vertices are emitted
         if (vertexConsumer instanceof PBRVertexConsumer pbrVc) {
             pbrVc.setPendingMaterialBlockType(255);
+            pbrVc.setPendingEmissiveBlockType(255);
+            pbrVc.setPendingEmission(0.0f);
         }
 
         ci.cancel();

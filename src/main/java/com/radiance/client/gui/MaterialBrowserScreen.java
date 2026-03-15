@@ -464,9 +464,11 @@ public class MaterialBrowserScreen extends Screen {
         textY = drawProperty(ctx, sideX + 8, textY, "Coat", String.format("%.1f%%", d.coatWeight / 10.0));
         textY = drawProperty(ctx, sideX + 8, textY, "C.Rough", d.coatRoughness + "%");
         if (d.noiseStrength > 0) {
-            textY = drawProperty(ctx, sideX + 8, textY, "Noise", d.noiseStrength + "%");
+            textY = drawProperty(ctx, sideX + 8, textY, "Noise", NoiseTypeDropdownWidget.getLabel(d.noiseType));
+            textY = drawProperty(ctx, sideX + 8, textY, "N.Str", d.noiseStrength + "%");
             textY = drawProperty(ctx, sideX + 8, textY, "N.Scale", String.format("%.1f", d.noiseScale / 10.0));
             textY = drawProperty(ctx, sideX + 8, textY, "N.Oct", String.valueOf(d.noiseOctaves));
+            if (d.noiseSeed > 0) textY = drawProperty(ctx, sideX + 8, textY, "N.Seed", String.valueOf(d.noiseSeed));
         }
         textY += 4;
 

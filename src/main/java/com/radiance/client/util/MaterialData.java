@@ -46,6 +46,10 @@ public class MaterialData {
     public int textureBlend = 30;      // 0-100 percent
     // Gamut boost
     public int gamutBoost = 100;       // 0-200 (×0.01 = 0.00-2.00 multiplier)
+    // POM & Normal
+    public int pomDepth;               // 0-200 (×0.01, 0=off, per-block POM depth)
+    public int normalSmoothing;        // 0-100 (×0.01 = 0.0-1.0 LOD bias)
+    public int normalStrength = 100;   // 0-200 (×0.01 = 0.00-2.00, 100=neutral)
     // Per-channel input types: 0=Auto, 1=Custom, 2=Flat, 3=Blender PBR
     public int normalInputType;
     public int specularInputType;
@@ -89,6 +93,9 @@ public class MaterialData {
         d.channelB = Options.materialChannelB[blockIndex];
         d.textureBlend = Options.materialTextureBlend[blockIndex];
         d.gamutBoost = Options.materialGamutBoost[blockIndex];
+        d.pomDepth = Options.materialPomDepth[blockIndex];
+        d.normalSmoothing = Options.materialNormalSmoothing[blockIndex];
+        d.normalStrength = Options.materialNormalStrength[blockIndex];
         d.normalInputType = Options.materialNormalInputType[blockIndex];
         d.specularInputType = Options.materialSpecularInputType[blockIndex];
         d.customNormalPath = Options.materialCustomNormalPath[blockIndex];
@@ -145,12 +152,16 @@ public class MaterialData {
         Options.materialChannelB[blockIndex] = channelB;
         Options.materialTextureBlend[blockIndex] = textureBlend;
         Options.materialGamutBoost[blockIndex] = gamutBoost;
+        Options.materialPomDepth[blockIndex] = pomDepth;
+        Options.materialNormalSmoothing[blockIndex] = normalSmoothing;
+        Options.materialNormalStrength[blockIndex] = normalStrength;
         Options.materialNormalInputType[blockIndex] = normalInputType;
         Options.materialSpecularInputType[blockIndex] = specularInputType;
         Options.materialCustomNormalPath[blockIndex] = customNormalPath != null ? customNormalPath : "";
         Options.materialCustomSpecularPath[blockIndex] = customSpecularPath != null ? customSpecularPath : "";
         Options.materialBlenderFolder[blockIndex] = blenderFolder != null ? blenderFolder : "";
         Options.materialNoiseTarget[blockIndex] = noiseTarget;
+        Options.markMaterialDirty();
     }
 
     /** Find the MaterialBlock index for this data's blockId. Returns -1 if not found. */
@@ -233,6 +244,15 @@ public class MaterialData {
         if (gamutBoost != 100) {
             sb.append(String.format("Gamut Boost: %.2f\n", gamutBoost / 100.0));
         }
+        if (pomDepth > 0) {
+            sb.append(String.format("POM Depth: %.2f\n", pomDepth / 100.0));
+        }
+        if (normalSmoothing > 0) {
+            sb.append(String.format("Normal Smoothing: %d%%\n", normalSmoothing));
+        }
+        if (normalStrength != 100) {
+            sb.append(String.format("Normal Strength: %.2f\n", normalStrength / 100.0));
+        }
         return sb.toString();
     }
 
@@ -279,6 +299,9 @@ public class MaterialData {
                         case "Channel B"     -> d.channelB = Math.round(Float.parseFloat(val) * 10);
                         case "Texture Blend" -> d.textureBlend = Integer.parseInt(val);
                         case "Gamut Boost"   -> d.gamutBoost = Math.round(Float.parseFloat(val) * 100);
+                        case "POM Depth"     -> d.pomDepth = Math.round(Float.parseFloat(val) * 100);
+                        case "Normal Smoothing" -> d.normalSmoothing = Integer.parseInt(val);
+                        case "Normal Strength"  -> d.normalStrength = Math.round(Float.parseFloat(val) * 100);
                         default -> {}
                     }
                 }

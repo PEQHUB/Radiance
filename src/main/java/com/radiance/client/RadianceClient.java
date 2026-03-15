@@ -119,6 +119,9 @@ public class RadianceClient implements ClientModInitializer {
 
         Options.readOptions();
 
+        // Crash diagnostics — shutdown hook writes context if GPU crash detected
+        com.radiance.client.debug.CrashContext.init();
+
         Pipeline.reloadAllModuleEntries();
 
         // Mod compatibility

@@ -136,10 +136,15 @@ public class WindowMixins {
         // Don't allow user to set window size manually
     }
 
-    @Inject(method = "onFramebufferSizeChanged(JII)V",
+    @Redirect(method = "onFramebufferSizeChanged(JII)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/WindowEventHandler;onResolutionChanged()V"))
-    public void framebufferSizeChanged(long window, int width, int height, CallbackInfo ci) {
+    public void guardAndNotifyOnResize(net.minecraft.client.WindowEventHandler handler) {
+        // Always notify Vulkan about the resize
         WindowProxy.onFramebufferSizeChanged();
+        // Skip Minecraft's onResolutionChanged during init (gameRenderer null → NPE)
+        if (!com.radiance.client.option.Options.suppressResizeCallback) {
+            handler.onResolutionChanged();
+        }
     }
 
 }

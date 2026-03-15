@@ -57,6 +57,11 @@ public class RendererProxy {
 
     public static native void close();
 
+    // Window position/size persistence
+    public static native int[] nativeGetWindowPosSize(); // returns [x, y, width, height]
+    public static native void nativeSetWindowPos(int x, int y);
+    public static native void nativeSetWindowSize(int width, int height);
+
     public static native void shouldRenderWorld(boolean renderWorld);
 
     public static native void takeScreenshot(boolean withUI, int width, int height, int channel,

@@ -67,6 +67,7 @@
     "vulkan_render_integration.TextureUtilMixins",
     "vulkan_render_integration.VideoWarningManagerWarningPatternLoaderMixins",
     "vulkan_render_integration.WindowMixins",
+    "vulkan_render_integration.WindowAccessorMixin",
     "vulkan_render_integration.WorldRendererMixins",
     "vulkan_render_integration.ClientWorldMixins",
     "vulkan_render_integration.InGameHudMixins",

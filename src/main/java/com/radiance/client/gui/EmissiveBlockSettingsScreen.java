@@ -56,9 +56,10 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_EMISSION), body));
 
         // 5-column layout: [Emission | Temperature | Material | Wavelength | Purity]
-        // Non-thermal blocks: [Emission | blank | blank | blank | blank]
+        // Non-thermal blocks: [Emission | Color Expansion | blank | blank | blank]
         for (EmissiveBlock block : EmissiveBlock.values()) {
             ResettableSliderWidget em = makeEmissionSlider(block);
+            ResettableSliderWidget gamut = makeGamutBoostSlider(block);
             ResettableSliderWidget temp = block.isThermal() ? makeTemperatureSlider(block) : null;
             ResettableSliderWidget wave = block.isThermal() ? makeWavelengthSlider(block) : null;
             ResettableSliderWidget pur  = block.isThermal() ? makePuritySlider(block) : null;
@@ -66,15 +67,23 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
 
             if (mat != null) dropdowns.add(mat);
 
-            // Wire wavelength slider to update material dropdown on change
-            if (wave != null && mat != null) {
-                final MaterialDropdownWidget dropdown = mat;
-                ResettableSliderWidget waveWithSync = makeWavelengthSliderWithSync(block, dropdown);
-                this.body.addEntry(new RadianceSettingsScreen.FiveColumnEmissionEntry(
-                    em, temp, dropdown, waveWithSync, pur, body));
+            if (block.isThermal()) {
+                // Wire wavelength slider to update material dropdown on change
+                if (wave != null && mat != null) {
+                    final MaterialDropdownWidget dropdown = mat;
+                    ResettableSliderWidget waveWithSync = makeWavelengthSliderWithSync(block, dropdown);
+                    this.body.addEntry(new RadianceSettingsScreen.FiveColumnEmissionEntry(
+                        em, temp, dropdown, waveWithSync, pur, body));
+                } else {
+                    this.body.addEntry(new RadianceSettingsScreen.FiveColumnEmissionEntry(
+                        em, temp, mat, wave, pur, body));
+                }
+                // Gamut boost on a secondary row for thermal blocks
+                this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(gamut, null, body));
             } else {
+                // Non-thermal: [Emission | Color Expansion | blank | blank | blank]
                 this.body.addEntry(new RadianceSettingsScreen.FiveColumnEmissionEntry(
-                    em, temp, mat, wave, pur, body));
+                    em, gamut, null, null, null, body));
             }
         }
     }
@@ -188,6 +197,18 @@ public class EmissiveBlockSettingsScreen extends GameOptionsScreen {
                 Text.translatable(key),
                 Text.literal(v + "%")),
             v -> Options.setBlockPurity(block, v, true));
+    }
+
+    private ResettableSliderWidget makeGamutBoostSlider(EmissiveBlock block) {
+        int current = Options.getBlockGamutBoost(block);
+
+        return new ResettableSliderWidget(
+            0, 0, 100, 20,
+            0, 200, current, 100,
+            v -> getGenericValueText(
+                Text.translatable("options.video.emission.gamutBoost"),
+                Text.literal(String.format("\u00d7%.2f", v / 100.0))),
+            v -> Options.setBlockGamutBoost(block, v, true));
     }
 
     private MaterialDropdownWidget makeMaterialDropdown(EmissiveBlock block, ResettableSliderWidget waveSlider) {

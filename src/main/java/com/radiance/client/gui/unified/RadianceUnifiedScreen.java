@@ -110,6 +110,12 @@ public class RadianceUnifiedScreen extends Screen {
         opacitySlider.settingKey = "uiGlobalAlphaPercent";
         this.addDrawableChild(opacitySlider);
 
+        // Re-init overlay if active (window may have resized)
+        if (overlayShowing && overlayScreen != null) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            overlayScreen.init(mc, this.width, this.height);
+        }
+
         // Restore remembered position, or select first category
         if (rememberedNodeId != null) {
             tree.selectById(rememberedNodeId);
@@ -224,6 +230,14 @@ public class RadianceUnifiedScreen extends Screen {
     public void closeOverlay() {
         this.overlayScreen = null;
         this.overlayShowing = false;
+    }
+
+    /** Re-initialize the current overlay screen in place (e.g., after block selector change). */
+    public void refreshOverlay() {
+        if (overlayScreen != null) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            overlayScreen.init(mc, this.width, this.height);
+        }
     }
 
     public boolean isOverlayShowing() {
@@ -388,6 +402,9 @@ public class RadianceUnifiedScreen extends Screen {
         if (content != null) {
             rememberedScrollY = content.getScrollTarget();
         }
+        // Ensure overlay is fully cleaned up
+        overlayScreen = null;
+        overlayShowing = false;
         RadianceTheme.peekActive = false;
         RadianceTheme.endSliderFocus();
         MinecraftClient.getInstance().setScreen(parent);

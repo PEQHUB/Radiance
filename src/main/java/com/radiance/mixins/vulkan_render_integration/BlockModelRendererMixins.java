@@ -4,6 +4,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.util.MaterialBlock;
+import com.radiance.client.util.VividColorBlock;
 import com.radiance.client.util.LightSourceDef;
 import com.radiance.client.util.LightSourceRegistry;
 import com.radiance.client.vertex.PBRVertexConsumer;
@@ -111,8 +112,10 @@ public class BlockModelRendererMixins {
                 } else if (configuredMode == Options.LIGHT_MODE_FORCE_EMISSIVE) {
                     effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
                 } else {
-                    // Auto: always prefer area light for registered blocks (ReSTIR handles lighting)
-                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
+                    // Auto: area lights on → route to ReSTIR; off → emissive bounce lighting
+                    effectiveMode = Options.areaLightsEnabled
+                        ? Options.LIGHT_MODE_FORCE_AREA
+                        : Options.LIGHT_MODE_FORCE_EMISSIVE;
                 }
             } else {
                 // No area light available — emissive only
@@ -129,6 +132,9 @@ public class BlockModelRendererMixins {
             if (mb != null) {
                 pbrVertexConsumer.setPendingMaterialBlockType(mb.ordinal());
             }
+
+            // Tag vivid color blocks for chroma expansion (bit 16 of emissiveBlockType)
+            pbrVertexConsumer.setPendingVividColor(VividColorBlock.isVivid(state.getBlock()));
 
             // Apply based on effective mode
             if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA && lightDef != null) {
@@ -173,6 +179,7 @@ public class BlockModelRendererMixins {
                 pbrVertexConsumer.setPendingEmission(0.0F);
                 pbrVertexConsumer.setPendingEmissiveBlockType(255);
                 pbrVertexConsumer.setPendingMaterialBlockType(255);
+                pbrVertexConsumer.setPendingVividColor(false);
             }
         }
 

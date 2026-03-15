@@ -37,6 +37,9 @@ public class MinecraftClientMixins {
     @Final
     private Window window;
 
+    @Shadow
+    public net.minecraft.client.render.GameRenderer gameRenderer;
+
     //region <isAmbientOcclusionEnabled>
     @Inject(method = "isAmbientOcclusionEnabled()Z", at = @At(value = "HEAD"), cancellable = true)
     private static void disableAmbientOcclusion(CallbackInfoReturnable<Boolean> cir) {
@@ -48,6 +51,12 @@ public class MinecraftClientMixins {
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
         at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;initRenderer(IZ)V"))
     public void initRenderer(int debugVerbosity, boolean debugSync) {
+        // Restore window size+position BEFORE Vulkan init so swapchain picks up correct dimensions.
+        // Suppress the framebuffer callback to avoid NPE (gameRenderer null during constructor).
+        com.radiance.client.option.Options.suppressResizeCallback = true;
+        com.radiance.client.option.Options.restoreWindow();
+        com.radiance.client.option.Options.suppressResizeCallback = false;
+
         long stackSize = 512 * 1024 * 1024; // 32MB
         Runnable myRunnable = () -> {
             RendererProxy.initRenderer(window);
@@ -64,6 +73,29 @@ public class MinecraftClientMixins {
 
         Pipeline.loadPipeline();
         Pipeline.build();
+
+        // Apply settings that require renderer to be initialized
+        com.radiance.client.option.Options.applyDeferredSettings();
+
+
+        // Auto-enable Reflex + VRR if hardware supports it and user hasn't explicitly configured
+        com.radiance.client.option.Options.autoDetectReflexVrr();
+
+        // Schedule resolution sync — Minecraft's internal state needs updating after suppressed resize
+        if (com.radiance.client.option.Options.windowWidth > 0) {
+            pendingResolutionSync = true;
+        }
+    }
+
+    private static boolean pendingResolutionSync = false;
+
+    @Inject(method = "tick()V", at = @At("HEAD"))
+    public void onTick(CallbackInfo ci) {
+        if (pendingResolutionSync) {
+            pendingResolutionSync = false;
+            // Now gameRenderer exists — tell Minecraft about the actual window size
+            ((MinecraftClient)(Object)this).onResolutionChanged();
+        }
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
@@ -161,6 +193,7 @@ public class MinecraftClientMixins {
     // endregion
 
     // region <onResolutionChanged>
+
     @Redirect(method = "onResolutionChanged()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;resize(II)V"))
     public void cancelFramebufferResize(Framebuffer instance, int width, int height) {
 

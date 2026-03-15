@@ -9,6 +9,7 @@
   "options.video.category.camera_controls": "Camera Controls",
   "options.video.ray_bounces": "Ray Bounces",
   "options.video.omm_enabled": "Opacity Micro Maps (OMM)",
+  "options.video.pom_enabled": "Parallax Occlusion Mapping",
   "options.video.omm_baker_level": "OMM Subdivision Level",
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
   "options.video.category.sharc": "SHARC Radiance Cache",
@@ -99,7 +100,8 @@
   "options.video.sdr_transfer_function": "SDR Transfer Function",
   "options.video.sdr_transfer_function.srgb": "sRGB",
   "options.video.sdr_transfer_function.gamma22": "Gamma 2.2",
-  "options.video.saturation": "Color Expansion",
+  "options.video.saturation": "Saturation",
+  "options.video.color_expansion": "Texture Gamut Boost",
   "options.video.exposure_compensation": "Exposure Compensation",
   "options.video.manual_exposure_enabled": "Manual Exposure",
   "options.video.manual_exposure": "Manual Exposure Value",
@@ -128,8 +130,11 @@
   "options.video.psycho.white_curve": "White Curve",
   "options.video.psycho.cone_exponent": "Cone Exponent",
   "key.radiance.settings": "Radiance Settings",
+  "options.video.saturation_adaptive": "Adaptive Saturation",
+  "options.video.noise_lod": "Noise LOD",
   "key.radiance.offline_mode": "Toggle Offline Mode",
   "key.radiance.lock_camera": "Lock Camera / Accumulate",
+  "key.radiance.material_picker": "Material Picker",
   "key.category.radiance": "Radiance",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode": "Tonemapping Mode",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode.pbr_neutral": "PBR Neutral",
@@ -218,6 +223,7 @@
   "options.video.emission.purity.smoker": "Smoker Purity",
   "options.video.emission.purity.copper_bulb": "Copper Bulb Purity",
   "options.video.emission.purity.brewing_stand": "Brewing Stand Purity",
+  "options.video.emission.gamutBoost": "Color Expansion",
   "options.video.emission.lava": "Lava",
   "options.video.emission.fire": "Fire",
   "options.video.emission.soul_fire": "Soul Fire",
@@ -421,6 +427,10 @@
   ,"options.video.category.materials.special": "Special"
   ,"options.video.materials.overridesEnabled": "Material Overrides"
   ,"options.video.materials.autoPBR": "Auto-PBR Generation"
+  ,"options.video.materials.autoPBRBlock": "Auto-PBR (This Block)"
+  ,"options.video.materials.autoPBRInvertNormal": "Invert Normal"
+  ,"options.video.materials.autoPBRInvertRoughness": "Invert Roughness"
+  ,"options.video.materials.autoPBRInvertHeight": "Invert Height"
   ,"options.video.materials.iron_block": "Iron Block"
   ,"options.video.materials.gold_block": "Gold Block"
   ,"options.video.materials.copper_block": "Copper Block"
@@ -679,10 +689,14 @@
   ,"options.video.materials.channelG": "Channel G"
   ,"options.video.materials.channelB": "Channel B"
   ,"options.video.materials.textureBlend": "Texture Blend"
+  ,"options.video.category.materials.gamutBoost": "Gamut Boost"
+  ,"options.video.materials.gamutBoost": "Gamut Boost"
   ,"options.video.category.materials.noise": "Procedural Noise"
   ,"options.video.materials.noiseScale": "Noise Scale"
   ,"options.video.materials.noiseStrength": "Noise Strength"
   ,"options.video.materials.noiseOctaves": "Noise Octaves"
+  ,"options.video.materials.noiseType": "Noise Type"
+  ,"options.video.materials.noiseSeed": "Seed"
   ,"options.video.materials.f0r": "F0 Red"
   ,"options.video.materials.f0g": "F0 Green"
   ,"options.video.materials.f0b": "F0 Blue"
@@ -701,6 +715,8 @@
   ,"options.video.autoPBR.normalStrength": "Normal Strength"
   ,"options.video.autoPBR.varianceWeight": "Variance Weight"
   ,"options.video.autoPBR.edgeWeight": "Edge Weight"
+  ,"options.video.autoPBR.invertNormal": "Invert Normal"
+  ,"options.video.autoPBR.invertRoughness": "Invert Roughness"
 
   ,"radiance.settings.menu_transparency": "Menu Transparency"
   ,"radiance.settings.search.hint": "Search settings..."

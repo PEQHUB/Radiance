@@ -230,7 +230,7 @@ public enum AuxiliaryTextures {
                             } else {
                                 auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                             }
-                        } else if (inputType == 1) {
+                        } else if (inputType == 1 && mbOrdinal >= 0) {
                             // Custom: load from user-specified path
                             String customPath = (auxiliaryTexture == NORMAL)
                                 ? com.radiance.client.option.Options.materialCustomNormalPath[mbOrdinal]
@@ -241,28 +241,53 @@ public enum AuxiliaryTextures {
                                     auxiliaryTexture.GLIDMapping.put(targetId, customGlid);
                                     auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
                                         uploadedLevelsMask | levelBit);
+                                    // Track albedo GLID -> block ordinal so material editor works for custom textures
+                                    if (level == 0 && mbOrdinal >= 0) {
+                                        TextureTracker.albedoGLID2BlockOrdinal.put(targetId, mbOrdinal);
+                                    }
                                     continue;
                                 }
                             }
                             auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                         } else {
                             // Auto: existing LabPBR/auto-PBR path
-                            boolean autoPBR = mbOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled
-                                && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
+                            boolean autoPBR = mbOrdinal >= 0
+                                && (com.radiance.client.option.Options.autoPBREnabled || com.radiance.client.option.Options.materialAutoPBR[mbOrdinal]);
                             if (autoPBR && auxiliaryTexture == NORMAL) {
-                                auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source);
+                                auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
+                                    com.radiance.client.option.Options.materialAutoPBRNormalStrength[mbOrdinal],
+                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 2) != 0,
+                                    com.radiance.client.option.Options.materialAutoPBRHeightGamma[mbOrdinal],
+                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0,
+                                    com.radiance.client.option.Options.materialChannelR[mbOrdinal],
+                                    com.radiance.client.option.Options.materialChannelG[mbOrdinal],
+                                    com.radiance.client.option.Options.materialChannelB[mbOrdinal]);
                                 TextureTracker.hasHeightMap.add(targetId);
-                                if (level == 0) {
-                                    TextureTracker.materialBlockAlbedoCache.put(targetId, source.applyToCopy(i -> i));
-                                    TextureTracker.autoPBRNormalGLIDs.add(targetId);
-                                }
                             } else if (autoPBR && auxiliaryTexture == SPECULAR) {
-                                auxiliaryTemplateImage = AutoPBRGenerator.generateSpecular(source);
-                                if (level == 0) {
-                                    TextureTracker.autoPBRSpecularGLIDs.add(targetId);
-                                }
+                                auxiliaryTemplateImage = AutoPBRGenerator.generateSpecularPercentile(source,
+                                    com.radiance.client.option.Options.materialAutoPBRRoughnessMin[mbOrdinal],
+                                    com.radiance.client.option.Options.materialAutoPBRRoughnessMax[mbOrdinal],
+                                    com.radiance.client.option.Options.materialPercentileCenter[mbOrdinal],
+                                    com.radiance.client.option.Options.materialPercentileSpread[mbOrdinal],
+                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 1) != 0,
+                                    com.radiance.client.option.Options.materialChannelR[mbOrdinal],
+                                    com.radiance.client.option.Options.materialChannelG[mbOrdinal],
+                                    com.radiance.client.option.Options.materialChannelB[mbOrdinal]);
                             } else {
                                 auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+                            }
+                            // Always cache albedo and track GLIDs for block textures at mip 0,
+                            // so LiveNormalReuploader can generate Auto-PBR on demand later
+                            if (level == 0 && mbOrdinal >= 0) {
+                                TextureTracker.albedoGLID2BlockOrdinal.put(targetId, mbOrdinal);
+                                if (auxiliaryTexture == NORMAL) {
+                                    if (!TextureTracker.materialBlockAlbedoCache.containsKey(targetId)) {
+                                        TextureTracker.materialBlockAlbedoCache.put(targetId, source.applyToCopy(i -> i));
+                                    }
+                                    TextureTracker.autoPBRNormalGLIDs.add(targetId);
+                                } else if (auxiliaryTexture == SPECULAR) {
+                                    TextureTracker.autoPBRSpecularGLIDs.add(targetId);
+                                }
                             }
                         }
                     } else if (auxiliaryTexture == NORMAL) {

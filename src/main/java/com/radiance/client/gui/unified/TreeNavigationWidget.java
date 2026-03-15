@@ -199,7 +199,7 @@ public class TreeNavigationWidget extends ClickableWidget {
 
                 // Category expand/collapse indicator
                 if (node.isCategory()) {
-                    String indicator = node.expanded ? "\u25BC" : "\u25B6"; // ▼ or ▶
+                    String indicator = "\u25BC"; // ▼ always expanded
                     RadianceTheme.drawOutlinedText(context, textRenderer,
                         Text.literal(indicator), textX - 2, textY,
                         RadianceTheme.textSecondary, fade);
@@ -234,8 +234,8 @@ public class TreeNavigationWidget extends ClickableWidget {
             if (mouseY >= drawY && mouseY < drawY + NODE_HEIGHT) {
                 TreeNode node = flat.node;
                 if (node.isCategory()) {
-                    node.expanded = !node.expanded;
-                    // Also select category and fire callback to populate all children
+                    // Categories stay expanded — click selects but doesn't collapse
+                    node.expanded = true;
                     for (TreeNode root : rootNodes) root.deselectAll();
                     node.selected = true;
                     if (onSelect != null) onSelect.accept(node);
@@ -284,19 +284,12 @@ public class TreeNavigationWidget extends ClickableWidget {
             selectFlatNode(visible, newIndex);
             return true;
         }
+        // Left/right arrow: categories stay expanded, no collapse
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT && currentIndex >= 0) {
-            TreeNode node = visible.get(currentIndex).node;
-            if (node.isCategory() && node.expanded) {
-                node.expanded = false;
-                return true;
-            }
+            // No-op: categories don't collapse
         }
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT && currentIndex >= 0) {
-            TreeNode node = visible.get(currentIndex).node;
-            if (node.isCategory() && !node.expanded) {
-                node.expanded = true;
-                return true;
-            }
+            // No-op: categories are always expanded
         }
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ENTER && currentIndex >= 0) {
             TreeNode node = visible.get(currentIndex).node;
@@ -305,7 +298,8 @@ public class TreeNavigationWidget extends ClickableWidget {
                 return true;
             }
             if (node.isCategory()) {
-                node.expanded = !node.expanded;
+                // Categories stay expanded — Enter selects but doesn't collapse
+                node.expanded = true;
                 return true;
             }
         }

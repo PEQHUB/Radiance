@@ -369,7 +369,8 @@ public enum MaterialBlock {
         register(Blocks.HOPPER, HOPPER);
         register(Blocks.HEAVY_WEIGHTED_PRESSURE_PLATE, HEAVY_WEIGHTED_PRESSURE_PLATE);
         register(Blocks.LIGHT_WEIGHTED_PRESSURE_PLATE, LIGHT_WEIGHTED_PRESSURE_PLATE);
-        register(Blocks.BELL, BELL);
+        // Bell: block model quads are dark_oak_planks/stone (the metal body is entity-rendered)
+        // register(Blocks.BELL, BELL);
         register(Blocks.LIGHTNING_ROD, LIGHTNING_ROD);
         register(Blocks.IRON_DOOR, IRON_DOOR);
         register(Blocks.IRON_TRAPDOOR, IRON_DOOR);

@@ -46,13 +46,16 @@ public final class SettingsRegistry {
                 0, 2, () -> Options.globalLightMode, 0,
                 null, false);
 
-        register("areaLightsEnabled", "Area Lights", "Lighting", null, null,
+        register("areaLightsEnabled", "Area Lights (Unfinished)", "Lighting", null, null,
                 0, 1, () -> Options.areaLightsEnabled ? 1 : 0, 0,
                 null, false);
 
         // ── Main Screen: Light & Color ─────────────────────────────────────
         register("saturationPercent", "Saturation", "Light & Color", null, null,
                 100, 200, () -> Options.saturationPercent, 130,
+                null, false);
+        register("colorExpansionPercent", "Color Expansion", "Light & Color", null, null,
+                0, 200, () -> Options.colorExpansionPercent, 100,
                 null, false);
 
         register("sdrTransferFunction", "SDR Transfer Function", "Light & Color", null, null,

@@ -183,13 +183,11 @@ public final class MaterialSphereRenderer {
         }
         pendingKeys.clear();
 
-        var snapshot = new java.util.HashMap<>(textureCache);
+        // NOTE: Do NOT call texManager.destroyTexture() — Vulkan has no intercept for
+        // texture destruction and calling it causes stale descriptors → VK_ERROR_DEVICE_LOST.
+        // Just clear the map; old Vulkan textures remain allocated but harmless (~128×128 RGBA each).
         textureCache.clear();
         // Note: idCounter is NOT reset — monotonic IDs prevent Identifier collisions
-        var texManager = MinecraftClient.getInstance().getTextureManager();
-        for (Identifier id : snapshot.values()) {
-            texManager.destroyTexture(id);
-        }
     }
 
     /** Validate disk cache version; wipe if stale. Call once when browser opens. */

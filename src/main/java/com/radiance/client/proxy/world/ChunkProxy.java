@@ -146,6 +146,13 @@ public class ChunkProxy {
             return chunk.getOrigin().add(8, 8, 8).getSquaredDistance(blockPos);
         }));
 
+        if (sortedChunks.size() > 5) {
+            double nearDist = Math.sqrt(sortedChunks.get(0).getOrigin().add(8, 8, 8).getSquaredDistance(blockPos));
+            double farDist = Math.sqrt(sortedChunks.get(sortedChunks.size() - 1).getOrigin().add(8, 8, 8).getSquaredDistance(blockPos));
+            System.out.printf("[ChunkProxy] %d chunks: nearest=%.0f farthest=%.0f%n",
+                sortedChunks.size(), nearDist, farDist);
+        }
+
         for (ChunkBuilder.BuiltChunk builtChunk : sortedChunks) {
             if (builtChunk == null) {
                 continue;

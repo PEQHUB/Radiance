@@ -41,9 +41,11 @@ public class TextureTracker {
 
     // Albedo NativeImage copies keyed by albedo GLID — for live auto-PBR re-generation
     public static Map<Integer, NativeImage> materialBlockAlbedoCache = new ConcurrentHashMap<>();
-    // Albedo GLIDs whose normal was auto-PBR generated (not from resource pack)
+    // Albedo GLID → MaterialBlock ordinal (for per-block Auto-PBR toggle check)
+    public static Map<Integer, Integer> albedoGLID2BlockOrdinal = new ConcurrentHashMap<>();
+    // Albedo GLIDs whose normal slot exists and can be auto-PBR re-uploaded
     public static Set<Integer> autoPBRNormalGLIDs = ConcurrentHashMap.newKeySet();
-    // Albedo GLIDs whose specular was auto-PBR generated
+    // Albedo GLIDs whose specular slot exists and can be auto-PBR re-uploaded
     public static Set<Integer> autoPBRSpecularGLIDs = ConcurrentHashMap.newKeySet();
 
     public record Texture(int width, int height, int channel, VulkanConstants.VkFormat format,

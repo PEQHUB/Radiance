@@ -62,6 +62,7 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float pendingEmission = 0.0f;
     private int pendingEmissiveBlockType = 255; // 255 = no type
     private int pendingMaterialBlockType = 255;    // 255 = no material type
+    private boolean pendingVividColor = false;     // vivid color expansion flag (bit 16 of emissiveBlockType)
 
     // Thread-local for item rendering: set before item model emits quads, cleared after.
     // Applies material block type to all quads emitted by the item model.
@@ -293,9 +294,10 @@ public class PBRVertexConsumer implements VertexConsumer {
         // Material uses ordinal+1 so that 0 = "no material" (default for untagged vertices)
         // Check thread-local for item rendering when instance field not set
         int effectiveMaterial = (pendingMaterialBlockType != 255) ? pendingMaterialBlockType : itemMaterialBlockType.get();
-        if (pendingEmissiveBlockType != 255 || effectiveMaterial != 255) {
+        if (pendingEmissiveBlockType != 255 || effectiveMaterial != 255 || pendingVividColor) {
             int materialVal = (effectiveMaterial != 255) ? (effectiveMaterial + 1) : 0;
-            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8);
+            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8)
+                       | (pendingVividColor ? 0x10000 : 0);
             emissiveBlockType(packed);
         }
 
@@ -322,9 +324,10 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
         }
-        if (pendingEmissiveBlockType != 255 || pendingMaterialBlockType != 255) {
+        if (pendingEmissiveBlockType != 255 || pendingMaterialBlockType != 255 || pendingVividColor) {
             int materialVal = (pendingMaterialBlockType != 255) ? (pendingMaterialBlockType + 1) : 0;
-            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8);
+            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8)
+                       | (pendingVividColor ? 0x10000 : 0);
             emissiveBlockType(packed);
         }
 
@@ -427,6 +430,10 @@ public class PBRVertexConsumer implements VertexConsumer {
 
     public void setPendingMaterialBlockType(int ordinal) {
         this.pendingMaterialBlockType = ordinal;
+    }
+
+    public void setPendingVividColor(boolean vivid) {
+        this.pendingVividColor = vivid;
     }
 
     public VertexConsumer emissiveBlockType(int type) {

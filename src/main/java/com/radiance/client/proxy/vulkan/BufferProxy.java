@@ -5,6 +5,7 @@ import static com.radiance.client.constant.VulkanConstants.VkBufferUsageFlagBits
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 import static org.lwjgl.system.MemoryUtil.memAlloc;
+import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.system.MemoryUtil.memFree;
 import static org.lwjgl.system.MemoryUtil.memSet;
 
@@ -31,6 +32,12 @@ import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 
 public class BufferProxy {
+
+    // Material UBO dirty-tracking cache: direct ByteBuffer for zero-copy memCopy
+    private static final int MATERIAL_UBO_SIZE = Options.MAX_MATERIALS * 6 * 16; // 15360 bytes
+    private static final ByteBuffer materialUBOCacheBuf = ByteBuffer.allocateDirect(MATERIAL_UBO_SIZE);
+    private static final long materialUBOCacheAddr = memAddress(materialUBOCacheBuf);
+    private static boolean materialCacheValid = false;
 
     public static native int allocateBuffer();
 
@@ -334,60 +341,100 @@ public class BufferProxy {
             // Pack 2 [idx+2*N]:   (anisotropic, sheenWeight, sheenTint, coatWeight)
             // Pack 3 [idx+3*N]:   (coatRoughness, noiseScale, noiseStrength, noisePacked)
             // Pack 4 [idx+4*N]:   (channelR, channelG, channelB, textureBlend)
-            // Pack 5 [idx+5*N]:   (gamutBoost, reserved, reserved, reserved)
-            // When disabled, write zeros so shader dot() guard skips override
+            // Pack 5 [idx+5*N]:   (gamutBoost, pomDepth, reserved, reserved)
+            // When disabled, write MaterialBlock defaults so physics properties are preserved
             final int N = Options.MAX_MATERIALS;
-            boolean matEnabled = Options.materialOverridesEnabled;
-            for (int i = 0; i < N; i++) {
-                int p0 = baseAddr + i * 16;            // Pack 0
-                int p1 = baseAddr + (N + i) * 16;      // Pack 1
-                int p2 = baseAddr + (2 * N + i) * 16;  // Pack 2
-                int p3 = baseAddr + (3 * N + i) * 16;  // Pack 3
-                int p4 = baseAddr + (4 * N + i) * 16;  // Pack 4
-                int p5 = baseAddr + (5 * N + i) * 16;  // Pack 5
-                if (matEnabled && i < MaterialBlock.COUNT) {
-                    // Pack 0: F0 RGB + roughness
-                    bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
-                    bb.putFloat(p0 + 4,  Options.materialF0G[i] / 1000.0f);
-                    bb.putFloat(p0 + 8,  Options.materialF0B[i] / 1000.0f);
-                    bb.putFloat(p0 + 12, Options.materialRoughness[i] / 100.0f);
-                    // Pack 1: metallic, transmission, IOR, subsurface
-                    bb.putFloat(p1,      Options.materialMetallic[i] / 1000.0f);
-                    bb.putFloat(p1 + 4,  Options.materialTransmission[i] / 1000.0f);
-                    bb.putFloat(p1 + 8,  Options.materialIOR[i] / 1000.0f);
-                    bb.putFloat(p1 + 12, Options.materialSubsurface[i] / 1000.0f);
-                    // Pack 2: anisotropic, sheen weight, sheen tint, coat weight
-                    bb.putFloat(p2,      Options.materialAnisotropic[i] / 1000.0f);
-                    bb.putFloat(p2 + 4,  Options.materialSheenWeight[i] / 1000.0f);
-                    bb.putFloat(p2 + 8,  Options.materialSheenTint[i] / 1000.0f);
-                    bb.putFloat(p2 + 12, Options.materialCoatWeight[i] / 1000.0f);
-                    // Pack 3: coat roughness + noise parameters
-                    bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
-                    bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-100.0
-                    bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 1000.0f);  // 0.0-1.0
-                    // Pack octaves (bits 0-3), noiseType (bits 4-7), seed (bits 8-17), noiseTarget (bits 20-22)
-                    int noisePacked = Options.materialNoiseOctaves[i]
-                                    | (Options.materialNoiseType[i] << 4)
-                                    | (Options.materialNoiseSeed[i] << 8)
-                                    | (Options.materialNoiseTarget[i] << 20);
-                    bb.putFloat(p3 + 12, (float) noisePacked);
-                    // Pack 4: texture roughness channel routing
-                    bb.putFloat(p4,      Options.materialChannelR[i] / 1000.0f);
-                    bb.putFloat(p4 + 4,  Options.materialChannelG[i] / 1000.0f);
-                    bb.putFloat(p4 + 8,  Options.materialChannelB[i] / 1000.0f);
-                    bb.putFloat(p4 + 12, Options.materialTextureBlend[i] / 100.0f);
-                    // Pack 5: gamut boost
-                    bb.putFloat(p5,      Options.materialGamutBoost[i] / 100.0f);
-                    bb.putFloat(p5 + 4,  0); // reserved
-                    bb.putFloat(p5 + 8,  0); // reserved
-                    bb.putFloat(p5 + 12, 0); // reserved
-                } else {
-                    // Zero all 6 packs
-                    for (int p : new int[]{p0, p1, p2, p3, p4, p5}) {
-                        bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
-                        bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
+            final int materialDataOffset = baseAddr;
+            final long materialDstAddr = addr + materialDataOffset;
+
+            if (false && !Options.materialDirty && materialCacheValid) { // DIAGNOSTIC: cache disabled
+                // Material state unchanged — bulk copy from cache, skip expensive packing
+                memCopy(materialUBOCacheAddr, materialDstAddr, MATERIAL_UBO_SIZE);
+            } else {
+                // Material state changed — run full packing loop
+                boolean matEnabled = Options.materialOverridesEnabled;
+                for (int i = 0; i < N; i++) {
+                    int p0 = baseAddr + i * 16;            // Pack 0
+                    int p1 = baseAddr + (N + i) * 16;      // Pack 1
+                    int p2 = baseAddr + (2 * N + i) * 16;  // Pack 2
+                    int p3 = baseAddr + (3 * N + i) * 16;  // Pack 3
+                    int p4 = baseAddr + (4 * N + i) * 16;  // Pack 4
+                    int p5 = baseAddr + (5 * N + i) * 16;  // Pack 5
+                    if (matEnabled && i < MaterialBlock.COUNT) {
+                        // Pack 0: F0 RGB + roughness
+                        bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
+                        bb.putFloat(p0 + 4,  Options.materialF0G[i] / 1000.0f);
+                        bb.putFloat(p0 + 8,  Options.materialF0B[i] / 1000.0f);
+                        bb.putFloat(p0 + 12, Options.materialRoughness[i] / 100.0f);
+                        // Pack 1: metallic, transmission, IOR, subsurface
+                        bb.putFloat(p1,      Options.materialMetallic[i] / 1000.0f);
+                        bb.putFloat(p1 + 4,  Options.materialTransmission[i] / 1000.0f);
+                        bb.putFloat(p1 + 8,  Options.materialIOR[i] / 1000.0f);
+                        bb.putFloat(p1 + 12, Options.materialSubsurface[i] / 1000.0f);
+                        // Pack 2: anisotropic, sheen weight, sheen tint, coat weight
+                        bb.putFloat(p2,      Options.materialAnisotropic[i] / 1000.0f);
+                        bb.putFloat(p2 + 4,  Options.materialSheenWeight[i] / 1000.0f);
+                        bb.putFloat(p2 + 8,  Options.materialSheenTint[i] / 1000.0f);
+                        bb.putFloat(p2 + 12, Options.materialCoatWeight[i] / 1000.0f);
+                        // Pack 3: coat roughness + noise parameters
+                        bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
+                        bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-100.0
+                        bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 1000.0f);  // 0.0-1.0
+                        // Pack octaves (bits 0-3), noiseType (bits 4-7), seed (bits 8-17), noiseTarget (bits 20-23)
+                        int noisePacked = Options.materialNoiseOctaves[i]
+                                        | (Options.materialNoiseType[i] << 4)
+                                        | (Options.materialNoiseSeed[i] << 8)
+                                        | (Options.materialNoiseTarget[i] << 20);
+                        bb.putFloat(p3 + 12, (float) noisePacked); // REVERTED: HEAD shader uses int(pack3.w), not floatBitsToInt
+                        // Pack 4: texture roughness channel routing
+                        bb.putFloat(p4,      Options.materialChannelR[i] / 1000.0f);
+                        bb.putFloat(p4 + 4,  Options.materialChannelG[i] / 1000.0f);
+                        bb.putFloat(p4 + 8,  Options.materialChannelB[i] / 1000.0f);
+                        bb.putFloat(p4 + 12, Options.materialTextureBlend[i] / 100.0f);
+                        // Pack 5: gamut boost, POM depth, normal smoothing, normal strength
+                        bb.putFloat(p5,      Options.materialGamutBoost[i] / 100.0f);
+                        bb.putFloat(p5 + 4,  Options.materialPomDepth[i] / 100.0f);
+                        bb.putFloat(p5 + 8,  Options.materialNormalSmoothing[i] / 100.0f);
+                        bb.putFloat(p5 + 12, Options.materialNormalStrength[i] / 100.0f);
+                    } else if (i < MaterialBlock.COUNT) {
+                        // Overrides disabled: write physics-accurate defaults so water/ice/metals
+                        // retain essential properties (IOR, transmission, metallic, F0).
+                        MaterialBlock mb = MaterialBlock.values()[i];
+                        // Pack 0: default F0 + default roughness
+                        bb.putFloat(p0,      mb.getDefaultF0R() / 1000.0f);
+                        bb.putFloat(p0 + 4,  mb.getDefaultF0G() / 1000.0f);
+                        bb.putFloat(p0 + 8,  mb.getDefaultF0B() / 1000.0f);
+                        bb.putFloat(p0 + 12, mb.getDefaultRoughness() / 100.0f);
+                        // Pack 1: metallic, transmission, IOR, subsurface
+                        bb.putFloat(p1,      mb.getDefaultMetallic() / 1000.0f);
+                        bb.putFloat(p1 + 4,  mb.getDefaultTransmission() / 1000.0f);
+                        bb.putFloat(p1 + 8,  mb.getDefaultIOR() / 1000.0f);
+                        bb.putFloat(p1 + 12, mb.getDefaultSubsurface() / 1000.0f);
+                        // Pack 2-4: zeros (no cosmetic overrides)
+                        for (int p : new int[]{p2, p3, p4}) {
+                            bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
+                            bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
+                        }
+                        // Pack 5: neutral gamut (1.0) and POM depth (1.0)
+                        bb.putFloat(p5, 1.0f); bb.putFloat(p5 + 4, 1.0f);
+                        bb.putFloat(p5 + 8, 0); bb.putFloat(p5 + 12, 0);
+                    } else {
+                        // Unused slot beyond MaterialBlock.COUNT: zeros + transmission sentinel
+                        for (int p : new int[]{p0, p2, p3, p4}) {
+                            bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
+                            bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
+                        }
+                        // Pack 1: metallic=0, transmission=-1 (auto-detect from LabPBR), ior=0, subsurface=0
+                        bb.putFloat(p1, 0); bb.putFloat(p1 + 4, -1.0f);
+                        bb.putFloat(p1 + 8, 0); bb.putFloat(p1 + 12, 0);
+                        bb.putFloat(p5, 1.0f); bb.putFloat(p5 + 4, 1.0f);
+                        bb.putFloat(p5 + 8, 0); bb.putFloat(p5 + 12, 0);
                     }
                 }
+                // Cache the packed bytes for future frames
+                memCopy(materialDstAddr, materialUBOCacheAddr, MATERIAL_UBO_SIZE);
+                materialCacheValid = true;
+                Options.materialDirty = false;
             }
             baseAddr += N * 6 * 16; // MAX_MATERIALS × 6 vec4
 

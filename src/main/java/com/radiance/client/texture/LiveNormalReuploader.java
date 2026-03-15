@@ -1,6 +1,6 @@
 package com.radiance.client.texture;
 
-import com.radiance.client.proxy.vulkan.BufferProxy;
+import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureProxy;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
@@ -58,6 +58,12 @@ public final class LiveNormalReuploader {
         // before acquireContext() has begun the upload command buffer.
     }
 
+    private static boolean isAutoPBRActive(int albedoGLID) {
+        Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+        if (ordinal == null) return false;
+        return Options.autoPBREnabled || Options.materialAutoPBR[ordinal];
+    }
+
     private static void reuploadNormals() {
         for (int albedoGLID : TextureTracker.autoPBRNormalGLIDs) {
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
@@ -67,7 +73,25 @@ public final class LiveNormalReuploader {
             if (normalGLID == null) continue;
 
             try {
-                NativeImage newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo);
+                NativeImage newNormal;
+                if (isAutoPBRActive(albedoGLID)) {
+                    Integer ordN = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+                    if (ordN != null) {
+                        newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo,
+                            Options.materialAutoPBRNormalStrength[ordN],
+                            (Options.materialAutoPBRFlags[ordN] & 2) != 0,
+                            Options.materialAutoPBRHeightGamma[ordN],
+                            (Options.materialAutoPBRFlags[ordN] & 4) != 0,
+                            Options.materialChannelR[ordN],
+                            Options.materialChannelG[ordN],
+                            Options.materialChannelB[ordN]);
+                    } else {
+                        newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo);
+                    }
+                } else {
+                    // Flat neutral normal (128,128,255 = straight up, no bump)
+                    newNormal = cachedAlbedo.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
+                }
                 NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt) (Object) newNormal)
                     .neoVoxelRT$alignTo(cachedAlbedo);
 
@@ -91,7 +115,22 @@ public final class LiveNormalReuploader {
             if (specularGLID == null) continue;
 
             try {
-                NativeImage newSpec = AutoPBRGenerator.generateSpecular(cachedAlbedo);
+                NativeImage newSpec;
+                Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+                if (isAutoPBRActive(albedoGLID) && ordinal != null) {
+                    newSpec = AutoPBRGenerator.generateSpecularPercentile(cachedAlbedo,
+                        Options.materialAutoPBRRoughnessMin[ordinal],
+                        Options.materialAutoPBRRoughnessMax[ordinal],
+                        Options.materialPercentileCenter[ordinal],
+                        Options.materialPercentileSpread[ordinal],
+                        (Options.materialAutoPBRFlags[ordinal] & 1) != 0,
+                        Options.materialChannelR[ordinal],
+                        Options.materialChannelG[ordinal],
+                        Options.materialChannelB[ordinal]);
+                } else {
+                    // Flat zero specular (no roughness/F0/emission data)
+                    newSpec = cachedAlbedo.applyToCopy(i -> 0);
+                }
                 NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt) (Object) newSpec)
                     .neoVoxelRT$alignTo(cachedAlbedo);
 
