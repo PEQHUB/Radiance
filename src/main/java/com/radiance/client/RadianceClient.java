@@ -95,8 +95,8 @@ public class RadianceClient implements ClientModInitializer {
             dlssInstallDir = radianceDir;
             if (!recheckDlssFiles()) {
                 logMissingDlss(
-                    "libnvidia-ngx-dlss.so.310.5.3",
-                    "libnvidia-ngx-dlssd.so.310.5.3",
+                    "libnvidia-ngx-dlss.so.*",
+                    "libnvidia-ngx-dlssd.so.*",
                     dlssDownloadUrl,
                     radianceDir.toAbsolutePath().toString());
             }
@@ -239,8 +239,9 @@ public class RadianceClient implements ClientModInitializer {
     }
 
     /**
-     * Re-checks whether DLSS DLL files are present in the radiance directory.
+     * Re-checks whether DLSS DLL/SO files are present in the radiance directory.
      * Updates {@code dlssMissing} accordingly. Returns true if files are present (DLSS available).
+     * On Linux, uses glob matching to find versioned .so files (e.g. libnvidia-ngx-dlss.so.310.5.3).
      */
     public static boolean recheckDlssFiles() {
         String osName = System.getProperty("os.name");
@@ -252,15 +253,30 @@ public class RadianceClient implements ClientModInitializer {
                 return true;
             }
         } else {
-            Path dlssTargetPath = radianceDir.resolve("libnvidia-ngx-dlss.so.310.5.3");
-            Path dlssDTargetPath = radianceDir.resolve("libnvidia-ngx-dlssd.so.310.5.3");
-            if (Files.exists(dlssTargetPath) && Files.exists(dlssDTargetPath)) {
+            boolean foundDlss = findDlssLibrary(radianceDir, "libnvidia-ngx-dlss.so") != null;
+            boolean foundDlssD = findDlssLibrary(radianceDir, "libnvidia-ngx-dlssd.so") != null;
+            if (foundDlss && foundDlssD) {
                 dlssMissing = false;
                 return true;
             }
         }
         dlssMissing = true;
         return false;
+    }
+
+    /**
+     * Finds a DLSS .so library by prefix, matching any version suffix.
+     * For example, prefix "libnvidia-ngx-dlss.so" matches "libnvidia-ngx-dlss.so.310.5.3".
+     */
+    private static Path findDlssLibrary(Path dir, String prefix) {
+        try (Stream<Path> files = Files.list(dir)) {
+            return files
+                .filter(p -> p.getFileName().toString().startsWith(prefix))
+                .findFirst()
+                .orElse(null);
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private void logMissingDlss(String file1, String file2, String url, String destFolder) {
