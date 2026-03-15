@@ -12,7 +12,7 @@ public class KeyboardInputMixins {
 
     // Suppress WASD movement when camera is locked (accumulating)
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
-    private void suppressMovement(boolean slowDown, float slowDownFactor, CallbackInfo ci) {
+    private void suppressMovement(CallbackInfo ci) {
         if (Options.offlineState == 2) {
             ci.cancel();
         }

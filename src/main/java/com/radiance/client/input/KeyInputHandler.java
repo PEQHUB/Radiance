@@ -71,11 +71,11 @@ public class KeyInputHandler {
             }
 
             // F5: toggle camera lock (FREE <-> ACCUMULATING)
-            // Only consumed when in offline mode — vanilla third-person toggle works normally otherwise
-            if (Options.offlineState != 0) {
-                while (lockCameraKey.wasPressed()) {
-                    if (client.currentScreen == null && client.world != null) {
-                        if (Options.offlineState == 1) {
+            // Always drain wasPressed() to prevent stale events accumulating.
+            // Only act on it when in offline mode.
+            while (lockCameraKey.wasPressed()) {
+                if (Options.offlineState != 0 && client.currentScreen == null && client.world != null) {
+                    if (Options.offlineState == 1) {
                             // Lock camera and start accumulating
                             var camera = client.gameRenderer.getCamera();
                             var pos = camera.getPos();
@@ -95,7 +95,6 @@ public class KeyInputHandler {
                             Options.nativeResetAccumulation();
                             RadianceClient.LOGGER.info("[Offline] Camera unlocked, accumulation reset");
                         }
-                    }
                 }
             }
         });
