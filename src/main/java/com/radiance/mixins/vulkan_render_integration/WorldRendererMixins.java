@@ -205,7 +205,13 @@ public abstract class WorldRendererMixins {
     public void redirectRender(ObjectAllocator allocator, RenderTickCounter tickCounter,
         boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer,
         Matrix4f effectedRotationMatrix, Matrix4f projectionMatrix, CallbackInfo ci) {
-        PlayerProxy.setCameraPos(camera.getPos());
+        // Offline accumulation: use frozen camera position when accumulating
+        if (Options.offlineState == 2) {
+            PlayerProxy.setCameraPos(new net.minecraft.util.math.Vec3d(
+                Options.frozenCamX, Options.frozenCamY, Options.frozenCamZ));
+        } else {
+            PlayerProxy.setCameraPos(camera.getPos());
+        }
 
         float f = tickCounter.getTickDelta(false);
         RenderSystem.setShaderGameTime(this.world.getTime(), f);
@@ -282,7 +288,9 @@ public abstract class WorldRendererMixins {
 
         // Compute sun/moon direction from the actual day-time tick value.
         // This keeps lighting aligned with `/time set ...` and avoids phase errors from getSkyAngle().
-        long dayTimeTicks = this.world.getTimeOfDay() % 24000L;
+        long dayTimeTicks = Options.frozenDayTimeTicks >= 0
+            ? Options.frozenDayTimeTicks
+            : (this.world.getTimeOfDay() % 24000L);
         float dayFrac = (dayTimeTicks + tickDelta) / 24000.0F;
         float skyAngleForSun = dayFrac - 0.25F;
 

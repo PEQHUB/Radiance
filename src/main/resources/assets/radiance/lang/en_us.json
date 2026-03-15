@@ -128,6 +128,8 @@
   "options.video.psycho.white_curve": "White Curve",
   "options.video.psycho.cone_exponent": "Cone Exponent",
   "key.radiance.settings": "Radiance Settings",
+  "key.radiance.offline_mode": "Toggle Offline Mode",
+  "key.radiance.lock_camera": "Lock Camera / Accumulate",
   "key.category.radiance": "Radiance",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode": "Tonemapping Mode",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode.pbr_neutral": "PBR Neutral",

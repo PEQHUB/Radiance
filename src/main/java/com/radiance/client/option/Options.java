@@ -255,6 +255,18 @@ public class Options {
         {15, 10, 64, 32, 1, 2, 8, 24},
     };
     public static final String[] SHARC_PRESET_NAMES = {"Low", "Medium", "High", "Ultra", "Overkill", "Custom"};
+    // Offline accumulation mode (transient runtime state — NOT persisted except preferences)
+    public static int offlineState = 0;          // 0=NORMAL, 1=FREE, 2=ACCUMULATING
+    public static long frozenDayTimeTicks = -1;  // captured on F7
+    public static double frozenCamX, frozenCamY, frozenCamZ;
+    public static float frozenCamYaw, frozenCamPitch;
+    // Offline preferences (persisted)
+    public static int offlineBounces = 16;           // 1-64
+    public static boolean offlineDisableRR = false;
+    public static boolean offlineDisableClamp = false;
+    public static int offlineAperturePercent = 0;    // 0-100 → 0.0-0.1 aperture
+    public static int offlineFocalDistance = 10;     // 1-256 blocks
+
     public static boolean areaLightsEnabled = true;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
     public static int areaLightIntensityPercent = 100;  // 0-500%
@@ -845,6 +857,18 @@ public class Options {
             restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled)));
             nativeSetRestirBounceEnabled(restirBounceEnabled, false);
 
+            // Offline accumulation preferences
+            offlineBounces = Integer.parseInt(props.getProperty("offlineBounces", String.valueOf(offlineBounces)));
+            nativeSetOfflineBounces(offlineBounces, false);
+            offlineDisableRR = Boolean.parseBoolean(props.getProperty("offlineDisableRR", String.valueOf(offlineDisableRR)));
+            nativeSetOfflineDisableRR(offlineDisableRR, false);
+            offlineDisableClamp = Boolean.parseBoolean(props.getProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp)));
+            nativeSetOfflineDisableClamp(offlineDisableClamp, false);
+            offlineAperturePercent = Integer.parseInt(props.getProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent)));
+            nativeSetOfflineAperture(offlineAperturePercent / 1000.0f, false);
+            offlineFocalDistance = Integer.parseInt(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
+            nativeSetOfflineFocalDistance(offlineFocalDistance, false);
+
             for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
                 areaLightBlockIntensity[i] = clamp(Integer.parseInt(props.getProperty("areaLightBlock." + i, "100")), 0, 500);
                 nativeSetAreaLightBlockIntensity(i, areaLightBlockIntensity[i] / 100.0f);
@@ -1250,6 +1274,12 @@ public class Options {
         props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
         props.setProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled));
         props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
+        // Offline accumulation preferences
+        props.setProperty("offlineBounces", String.valueOf(offlineBounces));
+        props.setProperty("offlineDisableRR", String.valueOf(offlineDisableRR));
+        props.setProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp));
+        props.setProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent));
+        props.setProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance));
         for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
             props.setProperty("areaLightBlock." + i, String.valueOf(areaLightBlockIntensity[i]));
             props.setProperty("areaLightScale." + i, String.valueOf(areaLightBlockScale[i]));
@@ -3250,6 +3280,16 @@ public class Options {
 
     public native static void nativeRebuildChunks();
     public native static void nativeResetExposureAdaptation();
+
+    // --- Offline Accumulation ---
+    public native static void nativeSetOfflineState(int state, boolean write);
+    public native static void nativeSetOfflineBounces(int bounces, boolean write);
+    public native static void nativeSetOfflineDisableRR(boolean disable, boolean write);
+    public native static void nativeSetOfflineDisableClamp(boolean disable, boolean write);
+    public native static void nativeSetOfflineAperture(float aperture, boolean write);
+    public native static void nativeSetOfflineFocalDistance(float dist, boolean write);
+    public native static void nativeResetAccumulation();
+    public native static int nativeGetAccumFrameCount();
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(7, mode));
