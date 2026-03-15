@@ -385,7 +385,6 @@ public class Pipeline {
     public static void assembleDefault() {
         clear();
 
-        // Default: RT + (optional DLSS) + ToneMapping + Post
         boolean useDlss = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
 
         Module rayTracingModule = addModule("render_pipeline.module.ray_tracing.name");
@@ -527,6 +526,18 @@ public class Pipeline {
             postRenderModule.getInputImageConfig("ldr_input"));
 
         connectOutput(postRenderModule.getOutputImageConfig("post_rendered"));
+
+        // Log selected pipeline path for diagnostics / A-B testing
+        if (useDlss) {
+            RadianceClient.LOGGER.info("[Pipeline] RT -> DLSS-RR (denoise+upscale) -> tone mapping -> post");
+        } else if (isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
+            boolean nrd = isNativeModuleAvailable("render_pipeline.module.nrd.name");
+            RadianceClient.LOGGER.info("[Pipeline] RT -> {} -> FSR3 (upscale) -> tone mapping -> post{}",
+                nrd ? "NRD (denoise)" : "no denoiser",
+                !Options.dlssDEnabled ? " [DLSS-RR disabled in options — set dlssDEnabled=true to restore]" : "");
+        } else {
+            RadianceClient.LOGGER.info("[Pipeline] RT -> tone mapping -> post (no upscaler)");
+        }
     }
 
     public static native void buildNative(long params);
