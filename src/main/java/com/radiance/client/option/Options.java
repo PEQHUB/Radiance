@@ -289,11 +289,19 @@ public class Options {
     public static double frozenCamX, frozenCamY, frozenCamZ;
     public static float frozenCamYaw, frozenCamPitch;
     // Offline preferences (persisted)
-    public static int offlineBounces = 16;           // 1-64
+    public static boolean offlineGroundTruth = false; // unbiased path tracing mode
+    // Individual shader quality toggles (controlled by Ground Truth preset or independently)
+    public static boolean beerLawShadows = false;
+    public static boolean noEmissionClamp = false;
+    public static boolean physicalSunDisk = true;
+    public static boolean noHandAmbient = false;
+    public static int offlineBounces = 16;           // 1-128
     public static boolean offlineDisableRR = false;
     public static boolean offlineDisableClamp = false;
     public static int offlineAperturePercent = 0;    // 0-100 → 0.0-0.1 aperture
     public static int offlineFocalDistance = 10;     // 1-256 blocks
+    public static boolean offlineNativeRes = false;  // force render-res = display-res
+    public static int offlineDenoised = 0;           // 0=raw, 1=DLSS+Welford, 2=DLSS temporal
 
     public static boolean areaLightsEnabled = false;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
@@ -566,6 +574,13 @@ public class Options {
     // Slider storage: integer nits
     public static int fireworkSparkEmissionNits = 20;
     public static int fireworkFlashEmissionNits = 2000;
+
+    // Glowing particle emission in nits
+    public static float flameParticleEmission = 800.0f;      // Torch/furnace flames
+    public static float lavaParticleEmission = 400.0f;       // Lava drips/embers
+    public static float portalParticleEmission = 150.0f;     // Nether portal particles
+    public static float endRodParticleEmission = 200.0f;     // End rod particles
+    public static float glowParticleEmission = 30.0f;        // Glow squid ink, glow berries
 
     // Per-dye-color firework emission properties, indexed by DyeColor ordinal
     // Order: white, orange, magenta, light_blue, yellow, lime, pink, gray,
@@ -1320,21 +1335,35 @@ public class Options {
             restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled)));
             nativeSetRestirBounceEnabled(restirBounceEnabled, false);
 
-            // Offline accumulation preferences
+            beerLawShadows = Boolean.parseBoolean(props.getProperty("beerLawShadows", String.valueOf(beerLawShadows)));
+            noEmissionClamp = Boolean.parseBoolean(props.getProperty("noEmissionClamp", String.valueOf(noEmissionClamp)));
+            physicalSunDisk = Boolean.parseBoolean(props.getProperty("physicalSunDisk", String.valueOf(physicalSunDisk)));
+            noHandAmbient = Boolean.parseBoolean(props.getProperty("noHandAmbient", String.valueOf(noHandAmbient)));
+
+            // Offline accumulation preferences (ground truth is session-only, not persisted)
             offlineBounces = Integer.parseInt(props.getProperty("offlineBounces", String.valueOf(offlineBounces)));
             offlineDisableRR = Boolean.parseBoolean(props.getProperty("offlineDisableRR", String.valueOf(offlineDisableRR)));
             offlineDisableClamp = Boolean.parseBoolean(props.getProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp)));
             offlineAperturePercent = Integer.parseInt(props.getProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent)));
             offlineFocalDistance = Integer.parseInt(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
+            offlineNativeRes = Boolean.parseBoolean(props.getProperty("offlineNativeRes", String.valueOf(offlineNativeRes)));
+            offlineDenoised = Integer.parseInt(props.getProperty("offlineDenoised", String.valueOf(offlineDenoised)));
             try {
                 nativeSetOfflineBounces(offlineBounces, false);
                 nativeSetOfflineDisableRR(offlineDisableRR, false);
                 nativeSetOfflineDisableClamp(offlineDisableClamp, false);
                 nativeSetOfflineAperture(offlineAperturePercent / 1000.0f, false);
                 nativeSetOfflineFocalDistance(offlineFocalDistance, false);
+                nativeSetOfflineNativeRes(offlineNativeRes, false);
+                nativeSetOfflineDenoised(offlineDenoised, false);
             } catch (UnsatisfiedLinkError ignored) {
                 // Offline accumulation JNI not available in this core.dll build
             }
+
+            nativeSetBeerLawShadows(beerLawShadows, false);
+            nativeSetNoEmissionClamp(noEmissionClamp, false);
+            nativeSetPhysicalSunDisk(physicalSunDisk, false);
+            nativeSetNoHandAmbient(noHandAmbient, false);
 
             for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
                 areaLightBlockIntensity[i] = clamp(Integer.parseInt(props.getProperty("areaLightBlock." + i, "100")), 0, 500);
@@ -1725,6 +1754,14 @@ public class Options {
             fireworkSparkEmission = (float) fireworkSparkEmissionNits;
             fireworkFlashEmissionNits = Integer.parseInt(props.getProperty("fireworkFlashNits", String.valueOf(fireworkFlashEmissionNits)));
             fireworkFlashEmission = (float) fireworkFlashEmissionNits;
+
+            // Glowing particle emission
+            flameParticleEmission = Float.parseFloat(props.getProperty("flameParticleEmission", String.valueOf(flameParticleEmission)));
+            lavaParticleEmission = Float.parseFloat(props.getProperty("lavaParticleEmission", String.valueOf(lavaParticleEmission)));
+            portalParticleEmission = Float.parseFloat(props.getProperty("portalParticleEmission", String.valueOf(portalParticleEmission)));
+            endRodParticleEmission = Float.parseFloat(props.getProperty("endRodParticleEmission", String.valueOf(endRodParticleEmission)));
+            glowParticleEmission = Float.parseFloat(props.getProperty("glowParticleEmission", String.valueOf(glowParticleEmission)));
+
             for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
                 fireworkColorTemperatures[i] = Integer.parseInt(props.getProperty("fireworkColorTemp." + i, String.valueOf(fireworkColorTemperatures[i])));
                 fireworkColorWavelength[i] = Integer.parseInt(props.getProperty("fireworkColorWL." + i, String.valueOf(fireworkColorWavelength[i])));
@@ -1808,12 +1845,18 @@ public class Options {
         props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
         props.setProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled));
         props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
-        // Offline accumulation preferences
+        props.setProperty("beerLawShadows", String.valueOf(beerLawShadows));
+        props.setProperty("noEmissionClamp", String.valueOf(noEmissionClamp));
+        props.setProperty("physicalSunDisk", String.valueOf(physicalSunDisk));
+        props.setProperty("noHandAmbient", String.valueOf(noHandAmbient));
+        // Offline accumulation preferences (ground truth is session-only, not persisted)
         props.setProperty("offlineBounces", String.valueOf(offlineBounces));
         props.setProperty("offlineDisableRR", String.valueOf(offlineDisableRR));
         props.setProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp));
         props.setProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent));
         props.setProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance));
+        props.setProperty("offlineNativeRes", String.valueOf(offlineNativeRes));
+        props.setProperty("offlineDenoised", String.valueOf(offlineDenoised));
         for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
             props.setProperty("areaLightBlock." + i, String.valueOf(areaLightBlockIntensity[i]));
             props.setProperty("areaLightScale." + i, String.valueOf(areaLightBlockScale[i]));
@@ -2022,6 +2065,12 @@ public class Options {
         // Firework emission
         props.setProperty("fireworkSparkNits", String.valueOf(fireworkSparkEmissionNits));
         props.setProperty("fireworkFlashNits", String.valueOf(fireworkFlashEmissionNits));
+        // Glowing particle emission
+        props.setProperty("flameParticleEmission", String.valueOf(flameParticleEmission));
+        props.setProperty("lavaParticleEmission", String.valueOf(lavaParticleEmission));
+        props.setProperty("portalParticleEmission", String.valueOf(portalParticleEmission));
+        props.setProperty("endRodParticleEmission", String.valueOf(endRodParticleEmission));
+        props.setProperty("glowParticleEmission", String.valueOf(glowParticleEmission));
         for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
             props.setProperty("fireworkColorTemp." + i, String.valueOf(fireworkColorTemperatures[i]));
             props.setProperty("fireworkColorWL." + i, String.valueOf(fireworkColorWavelength[i]));
@@ -4033,12 +4082,19 @@ public class Options {
     public native static void nativeResetExposureAdaptation();
 
     // --- Offline Accumulation ---
+    public native static void nativeSetOfflineGroundTruth(boolean enabled, boolean write);
+    public native static void nativeSetBeerLawShadows(boolean enabled, boolean write);
+    public native static void nativeSetNoEmissionClamp(boolean enabled, boolean write);
+    public native static void nativeSetPhysicalSunDisk(boolean enabled, boolean write);
+    public native static void nativeSetNoHandAmbient(boolean enabled, boolean write);
     public native static void nativeSetOfflineState(int state, boolean write);
     public native static void nativeSetOfflineBounces(int bounces, boolean write);
     public native static void nativeSetOfflineDisableRR(boolean disable, boolean write);
     public native static void nativeSetOfflineDisableClamp(boolean disable, boolean write);
     public native static void nativeSetOfflineAperture(float aperture, boolean write);
     public native static void nativeSetOfflineFocalDistance(float dist, boolean write);
+    public native static void nativeSetOfflineNativeRes(boolean enabled, boolean write);
+    public native static void nativeSetOfflineDenoised(int mode, boolean write);
     public native static void nativeResetAccumulation();
     public native static int nativeGetAccumFrameCount();
 

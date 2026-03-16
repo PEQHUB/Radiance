@@ -3,6 +3,7 @@ package com.radiance.mixins.vulkan_render_integration;
 import static com.radiance.client.proxy.world.EntityProxy.PARTICLE_COUNTERS;
 
 import com.llamalad7.mixinextras.sugar.Local;
+import com.radiance.client.option.Options;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleManagerExt;
 import java.util.Collection;
 import java.util.List;
@@ -30,6 +31,24 @@ public class ParticleManagerMixins implements IParticleManagerExt {
     @Final
     @Shadow
     private Map<ParticleTextureSheet, Queue<Particle>> particles;
+
+    // Freeze all particle ticking during offline mode (FREE + ACCUMULATING)
+    // Prevents particle aging, movement, fading — eliminates temporal accumulation artifacts
+    @Inject(method = "tick()V", at = @At("HEAD"), cancellable = true)
+    private void freezeParticlesDuringOffline(CallbackInfo ci) {
+        if (Options.offlineState != 0) {
+            ci.cancel();
+        }
+    }
+
+    // Prevent new particles from spawning during accumulation
+    // (torch flames, lava drips, ambient particles would otherwise appear mid-accumulation)
+    @Inject(method = "addParticle(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
+    private void preventSpawnDuringAccumulation(Particle particle, CallbackInfo ci) {
+        if (Options.offlineState == 2) {
+            ci.cancel();
+        }
+    }
 
     @Override
     public List<ParticleTextureSheet> neoVoxelRT$getTextureSheets() {

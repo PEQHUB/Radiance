@@ -30,6 +30,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.client.particle.FireworksSparkParticle;
+import net.minecraft.client.particle.FlameParticle;
+import net.minecraft.client.particle.LavaEmberParticle;
+import net.minecraft.client.particle.PortalParticle;
+import net.minecraft.client.particle.EndRodParticle;
+import net.minecraft.client.particle.GlowParticle;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.block.entity.BlockEntity;
@@ -647,12 +652,21 @@ public class EntityProxy {
             if (particleQueue != null && !particleQueue.isEmpty()) {
                 for (Particle particle : particleQueue) {
 
-                    // Route firework particles to RT pipeline with emission
+                    // Route emissive particles to RT pipeline
                     boolean isFirework = particle instanceof FireworksSparkParticle.FireworkParticle
                                       || particle instanceof FireworksSparkParticle.Flash
                                       || particle instanceof FireworksSparkParticle.Explosion;
                     boolean isFlash = particle instanceof FireworksSparkParticle.Flash;
-                    StorageVertexConsumerProvider targetProvider = isFirework
+
+                    // Glowing particles: flames, lava, portals, end rods, glow
+                    boolean isFlame = particle instanceof FlameParticle;
+                    boolean isLava = particle instanceof LavaEmberParticle;
+                    boolean isPortal = particle instanceof PortalParticle;
+                    boolean isEndRod = particle instanceof EndRodParticle;
+                    boolean isGlow = particle instanceof GlowParticle;
+                    boolean isEmissiveParticle = isFirework || isFlame || isLava || isPortal || isEndRod || isGlow;
+
+                    StorageVertexConsumerProvider targetProvider = isEmissiveParticle
                         ? fireworkProvider : postStorageVertexConsumerProvider;
 
                     VertexConsumer
@@ -661,14 +675,30 @@ public class EntityProxy {
                             Objects.requireNonNull(
                                 particleTextureSheet.renderType()));
 
-                    // Override firework color with spectral flame color + set emission (nits)
+                    // Set emission (nits) for emissive particles
                     float savedR = 0, savedG = 0, savedB = 0;
-                    if (isFirework) {
-                        if (vertexConsumer instanceof PBRVertexConsumer pbr) {
-                            pbr.setPendingEmission(isFlash
-                                ? Options.fireworkFlashEmission
-                                : Options.fireworkSparkEmission);
+                    if (isEmissiveParticle) {
+                        float emission;
+                        if (isFlash) {
+                            emission = Options.fireworkFlashEmission;
+                        } else if (isFirework) {
+                            emission = Options.fireworkSparkEmission;
+                        } else if (isFlame) {
+                            emission = Options.flameParticleEmission;
+                        } else if (isLava) {
+                            emission = Options.lavaParticleEmission;
+                        } else if (isPortal) {
+                            emission = Options.portalParticleEmission;
+                        } else if (isEndRod) {
+                            emission = Options.endRodParticleEmission;
+                        } else {
+                            emission = Options.glowParticleEmission;
                         }
+                        if (vertexConsumer instanceof PBRVertexConsumer pbr) {
+                            pbr.setPendingEmission(emission);
+                        }
+                    }
+                    if (isFirework) {
                         // Save original color, compute spectral flame color (same as emissive blocks)
                         IParticleExt ext = (IParticleExt) particle;
                         savedR = ext.neoVoxelRT$getRed();
@@ -685,13 +715,18 @@ public class EntityProxy {
                     }
 
                     try {
-                        particle.render(vertexConsumer, camera, tickDelta);
-                        if (isFirework) {
+                        // Offline: use fixed tickDelta to prevent particle position interpolation
+                        // (prevPos != pos from last tick before freeze → varying tickDelta = jitter)
+                        float effectiveTickDelta = Options.offlineState != 0 ? 1.0f : tickDelta;
+                        particle.render(vertexConsumer, camera, effectiveTickDelta);
+                        if (isEmissiveParticle) {
                             // Restore original color and clear emission
-                            IParticleExt ext = (IParticleExt) particle;
-                            ext.neoVoxelRT$setRed(savedR);
-                            ext.neoVoxelRT$setGreen(savedG);
-                            ext.neoVoxelRT$setBlue(savedB);
+                            if (isFirework) {
+                                IParticleExt ext = (IParticleExt) particle;
+                                ext.neoVoxelRT$setRed(savedR);
+                                ext.neoVoxelRT$setGreen(savedG);
+                                ext.neoVoxelRT$setBlue(savedB);
+                            }
                             if (vertexConsumer instanceof PBRVertexConsumer pbr) {
                                 pbr.setPendingEmission(0.0f);
                             }

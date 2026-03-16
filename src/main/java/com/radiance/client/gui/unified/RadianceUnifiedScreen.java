@@ -37,6 +37,9 @@ public class RadianceUnifiedScreen extends Screen {
     private static String rememberedNodeId = null;
     private static double rememberedScrollY = 0;
 
+    /** True when opened via Tab hold — screen closes on Tab release. */
+    public static boolean openedViaTab = false;
+
     private final Screen parent;
     private TreeNavigationWidget tree;
     private ContentPanelWidget content;
@@ -130,6 +133,11 @@ public class RadianceUnifiedScreen extends Screen {
     // ── Tree structure ──
 
     private void populateTree() {
+        // ▼ Offline Rendering (top of tree)
+        TreeNode offline = new TreeNode("offline", "Offline Rendering");
+        offline.populator = new OfflinePopulator();
+        tree.addRoot(offline);
+
         // ▼ Lighting
         TreeNode lighting = new TreeNode("lighting", "Lighting");
         lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
@@ -254,6 +262,16 @@ public class RadianceUnifiedScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Tab peek: poll key state every frame — close when Tab is released
+        if (openedViaTab) {
+            long handle = MinecraftClient.getInstance().getWindow().getHandle();
+            if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_TAB) != GLFW.GLFW_PRESS) {
+                openedViaTab = false;
+                this.close();
+                return;
+            }
+        }
+
         // Don't render anything in peek mode
         if (RadianceTheme.peekActive) return;
 
@@ -408,6 +426,7 @@ public class RadianceUnifiedScreen extends Screen {
         overlayShowing = false;
         RadianceTheme.peekActive = false;
         RadianceTheme.endSliderFocus();
+        openedViaTab = false;
         MinecraftClient.getInstance().setScreen(parent);
     }
 

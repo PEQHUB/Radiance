@@ -21,12 +21,24 @@ public class InGameHudMixins {
         int width = client.getWindow().getScaledWidth();
 
         if (Options.offlineState == 2) {
-            // Accumulating: show sample count
+            // Accumulating: show sample count with mode info
             int samples = 0;
             try { samples = Options.nativeGetAccumFrameCount(); } catch (UnsatisfiedLinkError ignored) {}
-            String text = "Samples: " + samples;
+            String text;
+            if (Options.offlineGroundTruth) {
+                text = "GROUND TRUTH | Samples: " + samples;
+            } else if (Options.offlineDenoised == 2) {
+                text = "Frame " + samples + " (DLSS-RR temporal)";
+            } else if (Options.offlineDenoised == 1) {
+                text = "Samples: " + samples + " (DLSS + Welford)";
+            } else if (Options.offlineNativeRes) {
+                text = "Samples: " + samples + " (native)";
+            } else {
+                text = "Samples: " + samples + " (render-res)";
+            }
             int textWidth = client.textRenderer.getWidth(text);
-            context.drawTextWithShadow(client.textRenderer, text, (width - textWidth) / 2, 4, 0x00FF88);
+            int color = Options.offlineGroundTruth ? 0xFF8800 : 0x00FF88;
+            context.drawTextWithShadow(client.textRenderer, text, (width - textWidth) / 2, 4, color);
 
             // Time display
             long ticks = Options.frozenDayTimeTicks;
@@ -38,8 +50,18 @@ public class InGameHudMixins {
                 context.drawTextWithShadow(client.textRenderer, time, (width - tw) / 2, 16, 0xAAAAAA);
             }
         } else if (Options.offlineState == 1) {
-            // Free mode: show instructions
-            String text = "OFFLINE - F5 to lock camera | Scroll: time";
+            // Free mode: show instructions with mode info
+            StringBuilder sb = new StringBuilder("OFFLINE [O:settings Tab:peek G:ground truth D:denoised] - F5 to lock");
+            if (Options.offlineGroundTruth) {
+                sb.append(" [GT]");
+            }
+            if (Options.offlineNativeRes) {
+                sb.append(" [Native]");
+            }
+            if (Options.offlineDenoised > 0) {
+                sb.append(" [Denoised:").append(Options.offlineDenoised).append("]");
+            }
+            String text = sb.toString();
             int textWidth = client.textRenderer.getWidth(text);
             context.drawTextWithShadow(client.textRenderer, text, (width - textWidth) / 2, 4, 0xFFFF00);
         }

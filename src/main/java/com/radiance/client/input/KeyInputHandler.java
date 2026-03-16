@@ -22,6 +22,9 @@ public class KeyInputHandler {
     public static KeyBinding offlineModeKey;
     public static KeyBinding lockCameraKey;
     public static KeyBinding materialPickerKey;
+    public static KeyBinding offlineDenoisedKey;
+    public static KeyBinding offlineGroundTruthKey;
+    public static KeyBinding offlineTabPeekKey;
 
     public static void register() {
         radianceSettingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
@@ -52,6 +55,27 @@ public class KeyInputHandler {
             Options.KEY_CATEGORY_RADIANCE
         ));
 
+        offlineDenoisedKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_denoised",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_D,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineGroundTruthKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_ground_truth",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_G,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineTabPeekKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_tab_peek",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_TAB,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (radianceSettingsKey.wasPressed()) {
                 if (client.currentScreen == null) {
@@ -60,6 +84,14 @@ public class KeyInputHandler {
                     } else {
                         MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(null));
                     }
+                }
+            }
+
+            // Tab: peek settings menu while held (offline mode only)
+            while (offlineTabPeekKey.wasPressed()) {
+                if (Options.offlineState != 0 && client.currentScreen == null) {
+                    RadianceUnifiedScreen.openedViaTab = true;
+                    MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(null));
                 }
             }
 
@@ -105,6 +137,35 @@ public class KeyInputHandler {
                 }
             }
 
+            // G: toggle ground truth preset (global — saves/restores individual toggles)
+            while (offlineGroundTruthKey.wasPressed()) {
+                if (client.currentScreen == null) {
+                    Options.offlineGroundTruth = !Options.offlineGroundTruth;
+                    if (Options.offlineGroundTruth) {
+                        applyGroundTruthPreset();
+                    } else {
+                        restoreGroundTruthPreset();
+                    }
+                    Options.nativeSetOfflineGroundTruth(Options.offlineGroundTruth, false);
+                    if (Options.offlineState == 2) {
+                        Options.nativeResetAccumulation();
+                    }
+                    RadianceClient.LOGGER.info("[Radiance] Ground truth: {}", Options.offlineGroundTruth);
+                }
+            }
+
+            // D: cycle denoised mode (offline only)
+            while (offlineDenoisedKey.wasPressed()) {
+                if (Options.offlineState != 0 && client.currentScreen == null) {
+                    Options.offlineDenoised = (Options.offlineDenoised + 1) % 3;
+                    Options.nativeSetOfflineDenoised(Options.offlineDenoised, false);
+                    if (Options.offlineState == 2) {
+                        Options.nativeResetAccumulation();
+                    }
+                    RadianceClient.LOGGER.info("[Offline] Denoised mode: {}", Options.offlineDenoised);
+                }
+            }
+
             // M: material picker
             while (materialPickerKey.wasPressed()) {
                 if (client.currentScreen == null && client.world != null) {
@@ -116,6 +177,76 @@ public class KeyInputHandler {
                 }
             }
         });
+    }
+
+    // Ground truth preset: saved values for restore
+    private static boolean savedBeerLaw, savedNoEmissionClamp, savedPhysicalSun;
+    private static boolean savedNoHandAmbient;
+    private static boolean savedSimplifiedIndirect, savedSharcEnabled, savedNoiseLOD;
+    private static boolean savedAreaLights, savedDisableRR, savedDisableClamp;
+
+    /** Apply ground truth preset — save current values, set all to GT values. */
+    public static void applyGroundTruthPreset() {
+        // Save current values
+        savedBeerLaw = Options.beerLawShadows;
+        savedNoEmissionClamp = Options.noEmissionClamp;
+        savedPhysicalSun = Options.physicalSunDisk;
+        savedNoHandAmbient = Options.noHandAmbient;
+        savedSimplifiedIndirect = Options.simplifiedIndirect;
+        savedSharcEnabled = Options.sharcEnabled;
+        savedNoiseLOD = Options.noiseLOD;
+        savedAreaLights = Options.areaLightsEnabled;
+        savedDisableRR = Options.offlineDisableRR;
+        savedDisableClamp = Options.offlineDisableClamp;
+
+        // Apply ground truth values
+        Options.beerLawShadows = true;
+        Options.noEmissionClamp = true;
+        Options.physicalSunDisk = true;
+        Options.noHandAmbient = true;
+        Options.simplifiedIndirect = false;
+        Options.sharcEnabled = false;
+        Options.noiseLOD = false;
+        Options.areaLightsEnabled = false;
+        Options.offlineDisableRR = true;
+        Options.offlineDisableClamp = true;
+
+        // Sync all to C++
+        Options.nativeSetBeerLawShadows(true, false);
+        Options.nativeSetNoEmissionClamp(true, false);
+        Options.nativeSetPhysicalSunDisk(true, false);
+        Options.nativeSetNoHandAmbient(true, false);
+        Options.setSimplifiedIndirect(false, false);
+        Options.setSharcEnabled(false, false);
+        Options.setNoiseLOD(false, false);
+        Options.setAreaLightsEnabled(false, false);
+        Options.nativeSetOfflineDisableRR(true, false);
+        Options.nativeSetOfflineDisableClamp(true, false);
+    }
+
+    /** Restore values saved before ground truth was applied. */
+    public static void restoreGroundTruthPreset() {
+        Options.beerLawShadows = savedBeerLaw;
+        Options.noEmissionClamp = savedNoEmissionClamp;
+        Options.physicalSunDisk = savedPhysicalSun;
+        Options.noHandAmbient = savedNoHandAmbient;
+        Options.simplifiedIndirect = savedSimplifiedIndirect;
+        Options.sharcEnabled = savedSharcEnabled;
+        Options.noiseLOD = savedNoiseLOD;
+        Options.areaLightsEnabled = savedAreaLights;
+        Options.offlineDisableRR = savedDisableRR;
+        Options.offlineDisableClamp = savedDisableClamp;
+
+        Options.nativeSetBeerLawShadows(savedBeerLaw, false);
+        Options.nativeSetNoEmissionClamp(savedNoEmissionClamp, false);
+        Options.nativeSetPhysicalSunDisk(savedPhysicalSun, false);
+        Options.nativeSetNoHandAmbient(savedNoHandAmbient, false);
+        Options.setSimplifiedIndirect(savedSimplifiedIndirect, false);
+        Options.setSharcEnabled(savedSharcEnabled, false);
+        Options.setNoiseLOD(savedNoiseLOD, false);
+        Options.setAreaLightsEnabled(savedAreaLights, false);
+        Options.nativeSetOfflineDisableRR(savedDisableRR, false);
+        Options.nativeSetOfflineDisableClamp(savedDisableClamp, false);
     }
 
     private static MaterialBlock getTargetMaterialBlock(MinecraftClient client) {
