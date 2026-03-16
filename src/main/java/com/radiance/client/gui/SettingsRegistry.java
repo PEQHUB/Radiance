@@ -206,6 +206,7 @@ public final class SettingsRegistry {
         register("casSharpnessPercent", "CAS Sharpness", "Light & Color", "Post Processing", null,
                 0, 100, () -> Options.casSharpnessPercent, 50,
                 null, false);
+
     }
 
     /**

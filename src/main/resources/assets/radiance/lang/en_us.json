@@ -28,7 +28,8 @@
   "options.video.area_lights_enabled": "Area Lights (Unfinished - Experimental)",
   "options.video.area_light_intensity": "Area Light Intensity",
   "options.video.area_light_range": "Area Light Range",
-  "options.video.output_scale_2x": "Output Scale 2x",
+  "options.video.output_scale_2x": "Output Scale 2x (Experimental)",
+  "options.video.output_scale_2x.tooltip": "Renders at 2x resolution for better visuals, then downscales via Lanczos 3. May cause artifacts with certain DLSS upscale ratios (Performance/UltraPerformance). Use Quality or Native mode for best results.",
   "options.video.chunk_building_batch_size": "Amount of chunks to build in a single submit",
   "options.video.chunk_building_total_batches": "Amount of building chunk batches",
   "options.video.pipeline_setup": "Setup Pipeline...",
@@ -119,7 +120,7 @@
   "options.video.exposure_log2_max": "Histogram Max EV",
   "options.video.middle_grey": "Middle Grey",
   "options.video.lwhite": "White Point",
-  "options.video.psycho.enabled": "Psycho Visual Tonemapper",
+  "options.video.psycho.enabled": "PsychoV (HDR Only)",
   "options.video.psycho.category": "Psycho Visual Settings...",
   "options.video.psycho.highlights": "Highlights",
   "options.video.psycho.shadows": "Shadows",
@@ -769,4 +770,10 @@
   ,"radiance.texture_editor.variants": "Variants"
   ,"radiance.texture_editor.variant_of": "Variant of: %s"
   ,"radiance.texture_editor.reset_to_parent": "Reset to Parent"
+  ,"options.video.category.rendering": "Rendering"
+  ,"options.video.rendering_settings": "Rendering Settings..."
+  ,"options.video.firework.spark_intensity": "Spark Intensity"
+  ,"options.video.firework.flash_intensity": "Flash Intensity"
+  ,"options.video.firework.category": "Firework Emission"
+  ,"options.video.firework.colors_category": "Firework Colors (Blackbody Temperature)"
 }

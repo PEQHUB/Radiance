@@ -19,4 +19,10 @@ public interface IParticleExt {
     float neoVoxelRT$getAngle();
 
     float neoVoxelRT$getPrevAngle();
+
+    void neoVoxelRT$setRed(float r);
+
+    void neoVoxelRT$setGreen(float g);
+
+    void neoVoxelRT$setBlue(float b);
 }

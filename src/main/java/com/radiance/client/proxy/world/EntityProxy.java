@@ -10,7 +10,10 @@ import com.radiance.client.compat.FirstPersonCompat;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.constant.Constants.RayTracingFlags;
 import com.radiance.client.proxy.vulkan.BufferProxy;
+import com.radiance.client.option.Options;
+import com.radiance.client.util.SpectralColor;
 import com.radiance.client.vertex.PBRVertexConsumer;
+import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleExt;
 import com.radiance.client.vertex.StorageVertexConsumerProvider;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IHeldItemRendererExt;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleManagerExt;
@@ -26,6 +29,7 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import net.minecraft.client.particle.FireworksSparkParticle;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.block.entity.BlockEntity;
@@ -619,6 +623,9 @@ public class EntityProxy {
         }
     }
 
+    // Firework emission intensity: nits / EMISSION_REFERENCE_NITS (200.0)
+    // Sparks: ~20 nits (subtle glow), Flash: ~200 nits (bright burst)
+
     public static void queueParticleRebuild(Camera camera, float tickDelta, Frustum frustum) {
         List<StorageVertexConsumerProvider> storageVertexConsumerProviders = new ArrayList<>();
         EntityRenderDataList renderDataList = new EntityRenderDataList();
@@ -626,6 +633,10 @@ public class EntityProxy {
         StorageVertexConsumerProvider postStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
             0);
         storageVertexConsumerProviders.add(postStorageVertexConsumerProvider);
+
+        // Separate provider for emissive firework particles (routed to RT pipeline)
+        StorageVertexConsumerProvider fireworkProvider = new StorageVertexConsumerProvider(0);
+        storageVertexConsumerProviders.add(fireworkProvider);
 
         ParticleManager particleManager = MinecraftClient.getInstance().particleManager;
         IParticleManagerExt particleManagerExt = (IParticleManagerExt) particleManager;
@@ -636,14 +647,55 @@ public class EntityProxy {
             if (particleQueue != null && !particleQueue.isEmpty()) {
                 for (Particle particle : particleQueue) {
 
+                    // Route firework particles to RT pipeline with emission
+                    boolean isFirework = particle instanceof FireworksSparkParticle.FireworkParticle
+                                      || particle instanceof FireworksSparkParticle.Flash
+                                      || particle instanceof FireworksSparkParticle.Explosion;
+                    boolean isFlash = particle instanceof FireworksSparkParticle.Flash;
+                    StorageVertexConsumerProvider targetProvider = isFirework
+                        ? fireworkProvider : postStorageVertexConsumerProvider;
+
                     VertexConsumer
                         vertexConsumer =
-                        postStorageVertexConsumerProvider.getBuffer(
+                        targetProvider.getBuffer(
                             Objects.requireNonNull(
                                 particleTextureSheet.renderType()));
 
+                    // Override firework color with spectral flame color + set emission (nits)
+                    float savedR = 0, savedG = 0, savedB = 0;
+                    if (isFirework) {
+                        if (vertexConsumer instanceof PBRVertexConsumer pbr) {
+                            pbr.setPendingEmission(isFlash
+                                ? Options.fireworkFlashEmission
+                                : Options.fireworkSparkEmission);
+                        }
+                        // Save original color, compute spectral flame color (same as emissive blocks)
+                        IParticleExt ext = (IParticleExt) particle;
+                        savedR = ext.neoVoxelRT$getRed();
+                        savedG = ext.neoVoxelRT$getGreen();
+                        savedB = ext.neoVoxelRT$getBlue();
+                        int idx = Options.lookupFireworkColorIndex(savedR, savedG, savedB);
+                        int tempK = Options.fireworkColorTemperatures[idx];
+                        int wl = Options.fireworkColorWavelength[idx];
+                        float pur = Options.fireworkColorPurity[idx] / 100.0f;
+                        float[] bt2020 = SpectralColor.computeFlameColor(tempK, wl, pur);
+                        ext.neoVoxelRT$setRed(Math.max(0, bt2020[0]));
+                        ext.neoVoxelRT$setGreen(Math.max(0, bt2020[1]));
+                        ext.neoVoxelRT$setBlue(Math.max(0, bt2020[2]));
+                    }
+
                     try {
                         particle.render(vertexConsumer, camera, tickDelta);
+                        if (isFirework) {
+                            // Restore original color and clear emission
+                            IParticleExt ext = (IParticleExt) particle;
+                            ext.neoVoxelRT$setRed(savedR);
+                            ext.neoVoxelRT$setGreen(savedG);
+                            ext.neoVoxelRT$setBlue(savedB);
+                            if (vertexConsumer instanceof PBRVertexConsumer pbr) {
+                                pbr.setPendingEmission(0.0f);
+                            }
+                        }
                     } catch (Throwable var11) {
                         CrashReport crashReport = CrashReport.create(var11, "Rendering Particle");
                         CrashReportSection crashReportSection = crashReport.addElement(
@@ -657,6 +709,10 @@ public class EntityProxy {
         }
 
         processPostEntityRenderData(postStorageVertexConsumerProvider, 0, 0, 0, 0, renderDataList);
+
+        // Submit emissive firework particles to RT pipeline
+        processWorldEntityRenderData(fireworkProvider, 0, 0, 0, 0,
+            Constants.RayTracingFlags.PARTICLE, true, renderDataList);
 
         StorageVertexConsumerProvider storageVertexConsumerProvider = new StorageVertexConsumerProvider(
             0);

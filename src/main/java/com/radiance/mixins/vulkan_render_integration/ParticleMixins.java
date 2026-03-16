@@ -94,6 +94,21 @@ public class ParticleMixins implements IParticleExt {
         return prevAngle;
     }
 
+    @Override
+    public void neoVoxelRT$setRed(float r) {
+        this.red = r;
+    }
+
+    @Override
+    public void neoVoxelRT$setGreen(float g) {
+        this.green = g;
+    }
+
+    @Override
+    public void neoVoxelRT$setBlue(float b) {
+        this.blue = b;
+    }
+
     @Inject(method = "getBrightness(F)I", at = @At(value = "HEAD"), cancellable = true)
     private void optimizeGetBrightness(float tickDelta, CallbackInfoReturnable<Integer> cir) {
         BlockPos.Mutable pos = LIGHT_POS.get().set(this.x, this.y, this.z);

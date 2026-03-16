@@ -607,10 +607,13 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             return;
         }
 
-        // Generate new pixel data
-        NativeImage albedoCopy = new NativeImage(sourceAlbedo.getWidth(), sourceAlbedo.getHeight(), false);
-        for (int y = 0; y < sourceAlbedo.getHeight(); y++)
-            for (int x = 0; x < sourceAlbedo.getWidth(); x++)
+        // Generate new pixel data — crop to first frame for animated spritesheets
+        // (e.g. water_still.png is 16x512 = 32 frames; only use first 16x16 frame)
+        int srcW = sourceAlbedo.getWidth();
+        int srcH = Math.min(sourceAlbedo.getHeight(), srcW); // first frame = square
+        NativeImage albedoCopy = new NativeImage(srcW, srcH, false);
+        for (int y = 0; y < srcH; y++)
+            for (int x = 0; x < srcW; x++)
                 albedoCopy.setColorArgb(x, y, sourceAlbedo.getColorArgb(x, y));
         int ci = currentBlockIndex;
         int flags = Options.materialAutoPBRFlags[ci];
@@ -618,14 +621,15 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         boolean invertNormal = (flags & 2) != 0;
         boolean invertHeight = (flags & 4) != 0;
         int chR = Options.materialChannelR[ci], chG = Options.materialChannelG[ci], chB = Options.materialChannelB[ci];
-        NativeImage normalImg = AutoPBRGenerator.generateNormal(sourceAlbedo,
+        // Use cropped copy for AutoPBR generation (first frame only for animated textures)
+        NativeImage normalImg = AutoPBRGenerator.generateNormal(albedoCopy,
             Options.materialAutoPBRNormalStrength[ci], invertNormal,
             Options.materialAutoPBRHeightGamma[ci], invertHeight, chR, chG, chB);
-        NativeImage roughImg = AutoPBRGenerator.generateRoughnessPreviewPercentile(sourceAlbedo,
+        NativeImage roughImg = AutoPBRGenerator.generateRoughnessPreviewPercentile(albedoCopy,
             Options.materialAutoPBRRoughnessMin[ci], Options.materialAutoPBRRoughnessMax[ci],
             Options.materialPercentileCenter[ci], Options.materialPercentileSpread[ci],
             invertRough, chR, chG, chB);
-        NativeImage heightImg = AutoPBRGenerator.generateHeightPreview(sourceAlbedo,
+        NativeImage heightImg = AutoPBRGenerator.generateHeightPreview(albedoCopy,
             Options.materialAutoPBRHeightGamma[ci], invertHeight);
 
         if (!previewsRegistered) {
@@ -648,6 +652,20 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
             previewsRegistered = true;
         } else {
+            // If dimensions changed (e.g. texture pack switch), recreate Vulkan images
+            var existingImg = previewAlbedoTex.getImage();
+            if (existingImg == null || existingImg.getWidth() != albedoCopy.getWidth()
+                    || existingImg.getHeight() != albedoCopy.getHeight()) {
+                // Destroy and re-register at new dimensions
+                var texManager = MinecraftClient.getInstance().getTextureManager();
+                texManager.destroyTexture(PREVIEW_ALBEDO_ID);
+                texManager.destroyTexture(PREVIEW_NORMAL_ID);
+                texManager.destroyTexture(PREVIEW_ROUGHNESS_ID);
+                texManager.destroyTexture(PREVIEW_HEIGHT_ID);
+                previewsRegistered = false;
+                regeneratePreview();
+                return;
+            }
             previewAlbedoTex.setImage(albedoCopy);
             previewAlbedoTex.upload();
 

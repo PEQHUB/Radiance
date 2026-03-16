@@ -318,114 +318,12 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             subScreenButton("radiance.materials.browser", new MaterialBrowserScreen(this)),
             body));
 
-        // ── EXPOSURE & TONEMAPPING ──
+        // ── RENDERING ──
         this.body.addEntry(
-            new CategoryVideoOptionEntry(Text.translatable("options.video.category.exposure_tonemapping"), body));
-
-        // [Exposure Settings... | Post Processing...]
+            new CategoryVideoOptionEntry(Text.translatable("options.video.category.rendering"), body));
         this.body.addEntry(new TwoColumnOptionEntry(
-            subScreenButton(Options.EXPOSURE_SETTINGS_KEY, new ExposureSettingsScreen(this)),
-            subScreenButton(Options.POST_PROCESSING_SETTINGS_KEY, new PostProcessingSettingsScreen(this)),
-            body));
-
-        // [SDR Transfer Function | PsychoV: ON/OFF]
-        // SDR Transfer Function as a cycle button: click to toggle between sRGB and Gamma 2.2
-        ButtonWidget sdrTransferBtn = ButtonWidget.builder(
-            Text.literal("SDR: " + (Options.sdrTransferFunction == Options.SDR_TRANSFER_FUNCTION_SRGB ? "sRGB" : "Gamma 2.2")),
-            btn -> {
-                int next = Options.sdrTransferFunction == Options.SDR_TRANSFER_FUNCTION_SRGB
-                    ? Options.SDR_TRANSFER_FUNCTION_GAMMA_22 : Options.SDR_TRANSFER_FUNCTION_SRGB;
-                Options.setSdrTransferFunction(next, true);
-                btn.setMessage(Text.literal("SDR: " + (next == Options.SDR_TRANSFER_FUNCTION_SRGB ? "sRGB" : "Gamma 2.2")));
-            }).width(150).build();
-        SimpleOption<Boolean> psychoToggle = SimpleOption.ofBoolean(
-            Options.PSYCHO_ENABLED_KEY,
-            Options.psychoEnabled,
-            value -> Options.setPsychoEnabled(value, true));
-        this.body.addEntry(new TwoColumnOptionEntry(
-            sdrTransferBtn, psychoToggle.createWidget(gameOptions), body));
-
-        // [Saturation (full-width slider)]
-        ResettableSliderWidget satSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            100, 200, Options.saturationPercent, Options.SATURATION_DEFAULT_PERCENT,
-            v -> getGenericValueText(
-                Text.translatable(Options.SATURATION_KEY),
-                Text.literal(String.format("%.2f", v / 100.0))),
-            v -> Options.setSaturation(v, true));
-        satSlider.settingKey = "saturationPercent";
-        this.body.addEntry(new SliderEntry(satSlider, body));
-
-        SimpleOption<Boolean> satAdaptive = SimpleOption.ofBoolean(
-            "options.video.saturation_adaptive",
-            Options.saturationAdaptive,
-            value -> Options.setSaturationAdaptive(value, true));
-        SimpleOption<Boolean> noiseLodToggle = SimpleOption.ofBoolean(
-            "options.video.noise_lod",
-            Options.noiseLOD,
-            value -> Options.setNoiseLOD(value, true));
-        this.body.addEntry(new TwoColumnOptionEntry(
-            satAdaptive.createWidget(gameOptions), noiseLodToggle.createWidget(gameOptions), body));
-
-        // [Color Expansion (per-block vivid chroma boost, full-width slider)]
-        ResettableSliderWidget ceSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            0, 200, Options.colorExpansionPercent, Options.COLOR_EXPANSION_DEFAULT_PERCENT,
-            v -> getGenericValueText(
-                Text.translatable(Options.COLOR_EXPANSION_KEY),
-                Text.literal(String.format("%.2f", v / 100.0))),
-            v -> Options.setColorExpansion(v, true));
-        ceSlider.settingKey = "colorExpansionPercent";
-        this.body.addEntry(new SliderEntry(ceSlider, body));
-
-        // [PsychoV Settings... | (empty)]
-        this.body.addEntry(new TwoColumnOptionEntry(
-            subScreenButton(Options.CATEGORY_PSYCHO, new PsychoVSettingsScreen(this)),
+            subScreenButton("options.video.rendering_settings", new RenderingSettingsScreen(this)),
             null, body));
-
-        // ── HDR10 OUTPUT (conditional) ──
-        if (Options.isHdrSupported()) {
-            this.body.addEntry(
-                new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_HDR), body));
-
-            SimpleOption<Boolean> hdrEnabled = SimpleOption.ofBoolean(
-                Options.HDR_ENABLED_KEY, Options.hdrEnabled,
-                value -> {
-                    Options.setHdrEnabled(value, true);
-                    mc.setScreen(new RadianceSettingsScreen(parentScreen));
-                });
-            this.body.addEntry(new TwoColumnOptionEntry(
-                hdrEnabled.createWidget(gameOptions), null, body));
-        }
-
-        if (Options.isHdrSupported() && Options.hdrEnabled) {
-            // [Peak Brightness | Paper White]
-            ResettableSliderWidget peakNitsSlider = new ResettableSliderWidget(
-                0, 0, 150, 20,
-                10, 1000, Options.hdrPeakNits / 10, 100,
-                v -> getGenericValueText(
-                    Text.translatable(Options.HDR_PEAK_NITS_KEY),
-                    Text.literal((v * 10) + " nits")),
-                v -> Options.setHdrPeakNits(v * 10, true));
-            ResettableSliderWidget paperWhiteSlider = new ResettableSliderWidget(
-                0, 0, 150, 20,
-                1, 500, Options.hdrPaperWhiteNits, 203,
-                v -> getGenericValueText(
-                    Text.translatable(Options.HDR_PAPER_WHITE_NITS_KEY),
-                    Text.literal(v + " nits")),
-                v -> Options.setHdrPaperWhiteNits(v, true));
-            this.body.addEntry(new TwoColumnSliderEntry(peakNitsSlider, paperWhiteSlider, body));
-
-            // [UI Brightness | (empty)]
-            ResettableSliderWidget uiBrightnessSlider = new ResettableSliderWidget(
-                0, 0, 150, 20,
-                5, 30, Options.hdrUiBrightnessNits / 10, 10,
-                v -> getGenericValueText(
-                    Text.translatable("options.video.hdr_ui_brightness_nits"),
-                    Text.literal((v * 10) + " nits")),
-                v -> Options.setHdrUiBrightnessNits(v * 10, true));
-            this.body.addEntry(new TwoColumnSliderEntry(uiBrightnessSlider, null, body));
-        }
 
         // ── UPSCALER ──
         this.body.addEntry(

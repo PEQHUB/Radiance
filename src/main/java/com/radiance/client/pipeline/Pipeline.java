@@ -385,7 +385,8 @@ public class Pipeline {
     public static void assembleDefault() {
         clear();
 
-        boolean useDlss = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
+        // 0=DLSS-RR, 1=FSR3, 2=Off
+        boolean useDlss = (Options.upscalerMode == 0) && isNativeModuleAvailable("render_pipeline.module.dlss.name");
 
         Module rayTracingModule = addModule("render_pipeline.module.ray_tracing.name");
 
@@ -455,9 +456,9 @@ public class Pipeline {
 
             connect(dlssModule.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
-        } else if (isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
-            // DLSS unavailable (AMD/Intel GPU): use NRD denoiser + FSR3 upscaler.
-            // DLSS-RR is a combined denoiser+upscaler; without it we need both stages.
+        } else if (Options.upscalerMode != 2 && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
+            // FSR3 path: explicit FSR3 selection or DLSS fallback.
+            // NRD denoiser + FSR3 upscaler (DLSS-RR combines both stages).
             boolean useNrd = isNativeModuleAvailable("render_pipeline.module.nrd.name");
             Module fsr3Module = addModule("render_pipeline.module.fsr3_upscaler.name");
 

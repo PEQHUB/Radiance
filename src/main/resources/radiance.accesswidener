@@ -1,4 +1,7 @@
 accessWidener v2 named
+accessible class net/minecraft/client/particle/FireworksSparkParticle$FireworkParticle
+accessible class net/minecraft/client/particle/FireworksSparkParticle$Explosion
+
 accessible class net/minecraft/client/font/BitmapFont$BitmapFontGlyph
 
 accessible class net/minecraft/client/font/TrueTypeFont$TtfGlyph

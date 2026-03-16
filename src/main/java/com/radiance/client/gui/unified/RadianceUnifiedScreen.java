@@ -134,6 +134,7 @@ public class RadianceUnifiedScreen extends Screen {
         TreeNode lighting = new TreeNode("lighting", "Lighting");
         lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
         lighting.addChild(new TreeNode("emission", "Emission", new EmissionPopulator()));
+        lighting.addChild(new TreeNode("fireworks", "Fireworks", new FireworksPopulator()));
         lighting.addChild(new TreeNode("materials", "Materials", new MaterialsPopulator()));
         lighting.populator = compositePopulator(lighting.children);
         tree.addRoot(lighting);

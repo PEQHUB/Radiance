@@ -23,7 +23,7 @@ public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
     public static final int CURRENT_OPTIONS_VERSION = 18;
-    public static final int SDR_TONEMAPPING_DEFAULT_MODE = 1;
+    public static final int SDR_TONEMAPPING_DEFAULT_MODE = 0;
     public static final int SATURATION_DEFAULT_PERCENT = 100;
     public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
 
@@ -223,9 +223,10 @@ public class Options {
     public static int inactivityFpsLimit = 260;
     public static boolean vsync = true;
     // Upscaler selection (menu-facing)
-    // 0 = Off
-    // 1 = DLSS (Ray Reconstruction)
-    public static int upscalerMode = 1;
+    // 0 = DLSS-RR (Ray Reconstruction)
+    // 1 = FSR3 (FidelityFX Super Resolution 3)
+    // 2 = Off
+    public static int upscalerMode = 0;
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
     public static int upscalerResOverride = 99; // 33-100%
     public static boolean dlssDEnabled = true;
@@ -418,6 +419,51 @@ public class Options {
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
     public static boolean saturationAdaptive = false;  // Adaptive saturation: brightness+chroma-dependent
     public static int colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
+
+    // Per-tonemapper params: [mode][paramIndex], float values sent directly to native
+    public static float[][] tonemapParams = new float[8][8];
+
+    static {
+        initTonemapDefaults();
+    }
+
+    public static void initTonemapDefaults() {
+        for (int m = 0; m < 8; m++) for (int p = 0; p < 8; p++) tonemapParams[m][p] = 0.0f;
+        // Mode 0: PBR Neutral
+        tonemapParams[0][0] = 0.76f;   // startCompression
+        tonemapParams[0][1] = 0.15f;   // desaturation
+        // Mode 1: Reinhard
+        tonemapParams[1][0] = 4.0f;    // Lwhite
+        // Mode 2: ACES
+        tonemapParams[2][0] = 1.0f;    // pre-exposure (1.0 = neutral)
+        // Mode 3: AgX (Blender Base look)
+        tonemapParams[3][0] = 1.0f;    // contrast (look) — 1.0 = Base, ~1.4 = Punchy
+        tonemapParams[3][1] = 1.0f;    // saturation (look) — 1.0 = neutral
+        // Mode 4: Lottes (GDC 2016 canonical — AMD GPUOpen)
+        tonemapParams[4][0] = 2.0f;    // contrast (a)
+        tonemapParams[4][1] = 1.0f;    // shoulder (d)
+        tonemapParams[4][2] = 16.0f;   // hdrMax
+        tonemapParams[4][3] = 0.18f;   // midIn (18% grey)
+        tonemapParams[4][4] = 0.18f;   // midOut (preserves 18% grey exactly)
+        // Mode 5: Frostbite (custom piecewise — no canonical source)
+        tonemapParams[5][0] = 0.25f;   // linearEnd
+        tonemapParams[5][1] = 2.0f;    // shoulderStrength
+        // Mode 6: Uncharted 2 (Hable GDC 2010 canonical)
+        tonemapParams[6][0] = 0.15f;   // A shoulder strength
+        tonemapParams[6][1] = 0.50f;   // B linear strength
+        tonemapParams[6][2] = 0.10f;   // C linear angle
+        tonemapParams[6][3] = 0.20f;   // D toe strength
+        tonemapParams[6][4] = 0.02f;   // E toe numerator
+        tonemapParams[6][5] = 0.30f;   // F toe denominator
+        tonemapParams[6][6] = 11.2f;   // W white point
+        // Mode 7: GT
+        tonemapParams[7][0] = 1.0f;    // contrast
+        tonemapParams[7][1] = 0.22f;   // linearStart
+        tonemapParams[7][2] = 0.4f;    // linearLength
+        tonemapParams[7][3] = 1.33f;   // blackCurve
+        tonemapParams[7][4] = 0.0f;    // blackLift (0 is valid)
+    }
+
     public static int upscalerPreset = 4; // DLSS: 4=D (default), 5=E. Generic for future upscalers.
 
     // PsychoV tonemapper (stored as integer percent/tenths for slider UI)
@@ -512,6 +558,120 @@ public class Options {
     public static float emissionEndGateway = 1.0f;
     public static float emissionTrialSpawner = 1.0f;
     public static float emissionVault = 1.0f;
+
+    // Firework particle emission in nits (cd/m²), same scale as EmissiveBlock.surfaceNits
+    // Sparks: 20 nits (subtle glow), Flash: 2000 nits (bright burst like lava at 2300)
+    public static float fireworkSparkEmission = 20.0f;
+    public static float fireworkFlashEmission = 2000.0f;
+    // Slider storage: integer nits
+    public static int fireworkSparkEmissionNits = 20;
+    public static int fireworkFlashEmissionNits = 2000;
+
+    // Per-dye-color firework emission properties, indexed by DyeColor ordinal
+    // Order: white, orange, magenta, light_blue, yellow, lime, pink, gray,
+    //        light_gray, cyan, purple, blue, brown, green, red, black
+    public static final int FIREWORK_COLOR_COUNT = 16;
+    public static int[] fireworkColorTemperatures = new int[] {
+        6500, 2200, 5000, 8000, 3500, 4000, 3500, 4500,
+        5000, 10000, 6000, 15000, 1400, 3000, 1200, 1000
+    };
+    public static final int[] FIREWORK_COLOR_TEMP_DEFAULTS = new int[] {
+        6500, 2200, 5000, 8000, 3500, 4000, 3500, 4500,
+        5000, 10000, 6000, 15000, 1400, 3000, 1200, 1000
+    };
+    // Per-color wavelength (nm, 0 = pure blackbody) and purity (0-100%)
+    public static int[] fireworkColorWavelength = new int[] {
+        0, 0, 500, 0, 0, 530, 500, 0,
+        0, 490, 430, 470, 0, 530, 620, 0
+    };
+    public static final int[] FIREWORK_WAVELENGTH_DEFAULTS = new int[] {
+        0, 0, 500, 0, 0, 530, 500, 0,
+        0, 490, 430, 470, 0, 530, 620, 0
+    };
+    public static int[] fireworkColorPurity = new int[] {
+        0, 0, 60, 0, 0, 50, 40, 0,
+        0, 50, 70, 50, 0, 60, 30, 0
+    };
+    public static final int[] FIREWORK_PURITY_DEFAULTS = new int[] {
+        0, 0, 60, 0, 0, 50, 40, 0,
+        0, 50, 70, 50, 0, 60, 30, 0
+    };
+    public static final String[] FIREWORK_COLOR_NAMES = new String[] {
+        "White", "Orange", "Magenta", "Light Blue", "Yellow", "Lime",
+        "Pink", "Gray", "Light Gray", "Cyan", "Purple", "Blue",
+        "Brown", "Green", "Red", "Black"
+    };
+
+    public static void setFireworkSparkEmission(int nits, boolean save) {
+        fireworkSparkEmissionNits = nits;
+        fireworkSparkEmission = (float) nits;
+        if (save) overwriteConfig();
+    }
+
+    public static void setFireworkFlashEmission(int nits, boolean save) {
+        fireworkFlashEmissionNits = nits;
+        fireworkFlashEmission = (float) nits;
+        if (save) overwriteConfig();
+    }
+
+    public static void setFireworkColorTemperature(int index, int kelvin, boolean save) {
+        fireworkColorTemperatures[index] = kelvin;
+        if (save) overwriteConfig();
+    }
+
+    public static void setFireworkColorWavelength(int index, int nm, boolean save) {
+        fireworkColorWavelength[index] = nm;
+        if (save) overwriteConfig();
+    }
+
+    public static void setFireworkColorPurity(int index, int pct, boolean save) {
+        fireworkColorPurity[index] = pct;
+        if (save) overwriteConfig();
+    }
+
+    // Vanilla DyeColor.getFireworkColor() RGB values, indexed by DyeColor ordinal
+    // Used to match particle RGB → dye color → blackbody temperature
+    private static final int[] DYE_FIREWORK_COLORS = {
+        0xF9FFFE, // 0  White
+        0xF9801D, // 1  Orange
+        0xC74EBD, // 2  Magenta
+        0x3AB3DA, // 3  Light Blue
+        0xFED83D, // 4  Yellow
+        0x80C71F, // 5  Lime
+        0xF38BAA, // 6  Pink
+        0x474F52, // 7  Gray
+        0x9D9D97, // 8  Light Gray
+        0x169C9C, // 9  Cyan
+        0x8932B8, // 10 Purple
+        0x3C44AA, // 11 Blue
+        0x835432, // 12 Brown
+        0x5E7C16, // 13 Green
+        0xB02E26, // 14 Red
+        0x1D1D21, // 15 Black
+    };
+
+    /**
+     * Match a particle's normalized RGB (0-1) to the closest vanilla DyeColor firework color index.
+     */
+    public static int lookupFireworkColorIndex(float r, float g, float b) {
+        int pr = Math.round(r * 255);
+        int pg = Math.round(g * 255);
+        int pb = Math.round(b * 255);
+        int bestIdx = 0;
+        int bestDist = Integer.MAX_VALUE;
+        for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
+            int c = DYE_FIREWORK_COLORS[i];
+            int dr = pr - ((c >> 16) & 0xFF);
+            int dg = pg - ((c >> 8) & 0xFF);
+            int db = pb - (c & 0xFF);
+            int dist = dr * dr + dg * dg + db * db;
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+        return bestIdx;
+    }
 
     // Per-block light mode: 0=Auto, 1=ForceAreaLight, 2=ForceEmissive
     public static final int LIGHT_MODE_AUTO = 0;
@@ -1008,6 +1168,18 @@ public class Options {
                 "sdrTonemappingMode", String.valueOf(tonemappingMode))));
             nativeSetTonemappingMode(tonemappingMode, false);
 
+            // Load per-tonemapper params
+            for (int m = 0; m < 8; m++) {
+                for (int p = 0; p < 8; p++) {
+                    String key = "tmParam_" + m + "_" + p;
+                    String stored = props.getProperty(key);
+                    if (stored != null) {
+                        try { tonemapParams[m][p] = Float.parseFloat(stored); } catch (NumberFormatException ignored) {}
+                    }
+                }
+            }
+            pushActiveTonemapParams();
+
             sdrTransferFunction = Math.max(0, Math.min(1, Integer.parseInt(props.getProperty(
                 "sdrTransferFunction", String.valueOf(sdrTransferFunction)))));
             nativeSetSdrTransferFunction(sdrTransferFunction, false);
@@ -1027,16 +1199,14 @@ public class Options {
             dlssDEnabled = Boolean.parseBoolean(props.getProperty("dlssDEnabled", String.valueOf(dlssDEnabled)));
 
             // Migration / consistency:
-            // - legacy upscalerMode values: 0=Off, 1=FSR3, 2=DLSS
-            // - new upscalerMode values:    0=Off, 1=DLSS
-            if (upscalerMode >= 2) {
-                upscalerMode = 1;
-            }
+            // New upscalerMode: 0=DLSS-RR, 1=FSR3, 2=Off
+            // Old configs had dlssDEnabled as the primary flag.
             if (dlssDEnabled) {
-                upscalerMode = 1;
-            } else {
-                upscalerMode = 0;
+                upscalerMode = 0; // DLSS-RR
+            } else if (upscalerMode != 2) {
+                upscalerMode = 1; // FSR3
             }
+            // upscalerMode=2 (Off) is preserved from config
 
             setMinExposure(Integer.parseInt(props.getProperty("minExposureTenK", String.valueOf(minExposureTenK))), false);
             setMaxExposure(Integer.parseInt(props.getProperty("maxExposure", String.valueOf(maxExposure))), false);
@@ -1396,6 +1566,7 @@ public class Options {
 
                 tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
                 nativeSetTonemappingMode(tonemappingMode, false);
+                pushActiveTonemapParams();
             }
 
             if (loadedOptionsVersion < 13) {
@@ -1548,6 +1719,17 @@ public class Options {
             emissionEndGateway = Float.parseFloat(props.getProperty("emissionEndGateway", String.valueOf(emissionEndGateway)));
             emissionTrialSpawner = Float.parseFloat(props.getProperty("emissionTrialSpawner", String.valueOf(emissionTrialSpawner)));
             emissionVault = Float.parseFloat(props.getProperty("emissionVault", String.valueOf(emissionVault)));
+
+            // Firework emission
+            fireworkSparkEmissionNits = Integer.parseInt(props.getProperty("fireworkSparkNits", String.valueOf(fireworkSparkEmissionNits)));
+            fireworkSparkEmission = (float) fireworkSparkEmissionNits;
+            fireworkFlashEmissionNits = Integer.parseInt(props.getProperty("fireworkFlashNits", String.valueOf(fireworkFlashEmissionNits)));
+            fireworkFlashEmission = (float) fireworkFlashEmissionNits;
+            for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
+                fireworkColorTemperatures[i] = Integer.parseInt(props.getProperty("fireworkColorTemp." + i, String.valueOf(fireworkColorTemperatures[i])));
+                fireworkColorWavelength[i] = Integer.parseInt(props.getProperty("fireworkColorWL." + i, String.valueOf(fireworkColorWavelength[i])));
+                fireworkColorPurity[i] = Integer.parseInt(props.getProperty("fireworkColorPur." + i, String.valueOf(fireworkColorPurity[i])));
+            }
 
             readEnvironmentSettings(props, loadedOptionsVersion);
 
@@ -1736,6 +1918,12 @@ public class Options {
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
+        // Save per-tonemapper params
+        for (int m = 0; m < 8; m++) {
+            for (int p = 0; p < 8; p++) {
+                props.setProperty("tmParam_" + m + "_" + p, String.valueOf(tonemapParams[m][p]));
+            }
+        }
         props.setProperty("sdrTransferFunction", String.valueOf(sdrTransferFunction));
         props.setProperty("minExposureTenK", String.valueOf(minExposureTenK));
         props.setProperty("maxExposure", String.valueOf(maxExposure));
@@ -1831,6 +2019,14 @@ public class Options {
         props.setProperty("emissionEndGateway", String.valueOf(emissionEndGateway));
         props.setProperty("emissionTrialSpawner", String.valueOf(emissionTrialSpawner));
         props.setProperty("emissionVault", String.valueOf(emissionVault));
+        // Firework emission
+        props.setProperty("fireworkSparkNits", String.valueOf(fireworkSparkEmissionNits));
+        props.setProperty("fireworkFlashNits", String.valueOf(fireworkFlashEmissionNits));
+        for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
+            props.setProperty("fireworkColorTemp." + i, String.valueOf(fireworkColorTemperatures[i]));
+            props.setProperty("fireworkColorWL." + i, String.valueOf(fireworkColorWavelength[i]));
+            props.setProperty("fireworkColorPur." + i, String.valueOf(fireworkColorPurity[i]));
+        }
         props.setProperty("environmentEditingDimension", String.valueOf(environmentEditingDimension));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.skyBrightnessPercent." + dim, String.valueOf(skyBrightnessPercent[dim]));
@@ -2413,6 +2609,14 @@ public class Options {
         emissionEnderChest = 0.5f;
         emissionCopperBulb = 1.0f;
         emissionEnchantingTable = 0.3f;
+        // Firework emission defaults
+        fireworkSparkEmissionNits = 20;
+        fireworkSparkEmission = 20.0f;
+        fireworkFlashEmissionNits = 2000;
+        fireworkFlashEmission = 2000.0f;
+        System.arraycopy(FIREWORK_COLOR_TEMP_DEFAULTS, 0, fireworkColorTemperatures, 0, FIREWORK_COLOR_COUNT);
+        System.arraycopy(FIREWORK_WAVELENGTH_DEFAULTS, 0, fireworkColorWavelength, 0, FIREWORK_COLOR_COUNT);
+        System.arraycopy(FIREWORK_PURITY_DEFAULTS, 0, fireworkColorPurity, 0, FIREWORK_COLOR_COUNT);
         outputScale2x = false;
         reflexEnabled = false;
         reflexBoost = false;
@@ -2554,7 +2758,8 @@ public class Options {
         nativeSetPsychoAdaptContrast(psychoAdaptContrastPercent / 100.0f, false);
         nativeSetPsychoWhiteCurve(psychoWhiteCurve, false);
         nativeSetPsychoConeExponent(psychoConeExponentPercent / 100.0f, false);
-
+        initTonemapDefaults();
+        pushActiveTonemapParams();
         overwriteConfig();
     }
 
@@ -2646,6 +2851,8 @@ public class Options {
 
     public native static void nativeSetTonemappingMode(int mode, boolean write);
 
+    public native static void nativeSetTonemapParam(int index, float value, boolean write);
+
     public native static void nativeSetSdrTransferFunction(int mode, boolean write);
 
     public static void setSdrTransferFunction(int mode, boolean write) {
@@ -2662,20 +2869,37 @@ public class Options {
         Options.tonemappingMode = clampedMode;
         Options.sdrTonemappingMode = clampedMode;
         nativeSetTonemappingMode(clampedMode, write);
+        pushActiveTonemapParams();
         if (write) {
             overwriteConfig();
         }
     }
 
-    public static void setUpscalerMode(int mode, boolean write) {
-        int clamped = Math.max(0, Math.min(1, mode));
+    public static void setTonemapParam(int mode, int paramIndex, float value, boolean write) {
+        if (mode < 0 || mode > 7 || paramIndex < 0 || paramIndex > 7) return;
+        tonemapParams[mode][paramIndex] = value;
+        if (mode == tonemappingMode) {
+            nativeSetTonemapParam(paramIndex, value, write);
+        }
+        if (write) overwriteConfig();
+    }
 
-        if (clamped == 1) {
+    public static void pushActiveTonemapParams() {
+        for (int i = 0; i < 8; i++) {
+            nativeSetTonemapParam(i, tonemapParams[tonemappingMode][i], false);
+        }
+    }
+
+    // Upscaler modes: 0=DLSS-RR, 1=FSR3, 2=Off
+    public static void setUpscalerMode(int mode, boolean write) {
+        int clamped = Math.max(0, Math.min(2, mode));
+
+        if (clamped == 0) {
             try {
                 if (!Pipeline.isNativeModuleAvailable("render_pipeline.module.dlss.name")) {
                     RadianceClient.LOGGER.warn(
-                        "DLSS requested but DLSS module is not available; disabling.");
-                    clamped = 0;
+                        "DLSS requested but DLSS module is not available; falling back to FSR3.");
+                    clamped = 1;
                 }
             } catch (UnsatisfiedLinkError ignored) {
                 // Native not loaded yet; keep requested value.
@@ -2683,7 +2907,7 @@ public class Options {
         }
 
         Options.upscalerMode = clamped;
-        Options.dlssDEnabled = (clamped == 1);
+        Options.dlssDEnabled = (clamped == 0);
 
         if (isDevLoggingEnabled()) {
             RadianceClient.LOGGER.info("Upscaler mode set to {} (dlssDEnabled={})", Options.upscalerMode,
@@ -2746,7 +2970,7 @@ public class Options {
     }
 
     public static void setDlssDEnabled(boolean enabled, boolean write) {
-        setUpscalerMode(enabled ? 1 : 0, write);
+        setUpscalerMode(enabled ? 0 : 1, write);
     }
 
     public native static void nativeSetRayBounces(int bounces, boolean write);
@@ -3630,6 +3854,8 @@ public class Options {
     public native static void nativeSetPsychoWhiteCurve(int value, boolean write);
     public native static void nativeSetPsychoConeExponent(float value, boolean write);
 
+    // SDR dual-stage tonemapping
+
     public static void setPsychoEnabled(boolean enabled, boolean write) {
         Options.psychoEnabled = enabled;
         nativeSetPsychoEnabled(enabled, write);
@@ -3732,6 +3958,7 @@ public class Options {
         if (!enabled) {
             tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
             nativeSetTonemappingMode(tonemappingMode, false);
+            pushActiveTonemapParams();
         }
 
         if (write) {
