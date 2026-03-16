@@ -27,7 +27,7 @@ public class WideOptionListWidget extends OptionListWidget {
 
     @Override
     public int getRowWidth() {
-        return getWidth() - 40;
+        return Math.min(600, getWidth() - 40);
     }
 
     @Override

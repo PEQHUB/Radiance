@@ -43,5 +43,14 @@ public class RayTracingPopulator implements ContentPopulator {
             Options.SIMPLIFIED_INDIRECT_KEY, Options.simplifiedIndirect,
             value -> Options.setSimplifiedIndirect(value, true));
         section.addTwoWidgets(ommBakerLevel.createWidget(gameOptions), simplifiedIndirect.createWidget(gameOptions));
+
+        SimpleOption<Boolean> multiScatterGGX = SimpleOption.ofBoolean(
+            Options.MULTI_SCATTER_GGX_KEY, Options.multiScatterGGX,
+            value -> Options.setMultiScatterGGX(value, true));
+
+        SimpleOption<Boolean> eonDiffuse = SimpleOption.ofBoolean(
+            Options.EON_DIFFUSE_KEY, Options.eonDiffuse,
+            value -> Options.setEonDiffuse(value, true));
+        section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions));
     }
 }

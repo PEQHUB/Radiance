@@ -62,6 +62,10 @@ public class RendererProxy {
     public static native void nativeSetWindowPos(int x, int y);
     public static native void nativeSetWindowSize(int width, int height);
 
+    // GPU profiler: returns "ModuleName:ms,...,TOTAL:ms" or "" if disabled
+    public static native String nativeGetGpuProfile();
+    public static native void nativeSetGpuProfileEnabled(boolean enabled);
+
     public static native void shouldRenderWorld(boolean renderWorld);
 
     public static native void takeScreenshot(boolean withUI, int width, int height, int channel,

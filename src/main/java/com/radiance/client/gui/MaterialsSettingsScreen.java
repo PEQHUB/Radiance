@@ -244,24 +244,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
     @Override
     protected void init() {
-        // Apply Radiance fixed scaling
-        {
-            var window = this.client.getWindow();
-            var accessor = (com.radiance.mixins.vulkan_render_integration.WindowAccessorMixin) (Object) window;
-            double origScale = accessor.radiance$getScaleFactor();
-            int pixelWidth = window.getWidth();
-            double radianceScale = Math.max(1.0, Math.round((double) pixelWidth / 900.0));
-            if (RadianceSettingsScreen.savedScaleFactor < 0) {
-                RadianceSettingsScreen.savedScaleFactor = origScale;
-                RadianceSettingsScreen.savedScaledWidth = accessor.radiance$getScaledWidth();
-                RadianceSettingsScreen.savedScaledHeight = accessor.radiance$getScaledHeight();
-            }
-            accessor.radiance$setScaleFactor(radianceScale);
-            accessor.radiance$setScaledWidth((int) Math.ceil((double) pixelWidth / radianceScale));
-            accessor.radiance$setScaledHeight((int) Math.ceil((double) window.getHeight() / radianceScale));
-            this.width = accessor.radiance$getScaledWidth();
-            this.height = accessor.radiance$getScaledHeight();
-        }
+        applyRadianceScale();
         super.init();
         // Shift body down to make room for search field
         this.body.setY(this.body.getY() + 22);
@@ -328,19 +311,23 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         if (currentBlockIndex < blocks.length) {
             Block iconBlock = blocks[currentBlockIndex].getPrimaryBlock();
             if (iconBlock != null) {
-                RadianceBlockIcon.drawBlockIcon(context, iconBlock, this.width / 2 + 120, 18, 64);
+                int rowW = Math.min(600, this.width - 40);
+                int rowRight = (this.width + rowW) / 2;
+                RadianceBlockIcon.drawBlockIcon(context, iconBlock, rowRight - 56, 18, 48);
             }
         }
 
         // Auto-PBR channel preview panel (Cinema 4D / Blender style)
         if (previewsRegistered) {
-            int thumbSize = 48;
-            int gap = 4;
-            int padding = 6;
+            int thumbSize = 36;
+            int gap = 3;
+            int padding = 4;
             int labelH = 10;
             int totalW = thumbSize * 4 + gap * 3 + padding * 2;
             int totalH = thumbSize + labelH + padding * 2 + 2;
-            int panelX = this.width - totalW - 6;
+            int contentRowW = Math.min(600, this.width - 40);
+            int contentRight = (this.width + contentRowW) / 2;
+            int panelX = contentRight - totalW;
             int panelY = this.body.getY() + 4;
             var tr = this.textRenderer;
 
@@ -381,9 +368,11 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         if (RadianceTheme.handleBreadcrumbClick(mouseX, mouseY, parentScreen)) return true;
         // Handle preview thumbnail clicks
         if (previewsRegistered) {
-            int thumbSize = 48, gap = 4, padding = 6, labelH = 10;
+            int thumbSize = 36, gap = 3, padding = 4, labelH = 10;
             int totalW = thumbSize * 4 + gap * 3 + padding * 2;
-            int panelX = this.width - totalW - 6;
+            int clickContentRowW = Math.min(600, this.width - 40);
+            int clickContentRight = (this.width + clickContentRowW) / 2;
+            int panelX = clickContentRight - totalW;
             int panelY = this.body.getY() + 4;
             int tx = panelX + padding;
             int ty = panelY + padding;
@@ -506,11 +495,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 pack.name = "All Materials";
                 MaterialFileManager.savePack(pack, "all-materials");
             }).width(100).build());
-        footer.add(ButtonWidget.builder(
-            Text.translatable("radiance.materials.importPack"), btn -> {
-                MinecraftClient.getInstance().setScreen(
-                    new MaterialBrowserScreen(this, MaterialBrowserScreen.TAB_PACKS));
-            }).width(100).build());
         this.layout.addFooter(footer);
     }
 
@@ -533,6 +517,33 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         } else {
             MinecraftClient.getInstance().setScreen(new MaterialsSettingsScreen(parentScreen));
         }
+    }
+
+    @Override
+    protected void refreshWidgetPositions() {
+        // Screen.init(client, w, h) skips init() when screenInitialized=true
+        // and calls refreshWidgetPositions() instead. Re-apply Radiance scaling
+        // before the layout refresh so the body gets the correct dimensions.
+        applyRadianceScale();
+        super.refreshWidgetPositions();
+    }
+
+    /** Apply Radiance fixed scaling to the screen dimensions. */
+    private void applyRadianceScale() {
+        var window = this.client.getWindow();
+        var accessor = (com.radiance.mixins.vulkan_render_integration.WindowAccessorMixin) (Object) window;
+        int pixelWidth = window.getWidth();
+        double radianceScale = Math.max(1.0, Math.round((double) pixelWidth / 900.0));
+        if (RadianceSettingsScreen.savedScaleFactor < 0) {
+            RadianceSettingsScreen.savedScaleFactor = accessor.radiance$getScaleFactor();
+            RadianceSettingsScreen.savedScaledWidth = accessor.radiance$getScaledWidth();
+            RadianceSettingsScreen.savedScaledHeight = accessor.radiance$getScaledHeight();
+        }
+        accessor.radiance$setScaleFactor(radianceScale);
+        accessor.radiance$setScaledWidth((int) Math.ceil((double) pixelWidth / radianceScale));
+        accessor.radiance$setScaledHeight((int) Math.ceil((double) window.getHeight() / radianceScale));
+        this.width = accessor.radiance$getScaledWidth();
+        this.height = accessor.radiance$getScaledHeight();
     }
 
     @Override
@@ -733,9 +744,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         ButtonWidget pasteBtn = ButtonWidget.builder(Text.literal("Paste"), btn -> {
             if (MaterialClipboard.paste(idx)) rebuildSelf();
         }).width(70).build();
-        ButtonWidget browserBtn = ButtonWidget.builder(Text.literal("Browser"),
-            btn -> MinecraftClient.getInstance().setScreen(new MaterialBrowserScreen(this))).width(70).build();
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnButtonEntry(resetBtn, copyBtn, pasteBtn, browserBtn, body));
+        this.body.addEntry(new RadianceSettingsScreen.FourColumnButtonEntry(resetBtn, copyBtn, pasteBtn, null, body));
 
         // === Presets (one-click metal setup) ===
         MetalPreset[] presets = MetalPreset.values();

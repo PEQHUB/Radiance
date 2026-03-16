@@ -204,6 +204,12 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
     }
 
     @Override
+    protected void refreshWidgetPositions() {
+        applyRadianceScale();
+        super.refreshWidgetPositions();
+    }
+
+    @Override
     public void removed() {
         super.removed();
         // Restore scale when leaving Radiance screens (but not when navigating between them)
@@ -830,12 +836,20 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
                     slot++;
                 }
             } else {
-                // 4-column layout (original)
-                int sw = Math.min(100, entryWidth / 4 - 10);
-                renderSlot(s0, x, y, entryWidth, sw, 1, mouseX, mouseY, tickDelta, context);
-                renderSlot(s1, x, y, entryWidth, sw, 3, mouseX, mouseY, tickDelta, context);
-                renderSlot(s2, x, y, entryWidth, sw, 5, mouseX, mouseY, tickDelta, context);
-                renderSlot(s3, x, y, entryWidth, sw, 7, mouseX, mouseY, tickDelta, context);
+                // 4-column layout — even spacing with small gaps
+                int gap = 4;
+                int colW = (entryWidth - gap * 3) / 4;
+                ResettableSliderWidget[] slots = {s0, s1, s2, s3};
+                int sx = x;
+                for (ResettableSliderWidget s : slots) {
+                    if (s != null) {
+                        s.setX(sx);
+                        s.setY(y);
+                        s.setWidth(colW);
+                        s.render(context, mouseX, mouseY, tickDelta);
+                    }
+                    sx += colW + gap;
+                }
             }
         }
 

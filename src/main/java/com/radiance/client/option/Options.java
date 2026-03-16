@@ -175,6 +175,8 @@ public class Options {
     public static final String OMM_ENABLED_KEY = "options.video.omm_enabled";
     public static final String OMM_BAKER_LEVEL_KEY = "options.video.omm_baker_level";
     public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
+    public static final String MULTI_SCATTER_GGX_KEY = "options.video.multi_scatter_ggx";
+    public static final String EON_DIFFUSE_KEY = "options.video.eon_diffuse";
     public static final String SHARC_ENABLED_KEY = "options.video.sharc_enabled";
     public static final String SHARC_SCENE_SCALE_KEY = "options.video.sharc_scene_scale";
     public static final String SHARC_ROUGHNESS_THRESHOLD_KEY = "options.video.sharc_roughness_threshold";
@@ -232,6 +234,8 @@ public class Options {
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
     public static boolean noiseLOD = true;  // Noise quality LOD (default ON for performance)
+    public static boolean multiScatterGGX = true;  // Kulla-Conty multi-scatter GGX energy compensation
+    public static boolean eonDiffuse = true;        // EON energy-preserving rough diffuse BRDF
 
     // Window persistence
     public static int windowPosX = -1;  // -1 = not set (use OS default)
@@ -1054,6 +1058,10 @@ public class Options {
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
             noiseLOD = Boolean.parseBoolean(props.getProperty("noiseLOD", String.valueOf(noiseLOD)));
             try { nativeSetNoiseLOD(noiseLOD, false); } catch (UnsatisfiedLinkError ignored) {}
+            multiScatterGGX = Boolean.parseBoolean(props.getProperty("multiScatterGGX", String.valueOf(multiScatterGGX)));
+            try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
+            eonDiffuse = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(eonDiffuse)));
+            try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
 
             windowPosX = Integer.parseInt(props.getProperty("windowPosX", String.valueOf(windowPosX)));
             windowPosY = Integer.parseInt(props.getProperty("windowPosY", String.valueOf(windowPosY)));
@@ -1567,6 +1575,8 @@ public class Options {
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
         props.setProperty("noiseLOD", String.valueOf(noiseLOD));
+        props.setProperty("multiScatterGGX", String.valueOf(multiScatterGGX));
+        props.setProperty("eonDiffuse", String.valueOf(eonDiffuse));
         // Save current window position/size via LWJGL — only if restore succeeded
         // (prevents PrismLauncher's default centered position from overwriting saved values after a crash)
         if (windowRestoreSucceeded) {
@@ -2458,6 +2468,8 @@ public class Options {
         nativeSetOMMEnabled(ommEnabled, false);
         nativeSetOMMBakerLevel(ommBakerLevel, false);
         nativeSetSimplifiedIndirect(simplifiedIndirect, false);
+        try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
+        try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
         nativeSetSharcEnabled(sharcEnabled, false);
         nativeSetSharcSceneScale(sharcSceneScaleTenths / 10.0f, false);
         nativeSetSharcRoughnessThreshold(sharcRoughnessThresholdPercent / 100.0f, false);
@@ -2787,6 +2799,28 @@ public class Options {
     public static void setNoiseLOD(boolean enabled, boolean write) {
         Options.noiseLOD = enabled;
         try { nativeSetNoiseLOD(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Multi-Scatter GGX ---
+    public native static void nativeSetMultiScatterGGX(boolean enabled, boolean write);
+
+    public static void setMultiScatterGGX(boolean enabled, boolean write) {
+        Options.multiScatterGGX = enabled;
+        try { nativeSetMultiScatterGGX(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- EON Diffuse ---
+    public native static void nativeSetEonDiffuse(boolean enabled, boolean write);
+
+    public static void setEonDiffuse(boolean enabled, boolean write) {
+        Options.eonDiffuse = enabled;
+        try { nativeSetEonDiffuse(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) {
             overwriteConfig();
         }

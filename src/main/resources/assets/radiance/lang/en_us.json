@@ -12,6 +12,8 @@
   "options.video.pom_enabled": "Parallax Occlusion Mapping",
   "options.video.omm_baker_level": "OMM Subdivision Level",
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
+  "options.video.multi_scatter_ggx": "Multi-Scatter GGX",
+  "options.video.eon_diffuse": "EON Diffuse",
   "options.video.category.sharc": "SHARC Radiance Cache",
   "options.video.sharc_enabled": "SHARC Enabled",
   "options.video.sharc_scene_scale": "Grid Scene Scale",
