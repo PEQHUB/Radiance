@@ -43,7 +43,7 @@ public class UpscalerPopulator implements ContentPopulator {
 
         // Controls shown for DLSS-RR and FSR3
         if (Options.upscalerMode != 2) {
-            // Row 2: Quality preset + RR Model (DLSS-RR) or Quality solo (FSR3)
+            // Row 2: Quality preset dropdown + RR Model (DLSS) or solo (FSR)
             String[] qualityNames = {"Performance", "Balanced", "Quality", "Native", "Custom"};
             CyclingButtonWidget<Integer> qualityBtn = CyclingButtonWidget.<Integer>builder(
                     (value) -> Text.literal(qualityNames[value]))
@@ -51,6 +51,7 @@ public class UpscalerPopulator implements ContentPopulator {
                 .initially(Options.upscalerQuality)
                 .build(0, 0, 150, 20, Text.translatable(Options.UPSCALER_QUALITY_KEY), (btn, value) -> {
                     Options.setUpscalerQuality(value, true);
+                    screen.refreshContent(); // show/hide resolution slider
                 });
 
             if (Options.upscalerMode == 0) {
@@ -66,11 +67,13 @@ public class UpscalerPopulator implements ContentPopulator {
                 section.addToggle(qualityBtn);
             }
 
-            // Row 3: Resolution override — always-visible full-width slider
-            section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                33, 100, Options.upscalerResOverride, 67,
-                v -> getGenericValueText(Text.translatable(Options.UPSCALER_RES_OVERRIDE_KEY), Text.literal(v + "%")),
-                v -> Options.setUpscalerResOverride(v, true)));
+            // Row 3: Resolution override — only visible when Custom quality selected
+            if (Options.upscalerQuality == 4) {
+                section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+                    33, 100, Options.upscalerResOverride, 67,
+                    v -> getGenericValueText(Text.translatable(Options.UPSCALER_RES_OVERRIDE_KEY), Text.literal(v + "%")),
+                    v -> Options.setUpscalerResOverride(v, true)));
+            }
         }
 
         // Sharpener dropdown + 4xSSAA toggle (two click controls paired)

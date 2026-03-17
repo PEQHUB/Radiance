@@ -3,6 +3,7 @@ package com.radiance.client.gui.unified.populators;
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.mojang.serialization.Codec;
+import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
@@ -35,5 +36,43 @@ public class WindowPopulator implements ContentPopulator {
         SimpleOption<Boolean> enableVsync = SimpleOption.ofBoolean("options.vsync", Options.vsync,
             value -> Options.setVsync(value, true));
         section.addTwoWidgets(maxFps.createWidget(gameOptions), enableVsync.createWidget(gameOptions));
+
+        // Window dimensions — width and height sliders
+        var window = mc.getWindow();
+        int currentW = window.getWidth();
+        int currentH = window.getHeight();
+
+        ResettableSliderWidget widthSlider = new ResettableSliderWidget(0, 0, 150, 20,
+            640, 3840, currentW, 1920,
+            v -> getGenericValueText(Text.literal("Width"), Text.literal(v + "px")),
+            v -> applyWindowSize(v, -1));
+
+        ResettableSliderWidget heightSlider = new ResettableSliderWidget(0, 0, 150, 20,
+            360, 2160, currentH, 1080,
+            v -> getGenericValueText(Text.literal("Height"), Text.literal(v + "px")),
+            v -> applyWindowSize(-1, v));
+
+        section.addTwoSliders(widthSlider, heightSlider);
+
+        // Fullscreen toggle
+        SimpleOption<Boolean> fullscreen = SimpleOption.ofBoolean("options.fullscreen",
+            mc.getWindow().isFullscreen(),
+            value -> mc.getWindow().toggleFullscreen());
+        section.addToggle(fullscreen.createWidget(gameOptions));
+    }
+
+    private static void applyWindowSize(int width, int height) {
+        var mc = MinecraftClient.getInstance();
+        var window = mc.getWindow();
+        if (window.isFullscreen()) return;
+
+        int w = width > 0 ? width : window.getWidth();
+        int h = height > 0 ? height : window.getHeight();
+
+        long handle = window.getHandle();
+        org.lwjgl.glfw.GLFW.glfwSetWindowSize(handle, w, h);
+        Options.windowWidth = w;
+        Options.windowHeight = h;
+        Options.overwriteConfig();
     }
 }
