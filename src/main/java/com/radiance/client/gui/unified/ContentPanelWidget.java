@@ -2,6 +2,7 @@ package com.radiance.client.gui.unified;
 
 import com.radiance.client.gui.MaterialDropdownWidget;
 import com.radiance.client.gui.RadianceTheme;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.DrawContext;
@@ -172,6 +173,7 @@ public class ContentPanelWidget extends ClickableWidget {
 
         // Render dropdown overlays OUTSIDE scissor so they aren't clipped
         MaterialDropdownWidget.renderAllOverlays(context, mouseX, mouseY);
+        SelectionDropdownWidget.renderAllOverlays(context, mouseX, mouseY);
     }
 
     // ── Input handling ──
@@ -183,6 +185,9 @@ public class ContentPanelWidget extends ClickableWidget {
 
         // Intercept clicks on open dropdown overlays before row-bounded routing
         if (MaterialDropdownWidget.handleOverlayClick(mouseX, mouseY, button)) {
+            return true;
+        }
+        if (SelectionDropdownWidget.handleOverlayClick(mouseX, mouseY, button)) {
             return true;
         }
 

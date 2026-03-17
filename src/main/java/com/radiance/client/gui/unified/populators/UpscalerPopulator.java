@@ -5,8 +5,8 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 import com.radiance.client.RadianceClient;
 import com.radiance.client.gui.DlssMissingScreen;
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
-import com.radiance.client.gui.unified.rows.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.widget.ButtonWidget;
@@ -29,42 +29,49 @@ public class UpscalerPopulator implements ContentPopulator {
                 .width(150).build());
         }
 
-        // Row 1: Upscaler mode (solo — pairs poorly with anything else)
-        String[] upscalerModeNames = {"DLSS-RR", "FSR3", "Off"};
-        CyclingButtonWidget<Integer> upscalerModeBtn = CyclingButtonWidget.<Integer>builder(
-                (value) -> Text.literal(upscalerModeNames[value]))
-            .values(0, 1, 2)
-            .initially(Options.upscalerMode)
-            .build(0, 0, 150, 20, Text.translatable(Options.UPSCALER_MODE_KEY), (btn, value) -> {
+        // Row 1: Upscaler mode dropdown + DLSS-D toggle (two click controls paired)
+        SelectionDropdownWidget upscalerModeDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Upscaler",
+            new String[]{"DLSS-RR", "FSR3", "Off"},
+            Options.upscalerMode, value -> {
                 Options.setUpscalerMode(value, true);
                 screen.refreshContent();
             });
-        section.addToggle(upscalerModeBtn);
+
+        SimpleOption<Boolean> dlssDToggle = SimpleOption.ofBoolean(
+            "options.video.dlss_d_enabled", Options.dlssDEnabled,
+            value -> Options.setDlssDEnabled(value, true));
+
+        section.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions));
 
         // Controls shown for DLSS-RR and FSR3
         if (Options.upscalerMode != 2) {
-            // Row 2: Quality preset dropdown + RR Model (DLSS) or solo (FSR)
-            String[] qualityNames = {"Performance", "Balanced", "Quality", "Native", "Custom"};
-            CyclingButtonWidget<Integer> qualityBtn = CyclingButtonWidget.<Integer>builder(
-                    (value) -> Text.literal(qualityNames[value]))
-                .values(0, 1, 2, 3, 4)
-                .initially(Options.upscalerQuality)
-                .build(0, 0, 150, 20, Text.translatable(Options.UPSCALER_QUALITY_KEY), (btn, value) -> {
+            // Row 2: Quality preset dropdown (+ RR Model for DLSS)
+            SelectionDropdownWidget qualityDropdown = new SelectionDropdownWidget(
+                0, 0, 150, 20, "Quality",
+                new String[]{"Performance", "Balanced", "Quality", "Native", "Custom"},
+                Options.upscalerQuality, value -> {
                     Options.setUpscalerQuality(value, true);
-                    screen.refreshContent(); // show/hide resolution slider
+                    screen.refreshContent();
                 });
 
             if (Options.upscalerMode == 0) {
-                CyclingButtonWidget<Integer> presetBtn = CyclingButtonWidget.<Integer>builder(
-                        (value) -> Text.literal(value == 4 ? "D" : "E"))
-                    .values(4, 5)
-                    .initially(Options.upscalerPreset)
-                    .build(0, 0, 150, 20, Text.literal("RR Model"), (btn, value) -> {
-                        Options.setUpscalerPreset(value, true);
+                // DLSS-RR: pair quality dropdown with RR model dropdown
+                SelectionDropdownWidget presetDropdown = new SelectionDropdownWidget(
+                    0, 0, 150, 20, "RR Model",
+                    new String[]{"Model D", "Model E"},
+                    Options.upscalerPreset == 5 ? 1 : 0, value -> {
+                        Options.setUpscalerPreset(value == 1 ? 5 : 4, true);
                     });
-                section.addTwoWidgets(qualityBtn, presetBtn);
+                section.addTwoWidgets(qualityDropdown, presetDropdown);
             } else {
-                section.addToggle(qualityBtn);
+                // FSR3: quality dropdown paired with 4xSSAA toggle
+                SimpleOption<Boolean> ssaa4x = SimpleOption.ofBoolean(
+                    Options.OUTPUT_SCALE_2X_KEY,
+                    SimpleOption.constantTooltip(Text.translatable("options.video.output_scale_2x.tooltip")),
+                    Options.outputScale2x,
+                    value -> Options.setOutputScale2x(value, true));
+                section.addTwoWidgets(qualityDropdown, ssaa4x.createWidget(gameOptions));
             }
 
             // Row 3: Resolution override — only visible when Custom quality selected
@@ -76,24 +83,27 @@ public class UpscalerPopulator implements ContentPopulator {
             }
         }
 
-        // Sharpener dropdown + 4xSSAA toggle (two click controls paired)
-        String[] sharpenerNames = {"None", "CAS", "RCAS"};
-        CyclingButtonWidget<Integer> sharpenerBtn = CyclingButtonWidget.<Integer>builder(
-                (value) -> Text.literal(sharpenerNames[value]))
-            .values(0, 1, 2)
-            .initially(Options.sharpenerMode)
-            .build(0, 0, 150, 20, Text.translatable(Options.SHARPENER_MODE_KEY), (btn, value) -> {
+        // Sharpener dropdown + 4xSSAA toggle (DLSS path) or solo (FSR already paired above)
+        SelectionDropdownWidget sharpenerDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Sharpener",
+            new String[]{"None", "CAS", "RCAS"},
+            Options.sharpenerMode, value -> {
                 Options.setSharpenerMode(value, true);
                 screen.refreshContent();
             });
 
-        SimpleOption<Boolean> ssaa4x = SimpleOption.ofBoolean(
-            Options.OUTPUT_SCALE_2X_KEY,
-            SimpleOption.constantTooltip(Text.translatable("options.video.output_scale_2x.tooltip")),
-            Options.outputScale2x,
-            value -> Options.setOutputScale2x(value, true));
-
-        section.addTwoWidgets(sharpenerBtn, ssaa4x.createWidget(gameOptions));
+        if (Options.upscalerMode == 0) {
+            // DLSS path: pair sharpener with 4xSSAA
+            SimpleOption<Boolean> ssaa4x = SimpleOption.ofBoolean(
+                Options.OUTPUT_SCALE_2X_KEY,
+                SimpleOption.constantTooltip(Text.translatable("options.video.output_scale_2x.tooltip")),
+                Options.outputScale2x,
+                value -> Options.setOutputScale2x(value, true));
+            section.addTwoWidgets(sharpenerDropdown, ssaa4x.createWidget(gameOptions));
+        } else {
+            // FSR/Off path: pair sharpener with something else or solo
+            section.addTwoWidgets(sharpenerDropdown, null);
+        }
 
         // Sharpness slider (conditional — only when sharpener is active)
         if (Options.sharpenerMode != 0) {
