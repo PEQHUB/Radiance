@@ -33,10 +33,10 @@ public class BlockEmissionPopulator implements ContentPopulator {
                 mat, waveSync,
                 EmissionWidgetFactory.makePuritySlider(block)));
 
-            // Row 2: [Gamut Boost | Even Glow]
-            section.addTwoWidgets(
-                EmissionWidgetFactory.makeGamutBoostSlider(block),
-                EmissionWidgetFactory.makeEvenGlowToggle(block));
+            // Row 2: Gamut boost slider (full width)
+            section.addSlider(EmissionWidgetFactory.makeGamutBoostSlider(block));
+            // Row 3: Even glow toggle (solo)
+            section.addToggle(EmissionWidgetFactory.makeEvenGlowToggle(block));
         }
     }
 }

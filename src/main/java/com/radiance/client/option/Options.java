@@ -230,7 +230,7 @@ public class Options {
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
     public static int upscalerResOverride = 99; // 33-100%
     public static boolean dlssDEnabled = true;
-    public static int rayBounces = 32;
+    public static int rayBounces = 12;
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
     public static boolean simplifiedIndirect = false;
@@ -291,7 +291,7 @@ public class Options {
     // Offline preferences (persisted)
     public static boolean offlineGroundTruth = false; // unbiased path tracing mode
     // Individual shader quality toggles (controlled by Ground Truth preset or independently)
-    public static boolean beerLawShadows = false;
+    public static boolean beerLawShadows = true;
     public static boolean noEmissionClamp = false;
     public static boolean physicalSunDisk = true;
     public static boolean noHandAmbient = false;
@@ -946,10 +946,11 @@ public class Options {
         materialGamutBoost[MaterialBlock.EMERALD_BLOCK.ordinal()] = 142;
         materialTextureBlend[MaterialBlock.EMERALD_BLOCK.ordinal()] = 1;
         materialCoatRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
-        // emerald: no inversion flags needed (base convention is correct)
         materialAutoPBRNormalStrength[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMin[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.EMERALD_BLOCK.ordinal()] = 100;
+        materialAutoPBRRoughnessMin[MaterialBlock.EMERALD_BLOCK.ordinal()] = 10;
+        materialAutoPBRRoughnessMax[MaterialBlock.EMERALD_BLOCK.ordinal()] = 18;
+        materialAutoPBRFlags[MaterialBlock.EMERALD_BLOCK.ordinal()] = 2; // invertNormal
+        materialPercentileSpread[MaterialBlock.EMERALD_BLOCK.ordinal()] = 100;
         materialNormalStrength[MaterialBlock.EMERALD_BLOCK.ordinal()] = 200;
 
         materialRoughness[MaterialBlock.OBSIDIAN.ordinal()] = 0;
@@ -962,9 +963,11 @@ public class Options {
         materialRoughness[MaterialBlock.HONEY_MAT.ordinal()] = 0;
         materialTransmission[MaterialBlock.HONEY_MAT.ordinal()] = 1000;
         materialTextureBlend[MaterialBlock.HONEY_MAT.ordinal()] = 8;
-        materialAutoPBRFlags[MaterialBlock.HONEY_MAT.ordinal()] = 1; // invertRoughness
         materialAutoPBRNormalStrength[MaterialBlock.HONEY_MAT.ordinal()] = 0;
         materialAutoPBRRoughnessMin[MaterialBlock.HONEY_MAT.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.HONEY_MAT.ordinal()] = 100;
+        materialPercentileCenter[MaterialBlock.HONEY_MAT.ordinal()] = 0;
+        materialPercentileSpread[MaterialBlock.HONEY_MAT.ordinal()] = 100;
 
         materialRoughness[MaterialBlock.ICE.ordinal()] = 0;
         materialCoatRoughness[MaterialBlock.ICE.ordinal()] = 28;
@@ -986,9 +989,11 @@ public class Options {
         materialCoatRoughness[MaterialBlock.WATER_MAT.ordinal()] = 0;
         materialTransmission[MaterialBlock.WATER_MAT.ordinal()] = 1000;
         materialTextureBlend[MaterialBlock.WATER_MAT.ordinal()] = 1;
-        materialAutoPBRFlags[MaterialBlock.WATER_MAT.ordinal()] = 1; // invertRoughness
+        materialAutoPBRFlags[MaterialBlock.WATER_MAT.ordinal()] = 3; // invertRoughness + invertNormal
         materialAutoPBRRoughnessMin[MaterialBlock.WATER_MAT.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.WATER_MAT.ordinal()] = 30;
+        materialAutoPBRRoughnessMax[MaterialBlock.WATER_MAT.ordinal()] = 100;
+        materialAutoPBRNormalStrength[MaterialBlock.WATER_MAT.ordinal()] = 1;
+        materialAutoPBREdgeWeight[MaterialBlock.WATER_MAT.ordinal()] = 100;
 
         // Stones: slight metallic sparkle
         for (MaterialBlock mb : new MaterialBlock[]{
@@ -1014,8 +1019,9 @@ public class Options {
         materialIOR[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1127;
         materialGamutBoost[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 143;
         materialAutoPBRNormalStrength[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMin[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 100;
+        materialAutoPBRRoughnessMin[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 10;
+        materialAutoPBRRoughnessMax[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 44;
+        materialAutoPBRFlags[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1; // invertRoughness
 
         // Special blocks
         materialF0R[MaterialBlock.DIRT_MAT.ordinal()] = 2;
@@ -1033,6 +1039,141 @@ public class Options {
 
         materialGamutBoost[MaterialBlock.SAND_MAT.ordinal()] = 142;
         materialGamutBoost[MaterialBlock.WOOL_MAT.ordinal()] = 142;
+
+        // ── Per-block Auto-PBR tuning (user-validated defaults) ──
+
+        // Iron family: dark = smooth, light = rough (invertNormal)
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.ANVIL, MaterialBlock.CAULDRON, MaterialBlock.CHAIN,
+                MaterialBlock.HEAVY_WEIGHTED_PRESSURE_PLATE, MaterialBlock.HOPPER,
+                MaterialBlock.IRON_BARS, MaterialBlock.IRON_BLOCK, MaterialBlock.IRON_DOOR}) {
+            int j = mb.ordinal();
+            materialAutoPBRFlags[j] = 2; // invertNormal
+            materialAutoPBRRoughnessMin[j] = 0;
+            materialAutoPBRRoughnessMax[j] = 5;
+            materialAutoPBRGamma[j] = 124;
+            materialAutoPBREdgeWeight[j] = 0;
+            materialAutoPBRVarianceWeight[j] = 0;
+            materialPercentileCenter[j] = 93;
+            materialPercentileSpread[j] = 1;
+        }
+
+        // Gold family: dark = smooth, light = rough (invertRoughness), tall height gamma
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.BELL, MaterialBlock.GOLD_BLOCK,
+                MaterialBlock.LIGHT_WEIGHTED_PRESSURE_PLATE, MaterialBlock.RAW_GOLD_BLOCK}) {
+            int j = mb.ordinal();
+            materialAutoPBRFlags[j] = 1; // invertRoughness
+            materialAutoPBRRoughnessMin[j] = 0;
+            materialAutoPBRRoughnessMax[j] = 10;
+            materialAutoPBRGamma[j] = 51;
+            materialAutoPBRHeightGamma[j] = 293;
+            materialAutoPBREdgeWeight[j] = 0;
+            materialAutoPBRVarianceWeight[j] = 0;
+            materialPercentileCenter[j] = 100;
+            materialPercentileSpread[j] = 100;
+        }
+
+        // Stone family: high roughness, no auto normals
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.STONE, MaterialBlock.COBBLESTONE_MAT, MaterialBlock.MOSSY_COBBLESTONE_MAT,
+                MaterialBlock.STONE_BRICKS_MAT, MaterialBlock.MOSSY_STONE_BRICKS_MAT, MaterialBlock.SMOOTH_STONE}) {
+            int j = mb.ordinal();
+            materialAutoPBRNormalStrength[j] = 0;
+            materialAutoPBRRoughnessMin[j] = 85;
+            materialAutoPBRRoughnessMax[j] = 100;
+        }
+
+        // Deepslate: fully rough
+        materialAutoPBRRoughnessMin[MaterialBlock.DEEPSLATE.ordinal()] = 100;
+        materialAutoPBRRoughnessMax[MaterialBlock.DEEPSLATE.ordinal()] = 100;
+
+        // Polished/raw stone variants
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.ANDESITE, MaterialBlock.POLISHED_ANDESITE}) {
+            materialAutoPBRRoughnessMin[mb.ordinal()] = 51;
+            materialAutoPBRRoughnessMax[mb.ordinal()] = 100;
+        }
+        materialAutoPBRRoughnessMin[MaterialBlock.DIORITE.ordinal()] = 51;
+        materialAutoPBRRoughnessMin[MaterialBlock.POLISHED_DIORITE.ordinal()] = 51;
+        materialAutoPBRRoughnessMin[MaterialBlock.CALCITE.ordinal()] = 52;
+        materialAutoPBRRoughnessMin[MaterialBlock.SANDSTONE_MAT.ordinal()] = 51;
+
+        // Obsidian family: glossy, high gamma, inverted roughness
+        for (MaterialBlock mb : new MaterialBlock[]{
+                MaterialBlock.OBSIDIAN, MaterialBlock.CRYING_OBSIDIAN}) {
+            int j = mb.ordinal();
+            materialAutoPBRFlags[j] = 1; // invertRoughness
+            materialAutoPBRRoughnessMin[j] = 0;
+            materialAutoPBRRoughnessMax[j] = 14;
+            materialAutoPBRGamma[j] = 500;
+            materialAutoPBRNormalStrength[j] = 100;
+            materialAutoPBREdgeWeight[j] = 0;
+            materialAutoPBRVarianceWeight[j] = 0;
+        }
+
+        // Ancient debris: narrow low-roughness band, tight percentile
+        materialAutoPBRRoughnessMin[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 9;
+        materialAutoPBRRoughnessMax[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 40;
+        materialAutoPBRGamma[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 80;
+        materialAutoPBRNormalStrength[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
+        materialAutoPBREdgeWeight[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
+        materialAutoPBRVarianceWeight[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
+        materialPercentileCenter[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 32;
+        materialPercentileSpread[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 1;
+
+        // Diamond: inverted roughness, full range
+        materialAutoPBRFlags[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 1; // invertRoughness
+        materialAutoPBRGamma[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 33;
+        materialAutoPBRRoughnessMin[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 100;
+
+        // Rail: inverted roughness + normal, full range
+        materialAutoPBRFlags[MaterialBlock.RAIL.ordinal()] = 3; // invertRoughness + invertNormal
+        materialAutoPBRRoughnessMin[MaterialBlock.RAIL.ordinal()] = 0;
+        materialAutoPBRRoughnessMax[MaterialBlock.RAIL.ordinal()] = 100;
+        materialAutoPBRGamma[MaterialBlock.RAIL.ordinal()] = 124;
+        materialAutoPBREdgeWeight[MaterialBlock.RAIL.ordinal()] = 0;
+        materialAutoPBRVarianceWeight[MaterialBlock.RAIL.ordinal()] = 0;
+        materialPercentileCenter[MaterialBlock.RAIL.ordinal()] = 100;
+        materialPercentileSpread[MaterialBlock.RAIL.ordinal()] = 73;
+
+        // Raw iron: tight percentile, low height gamma
+        materialAutoPBRRoughnessMin[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 10;
+        materialAutoPBRRoughnessMax[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 100;
+        materialAutoPBRHeightGamma[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 10;
+        materialPercentileCenter[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 57;
+        materialPercentileSpread[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 5;
+
+        // Ice: inverted roughness
+        materialAutoPBRFlags[MaterialBlock.ICE.ordinal()] = 1; // invertRoughness
+
+        // Dirt: fully rough, flat height, no normals
+        materialAutoPBRRoughnessMin[MaterialBlock.DIRT_MAT.ordinal()] = 100;
+        materialAutoPBRRoughnessMax[MaterialBlock.DIRT_MAT.ordinal()] = 99;
+        materialAutoPBRGamma[MaterialBlock.DIRT_MAT.ordinal()] = 220;
+        materialAutoPBRHeightGamma[MaterialBlock.DIRT_MAT.ordinal()] = 10;
+        materialAutoPBRNormalStrength[MaterialBlock.DIRT_MAT.ordinal()] = 0;
+        materialAutoPBREdgeWeight[MaterialBlock.DIRT_MAT.ordinal()] = 0;
+        materialAutoPBRVarianceWeight[MaterialBlock.DIRT_MAT.ordinal()] = 0;
+
+        // Sand: narrow high-roughness band
+        materialAutoPBRRoughnessMin[MaterialBlock.SAND_MAT.ordinal()] = 76;
+        materialAutoPBRRoughnessMax[MaterialBlock.SAND_MAT.ordinal()] = 85;
+
+        // Gravel, leaves, oak planks
+        materialAutoPBRRoughnessMin[MaterialBlock.GRAVEL_MAT.ordinal()] = 89;
+        materialAutoPBRRoughnessMin[MaterialBlock.LEAVES_MAT.ordinal()] = 53;
+        materialAutoPBRRoughnessMin[MaterialBlock.OAK_PLANKS.ordinal()] = 0;
+
+        // Wool: high roughness, no variance/edge, inverted roughness
+        materialAutoPBRFlags[MaterialBlock.WOOL_MAT.ordinal()] = 1; // invertRoughness
+        materialAutoPBRRoughnessMin[MaterialBlock.WOOL_MAT.ordinal()] = 95;
+        materialAutoPBRRoughnessMax[MaterialBlock.WOOL_MAT.ordinal()] = 100;
+        materialAutoPBRNormalStrength[MaterialBlock.WOOL_MAT.ordinal()] = 0;
+        materialAutoPBREdgeWeight[MaterialBlock.WOOL_MAT.ordinal()] = 0;
+        materialAutoPBRVarianceWeight[MaterialBlock.WOOL_MAT.ordinal()] = 0;
+        materialPercentileSpread[MaterialBlock.WOOL_MAT.ordinal()] = 100;
     }
 
     // Child override tracking: true = child has been independently customized, won't inherit parent changes
