@@ -35,6 +35,8 @@ import net.minecraft.client.particle.LavaEmberParticle;
 import net.minecraft.client.particle.PortalParticle;
 import net.minecraft.client.particle.EndRodParticle;
 import net.minecraft.client.particle.GlowParticle;
+import net.minecraft.particle.ParticleType;
+import net.minecraft.particle.ParticleTypes;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.ShapeContext;
 import net.minecraft.block.entity.BlockEntity;
@@ -631,6 +633,26 @@ public class EntityProxy {
     // Firework emission intensity: nits / EMISSION_REFERENCE_NITS (200.0)
     // Sparks: ~20 nits (subtle glow), Flash: ~200 nits (bright burst)
 
+    /** Maps particle type flags to Options.particleTemperatures/Wavelengths/Purities index (0-13). */
+    private static int getParticleTypeIndex(boolean isSoulFlame, boolean isCandleFlame, boolean isFlame,
+            boolean isLavaDrip, boolean isLava, boolean isPortal, boolean isEndRod,
+            boolean isEnchanting, boolean isSculk, boolean isTotem, boolean isDragonBreath, boolean isGlow) {
+        if (isFlame && !isSoulFlame && !isCandleFlame) return 0; // flame
+        if (isLava) return 1;                                      // lavaEmber
+        // 2=fireworkSpark, 3=fireworkFlash handled separately
+        if (isPortal) return 4;
+        if (isEndRod) return 5;
+        if (isGlow) return 6;
+        if (isSoulFlame) return 7;
+        if (isCandleFlame) return 8;
+        if (isEnchanting) return 9;
+        if (isSculk) return 10;
+        if (isTotem) return 11;
+        if (isDragonBreath) return 12;
+        if (isLavaDrip) return 13;
+        return 0; // fallback to flame
+    }
+
     public static void queueParticleRebuild(Camera camera, float tickDelta, Frustum frustum) {
         List<StorageVertexConsumerProvider> storageVertexConsumerProviders = new ArrayList<>();
         EntityRenderDataList renderDataList = new EntityRenderDataList();
@@ -658,13 +680,23 @@ public class EntityProxy {
                                       || particle instanceof FireworksSparkParticle.Explosion;
                     boolean isFlash = particle instanceof FireworksSparkParticle.Flash;
 
-                    // Glowing particles: flames, lava, portals, end rods, glow
+                    // Glowing particles: flames, lava, portals, end rods, glow, and new types
                     boolean isFlame = particle instanceof FlameParticle;
                     boolean isLava = particle instanceof LavaEmberParticle;
                     boolean isPortal = particle instanceof PortalParticle;
                     boolean isEndRod = particle instanceof EndRodParticle;
                     boolean isGlow = particle instanceof GlowParticle;
-                    boolean isEmissiveParticle = isFirework || isFlame || isLava || isPortal || isEndRod || isGlow;
+                    // ParticleType-based detection for particles that share base classes
+                    ParticleType<?> pType = (particle instanceof IParticleExt ext) ? ext.neoVoxelRT$getParticleType() : null;
+                    boolean isSoulFlame = pType == ParticleTypes.SOUL_FIRE_FLAME;
+                    boolean isCandleFlame = pType == ParticleTypes.SMALL_FLAME;
+                    boolean isEnchanting = pType == ParticleTypes.ENCHANT;
+                    boolean isSculk = pType == ParticleTypes.SCULK_CHARGE || pType == ParticleTypes.SCULK_CHARGE_POP;
+                    boolean isTotem = pType == ParticleTypes.TOTEM_OF_UNDYING;
+                    boolean isDragonBreath = pType == ParticleTypes.DRAGON_BREATH;
+                    boolean isLavaDrip = pType == ParticleTypes.DRIPPING_LAVA || pType == ParticleTypes.FALLING_LAVA || pType == ParticleTypes.LANDING_LAVA;
+                    boolean isNewEmissive = isSoulFlame || isCandleFlame || isEnchanting || isSculk || isTotem || isDragonBreath || isLavaDrip;
+                    boolean isEmissiveParticle = isFirework || isFlame || isLava || isPortal || isEndRod || isGlow || isNewEmissive;
 
                     StorageVertexConsumerProvider targetProvider = isEmissiveParticle
                         ? fireworkProvider : postStorageVertexConsumerProvider;
@@ -683,14 +715,28 @@ public class EntityProxy {
                             emission = Options.fireworkFlashEmission;
                         } else if (isFirework) {
                             emission = Options.fireworkSparkEmission;
+                        } else if (isSoulFlame) {
+                            emission = Options.soulFireFlameParticleEmission;
+                        } else if (isCandleFlame) {
+                            emission = Options.candleFlameParticleEmission;
                         } else if (isFlame) {
                             emission = Options.flameParticleEmission;
+                        } else if (isLavaDrip) {
+                            emission = Options.lavaDripParticleEmission;
                         } else if (isLava) {
                             emission = Options.lavaParticleEmission;
                         } else if (isPortal) {
                             emission = Options.portalParticleEmission;
                         } else if (isEndRod) {
                             emission = Options.endRodParticleEmission;
+                        } else if (isEnchanting) {
+                            emission = Options.enchantingParticleEmission;
+                        } else if (isSculk) {
+                            emission = Options.sculkParticleEmission;
+                        } else if (isTotem) {
+                            emission = Options.totemParticleEmission;
+                        } else if (isDragonBreath) {
+                            emission = Options.dragonBreathParticleEmission;
                         } else {
                             emission = Options.glowParticleEmission;
                         }
@@ -698,20 +744,34 @@ public class EntityProxy {
                             pbr.setPendingEmission(emission);
                         }
                     }
-                    if (isFirework) {
-                        // Save original color, compute spectral flame color (same as emissive blocks)
-                        IParticleExt ext = (IParticleExt) particle;
+                    // Apply spectral color to all emissive particles
+                    boolean colorOverridden = false;
+                    if (isEmissiveParticle && particle instanceof IParticleExt ext) {
                         savedR = ext.neoVoxelRT$getRed();
                         savedG = ext.neoVoxelRT$getGreen();
                         savedB = ext.neoVoxelRT$getBlue();
-                        int idx = Options.lookupFireworkColorIndex(savedR, savedG, savedB);
-                        int tempK = Options.fireworkColorTemperatures[idx];
-                        int wl = Options.fireworkColorWavelength[idx];
-                        float pur = Options.fireworkColorPurity[idx] / 100.0f;
-                        float[] bt2020 = SpectralColor.computeFlameColor(tempK, wl, pur);
-                        ext.neoVoxelRT$setRed(Math.max(0, bt2020[0]));
-                        ext.neoVoxelRT$setGreen(Math.max(0, bt2020[1]));
-                        ext.neoVoxelRT$setBlue(Math.max(0, bt2020[2]));
+                        float tempK; int wl; float pur;
+                        if (isFirework) {
+                            // Fireworks use per-dye-color system (temperatures stored as Kelvin)
+                            int idx = Options.lookupFireworkColorIndex(savedR, savedG, savedB);
+                            tempK = Options.fireworkColorTemperatures[idx];
+                            wl = Options.fireworkColorWavelength[idx];
+                            pur = Options.fireworkColorPurity[idx] / 100.0f;
+                        } else {
+                            // All other particles use per-type spectral arrays (stored as Celsius)
+                            int pIdx = getParticleTypeIndex(isSoulFlame, isCandleFlame, isFlame, isLavaDrip,
+                                isLava, isPortal, isEndRod, isEnchanting, isSculk, isTotem, isDragonBreath, isGlow);
+                            tempK = Options.particleTemperatures[pIdx] + 273.15f;
+                            wl = Options.particleWavelengths[pIdx];
+                            pur = Options.particlePurities[pIdx] / 100.0f;
+                        }
+                        if (tempK > 273.15f) {
+                            float[] bt2020 = SpectralColor.computeFlameColor(tempK, wl, pur);
+                            ext.neoVoxelRT$setRed(Math.max(0, bt2020[0]));
+                            ext.neoVoxelRT$setGreen(Math.max(0, bt2020[1]));
+                            ext.neoVoxelRT$setBlue(Math.max(0, bt2020[2]));
+                            colorOverridden = true;
+                        }
                     }
 
                     try {
@@ -721,11 +781,10 @@ public class EntityProxy {
                         particle.render(vertexConsumer, camera, effectiveTickDelta);
                         if (isEmissiveParticle) {
                             // Restore original color and clear emission
-                            if (isFirework) {
-                                IParticleExt ext = (IParticleExt) particle;
-                                ext.neoVoxelRT$setRed(savedR);
-                                ext.neoVoxelRT$setGreen(savedG);
-                                ext.neoVoxelRT$setBlue(savedB);
+                            if (colorOverridden && particle instanceof IParticleExt ext2) {
+                                ext2.neoVoxelRT$setRed(savedR);
+                                ext2.neoVoxelRT$setGreen(savedG);
+                                ext2.neoVoxelRT$setBlue(savedB);
                             }
                             if (vertexConsumer instanceof PBRVertexConsumer pbr) {
                                 pbr.setPendingEmission(0.0f);

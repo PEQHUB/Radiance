@@ -454,6 +454,7 @@ public enum MaterialBlock {
         register(Blocks.PACKED_ICE, ICE);
         register(Blocks.BLUE_ICE, ICE);
         register(Blocks.FROSTED_ICE, ICE);
+        register(Blocks.NETHER_PORTAL, ICE); // Icy portal: transmissive + refractive
 
         // Minerals
         register(Blocks.CALCITE, CALCITE);

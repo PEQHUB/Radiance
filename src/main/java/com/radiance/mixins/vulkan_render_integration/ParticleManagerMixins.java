@@ -4,6 +4,7 @@ import static com.radiance.client.proxy.world.EntityProxy.PARTICLE_COUNTERS;
 
 import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.option.Options;
+import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleExt;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleManagerExt;
 import java.util.Collection;
 import java.util.List;
@@ -89,6 +90,10 @@ public class ParticleManagerMixins implements IParticleManagerExt {
         double velocityZ,
         CallbackInfoReturnable<Particle> cir,
         @Local Particle particle) {
+        // Tag particle with its ParticleType for emission detection in EntityProxy
+        if (particle instanceof IParticleExt ext) {
+            ext.neoVoxelRT$setParticleType(parameters.getType());
+        }
         AtomicInteger counter = PARTICLE_COUNTERS.get(particle.getClass());
         if (counter != null) {
             int numParticles = counter.get();

@@ -75,7 +75,7 @@ public class InGameHudMixins {
                 String focusLabel = "[" + Options.FOCUS_MODE_NAMES[Math.min(Options.focusMode, 2)] + "] ";
                 cameraLine = focusLabel + "f/" + String.format("%.1f", Options.fStop)
                     + " " + Options.focalLengthMM + "mm"
-                    + " | Focus: " + Options.offlineFocalDistance + " blocks";
+                    + " | Focus: " + String.format("%.1f", Options.offlineFocalDistance) + " blocks";
             }
 
             // Game time
@@ -147,7 +147,7 @@ public class InGameHudMixins {
             } else if (dofActive) {
                 cameraInfo = focusModeTag + "f/" + String.format("%.1f", Options.fStop)
                     + " " + Options.focalLengthMM + "mm"
-                    + " | Focus: " + Options.offlineFocalDistance + " blocks";
+                    + " | Focus: " + String.format("%.1f", Options.offlineFocalDistance) + " blocks";
             } else {
                 cameraInfo = focusModeTag + Options.focalLengthMM + "mm | Pinhole";
             }

@@ -6,6 +6,7 @@ import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.populators.*;
 import com.radiance.client.option.Options;
+import com.radiance.client.util.EmissiveBlock;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -143,7 +144,38 @@ public class RadianceUnifiedScreen extends Screen {
         // ▼ Lighting
         TreeNode lighting = new TreeNode("lighting", "Lighting");
         lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
-        lighting.addChild(new TreeNode("emission", "Emission", new EmissionPopulator()));
+        TreeNode emission = new TreeNode("emission", "Emission");
+        emission.addChild(new TreeNode("emission_flames", "Flames",
+            new BlockEmissionPopulator("Flames",
+                EmissiveBlock.LAVA, EmissiveBlock.FIRE, EmissiveBlock.SOUL_FIRE,
+                EmissiveBlock.TORCH, EmissiveBlock.SOUL_TORCH,
+                EmissiveBlock.CAMPFIRE, EmissiveBlock.SOUL_CAMPFIRE,
+                EmissiveBlock.LANTERN, EmissiveBlock.SOUL_LANTERN)));
+        emission.addChild(new TreeNode("emission_heat", "Heat Sources",
+            new BlockEmissionPopulator("Heat Sources",
+                EmissiveBlock.MAGMA_BLOCK, EmissiveBlock.FURNACE, EmissiveBlock.BLAST_FURNACE,
+                EmissiveBlock.SMOKER, EmissiveBlock.BREWING_STAND,
+                EmissiveBlock.CANDLE, EmissiveBlock.JACK_O_LANTERN, EmissiveBlock.COPPER_BULB)));
+        emission.addChild(new TreeNode("emission_luminous", "Luminous",
+            new BlockEmissionPopulator("Luminous",
+                EmissiveBlock.GLOWSTONE, EmissiveBlock.SHROOMLIGHT, EmissiveBlock.SEA_LANTERN,
+                EmissiveBlock.FROGLIGHT, EmissiveBlock.BEACON, EmissiveBlock.END_ROD,
+                EmissiveBlock.REDSTONE_TORCH, EmissiveBlock.REDSTONE_LAMP,
+                EmissiveBlock.CAVE_VINES, EmissiveBlock.GLOW_LICHEN,
+                EmissiveBlock.AMETHYST_CLUSTER, EmissiveBlock.SEA_PICKLE,
+                EmissiveBlock.ENCHANTING_TABLE, EmissiveBlock.ENDER_CHEST)));
+        emission.addChild(new TreeNode("emission_portals", "Portals & Sculk",
+            new BlockEmissionPopulator("Portals & Sculk",
+                EmissiveBlock.NETHER_PORTAL, EmissiveBlock.END_PORTAL, EmissiveBlock.END_GATEWAY,
+                EmissiveBlock.CRYING_OBSIDIAN, EmissiveBlock.RESPAWN_ANCHOR, EmissiveBlock.CONDUIT,
+                EmissiveBlock.SCULK, EmissiveBlock.SCULK_VEIN, EmissiveBlock.SCULK_SENSOR,
+                EmissiveBlock.SCULK_CATALYST, EmissiveBlock.SCULK_SHRIEKER,
+                EmissiveBlock.CALIBRATED_SCULK_SENSOR,
+                EmissiveBlock.TRIAL_SPAWNER, EmissiveBlock.VAULT)));
+        emission.addChild(new TreeNode("emission_particles", "Particles",
+            new ParticlesEmissionPopulator()));
+        emission.populator = compositePopulator(emission.children);
+        lighting.addChild(emission);
         lighting.addChild(new TreeNode("fireworks", "Fireworks", new FireworksPopulator()));
         lighting.addChild(new TreeNode("materials", "Materials", new MaterialsPopulator()));
         lighting.populator = compositePopulator(lighting.children);

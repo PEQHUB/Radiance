@@ -222,11 +222,11 @@ public class KeyInputHandler {
                     afClickConsumed = true;
                     double dist = FocusUtil.raycastFromCurrentCamera(client.world);
                     if (dist > 0) {
-                        int blocks = Math.max(1, Math.min(256, (int) Math.round(dist)));
+                        float blocks = (float) Math.max(0.5, Math.min(256.0, dist));
                         Options.offlineFocalDistance = blocks;
                         Options.nativeSetOfflineFocalDistance(blocks, true);
                         if (Options.offlineState == 2) Options.nativeResetAccumulation();
-                        setFocusToast("Focus set: " + blocks + " blocks", 0x55FF55, 1500);
+                        setFocusToast(String.format("Focus: %.1f blocks", blocks), 0x55FF55, 1500);
                         Options.focusMode = 0; // back to MF
                         RadianceClient.LOGGER.info("[Offline] AF-S focus: {} blocks", blocks);
                     } else {
@@ -250,8 +250,8 @@ public class KeyInputHandler {
                 && client.currentScreen == null && client.world != null) {
                 double dist = FocusUtil.raycastFromCurrentCamera(client.world);
                 if (dist > 0) {
-                    int blocks = Math.max(1, Math.min(256, (int) Math.round(dist)));
-                    if (blocks != Options.offlineFocalDistance) {
+                    float blocks = (float) Math.max(0.5, Math.min(256.0, dist));
+                    if (Math.abs(blocks - Options.offlineFocalDistance) > 0.03f) {
                         Options.offlineFocalDistance = blocks;
                         Options.nativeSetOfflineFocalDistance(blocks, true);
                     }

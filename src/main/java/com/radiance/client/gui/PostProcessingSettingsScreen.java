@@ -73,16 +73,20 @@ public class PostProcessingSettingsScreen extends GameOptionsScreen {
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_POST_PROCESSING), body));
 
-        SimpleOption<Boolean> casEnabled = SimpleOption.ofBoolean(
-            Options.CAS_ENABLED_KEY,
-            Options.casEnabled,
-            value -> {
-                Options.setCasEnabled(value, true);
-                MinecraftClient.getInstance().setScreen(new PostProcessingSettingsScreen(parentScreen));
-            });
-        this.body.addSingleOptionEntry(casEnabled);
+        // Sharpener mode: cycle through None(0), CAS(1), RCAS(2)
+        String[] sharpenerNames = {"None", "CAS", "RCAS"};
+        net.minecraft.client.gui.widget.CyclingButtonWidget<Integer> sharpenerBtn =
+            net.minecraft.client.gui.widget.CyclingButtonWidget.<Integer>builder(
+                    (value) -> Text.literal(sharpenerNames[value]))
+                .values(0, 1, 2)
+                .initially(Options.sharpenerMode)
+                .build(0, 0, 150, 20, Text.translatable(Options.SHARPENER_MODE_KEY), (btn, value) -> {
+                    Options.setSharpenerMode(value, true);
+                    MinecraftClient.getInstance().setScreen(new PostProcessingSettingsScreen(parentScreen));
+                });
+        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(sharpenerBtn, null, body));
 
-        if (Options.casEnabled) {
+        if (Options.sharpenerMode != 0) {
             ResettableSliderWidget casSharpnessSlider = new ResettableSliderWidget(
                 0, 0, 150, 20,
                 0, 100, Options.casSharpnessPercent, 50,

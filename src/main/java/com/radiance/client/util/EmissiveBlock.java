@@ -37,59 +37,59 @@ public enum EmissiveBlock {
     CAMPFIRE("campfire", 1.0f, 14000.0f, 4, 1227, 0, 0, () -> Options.emissionCampfire, v -> Options.emissionCampfire = v),   // 1500K soot flame, ε=0.35
     SOUL_CAMPFIRE("soul_campfire", 1.0f, 6000.0f, 5, 1727, 460, 80, () -> Options.emissionSoulCampfire, v -> Options.emissionSoulCampfire = v), // 2000K sulfur blue
 
-    // Mineral/bioluminescent glow: 20-150 nits (non-thermal)
-    GLOWSTONE("glowstone", 1.0f, 150.0f, -1, 0, 0, 0, () -> Options.emissionGlowstone, v -> Options.emissionGlowstone = v),
-    SHROOMLIGHT("shroomlight", 1.0f, 40.0f, -1, 0, 0, 0, () -> Options.emissionShroomlight, v -> Options.emissionShroomlight = v),
-    SEA_LANTERN("sea_lantern", 1.0f, 60.0f, -1, 0, 0, 0, () -> Options.emissionSeaLantern, v -> Options.emissionSeaLantern = v),
-    FROGLIGHT("froglight", 1.0f, 80.0f, -1, 0, 0, 0, () -> Options.emissionFroglight, v -> Options.emissionFroglight = v),
+    // Mineral/bioluminescent glow: reasonable temps for emissivity, spectral for color
+    GLOWSTONE("glowstone", 1.0f, 150.0f, -1, 1500, 0, 0, () -> Options.emissionGlowstone, v -> Options.emissionGlowstone = v),         // warm phosphorescence
+    SHROOMLIGHT("shroomlight", 1.0f, 40.0f, -1, 1200, 0, 0, () -> Options.emissionShroomlight, v -> Options.emissionShroomlight = v),   // warm fungal bio
+    SEA_LANTERN("sea_lantern", 1.0f, 60.0f, -1, 1300, 490, 20, () -> Options.emissionSeaLantern, v -> Options.emissionSeaLantern = v), // cool marine bio
+    FROGLIGHT("froglight", 1.0f, 80.0f, -1, 1400, 0, 0, () -> Options.emissionFroglight, v -> Options.emissionFroglight = v),           // warm amphibian bio
 
     // Hot surface: cooling lava crust, blackbody 1200K, ε=0.90
     MAGMA_BLOCK("magma_block", 1.0f, 40.0f, 41, 927, 0, 0, () -> Options.emissionMagmaBlock, v -> Options.emissionMagmaBlock = v),
 
     // Constructed lights
-    BEACON("beacon", 1.0f, 80000.0f, -1, 0, 0, 0, () -> Options.emissionBeacon, v -> Options.emissionBeacon = v),           // non-thermal focused beam
-    END_ROD("end_rod", 1.0f, 3000.0f, -1, 0, 0, 0, () -> Options.emissionEndRod, v -> Options.emissionEndRod = v),         // non-thermal
+    BEACON("beacon", 1.0f, 80000.0f, -1, 2500, 0, 0, () -> Options.emissionBeacon, v -> Options.emissionBeacon = v),           // bright white beam
+    END_ROD("end_rod", 1.0f, 3000.0f, -1, 2000, 0, 0, () -> Options.emissionEndRod, v -> Options.emissionEndRod = v),         // neutral chorus white
     JACK_O_LANTERN("jack_o_lantern", 1.0f, 15000.0f, 9, 1627, 0, 0, () -> Options.emissionJackOLantern, v -> Options.emissionJackOLantern = v), // 1900K candle in pumpkin
 
-    // Magical/portal glow: 15-200 nits (non-thermal)
-    NETHER_PORTAL("nether_portal", 1.0f, 150.0f, -1, 0, 0, 0, () -> Options.emissionNetherPortal, v -> Options.emissionNetherPortal = v),
-    CRYING_OBSIDIAN("crying_obsidian", 1.0f, 60.0f, -1, 0, 0, 0, () -> Options.emissionCryingObsidian, v -> Options.emissionCryingObsidian = v),
-    RESPAWN_ANCHOR("respawn_anchor", 1.0f, 80.0f, -1, 0, 0, 0, () -> Options.emissionRespawnAnchor, v -> Options.emissionRespawnAnchor = v),
-    CONDUIT("conduit", 1.0f, 200.0f, -1, 0, 0, 0, () -> Options.emissionConduit, v -> Options.emissionConduit = v),
+    // Magical/portal glow: spectral color overrides
+    NETHER_PORTAL("nether_portal", 1.0f, 150.0f, -1, 1500, 420, 90, () -> Options.emissionNetherPortal, v -> Options.emissionNetherPortal = v), // spectral purple rift
+    CRYING_OBSIDIAN("crying_obsidian", 1.0f, 60.0f, -1, 1300, 430, 70, () -> Options.emissionCryingObsidian, v -> Options.emissionCryingObsidian = v), // purple crystal tears
+    RESPAWN_ANCHOR("respawn_anchor", 1.0f, 80.0f, -1, 1400, 440, 60, () -> Options.emissionRespawnAnchor, v -> Options.emissionRespawnAnchor = v), // purple glow
+    CONDUIT("conduit", 1.0f, 200.0f, -1, 1600, 490, 50, () -> Options.emissionConduit, v -> Options.emissionConduit = v),                       // aqua heart
 
-    // Crystal: subtle glow (non-thermal)
-    AMETHYST_CLUSTER("amethyst_cluster", 1.0f, 8.0f, -1, 0, 0, 0, () -> Options.emissionAmethystCluster, v -> Options.emissionAmethystCluster = v),
+    // Crystal: spectral violet
+    AMETHYST_CLUSTER("amethyst_cluster", 1.0f, 8.0f, -1, 1000, 420, 30, () -> Options.emissionAmethystCluster, v -> Options.emissionAmethystCluster = v), // crystal violet
 
-    // Deep dark sculk: 0.3-2 nits (non-thermal bioluminescence)
-    SCULK_SENSOR("sculk_sensor", 1.0f, 2.0f, -1, 0, 0, 0, () -> Options.emissionSculkSensor, v -> Options.emissionSculkSensor = v),
-    SCULK_CATALYST("sculk_catalyst", 1.0f, 2.0f, -1, 0, 0, 0, () -> Options.emissionSculkCatalyst, v -> Options.emissionSculkCatalyst = v),
-    SCULK_VEIN("sculk_vein", 1.0f, 0.3f, -1, 0, 0, 0, () -> Options.emissionSculkVein, v -> Options.emissionSculkVein = v),
-    SCULK("sculk", 1.0f, 0.5f, -1, 0, 0, 0, () -> Options.emissionSculk, v -> Options.emissionSculk = v),
-    SCULK_SHRIEKER("sculk_shrieker", 1.0f, 2.0f, -1, 0, 0, 0, () -> Options.emissionSculkShrieker, v -> Options.emissionSculkShrieker = v),
+    // Deep dark sculk: bioluminescence with spectral blue-green
+    SCULK_SENSOR("sculk_sensor", 1.0f, 2.0f, -1, 900, 480, 50, () -> Options.emissionSculkSensor, v -> Options.emissionSculkSensor = v),
+    SCULK_CATALYST("sculk_catalyst", 1.0f, 2.0f, -1, 900, 470, 60, () -> Options.emissionSculkCatalyst, v -> Options.emissionSculkCatalyst = v),
+    SCULK_VEIN("sculk_vein", 1.0f, 0.3f, -1, 800, 490, 30, () -> Options.emissionSculkVein, v -> Options.emissionSculkVein = v),
+    SCULK("sculk", 1.0f, 0.5f, -1, 800, 490, 40, () -> Options.emissionSculk, v -> Options.emissionSculk = v),
+    SCULK_SHRIEKER("sculk_shrieker", 1.0f, 2.0f, -1, 900, 480, 50, () -> Options.emissionSculkShrieker, v -> Options.emissionSculkShrieker = v),
 
     // Utility blocks
     BREWING_STAND("brewing_stand", 1.0f, 1500.0f, 47, 1727, 0, 0, () -> Options.emissionBrewingStand, v -> Options.emissionBrewingStand = v), // 2000K pilot flame
-    END_PORTAL("end_portal", 1.0f, 20.0f, -1, 0, 0, 0, () -> Options.emissionEndPortal, v -> Options.emissionEndPortal = v),
+    END_PORTAL("end_portal", 1.0f, 20.0f, -1, 1100, 460, 70, () -> Options.emissionEndPortal, v -> Options.emissionEndPortal = v), // void blue-black
 
-    // Redstone / misc (non-thermal)
-    REDSTONE_TORCH("redstone_torch", 1.0f, 300.0f, -1, 0, 0, 0, () -> Options.emissionRedstoneTorch, v -> Options.emissionRedstoneTorch = v),
-    REDSTONE_LAMP("redstone_lamp", 1.0f, 5000.0f, -1, 0, 0, 0, () -> Options.emissionRedstoneLamp, v -> Options.emissionRedstoneLamp = v),
+    // Redstone / misc
+    REDSTONE_TORCH("redstone_torch", 1.0f, 300.0f, -1, 927, 630, 80, () -> Options.emissionRedstoneTorch, v -> Options.emissionRedstoneTorch = v), // deep red energy
+    REDSTONE_LAMP("redstone_lamp", 1.0f, 5000.0f, -1, 2000, 590, 30, () -> Options.emissionRedstoneLamp, v -> Options.emissionRedstoneLamp = v),   // warm incandescent red tint
     CANDLE("candle", 1.0f, 10000.0f, 17, 1527, 0, 0, () -> Options.emissionCandle, v -> Options.emissionCandle = v),           // 1800K thin flame, ε~0.03
-    CAVE_VINES("cave_vines", 1.0f, 8.0f, -1, 0, 0, 0, () -> Options.emissionCaveVines, v -> Options.emissionCaveVines = v),
-    GLOW_LICHEN("glow_lichen", 1.0f, 0.5f, -1, 0, 0, 0, () -> Options.emissionGlowLichen, v -> Options.emissionGlowLichen = v),
+    CAVE_VINES("cave_vines", 1.0f, 8.0f, -1, 1000, 0, 0, () -> Options.emissionCaveVines, v -> Options.emissionCaveVines = v),       // warm plant bio
+    GLOW_LICHEN("glow_lichen", 1.0f, 0.5f, -1, 800, 510, 20, () -> Options.emissionGlowLichen, v -> Options.emissionGlowLichen = v), // cold bio
     FURNACE("furnace", 1.0f, 5500.0f, 23, 1127, 0, 0, () -> Options.emissionFurnace, v -> Options.emissionFurnace = v),       // 1400K, ε=0.70
     BLAST_FURNACE("blast_furnace", 1.0f, 15000.0f, 24, 1327, 0, 0, () -> Options.emissionBlastFurnace, v -> Options.emissionBlastFurnace = v), // 1600K fire through grate
     SMOKER("smoker", 1.0f, 3200.0f, 25, 1127, 0, 0, () -> Options.emissionSmoker, v -> Options.emissionSmoker = v),           // 1400K, ε=0.40
-    ENDER_CHEST("ender_chest", 1.0f, 10.0f, -1, 0, 0, 0, () -> Options.emissionEnderChest, v -> Options.emissionEnderChest = v),
+    ENDER_CHEST("ender_chest", 1.0f, 10.0f, -1, 1000, 510, 40, () -> Options.emissionEnderChest, v -> Options.emissionEnderChest = v), // green-blue magical
     COPPER_BULB("copper_bulb", 1.0f, 15000.0f, 36, 2427, 0, 0, () -> Options.emissionCopperBulb, v -> Options.emissionCopperBulb = v), // 2700K incandescent
-    ENCHANTING_TABLE("enchanting_table", 1.0f, 3.0f, -1, 0, 0, 0, () -> Options.emissionEnchantingTable, v -> Options.emissionEnchantingTable = v),
+    ENCHANTING_TABLE("enchanting_table", 1.0f, 3.0f, -1, 900, 530, 30, () -> Options.emissionEnchantingTable, v -> Options.emissionEnchantingTable = v), // green sparkle
 
     // 1.21 additions
-    CALIBRATED_SCULK_SENSOR("calibrated_sculk_sensor", 1.0f, 3.0f, -1, 0, 0, 0, () -> Options.emissionCalibratedSculkSensor, v -> Options.emissionCalibratedSculkSensor = v),
-    SEA_PICKLE("sea_pickle", 1.0f, 15.0f, -1, 0, 0, 0, () -> Options.emissionSeaPickle, v -> Options.emissionSeaPickle = v),
-    END_GATEWAY("end_gateway", 1.0f, 30.0f, -1, 0, 0, 0, () -> Options.emissionEndGateway, v -> Options.emissionEndGateway = v),
-    TRIAL_SPAWNER("trial_spawner", 1.0f, 5.0f, -1, 0, 0, 0, () -> Options.emissionTrialSpawner, v -> Options.emissionTrialSpawner = v),
-    VAULT("vault", 1.0f, 5.0f, -1, 0, 0, 0, () -> Options.emissionVault, v -> Options.emissionVault = v);
+    CALIBRATED_SCULK_SENSOR("calibrated_sculk_sensor", 1.0f, 3.0f, -1, 900, 480, 50, () -> Options.emissionCalibratedSculkSensor, v -> Options.emissionCalibratedSculkSensor = v),
+    SEA_PICKLE("sea_pickle", 1.0f, 15.0f, -1, 1000, 510, 20, () -> Options.emissionSeaPickle, v -> Options.emissionSeaPickle = v),     // marine bio
+    END_GATEWAY("end_gateway", 1.0f, 30.0f, -1, 1200, 470, 60, () -> Options.emissionEndGateway, v -> Options.emissionEndGateway = v), // deep void
+    TRIAL_SPAWNER("trial_spawner", 1.0f, 5.0f, -1, 1000, 480, 40, () -> Options.emissionTrialSpawner, v -> Options.emissionTrialSpawner = v), // blue-teal
+    VAULT("vault", 1.0f, 5.0f, -1, 1000, 480, 40, () -> Options.emissionVault, v -> Options.emissionVault = v); // blue-teal
 
     private final String id;
     private final float defaultValue;
@@ -100,6 +100,7 @@ public enum EmissiveBlock {
     private final int defaultWavelengthNm; // 0 = pure blackbody, 380-780 = spectral line
     private final int defaultPurityPercent; // 0-100, blend factor between blackbody and spectral
     private float emissivity; // Derived: surfaceNits / BB(defaultTemp). Set in static init.
+    private boolean uniformGlow; // true = skip texture luminance mask (emit from all texels equally)
     private final Supplier<Float> valueSupplier;
     private final Consumer<Float> valueSetter;
 
@@ -116,6 +117,9 @@ public enum EmissiveBlock {
         this.defaultPurityPercent = defaultPurityPercent;
         this.valueSupplier = valueSupplier;
         this.valueSetter = valueSetter;
+        // Default: all blocks use uniform glow (physically accurate — emit from all texels equally).
+        // Users can disable per-block for artistic texture-masked emission.
+        this.uniformGlow = true;
     }
 
     public void setValue(float value, boolean write) {
@@ -183,6 +187,23 @@ public enum EmissiveBlock {
         return defaultTemperatureCelsius > 0;
     }
 
+    /** Returns true if emission skips texture luminance mask (uniform glow from all texels). */
+    public boolean isUniformGlow() {
+        return uniformGlow;
+    }
+
+    /** Returns the default uniformGlow value (true for all — physically accurate uniform emission). */
+    public boolean getDefaultUniformGlow() {
+        return true;
+    }
+
+    public void setUniformGlow(boolean value, boolean write) {
+        this.uniformGlow = value;
+        if (write) {
+            Options.overwriteConfig();
+        }
+    }
+
     // ========================================================================
     // Blackbody luminance from Planck's law
     // L = 683 × ∫ B(λ,T) × V(λ) dλ  [cd/m²]
@@ -239,13 +260,12 @@ public enum EmissiveBlock {
 
     // Derive emissivity for thermal blocks: ε = surfaceNits / BB(defaultTemp)
     // Must come after CIE_Y is initialized (static fields init in declaration order).
+    // Derive emissivity for all blocks: ε = surfaceNits / BB(defaultTemp)
     static {
         for (EmissiveBlock b : values()) {
-            if (b.defaultTemperatureCelsius > 0) {
-                float defaultK = b.defaultTemperatureCelsius + 273.15f;
-                float bb = blackbodyLuminance(defaultK);
-                b.emissivity = (bb > 0) ? b.surfaceNits / bb : 0;
-            }
+            float defaultK = b.defaultTemperatureCelsius + 273.15f;
+            float bb = blackbodyLuminance(defaultK);
+            b.emissivity = (bb > 0) ? b.surfaceNits / bb : 0;
         }
     }
 

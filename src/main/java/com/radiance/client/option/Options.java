@@ -113,7 +113,7 @@ public class Options {
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
     public static final String COLOR_EXPANSION_KEY = "options.video.color_expansion";
-    public static final String CAS_ENABLED_KEY = "options.video.cas_enabled";
+    public static final String SHARPENER_MODE_KEY = "options.video.sharpener_mode";
     public static final String CAS_SHARPNESS_KEY = "options.video.cas_sharpness";
 
     // PsychoV tonemapper
@@ -298,7 +298,7 @@ public class Options {
     public static int offlineBounces = 16;           // 1-128
     public static boolean offlineDisableRR = false;
     public static boolean offlineDisableClamp = false;
-    public static int offlineFocalDistance = 10;     // 1-256 blocks
+    public static float offlineFocalDistance = 10.0f;  // 0.5-256 blocks (1/16th precision)
     public static boolean offlineNativeRes = false;  // force render-res = display-res
     public static int offlineDenoised = 0;           // 0=raw, 1=DLSS+Welford, 2=DLSS temporal
     // Camera model (persisted) — industry standard f-stop / focal length / sensor
@@ -307,6 +307,7 @@ public class Options {
     public static float sensorHeightMM = 24.0f;      // sensor height in mm
     public static int focalLengthMM = 50;            // 14-200mm
     public static float fStop = 5.6f;                // f/1.4 - f/22
+    public static int dofStrengthPercent = 100;      // 100-2000 (1.0x-20.0x artistic DOF multiplier)
     // Freecam (persisted preferences)
     public static boolean freecamEnabled = true;     // true=freecam, false=stick to player
     public static float freecamSpeed = 1.0f;         // 0.1-10.0 movement speed multiplier
@@ -472,7 +473,7 @@ public class Options {
     public static boolean manualExposureEnabled = false;  // auto exposure on by default (required for physical luminance range)
     public static int manualExposureEV100Tenths = 150; // EV100 in tenths: -40 to 200 -> EV -4.0 to EV 20.0 (default EV 15 = sunny day)
     public static boolean legacyExposure = false;
-    public static boolean casEnabled = false;
+    public static int sharpenerMode = 0; // 0=None, 1=CAS, 2=RCAS
     public static int casSharpnessPercent = 50;
     // Treat speeds as max EV change per second (rate-limited adaptation).
     // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
@@ -581,6 +582,7 @@ public class Options {
     public static final java.util.Map<String, Integer> blockPurities = new java.util.HashMap<>();
     // Per-emissive-block gamut boost (0-200, 100 = 1.0× neutral)
     public static final java.util.Map<String, Integer> blockGamutBoosts = new java.util.HashMap<>();
+    public static boolean lavaTextureEmissionEnabled = true; // Kill-switch for lava texture emission (diagnostic)
     public static float emissionLava = 1.0f;
     public static float emissionFire = 1.0f;
     public static float emissionSoulFire = 1.0f;
@@ -639,9 +641,31 @@ public class Options {
     // Glowing particle emission in nits
     public static float flameParticleEmission = 800.0f;      // Torch/furnace flames
     public static float lavaParticleEmission = 400.0f;       // Lava drips/embers
-    public static float portalParticleEmission = 150.0f;     // Nether portal particles
+    public static float portalParticleEmission = 1500.0f;    // Nether portal particles
     public static float endRodParticleEmission = 200.0f;     // End rod particles
     public static float glowParticleEmission = 30.0f;        // Glow squid ink, glow berries
+    public static float soulFireFlameParticleEmission = 500.0f; // Soul fire flame particles
+    public static float candleFlameParticleEmission = 300.0f;   // Candle flame particles
+    public static float enchantingParticleEmission = 300.0f;    // Enchanting table particles
+    public static float sculkParticleEmission = 175.0f;         // Sculk charge/pop particles
+    public static float totemParticleEmission = 500.0f;          // Totem of undying particles
+    public static float dragonBreathParticleEmission = 500.0f;   // Dragon breath particles
+    public static float lavaDripParticleEmission = 200.0f;       // Lava drip particles
+
+    // Per-particle spectral color parameters (indexed by particle type ordinal)
+    // Order: flame, lavaEmber, fireworkSpark, fireworkFlash, portal, endRod, glow,
+    //        soulFlame, candleFlame, enchanting, sculk, totem, dragonBreath, lavaDrip
+    public static final int PARTICLE_TYPE_COUNT = 14;
+    public static int[] particleTemperatures = { 1527, 1050, 2000, 2000, 1500, 1800, 1200, 1727, 1527, 1000, 900, 1400, 1600, 1050 };
+    public static final int[] PARTICLE_TEMP_DEFAULTS = { 1527, 1050, 2000, 2000, 1500, 1800, 1200, 1727, 1527, 1000, 900, 1400, 1600, 1050 };
+    public static int[] particleWavelengths = { 0, 0, 0, 0, 420, 0, 510, 460, 0, 530, 480, 530, 450, 0 };
+    public static final int[] PARTICLE_WL_DEFAULTS = { 0, 0, 0, 0, 420, 0, 510, 460, 0, 530, 480, 530, 450, 0 };
+    public static int[] particlePurities = { 0, 0, 0, 0, 90, 0, 20, 80, 0, 30, 50, 50, 60, 0 };
+    public static final int[] PARTICLE_PUR_DEFAULTS = { 0, 0, 0, 0, 90, 0, 20, 80, 0, 30, 50, 50, 60, 0 };
+    public static final String[] PARTICLE_TYPE_NAMES = {
+        "Flame", "Lava Ember", "Firework Spark", "Firework Flash", "Portal", "End Rod", "Glow",
+        "Soul Fire", "Candle Flame", "Enchanting", "Sculk", "Totem", "Dragon Breath", "Lava Drip"
+    };
 
     // Per-dye-color firework emission properties, indexed by DyeColor ordinal
     // Order: white, orange, magenta, light_blue, yellow, lime, pink, gray,
@@ -1405,7 +1429,7 @@ public class Options {
             offlineBounces = Integer.parseInt(props.getProperty("offlineBounces", String.valueOf(offlineBounces)));
             offlineDisableRR = Boolean.parseBoolean(props.getProperty("offlineDisableRR", String.valueOf(offlineDisableRR)));
             offlineDisableClamp = Boolean.parseBoolean(props.getProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp)));
-            offlineFocalDistance = Integer.parseInt(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
+            offlineFocalDistance = Float.parseFloat(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
             offlineNativeRes = Boolean.parseBoolean(props.getProperty("offlineNativeRes", String.valueOf(offlineNativeRes)));
             offlineDenoised = Integer.parseInt(props.getProperty("offlineDenoised", String.valueOf(offlineDenoised)));
             // Camera model
@@ -1414,6 +1438,8 @@ public class Options {
             sensorHeightMM = Float.parseFloat(props.getProperty("sensorHeightMM", String.valueOf(sensorHeightMM)));
             focalLengthMM = Integer.parseInt(props.getProperty("focalLengthMM", String.valueOf(focalLengthMM)));
             fStop = Float.parseFloat(props.getProperty("fStop", String.valueOf(fStop)));
+            dofStrengthPercent = clamp(Integer.parseInt(props.getProperty(
+                "dofStrengthPercent", String.valueOf(dofStrengthPercent))), 100, 2000);
             // Freecam preferences
             freecamEnabled = Boolean.parseBoolean(props.getProperty("freecamEnabled", String.valueOf(freecamEnabled)));
             freecamSpeed = Float.parseFloat(props.getProperty("freecamSpeed", String.valueOf(freecamSpeed)));
@@ -1424,6 +1450,7 @@ public class Options {
                 nativeSetOfflineDisableClamp(offlineDisableClamp, false);
                 nativeSetOfflineAperture(computeApertureRadius(), false);
                 nativeSetOfflineFocalDistance(offlineFocalDistance, false);
+                nativeSetDofStrength(dofStrengthPercent / 100.0f, false);
                 nativeSetOfflineNativeRes(offlineNativeRes, false);
                 nativeSetOfflineDenoised(offlineDenoised, false);
             } catch (UnsatisfiedLinkError ignored) {
@@ -1558,8 +1585,13 @@ public class Options {
             manualExposureEV100Tenths = Integer.parseInt(props.getProperty(
                 "manualExposureEV100Tenths", String.valueOf(manualExposureEV100Tenths)));
             manualExposureEV100Tenths = clamp(manualExposureEV100Tenths, -40, 200);
-            casEnabled = Boolean.parseBoolean(props.getProperty(
-                "casEnabled", String.valueOf(casEnabled)));
+            // Backward compat: casEnabled=true → sharpenerMode=1
+            if (props.containsKey("casEnabled") && !props.containsKey("sharpenerMode")) {
+                sharpenerMode = Boolean.parseBoolean(props.getProperty("casEnabled", "false")) ? 1 : 0;
+            } else {
+                sharpenerMode = clamp(Integer.parseInt(props.getProperty(
+                    "sharpenerMode", String.valueOf(sharpenerMode))), 0, 2);
+            }
             casSharpnessPercent = clamp(Integer.parseInt(props.getProperty(
                 "casSharpnessPercent", String.valueOf(casSharpnessPercent))), 0, 100);
             middleGreyPercent = Integer.parseInt(props.getProperty(
@@ -1626,7 +1658,7 @@ public class Options {
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             nativeSetManualExposureEnabled(manualExposureEnabled, false);
             nativeSetManualExposure(ev100ToLinearExposure(manualExposureEV100Tenths), false);
-            nativeSetCasEnabled(casEnabled, false);
+            nativeSetSharpenerMode(sharpenerMode, false);
             nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
             nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
@@ -1773,6 +1805,7 @@ public class Options {
                 int gb = clamp(Integer.parseInt(props.getProperty("blockGamut_" + b.getId(), String.valueOf(gbDefault))), 0, 200);
                 blockGamutBoosts.put(b.getId(), gb);
             }
+            lavaTextureEmissionEnabled = Boolean.parseBoolean(props.getProperty("lavaTextureEmissionEnabled", String.valueOf(lavaTextureEmissionEnabled)));
             emissionLava = Float.parseFloat(props.getProperty("emissionLava", String.valueOf(emissionLava)));
             emissionFire = Float.parseFloat(props.getProperty("emissionFire", String.valueOf(emissionFire)));
             emissionSoulFire = Float.parseFloat(props.getProperty("emissionSoulFire", String.valueOf(emissionSoulFire)));
@@ -1831,6 +1864,29 @@ public class Options {
             portalParticleEmission = Float.parseFloat(props.getProperty("portalParticleEmission", String.valueOf(portalParticleEmission)));
             endRodParticleEmission = Float.parseFloat(props.getProperty("endRodParticleEmission", String.valueOf(endRodParticleEmission)));
             glowParticleEmission = Float.parseFloat(props.getProperty("glowParticleEmission", String.valueOf(glowParticleEmission)));
+            soulFireFlameParticleEmission = Float.parseFloat(props.getProperty("soulFireFlameParticleEmission", String.valueOf(soulFireFlameParticleEmission)));
+            candleFlameParticleEmission = Float.parseFloat(props.getProperty("candleFlameParticleEmission", String.valueOf(candleFlameParticleEmission)));
+            enchantingParticleEmission = Float.parseFloat(props.getProperty("enchantingParticleEmission", String.valueOf(enchantingParticleEmission)));
+            sculkParticleEmission = Float.parseFloat(props.getProperty("sculkParticleEmission", String.valueOf(sculkParticleEmission)));
+            totemParticleEmission = Float.parseFloat(props.getProperty("totemParticleEmission", String.valueOf(totemParticleEmission)));
+            dragonBreathParticleEmission = Float.parseFloat(props.getProperty("dragonBreathParticleEmission", String.valueOf(dragonBreathParticleEmission)));
+            lavaDripParticleEmission = Float.parseFloat(props.getProperty("lavaDripParticleEmission", String.valueOf(lavaDripParticleEmission)));
+
+            // Per-particle spectral color parameters
+            for (int i = 0; i < PARTICLE_TYPE_COUNT; i++) {
+                particleTemperatures[i] = Integer.parseInt(props.getProperty("particleTemp." + i, String.valueOf(particleTemperatures[i])));
+                particleWavelengths[i] = Integer.parseInt(props.getProperty("particleWL." + i, String.valueOf(particleWavelengths[i])));
+                particlePurities[i] = Integer.parseInt(props.getProperty("particlePur." + i, String.valueOf(particlePurities[i])));
+            }
+
+            // Per-block uniform glow overrides (only stored when different from default)
+            for (EmissiveBlock blk : EmissiveBlock.values()) {
+                String key = "uniformGlow_" + blk.getId();
+                String val = props.getProperty(key);
+                if (val != null) {
+                    blk.setUniformGlow(Boolean.parseBoolean(val), false);
+                }
+            }
 
             for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
                 fireworkColorTemperatures[i] = Integer.parseInt(props.getProperty("fireworkColorTemp." + i, String.valueOf(fireworkColorTemperatures[i])));
@@ -1932,6 +1988,7 @@ public class Options {
         props.setProperty("sensorHeightMM", String.valueOf(sensorHeightMM));
         props.setProperty("focalLengthMM", String.valueOf(focalLengthMM));
         props.setProperty("fStop", String.valueOf(fStop));
+        props.setProperty("dofStrengthPercent", String.valueOf(dofStrengthPercent));
         // Freecam preferences
         props.setProperty("freecamEnabled", String.valueOf(freecamEnabled));
         props.setProperty("freecamSpeed", String.valueOf(freecamSpeed));
@@ -2052,7 +2109,7 @@ public class Options {
         props.setProperty("exposureCompensation", String.valueOf(exposureCompensation));
         props.setProperty("manualExposureEnabled", String.valueOf(manualExposureEnabled));
         props.setProperty("manualExposureEV100Tenths", String.valueOf(manualExposureEV100Tenths));
-        props.setProperty("casEnabled", String.valueOf(casEnabled));
+        props.setProperty("sharpenerMode", String.valueOf(sharpenerMode));
         props.setProperty("casSharpnessPercent", String.valueOf(casSharpnessPercent));
         props.setProperty("legacyExposure", String.valueOf(legacyExposure));
         props.setProperty("exposureUpSpeedTenths", String.valueOf(exposureUpSpeedTenths));
@@ -2096,6 +2153,7 @@ public class Options {
         for (var entry : blockGamutBoosts.entrySet()) {
             props.setProperty("blockGamut_" + entry.getKey(), String.valueOf(entry.getValue()));
         }
+        props.setProperty("lavaTextureEmissionEnabled", String.valueOf(lavaTextureEmissionEnabled));
         props.setProperty("emissionLava", String.valueOf(emissionLava));
         props.setProperty("emissionFire", String.valueOf(emissionFire));
         props.setProperty("emissionSoulFire", String.valueOf(emissionSoulFire));
@@ -2150,6 +2208,25 @@ public class Options {
         props.setProperty("portalParticleEmission", String.valueOf(portalParticleEmission));
         props.setProperty("endRodParticleEmission", String.valueOf(endRodParticleEmission));
         props.setProperty("glowParticleEmission", String.valueOf(glowParticleEmission));
+        props.setProperty("soulFireFlameParticleEmission", String.valueOf(soulFireFlameParticleEmission));
+        props.setProperty("candleFlameParticleEmission", String.valueOf(candleFlameParticleEmission));
+        props.setProperty("enchantingParticleEmission", String.valueOf(enchantingParticleEmission));
+        props.setProperty("sculkParticleEmission", String.valueOf(sculkParticleEmission));
+        props.setProperty("totemParticleEmission", String.valueOf(totemParticleEmission));
+        props.setProperty("dragonBreathParticleEmission", String.valueOf(dragonBreathParticleEmission));
+        props.setProperty("lavaDripParticleEmission", String.valueOf(lavaDripParticleEmission));
+        // Per-particle spectral color parameters
+        for (int i = 0; i < PARTICLE_TYPE_COUNT; i++) {
+            props.setProperty("particleTemp." + i, String.valueOf(particleTemperatures[i]));
+            props.setProperty("particleWL." + i, String.valueOf(particleWavelengths[i]));
+            props.setProperty("particlePur." + i, String.valueOf(particlePurities[i]));
+        }
+        // Per-block uniform glow overrides (only save when different from default)
+        for (EmissiveBlock blk : EmissiveBlock.values()) {
+            if (blk.isUniformGlow() != blk.getDefaultUniformGlow()) {
+                props.setProperty("uniformGlow_" + blk.getId(), String.valueOf(blk.isUniformGlow()));
+            }
+        }
         for (int i = 0; i < FIREWORK_COLOR_COUNT; i++) {
             props.setProperty("fireworkColorTemp." + i, String.valueOf(fireworkColorTemperatures[i]));
             props.setProperty("fireworkColorWL." + i, String.valueOf(fireworkColorWavelength[i]));
@@ -2767,7 +2844,7 @@ public class Options {
         manualExposureEnabled = false;
         manualExposureEV100Tenths = 150;
         legacyExposure = false;
-        casEnabled = false;
+        sharpenerMode = 0;
         casSharpnessPercent = 50;
         exposureUpSpeedTenths = 8;
         exposureDownSpeedTenths = 15;
@@ -2863,7 +2940,7 @@ public class Options {
         nativeSetManualExposureEnabled(manualExposureEnabled, false);
         nativeSetManualExposure(ev100ToLinearExposure(manualExposureEV100Tenths), false);
         nativeSetLegacyExposure(legacyExposure, false);
-        nativeSetCasEnabled(casEnabled, false);
+        nativeSetSharpenerMode(sharpenerMode, false);
         nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
         nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
         nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
@@ -3818,11 +3895,11 @@ public class Options {
         return 1.0f / (1.2f * (float) Math.pow(2.0, ev));
     }
 
-    public native static void nativeSetCasEnabled(boolean enabled, boolean write);
+    public native static void nativeSetSharpenerMode(int mode, boolean write);
 
-    public static void setCasEnabled(boolean enabled, boolean write) {
-        Options.casEnabled = enabled;
-        nativeSetCasEnabled(enabled, write);
+    public static void setSharpenerMode(int mode, boolean write) {
+        Options.sharpenerMode = clamp(mode, 0, 2);
+        nativeSetSharpenerMode(mode, write);
         if (write) {
             overwriteConfig();
         }
@@ -4172,6 +4249,12 @@ public class Options {
     public native static void nativeSetOfflineDisableClamp(boolean disable, boolean write);
     public native static void nativeSetOfflineAperture(float aperture, boolean write);
     public native static void nativeSetOfflineFocalDistance(float dist, boolean write);
+    public native static void nativeSetDofStrength(float strength, boolean write);
+
+    public static void setDofStrength(int percent, boolean write) {
+        dofStrengthPercent = clamp(percent, 100, 2000);
+        nativeSetDofStrength(percent / 100.0f, write);
+    }
     public native static void nativeSetOfflineNativeRes(boolean enabled, boolean write);
     public native static void nativeSetOfflineDenoised(int mode, boolean write);
     public native static void nativeResetAccumulation();

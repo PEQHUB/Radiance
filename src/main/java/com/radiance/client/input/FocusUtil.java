@@ -21,6 +21,13 @@ public class FocusUtil {
      */
     public static double raycastFromCamera(ClientWorld world, float yaw, float pitch,
                                            double x, double y, double z, double maxDist) {
+        if (world == null) return -1;
+
+        // Need a non-null entity for RaycastContext (MC requires it)
+        var client = net.minecraft.client.MinecraftClient.getInstance();
+        Entity entity = client.player;
+        if (entity == null) return -1;
+
         // Build direction vector from yaw/pitch (Minecraft convention)
         double yawRad = Math.toRadians(yaw);
         double pitchRad = Math.toRadians(pitch);
@@ -36,7 +43,7 @@ public class FocusUtil {
             start, end,
             RaycastContext.ShapeType.OUTLINE,
             RaycastContext.FluidHandling.NONE,
-            (Entity) null
+            entity
         ));
 
         if (result == null || result.getType() == HitResult.Type.MISS) {
@@ -51,6 +58,8 @@ public class FocusUtil {
      * Convenience method that reads position from Options.freecam or the provided camera coords.
      */
     public static double raycastFromCurrentCamera(ClientWorld world) {
+        if (world == null) return -1;
+
         double x, y, z;
         float yaw, pitch;
 
@@ -64,7 +73,9 @@ public class FocusUtil {
             var client = net.minecraft.client.MinecraftClient.getInstance();
             if (client.gameRenderer == null) return -1;
             var camera = client.gameRenderer.getCamera();
+            if (camera == null) return -1;
             var pos = camera.getPos();
+            if (pos == null) return -1;
             x = pos.x;
             y = pos.y;
             z = pos.z;

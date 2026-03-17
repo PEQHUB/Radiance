@@ -4,6 +4,7 @@ import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticle
 import net.minecraft.client.particle.Particle;
 import net.minecraft.client.render.WorldRenderer;
 import net.minecraft.client.world.ClientWorld;
+import net.minecraft.particle.ParticleType;
 import net.minecraft.util.math.BlockPos;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -18,6 +19,9 @@ public class ParticleMixins implements IParticleExt {
     @Unique
     private static final ThreadLocal<BlockPos.Mutable> LIGHT_POS = ThreadLocal.withInitial(
         BlockPos.Mutable::new);
+
+    @Unique
+    private ParticleType<?> neoVoxelRT$particleType;
 
     @Shadow
     protected ClientWorld world;
@@ -107,6 +111,16 @@ public class ParticleMixins implements IParticleExt {
     @Override
     public void neoVoxelRT$setBlue(float b) {
         this.blue = b;
+    }
+
+    @Override
+    public ParticleType<?> neoVoxelRT$getParticleType() {
+        return neoVoxelRT$particleType;
+    }
+
+    @Override
+    public void neoVoxelRT$setParticleType(ParticleType<?> type) {
+        this.neoVoxelRT$particleType = type;
     }
 
     @Inject(method = "getBrightness(F)I", at = @At(value = "HEAD"), cancellable = true)

@@ -2,14 +2,15 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.RadianceClient;
 import com.radiance.client.gui.DlssMissingScreen;
+import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.gui.unified.rows.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
@@ -28,76 +29,78 @@ public class UpscalerPopulator implements ContentPopulator {
                 .width(150).build());
         }
 
-        // Upscaler type: 0=DLSS-RR, 1=FSR3, 2=Off
-        String[] upscalerModeKeys = {
-            Options.UPSCALER_MODE_DLSS_SR, Options.UPSCALER_MODE_FSR3, Options.UPSCALER_MODE_OFF
-        };
-        SimpleOption<Integer> upscalerMode = new SimpleOption<>(
-            Options.UPSCALER_MODE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(upscalerModeKeys[Math.min(value, upscalerModeKeys.length - 1)])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerModeKeys.length - 1),
-            Codec.intRange(0, upscalerModeKeys.length - 1),
-            Options.upscalerMode,
-            value -> {
+        // Row 1: Upscaler mode (solo — pairs poorly with anything else)
+        String[] upscalerModeNames = {"DLSS-RR", "FSR3", "Off"};
+        CyclingButtonWidget<Integer> upscalerModeBtn = CyclingButtonWidget.<Integer>builder(
+                (value) -> Text.literal(upscalerModeNames[value]))
+            .values(0, 1, 2)
+            .initially(Options.upscalerMode)
+            .build(0, 0, 150, 20, Text.translatable(Options.UPSCALER_MODE_KEY), (btn, value) -> {
                 Options.setUpscalerMode(value, true);
                 screen.refreshContent();
             });
+        section.addToggle(upscalerModeBtn);
 
-        // Output Scale 2x with warning tooltip
-        SimpleOption<Boolean> outputScale2x = SimpleOption.ofBoolean(
+        // Controls shown for DLSS-RR and FSR3
+        if (Options.upscalerMode != 2) {
+            // Row 2: Quality preset + RR Model (DLSS-RR) or Quality solo (FSR3)
+            String[] qualityNames = {"Performance", "Balanced", "Quality", "Native", "Custom"};
+            CyclingButtonWidget<Integer> qualityBtn = CyclingButtonWidget.<Integer>builder(
+                    (value) -> Text.literal(qualityNames[value]))
+                .values(0, 1, 2, 3, 4)
+                .initially(Options.upscalerQuality)
+                .build(0, 0, 150, 20, Text.translatable(Options.UPSCALER_QUALITY_KEY), (btn, value) -> {
+                    Options.setUpscalerQuality(value, true);
+                });
+
+            if (Options.upscalerMode == 0) {
+                CyclingButtonWidget<Integer> presetBtn = CyclingButtonWidget.<Integer>builder(
+                        (value) -> Text.literal(value == 4 ? "D" : "E"))
+                    .values(4, 5)
+                    .initially(Options.upscalerPreset)
+                    .build(0, 0, 150, 20, Text.literal("RR Model"), (btn, value) -> {
+                        Options.setUpscalerPreset(value, true);
+                    });
+                section.addTwoWidgets(qualityBtn, presetBtn);
+            } else {
+                section.addToggle(qualityBtn);
+            }
+
+            // Row 3: Resolution override — always-visible full-width slider
+            section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+                33, 100, Options.upscalerResOverride, 67,
+                v -> getGenericValueText(Text.translatable(Options.UPSCALER_RES_OVERRIDE_KEY), Text.literal(v + "%")),
+                v -> Options.setUpscalerResOverride(v, true)));
+        }
+
+        // Sharpener dropdown + 4xSSAA toggle (two click controls paired)
+        String[] sharpenerNames = {"None", "CAS", "RCAS"};
+        CyclingButtonWidget<Integer> sharpenerBtn = CyclingButtonWidget.<Integer>builder(
+                (value) -> Text.literal(sharpenerNames[value]))
+            .values(0, 1, 2)
+            .initially(Options.sharpenerMode)
+            .build(0, 0, 150, 20, Text.translatable(Options.SHARPENER_MODE_KEY), (btn, value) -> {
+                Options.setSharpenerMode(value, true);
+                screen.refreshContent();
+            });
+
+        SimpleOption<Boolean> ssaa4x = SimpleOption.ofBoolean(
             Options.OUTPUT_SCALE_2X_KEY,
             SimpleOption.constantTooltip(Text.translatable("options.video.output_scale_2x.tooltip")),
             Options.outputScale2x,
             value -> Options.setOutputScale2x(value, true));
 
-        section.addTwoWidgets(upscalerMode.createWidget(gameOptions), outputScale2x.createWidget(gameOptions));
+        section.addTwoWidgets(sharpenerBtn, ssaa4x.createWidget(gameOptions));
 
-        // Quality / preset / resolution controls (shown for DLSS-RR and FSR3)
-        if (Options.upscalerMode != 2) {
-            String[] upscalerQualityKeys = {
-                Options.UPSCALER_QUALITY_PERFORMANCE, Options.UPSCALER_QUALITY_BALANCED,
-                Options.UPSCALER_QUALITY_QUALITY, Options.UPSCALER_QUALITY_NATIVE,
-                Options.UPSCALER_QUALITY_CUSTOM
-            };
-            SimpleOption<Integer> upscalerQuality = new SimpleOption<>(
-                Options.UPSCALER_QUALITY_KEY,
-                SimpleOption.emptyTooltip(),
-                (optionText, value) -> getGenericValueText(optionText,
-                    Text.translatable(upscalerQualityKeys[Math.min(value, upscalerQualityKeys.length - 1)])),
-                new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerQualityKeys.length - 1),
-                Codec.intRange(0, upscalerQualityKeys.length - 1),
-                Options.upscalerQuality,
-                value -> Options.setUpscalerQuality(value, true));
-
-            SimpleOption<Integer> upscalerResOverride = new SimpleOption<>(
-                Options.UPSCALER_RES_OVERRIDE_KEY,
-                SimpleOption.emptyTooltip(),
-                (optionText, value) -> getGenericValueText(optionText, Text.literal(value + "%")),
-                new SimpleOption.ValidatingIntSliderCallbacks(33, 100),
-                Codec.intRange(33, 100),
-                Options.upscalerResOverride,
-                value -> Options.setUpscalerResOverride(value, true));
-            section.addTwoWidgets(upscalerQuality.createWidget(gameOptions), upscalerResOverride.createWidget(gameOptions));
-
-            // DLSS-specific preset
-            if (Options.upscalerMode == 0) {
-                String[] upscalerPresets = {"D", "E"};
-                SimpleOption<Integer> upscalerPreset = new SimpleOption<>(
-                    Options.UPSCALER_PRESET_KEY,
-                    SimpleOption.emptyTooltip(),
-                    (optionText, value) -> getGenericValueText(optionText,
-                        Text.literal(upscalerPresets[Math.min(value, upscalerPresets.length - 1)])),
-                    new SimpleOption.ValidatingIntSliderCallbacks(0, upscalerPresets.length - 1),
-                    Codec.intRange(0, upscalerPresets.length - 1),
-                    Options.upscalerPreset == 5 ? 1 : 0,
-                    value -> Options.setUpscalerPreset(value == 0 ? 4 : 5, true));
-                section.addToggle(upscalerPreset.createWidget(gameOptions));
-            }
+        // Sharpness slider (conditional — only when sharpener is active)
+        if (Options.sharpenerMode != 0) {
+            section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+                0, 100, Options.casSharpnessPercent, 50,
+                v -> getGenericValueText(Text.translatable(Options.CAS_SHARPNESS_KEY), Text.literal(v + "%")),
+                v -> Options.setCasSharpnessPercent(v, true)));
         }
 
-        // Reflex (always available if supported)
+        // Reflex + VRR
         if (Options.isReflexSupported()) {
             SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
                 Options.REFLEX_ENABLED_KEY, Options.reflexEnabled,

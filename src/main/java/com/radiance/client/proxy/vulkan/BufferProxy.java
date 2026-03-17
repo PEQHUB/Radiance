@@ -307,16 +307,23 @@ public class BufferProxy {
                     if (defNits > 0) {
                         mult = (blk.getSurfaceNits() * blk.getValue()) / defNits;
                     }
-                    // Flame colorant: compute spectral color for thermal blocks with wavelength > 0
-                    if (blk.isThermal()) {
-                        int wl = Options.getBlockWavelength(blk);
-                        int pur = Options.getBlockPurity(blk);
-                        if (wl > 0 && pur > 0) {
-                            int tempC = Options.getBlockTemperature(blk);
-                            float tempK = tempC + 273.15f;
-                            float[] color = SpectralColor.computeFlameColor(tempK, wl, pur / 100.0f);
-                            r = color[0]; g = color[1]; b = color[2];
-                        }
+                    // Lava texture emission kill-switch (diagnostic toggle)
+                    if (i == 0 && !Options.lavaTextureEmissionEnabled) {
+                        mult = 0;
+                    }
+                    // Uniform glow blocks skip texture luminance mask (emit from all texels equally).
+                    // Sign convention: negative multiplier = uniform glow in shader.
+                    if (blk.isUniformGlow() && mult > 0) {
+                        mult = -mult;
+                    }
+                    // Spectral color: compute from temperature + wavelength + purity (all blocks)
+                    int wl = Options.getBlockWavelength(blk);
+                    int pur = Options.getBlockPurity(blk);
+                    if (wl > 0 && pur > 0) {
+                        int tempC = Options.getBlockTemperature(blk);
+                        float tempK = tempC + 273.15f;
+                        float[] color = SpectralColor.computeFlameColor(tempK, wl, pur / 100.0f);
+                        r = color[0]; g = color[1]; b = color[2];
                     }
                 }
                 int off = baseAddr + i * 16; // vec4 = 16 bytes

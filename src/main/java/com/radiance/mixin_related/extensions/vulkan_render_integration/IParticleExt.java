@@ -1,6 +1,12 @@
 package com.radiance.mixin_related.extensions.vulkan_render_integration;
 
+import net.minecraft.particle.ParticleType;
+
 public interface IParticleExt {
+
+    ParticleType<?> neoVoxelRT$getParticleType();
+
+    void neoVoxelRT$setParticleType(ParticleType<?> type);
 
     double neoVoxelRT$getX();
 

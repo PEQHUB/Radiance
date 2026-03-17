@@ -173,16 +173,16 @@ public class OfflinePopulator implements ContentPopulator {
                 }
             }).size(150, 20).build());
 
-        // Focus distance slider (always visible)
+        // Focus distance slider (1-256 blocks, scroll wheel gives sub-block precision)
         ResettableSliderWidget focusSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            1, 256, Options.offlineFocalDistance, 10,
+            1, 256, Math.round(Options.offlineFocalDistance), 10,
             v -> getGenericValueText(
                 Text.literal("Focus Distance"),
                 Text.literal(v + " blocks")),
             v -> {
-                Options.offlineFocalDistance = v;
-                Options.nativeSetOfflineFocalDistance(v, true);
+                Options.offlineFocalDistance = (float) v;
+                Options.nativeSetOfflineFocalDistance((float) v, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         focus.addSlider(focusSlider);
