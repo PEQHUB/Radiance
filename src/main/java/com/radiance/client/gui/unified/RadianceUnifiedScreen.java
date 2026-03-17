@@ -39,6 +39,8 @@ public class RadianceUnifiedScreen extends Screen {
 
     /** True when opened via Tab hold — screen closes on Tab release. */
     public static boolean openedViaTab = false;
+    /** Timestamp when Tab peek was opened — prevents immediate close from key state race. */
+    public static long tabPeekOpenTimeMs = 0;
 
     private final Screen parent;
     private TreeNavigationWidget tree;
@@ -263,12 +265,16 @@ public class RadianceUnifiedScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         // Tab peek: poll key state every frame — close when Tab is released
+        // Require minimum 200ms hold to avoid race between wasPressed() and glfwGetKey()
         if (openedViaTab) {
-            long handle = MinecraftClient.getInstance().getWindow().getHandle();
-            if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_TAB) != GLFW.GLFW_PRESS) {
-                openedViaTab = false;
-                this.close();
-                return;
+            long elapsed = System.currentTimeMillis() - tabPeekOpenTimeMs;
+            if (elapsed > 200) {
+                long handle = MinecraftClient.getInstance().getWindow().getHandle();
+                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_TAB) != GLFW.GLFW_PRESS) {
+                    openedViaTab = false;
+                    this.close();
+                    return;
+                }
             }
         }
 

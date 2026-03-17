@@ -298,10 +298,71 @@ public class Options {
     public static int offlineBounces = 16;           // 1-128
     public static boolean offlineDisableRR = false;
     public static boolean offlineDisableClamp = false;
-    public static int offlineAperturePercent = 0;    // 0-100 → 0.0-0.1 aperture
     public static int offlineFocalDistance = 10;     // 1-256 blocks
     public static boolean offlineNativeRes = false;  // force render-res = display-res
     public static int offlineDenoised = 0;           // 0=raw, 1=DLSS+Welford, 2=DLSS temporal
+    // Camera model (persisted) — industry standard f-stop / focal length / sensor
+    public static int sensorPreset = 0;              // 0=FF, 1=APS-C, 2=M4/3, 3=MF
+    public static float sensorWidthMM = 36.0f;       // sensor width in mm
+    public static float sensorHeightMM = 24.0f;      // sensor height in mm
+    public static int focalLengthMM = 50;            // 14-200mm
+    public static float fStop = 5.6f;                // f/1.4 - f/22
+    // Freecam (persisted preferences)
+    public static boolean freecamEnabled = true;     // true=freecam, false=stick to player
+    public static float freecamSpeed = 1.0f;         // 0.1-10.0 movement speed multiplier
+    public static boolean freecamShowPlayer = false;  // show player model in freecam
+    // Freecam transient state — use Options.freecam.x/y/z/yaw/pitch instead
+    // HUD transient state
+    public static boolean suppressHudOverlay = false; // suppress HUD for one frame (screenshot)
+    public static long accumStartTimeNanos = 0;       // System.nanoTime() when accumulation started
+    public static int focusMode = 0;                    // 0=MF, 1=AF-S, 2=AF-C
+    public static final String[] FOCUS_MODE_NAMES = {"MF", "AF-S", "AF-C"};
+    public static String focusToastMessage = null;       // transient toast text (null = hidden)
+    public static long focusToastExpireMs = 0;           // System.currentTimeMillis() when toast expires
+    public static int focusToastColor = 0xFFFFFF;        // toast text color
+    // Freecam instance (transient)
+    public static com.radiance.client.input.FreecamState freecam = new com.radiance.client.input.FreecamState();
+
+    // Sensor preset data: {widthMM, heightMM}
+    public static final float[][] SENSOR_PRESETS = {
+        {36.0f, 24.0f},   // Full Frame
+        {23.6f, 15.6f},   // APS-C
+        {17.3f, 13.0f},   // Micro 4/3
+        {44.0f, 33.0f},   // Medium Format
+    };
+    public static final String[] SENSOR_PRESET_NAMES = {"Full Frame", "APS-C", "Micro 4/3", "Medium Format"};
+
+    /** Compute aperture radius in blocks from focal length and f-stop. */
+    public static float computeApertureRadius() {
+        if (fStop >= 22.0f) return 0.0f; // pinhole
+        return (float) focalLengthMM / (2.0f * fStop * 1000.0f);
+    }
+
+    /** Compute vertical FOV in radians from sensor height and focal length. */
+    public static float computeFovVerticalRad() {
+        return 2.0f * (float) Math.atan(sensorHeightMM / (2.0 * focalLengthMM));
+    }
+
+    /** Compute vertical FOV in degrees. */
+    public static float computeFovVerticalDeg() {
+        return (float) Math.toDegrees(computeFovVerticalRad());
+    }
+
+    /** Apply sensor preset by index. */
+    public static void applySensorPreset(int index) {
+        if (index >= 0 && index < SENSOR_PRESETS.length) {
+            sensorPreset = index;
+            sensorWidthMM = SENSOR_PRESETS[index][0];
+            sensorHeightMM = SENSOR_PRESETS[index][1];
+        }
+    }
+
+    /** Sync computed aperture to C++ via existing JNI. */
+    public static void syncApertureToNative() {
+        try {
+            nativeSetOfflineAperture(computeApertureRadius(), false);
+        } catch (UnsatisfiedLinkError ignored) {}
+    }
 
     public static boolean areaLightsEnabled = false;
     public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
@@ -1344,15 +1405,24 @@ public class Options {
             offlineBounces = Integer.parseInt(props.getProperty("offlineBounces", String.valueOf(offlineBounces)));
             offlineDisableRR = Boolean.parseBoolean(props.getProperty("offlineDisableRR", String.valueOf(offlineDisableRR)));
             offlineDisableClamp = Boolean.parseBoolean(props.getProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp)));
-            offlineAperturePercent = Integer.parseInt(props.getProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent)));
             offlineFocalDistance = Integer.parseInt(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
             offlineNativeRes = Boolean.parseBoolean(props.getProperty("offlineNativeRes", String.valueOf(offlineNativeRes)));
             offlineDenoised = Integer.parseInt(props.getProperty("offlineDenoised", String.valueOf(offlineDenoised)));
+            // Camera model
+            sensorPreset = Integer.parseInt(props.getProperty("sensorPreset", String.valueOf(sensorPreset)));
+            sensorWidthMM = Float.parseFloat(props.getProperty("sensorWidthMM", String.valueOf(sensorWidthMM)));
+            sensorHeightMM = Float.parseFloat(props.getProperty("sensorHeightMM", String.valueOf(sensorHeightMM)));
+            focalLengthMM = Integer.parseInt(props.getProperty("focalLengthMM", String.valueOf(focalLengthMM)));
+            fStop = Float.parseFloat(props.getProperty("fStop", String.valueOf(fStop)));
+            // Freecam preferences
+            freecamEnabled = Boolean.parseBoolean(props.getProperty("freecamEnabled", String.valueOf(freecamEnabled)));
+            freecamSpeed = Float.parseFloat(props.getProperty("freecamSpeed", String.valueOf(freecamSpeed)));
+            freecamShowPlayer = Boolean.parseBoolean(props.getProperty("freecamShowPlayer", String.valueOf(freecamShowPlayer)));
             try {
                 nativeSetOfflineBounces(offlineBounces, false);
                 nativeSetOfflineDisableRR(offlineDisableRR, false);
                 nativeSetOfflineDisableClamp(offlineDisableClamp, false);
-                nativeSetOfflineAperture(offlineAperturePercent / 1000.0f, false);
+                nativeSetOfflineAperture(computeApertureRadius(), false);
                 nativeSetOfflineFocalDistance(offlineFocalDistance, false);
                 nativeSetOfflineNativeRes(offlineNativeRes, false);
                 nativeSetOfflineDenoised(offlineDenoised, false);
@@ -1853,10 +1923,19 @@ public class Options {
         props.setProperty("offlineBounces", String.valueOf(offlineBounces));
         props.setProperty("offlineDisableRR", String.valueOf(offlineDisableRR));
         props.setProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp));
-        props.setProperty("offlineAperturePercent", String.valueOf(offlineAperturePercent));
         props.setProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance));
         props.setProperty("offlineNativeRes", String.valueOf(offlineNativeRes));
         props.setProperty("offlineDenoised", String.valueOf(offlineDenoised));
+        // Camera model
+        props.setProperty("sensorPreset", String.valueOf(sensorPreset));
+        props.setProperty("sensorWidthMM", String.valueOf(sensorWidthMM));
+        props.setProperty("sensorHeightMM", String.valueOf(sensorHeightMM));
+        props.setProperty("focalLengthMM", String.valueOf(focalLengthMM));
+        props.setProperty("fStop", String.valueOf(fStop));
+        // Freecam preferences
+        props.setProperty("freecamEnabled", String.valueOf(freecamEnabled));
+        props.setProperty("freecamSpeed", String.valueOf(freecamSpeed));
+        props.setProperty("freecamShowPlayer", String.valueOf(freecamShowPlayer));
         for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
             props.setProperty("areaLightBlock." + i, String.valueOf(areaLightBlockIntensity[i]));
             props.setProperty("areaLightScale." + i, String.valueOf(areaLightBlockScale[i]));

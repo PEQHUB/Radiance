@@ -2,13 +2,16 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
+import com.mojang.serialization.Codec;
 import com.radiance.client.gui.KeyBindButton;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.*;
+import com.radiance.client.gui.unified.rows.ButtonRow;
 import com.radiance.client.gui.unified.rows.KeyBindRow;
 import com.radiance.client.input.KeyInputHandler;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
@@ -105,6 +108,85 @@ public class OfflinePopulator implements ContentPopulator {
             });
         variance.addToggle(disableClamp.createWidget(MinecraftClient.getInstance().options));
 
+        // ── Camera ──
+        SettingsSection camera = panel.addSection("Camera");
+
+        // Sensor size preset (cycle toggle)
+        SimpleOption<Integer> sensorPresetOpt = new SimpleOption<>(
+            "Sensor Size",
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(Options.SENSOR_PRESET_NAMES[Math.min(value, Options.SENSOR_PRESET_NAMES.length - 1)])),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, Options.SENSOR_PRESET_NAMES.length - 1),
+            Codec.intRange(0, Options.SENSOR_PRESET_NAMES.length - 1),
+            Options.sensorPreset,
+            value -> {
+                Options.applySensorPreset(value);
+                Options.syncApertureToNative();
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+                screen.refreshContent();
+            });
+        camera.addToggle(sensorPresetOpt.createWidget(MinecraftClient.getInstance().options));
+
+        // Focal length (14-200mm)
+        ResettableSliderWidget focalSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            14, 200, Options.focalLengthMM, 50,
+            v -> getGenericValueText(
+                Text.literal("Focal Length"),
+                Text.literal(v + " mm")),
+            v -> {
+                Options.focalLengthMM = v;
+                Options.syncApertureToNative();
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+            });
+        camera.addSlider(focalSlider);
+
+        // F-stop (1.4 - 22.0, stored as int 14-220 → display as f/x.x)
+        int fStopInt = Math.round(Options.fStop * 10.0f);
+        ResettableSliderWidget fStopSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            14, 220, fStopInt, 56,
+            v -> getGenericValueText(
+                Text.literal("F-Stop"),
+                Text.literal("f/" + String.format("%.1f", v / 10.0))),
+            v -> {
+                Options.fStop = v / 10.0f;
+                Options.syncApertureToNative();
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+            });
+        camera.addSlider(fStopSlider);
+
+        // ── Focus ──
+        SettingsSection focus = panel.addSection("Focus");
+
+        // Focus mode cycle toggle (MF → AF-S → AF-C)
+        String currentFocusMode = Options.FOCUS_MODE_NAMES[Math.min(Options.focusMode, 2)];
+        focus.addButton(ButtonWidget.builder(
+            Text.literal("Focus Mode: " + currentFocusMode), button -> {
+                Options.focusMode = (Options.focusMode + 1) % 3;
+                button.setMessage(Text.literal("Focus Mode: "
+                    + Options.FOCUS_MODE_NAMES[Math.min(Options.focusMode, 2)]));
+                if (Options.focusMode == 1) {
+                    // AF-S: close menu to pick in world
+                    MinecraftClient.getInstance().setScreen(null);
+                }
+            }).size(150, 20).build());
+
+        // Focus distance slider (always visible)
+        ResettableSliderWidget focusSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 256, Options.offlineFocalDistance, 10,
+            v -> getGenericValueText(
+                Text.literal("Focus Distance"),
+                Text.literal(v + " blocks")),
+            v -> {
+                Options.offlineFocalDistance = v;
+                Options.nativeSetOfflineFocalDistance(v, true);
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+            });
+        focus.addSlider(focusSlider);
+
         // ── Accumulation ──
         SettingsSection accum = panel.addSection("Accumulation");
 
@@ -117,35 +199,41 @@ public class OfflinePopulator implements ContentPopulator {
             v -> {
                 Options.offlineBounces = v;
                 Options.nativeSetOfflineBounces(v, true);
-                Options.nativeResetAccumulation();
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         accum.addSlider(bouncesSlider);
 
-        ResettableSliderWidget apertureSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            0, 100, Options.offlineAperturePercent, 0,
-            v -> getGenericValueText(
-                Text.literal("Aperture"),
-                Text.literal(String.format("%.3f", v / 1000.0))),
-            v -> {
-                Options.offlineAperturePercent = v;
-                Options.nativeSetOfflineAperture(v / 1000.0f, true);
-                Options.nativeResetAccumulation();
-            });
-        accum.addSlider(apertureSlider);
+        // ── Freecam ──
+        SettingsSection freecam = panel.addSection("Freecam");
 
-        ResettableSliderWidget focalSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            1, 256, Options.offlineFocalDistance, 10,
-            v -> getGenericValueText(
-                Text.literal("Focal Distance"),
-                Text.literal(v + " blocks")),
-            v -> {
-                Options.offlineFocalDistance = v;
-                Options.nativeSetOfflineFocalDistance(v, true);
-                Options.nativeResetAccumulation();
+        SimpleOption<Boolean> freecamToggle = SimpleOption.ofBoolean(
+            "Freecam Mode",
+            Options.freecamEnabled,
+            value -> {
+                Options.freecamEnabled = value;
             });
-        accum.addSlider(focalSlider);
+        freecam.addToggle(freecamToggle.createWidget(MinecraftClient.getInstance().options));
+
+        SimpleOption<Boolean> showPlayerToggle = SimpleOption.ofBoolean(
+            "Show Player Model",
+            Options.freecamShowPlayer,
+            value -> {
+                Options.freecamShowPlayer = value;
+            });
+        freecam.addToggle(showPlayerToggle.createWidget(MinecraftClient.getInstance().options));
+
+        // Movement speed (0.1-10.0, stored as int 1-100 → display as float)
+        int speedInt = Math.round(Options.freecamSpeed * 10.0f);
+        ResettableSliderWidget speedSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 100, speedInt, 10,
+            v -> getGenericValueText(
+                Text.literal("Movement Speed"),
+                Text.literal(String.format("%.1f×", v / 10.0))),
+            v -> {
+                Options.freecamSpeed = v / 10.0f;
+            });
+        freecam.addSlider(speedSlider);
 
         // ── Controls ──
         SettingsSection controls = panel.addSection("Controls");

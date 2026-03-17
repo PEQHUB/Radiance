@@ -205,10 +205,15 @@ public abstract class WorldRendererMixins {
     public void redirectRender(ObjectAllocator allocator, RenderTickCounter tickCounter,
         boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer,
         Matrix4f effectedRotationMatrix, Matrix4f projectionMatrix, CallbackInfo ci) {
-        // Offline accumulation: use frozen camera position when accumulating
+        // Offline: camera position override
         if (Options.offlineState == 2) {
+            // Accumulating: use frozen camera position
             PlayerProxy.setCameraPos(new net.minecraft.util.math.Vec3d(
                 Options.frozenCamX, Options.frozenCamY, Options.frozenCamZ));
+        } else if (Options.offlineState == 1 && Options.freecamEnabled) {
+            // Free mode + freecam: use freecam position (from instance, not static fields)
+            PlayerProxy.setCameraPos(new net.minecraft.util.math.Vec3d(
+                Options.freecam.x, Options.freecam.y, Options.freecam.z));
         } else {
             PlayerProxy.setCameraPos(camera.getPos());
         }
@@ -233,9 +238,32 @@ public abstract class WorldRendererMixins {
         boolean renderEntityOutline = this.getEntitiesToRender(camera, frustum,
             this.renderedEntities);
 
-        Matrix4f viewMatrix = new Matrix4f(
-            ((IGameRendererExt) gameRenderer).neoVoxelRT$getRotationMatrix());
-        Matrix4f effectedViewMatrix = new Matrix4f(effectedRotationMatrix);
+        Matrix4f viewMatrix;
+        Matrix4f effectedViewMatrix;
+
+        // Offline freecam/frozen: override view matrix from freecam or frozen rotation
+        if (Options.offlineState == 2) {
+            // Accumulating: build view matrix from frozen yaw/pitch
+            viewMatrix = buildViewMatrix(Options.frozenCamYaw, Options.frozenCamPitch);
+            effectedViewMatrix = new Matrix4f(viewMatrix);
+        } else if (Options.offlineState == 1 && Options.freecamEnabled) {
+            // Free mode + freecam: build view matrix from freecam rotation (from instance)
+            viewMatrix = buildViewMatrix(Options.freecam.yaw, Options.freecam.pitch);
+            effectedViewMatrix = new Matrix4f(viewMatrix);
+        } else {
+            viewMatrix = new Matrix4f(
+                ((IGameRendererExt) gameRenderer).neoVoxelRT$getRotationMatrix());
+            effectedViewMatrix = new Matrix4f(effectedRotationMatrix);
+        }
+
+        // Offline: override projection matrix with camera model FOV
+        if (Options.offlineState != 0) {
+            float fovRad = Options.computeFovVerticalRad();
+            float aspectRatio = (float) this.client.getWindow().getWidth()
+                / (float) this.client.getWindow().getHeight();
+            projectionMatrix = new Matrix4f().setPerspective(fovRad, aspectRatio, 0.05f,
+                gameRenderer.getViewDistance() * 4.0f);
+        }
 
         // fog
         float h = gameRenderer.getViewDistance();
@@ -474,6 +502,14 @@ public abstract class WorldRendererMixins {
         ci.cancel();
     }
     // endregion
+
+    /** Build a view matrix from yaw/pitch (degrees). Matches Minecraft camera convention. */
+    private static Matrix4f buildViewMatrix(float yaw, float pitch) {
+        Matrix4f mat = new Matrix4f();
+        mat.rotateX((float) Math.toRadians(pitch));
+        mat.rotateY((float) Math.toRadians(yaw + 180.0f));
+        return mat;
+    }
 
     // region <setWorld>
     @Redirect(method = "setWorld(Lnet/minecraft/client/world/ClientWorld;)V", at = @At(value = "INVOKE", target =

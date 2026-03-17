@@ -252,7 +252,13 @@ public class BufferProxy {
             baseAddr += Integer.BYTES;
             // When FirstPerson mod is active, tell shader camera is "third person"
             // so PLAYER_MASK is included in ray mask (player body visible)
-            boolean hidePlayer = !camera.isThirdPerson() && !FirstPersonCompat.isActive();
+            // In offline freecam: show player if freecamShowPlayer is on, else hide
+            boolean hidePlayer;
+            if (Options.offlineState != 0 && Options.freecamEnabled) {
+                hidePlayer = !Options.freecamShowPlayer;
+            } else {
+                hidePlayer = !camera.isThirdPerson() && !FirstPersonCompat.isActive();
+            }
             bb.putInt(baseAddr, hidePlayer ? 1 : 0);
             baseAddr += Integer.BYTES;
             bb.putFloat(baseAddr, fog.start());
