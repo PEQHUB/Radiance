@@ -72,6 +72,30 @@ public class MaterialDropdownWidget extends ClickableWidget {
         ALL_INSTANCES.clear();
     }
 
+    /** Render all open dropdown overlays. Call after scissor is disabled. */
+    public static void renderAllOverlays(DrawContext context, int mouseX, int mouseY) {
+        for (MaterialDropdownWidget w : ALL_INSTANCES) {
+            if (w.isOpen()) {
+                w.renderDropdownOverlay(context, mouseX, mouseY);
+            }
+        }
+    }
+
+    /** Check if any open dropdown wants to handle a click. Returns true if consumed. */
+    public static boolean handleOverlayClick(double mouseX, double mouseY, int button) {
+        for (MaterialDropdownWidget w : ALL_INSTANCES) {
+            if (w.isOpen()) {
+                if (w.isInDropdownBounds(mouseX, mouseY)) {
+                    return w.mouseClicked(mouseX, mouseY, button);
+                }
+                // Click outside open dropdown — close it
+                w.open = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
         // Apply inactive fade if another widget is the active slider

@@ -1,5 +1,6 @@
 package com.radiance.client.gui.unified;
 
+import com.radiance.client.gui.MaterialDropdownWidget;
 import com.radiance.client.gui.RadianceTheme;
 import java.util.ArrayList;
 import java.util.List;
@@ -168,6 +169,9 @@ public class ContentPanelWidget extends ClickableWidget {
         }
 
         context.disableScissor();
+
+        // Render dropdown overlays OUTSIDE scissor so they aren't clipped
+        MaterialDropdownWidget.renderAllOverlays(context, mouseX, mouseY);
     }
 
     // ── Input handling ──
@@ -176,6 +180,11 @@ public class ContentPanelWidget extends ClickableWidget {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (!isMouseOver(mouseX, mouseY)) return false;
         if (RadianceTheme.peekActive) return false;
+
+        // Intercept clicks on open dropdown overlays before row-bounded routing
+        if (MaterialDropdownWidget.handleOverlayClick(mouseX, mouseY, button)) {
+            return true;
+        }
 
         clickedSection = null;
         int drawY = getY() + contentPadding - (int) scrollDisplay;
