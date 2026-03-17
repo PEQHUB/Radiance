@@ -23,7 +23,7 @@ public class MaterialDropdownWidget extends ClickableWidget {
     private static final List<MaterialDropdownWidget> ALL_INSTANCES = new ArrayList<>();
 
     private static final FlameColorant[] OPTIONS = FlameColorant.values();
-    private static final int ITEM_HEIGHT = 16;
+    private static final int ITEM_HEIGHT = 12;
 
     private FlameColorant selected;
     private boolean open = false;
@@ -128,6 +128,18 @@ public class MaterialDropdownWidget extends ClickableWidget {
                 RadianceTheme.textSecondary, alphaMult);
     }
 
+    /** Compute dropdown top Y — renders upward if downward would overflow screen. */
+    private int getDropdownY() {
+        int totalHeight = OPTIONS.length * ITEM_HEIGHT + 2;
+        int screenHeight = MinecraftClient.getInstance().getWindow().getScaledHeight();
+        int downY = getY() + getHeight();
+        if (downY + totalHeight > screenHeight - 4) {
+            // Render upward
+            return getY() - totalHeight;
+        }
+        return downY;
+    }
+
     /**
      * Render the dropdown overlay. Called from the SCREEN's render method
      * (after the body list widget finishes) so it draws above all entries.
@@ -135,22 +147,19 @@ public class MaterialDropdownWidget extends ClickableWidget {
     public void renderDropdownOverlay(DrawContext context, int mouseX, int mouseY) {
         if (!open) return;
 
-        // Apply inactive fade if another widget is the active slider
         float fade = RadianceTheme.inactiveFadeFactor();
         boolean isActive = (RadianceTheme.activeSlider == this);
         float alphaMult = isActive ? 1f : fade;
         if (alphaMult <= 0f) return;
 
-        // Push z forward so dropdown renders above list entries below
         context.getMatrices().push();
         context.getMatrices().translate(0, 0, 200);
 
         int x = getX();
-        int y = getY() + getHeight();
+        int y = getDropdownY();
         int w = getWidth();
         int totalHeight = OPTIONS.length * ITEM_HEIGHT + 2;
 
-        // Solid opaque background with border
         context.fill(x - 1, y - 1, x + w + 1, y + totalHeight + 1,
                 RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, alphaMult));
         context.fill(x, y, x + w, y + totalHeight,
@@ -171,7 +180,7 @@ public class MaterialDropdownWidget extends ClickableWidget {
                         RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
             }
             RadianceTheme.drawOutlinedText(context, tr, Text.literal(OPTIONS[i].getLabel()),
-                    x + 6, itemY + 4, RadianceTheme.textPrimary, alphaMult);
+                    x + 6, itemY + 2, RadianceTheme.textPrimary, alphaMult);
         }
 
         context.getMatrices().pop();
@@ -183,7 +192,7 @@ public class MaterialDropdownWidget extends ClickableWidget {
     public boolean isInDropdownBounds(double mouseX, double mouseY) {
         if (!open) return false;
         int x = getX();
-        int y = getY() + getHeight();
+        int y = getDropdownY();
         int w = getWidth();
         int totalHeight = OPTIONS.length * ITEM_HEIGHT + 2;
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + totalHeight;

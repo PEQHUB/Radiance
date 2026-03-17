@@ -68,13 +68,25 @@ public class EmissionWidgetFactory {
             v -> Options.setBlockPurity(block, v, true));
     }
 
-    public static ResettableSliderWidget makeGamutBoostSlider(EmissiveBlock block) {
+    /** Gamut boost preset values (×0.01 scale). */
+    private static final int[] GAMUT_PRESETS = {50, 75, 100, 120, 142, 160, 200};
+    private static final String[] GAMUT_LABELS = {"×0.50", "×0.75", "×1.00", "×1.20", "×1.42", "×1.60", "×2.00"};
+
+    public static CyclingButtonWidget<Integer> makeGamutBoostCycling(EmissiveBlock block) {
         int current = Options.getBlockGamutBoost(block);
-        return new ResettableSliderWidget(0, 0, 100, 20,
-            0, 200, current, 100,
-            v -> getGenericValueText(Text.translatable("options.video.emission.gamutBoost"),
-                Text.literal(String.format("\u00D7%.2f", v / 100.0f))),
-            v -> Options.setBlockGamutBoost(block, v, true));
+        // Find closest preset index
+        int initialIdx = 2; // default ×1.00
+        for (int i = 0; i < GAMUT_PRESETS.length; i++) {
+            if (GAMUT_PRESETS[i] == current) { initialIdx = i; break; }
+        }
+        final int startIdx = initialIdx;
+        return CyclingButtonWidget.<Integer>builder(
+                idx -> Text.literal(GAMUT_LABELS[idx]))
+            .values(0, 1, 2, 3, 4, 5, 6)
+            .initially(startIdx)
+            .build(0, 0, 100, 20, Text.literal("Gamut"), (btn, idx) -> {
+                Options.setBlockGamutBoost(block, GAMUT_PRESETS[idx], true);
+            });
     }
 
     public static CyclingButtonWidget<Boolean> makeEvenGlowToggle(EmissiveBlock block) {

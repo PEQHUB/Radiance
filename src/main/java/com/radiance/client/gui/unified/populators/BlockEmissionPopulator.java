@@ -3,10 +3,13 @@ package com.radiance.client.gui.unified.populators;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.gui.unified.rows.FiveColumnEmissionRow;
 import com.radiance.client.util.EmissiveBlock;
+import java.util.Arrays;
+import java.util.Comparator;
 
 /**
  * Parameterized populator for a page of emissive blocks.
- * Each block gets a 5-column emission row + a gamut/glow row.
+ * Each block gets 2 rows: spectral controls + gamut/glow pair.
+ * Blocks are sorted alphabetically within each category page.
  */
 public class BlockEmissionPopulator implements ContentPopulator {
 
@@ -15,7 +18,9 @@ public class BlockEmissionPopulator implements ContentPopulator {
 
     public BlockEmissionPopulator(String sectionTitle, EmissiveBlock... blocks) {
         this.sectionTitle = sectionTitle;
-        this.blocks = blocks;
+        // Sort alphabetically by display ID
+        this.blocks = blocks.clone();
+        Arrays.sort(this.blocks, Comparator.comparing(EmissiveBlock::getId));
     }
 
     @Override
@@ -33,10 +38,10 @@ public class BlockEmissionPopulator implements ContentPopulator {
                 mat, waveSync,
                 EmissionWidgetFactory.makePuritySlider(block)));
 
-            // Row 2: Gamut boost slider (full width)
-            section.addSlider(EmissionWidgetFactory.makeGamutBoostSlider(block));
-            // Row 3: Even glow toggle (solo)
-            section.addToggle(EmissionWidgetFactory.makeEvenGlowToggle(block));
+            // Row 2: [Gamut preset | Even Glow toggle] — both click controls
+            section.addTwoWidgets(
+                EmissionWidgetFactory.makeGamutBoostCycling(block),
+                EmissionWidgetFactory.makeEvenGlowToggle(block));
         }
     }
 }
