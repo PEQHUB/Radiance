@@ -52,5 +52,10 @@ public class RayTracingPopulator implements ContentPopulator {
             Options.EON_DIFFUSE_KEY, Options.eonDiffuse,
             value -> Options.setEonDiffuse(value, true));
         section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions));
+
+        SimpleOption<Boolean> noiseLOD = SimpleOption.ofBoolean(
+            "options.video.noise_lod", Options.noiseLOD,
+            value -> Options.setNoiseLOD(value, true));
+        section.addToggle(noiseLOD.createWidget(gameOptions));
     }
 }

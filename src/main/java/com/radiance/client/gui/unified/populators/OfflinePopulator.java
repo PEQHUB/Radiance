@@ -2,16 +2,14 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.gui.KeyBindButton;
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
-import com.radiance.client.gui.unified.rows.ButtonRow;
 import com.radiance.client.gui.unified.rows.KeyBindRow;
 import com.radiance.client.input.KeyInputHandler;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
@@ -111,22 +109,17 @@ public class OfflinePopulator implements ContentPopulator {
         // ── Camera ──
         SettingsSection camera = panel.addSection("Camera");
 
-        // Sensor size preset (cycle toggle)
-        SimpleOption<Integer> sensorPresetOpt = new SimpleOption<>(
-            "Sensor Size",
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(Options.SENSOR_PRESET_NAMES[Math.min(value, Options.SENSOR_PRESET_NAMES.length - 1)])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, Options.SENSOR_PRESET_NAMES.length - 1),
-            Codec.intRange(0, Options.SENSOR_PRESET_NAMES.length - 1),
-            Options.sensorPreset,
+        // Sensor size preset (dropdown)
+        SelectionDropdownWidget sensorDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20,
+            "Sensor Size", Options.SENSOR_PRESET_NAMES, Options.sensorPreset,
             value -> {
                 Options.applySensorPreset(value);
                 Options.syncApertureToNative();
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 screen.refreshContent();
             });
-        camera.addToggle(sensorPresetOpt.createWidget(MinecraftClient.getInstance().options));
+        camera.addTwoWidgets(sensorDropdown, null);
 
         // Focal length (14-200mm)
         ResettableSliderWidget focalSlider = new ResettableSliderWidget(
@@ -160,18 +153,18 @@ public class OfflinePopulator implements ContentPopulator {
         // ── Focus ──
         SettingsSection focus = panel.addSection("Focus");
 
-        // Focus mode cycle toggle (MF → AF-S → AF-C)
-        String currentFocusMode = Options.FOCUS_MODE_NAMES[Math.min(Options.focusMode, 2)];
-        focus.addButton(ButtonWidget.builder(
-            Text.literal("Focus Mode: " + currentFocusMode), button -> {
-                Options.focusMode = (Options.focusMode + 1) % 3;
-                button.setMessage(Text.literal("Focus Mode: "
-                    + Options.FOCUS_MODE_NAMES[Math.min(Options.focusMode, 2)]));
+        // Focus mode dropdown (MF / AF-S / AF-C)
+        SelectionDropdownWidget focusModeDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20,
+            "Focus Mode", Options.FOCUS_MODE_NAMES, Math.min(Options.focusMode, 2),
+            value -> {
+                Options.focusMode = value;
                 if (Options.focusMode == 1) {
                     // AF-S: close menu to pick in world
                     MinecraftClient.getInstance().setScreen(null);
                 }
-            }).size(150, 20).build());
+            });
+        focus.addTwoWidgets(focusModeDropdown, null);
 
         // Focus distance slider (1-256 blocks, scroll wheel gives sub-block precision)
         ResettableSliderWidget focusSlider = new ResettableSliderWidget(
@@ -246,19 +239,18 @@ public class OfflinePopulator implements ContentPopulator {
             new KeyBindButton(0, 0, KeyInputHandler.lockCameraKey),
             "Lock Camera"));
 
-        String[] modeNames = {"Raw", "DLSS + Welford", "DLSS-RR Temporal"};
-        String currentMode = modeNames[Math.min(Options.offlineDenoised, 2)];
-        SimpleOption<Boolean> denoisedCycle = SimpleOption.ofBoolean(
-            "Denoised: " + currentMode,
-            Options.offlineDenoised > 0,
+        String[] modeNames = {"Raw Fast", "Raw Slow", "DLSS-D Converge"};
+        SelectionDropdownWidget denoisedDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20,
+            "Denoised", modeNames, Math.min(Options.offlineDenoised, 2),
             value -> {
-                Options.offlineDenoised = (Options.offlineDenoised + 1) % 3;
-                Options.nativeSetOfflineDenoised(Options.offlineDenoised, true);
+                Options.offlineDenoised = value;
+                Options.nativeSetOfflineDenoised(value, true);
                 Options.nativeResetAccumulation();
                 screen.refreshContent();
             });
         controls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.offlineDenoisedKey),
-            denoisedCycle.createWidget(MinecraftClient.getInstance().options)));
+            denoisedDropdown));
     }
 }

@@ -300,7 +300,7 @@ public class Options {
     public static boolean offlineDisableClamp = false;
     public static float offlineFocalDistance = 10.0f;  // 0.5-256 blocks (1/16th precision)
     public static boolean offlineNativeRes = false;  // force render-res = display-res
-    public static int offlineDenoised = 0;           // 0=raw, 1=DLSS+Welford, 2=DLSS temporal
+    public static int offlineDenoised = 0;           // 0=Raw Fast (RR on), 1=Raw Slow (RR off), 2=DLSS-D Converge
     // Camera model (persisted) — industry standard f-stop / focal length / sensor
     public static int sensorPreset = 0;              // 0=FF, 1=APS-C, 2=M4/3, 3=MF
     public static float sensorWidthMM = 36.0f;       // sensor width in mm

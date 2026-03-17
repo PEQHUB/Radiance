@@ -24,6 +24,7 @@ public class KeyInputHandler {
     public static KeyBinding materialPickerKey;
     public static KeyBinding offlineDenoisedKey;
     public static KeyBinding offlineGroundTruthKey;
+    public static KeyBinding offlineNativeResKey;
     public static KeyBinding offlineTabPeekKey;
     public static KeyBinding focusKey;
 
@@ -70,6 +71,13 @@ public class KeyInputHandler {
             "key.radiance.offline_ground_truth",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_G,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineNativeResKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_native_res",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_N,
             Options.KEY_CATEGORY_RADIANCE
         ));
 
@@ -275,7 +283,8 @@ public class KeyInputHandler {
                 }
             }
 
-            // D: cycle denoised mode (offline only, skip in FREE+freecam since D is strafe)
+            // D: cycle offline mode (skip in FREE+freecam since D is strafe)
+            // 0=Raw Fast (RR on), 1=Raw Slow (RR off), 2=DLSS-D Converge
             while (offlineDenoisedKey.wasPressed()) {
                 boolean freecamActive = Options.offlineState == 1 && Options.freecamEnabled;
                 if (Options.offlineState != 0 && !freecamActive && client.currentScreen == null) {
@@ -284,7 +293,20 @@ public class KeyInputHandler {
                     if (Options.offlineState == 2) {
                         Options.nativeResetAccumulation();
                     }
-                    RadianceClient.LOGGER.info("[Offline] Denoised mode: {}", Options.offlineDenoised);
+                    String[] modeNames = {"Raw Fast", "Raw Slow", "DLSS-D Converge"};
+                    RadianceClient.LOGGER.info("[Offline] Mode: {}", modeNames[Options.offlineDenoised]);
+                }
+            }
+
+            // N: toggle native resolution (FREE mode only — accumulation always native)
+            while (offlineNativeResKey.wasPressed()) {
+                if (Options.offlineState == 1 && client.currentScreen == null) {
+                    Options.offlineNativeRes = !Options.offlineNativeRes;
+                    Options.nativeSetOfflineNativeRes(Options.offlineNativeRes, true);
+                    if (Options.offlineState == 2) {
+                        Options.nativeResetAccumulation();
+                    }
+                    RadianceClient.LOGGER.info("[Offline] Native res: {}", Options.offlineNativeRes ? "ON" : "OFF (upscaler quality)");
                 }
             }
 
