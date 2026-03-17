@@ -7,6 +7,7 @@ import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
@@ -54,11 +55,33 @@ public class WindowPopulator implements ContentPopulator {
 
         section.addTwoSliders(widthSlider, heightSlider);
 
-        // Fullscreen toggle
+        // Fullscreen toggle + Center Window button
         SimpleOption<Boolean> fullscreen = SimpleOption.ofBoolean("options.fullscreen",
             mc.getWindow().isFullscreen(),
             value -> mc.getWindow().toggleFullscreen());
-        section.addToggle(fullscreen.createWidget(gameOptions));
+        ButtonWidget centerBtn = ButtonWidget.builder(Text.literal("Center Window"), btn -> {
+            centerWindow();
+        }).width(150).build();
+        section.addTwoWidgets(fullscreen.createWidget(gameOptions), centerBtn);
+    }
+
+    private static void centerWindow() {
+        var mc = MinecraftClient.getInstance();
+        var window = mc.getWindow();
+        if (window.isFullscreen()) return;
+
+        long handle = window.getHandle();
+        long monitor = org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
+        if (monitor == 0) return;
+        var vidMode = org.lwjgl.glfw.GLFW.glfwGetVideoMode(monitor);
+        if (vidMode == null) return;
+
+        int x = (vidMode.width() - window.getWidth()) / 2;
+        int y = (vidMode.height() - window.getHeight()) / 2;
+        org.lwjgl.glfw.GLFW.glfwSetWindowPos(handle, x, y);
+        Options.windowPosX = x;
+        Options.windowPosY = y;
+        Options.overwriteConfig();
     }
 
     private static void applyWindowSize(int width, int height) {
