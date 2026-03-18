@@ -283,8 +283,8 @@ public class KeyInputHandler {
                 }
             }
 
-            // D: cycle offline mode (skip in FREE+freecam since D is strafe)
-            // 0=Raw Fast (RR on), 1=Raw Slow (RR off), 2=DLSS-D Converge
+            // D: cycle render preset (skip in FREE+freecam since D is strafe)
+            // 0=Raw Fast (RR on), 1=Raw Accurate (RR off), 2=Denoised (epoch-based DLSS-RR)
             while (offlineDenoisedKey.wasPressed()) {
                 boolean freecamActive = Options.offlineState == 1 && Options.freecamEnabled;
                 if (Options.offlineState != 0 && !freecamActive && client.currentScreen == null) {
@@ -293,8 +293,8 @@ public class KeyInputHandler {
                     if (Options.offlineState == 2) {
                         Options.nativeResetAccumulation();
                     }
-                    String[] modeNames = {"Raw Fast", "Raw Slow", "DLSS-D Converge"};
-                    RadianceClient.LOGGER.info("[Offline] Mode: {}", modeNames[Options.offlineDenoised]);
+                    String[] presetNames = {"Raw Fast", "Raw Accurate", "Denoised"};
+                    RadianceClient.LOGGER.info("[Offline] Preset: {}", presetNames[Options.offlineDenoised]);
                 }
             }
 

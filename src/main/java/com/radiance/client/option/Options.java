@@ -22,7 +22,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 18;
+    public static final int CURRENT_OPTIONS_VERSION = 19;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 0;
     public static final int SATURATION_DEFAULT_PERCENT = 100;
     public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
@@ -300,7 +300,8 @@ public class Options {
     public static boolean offlineDisableClamp = false;
     public static float offlineFocalDistance = 10.0f;  // 0.5-256 blocks (1/16th precision)
     public static boolean offlineNativeRes = false;  // force render-res = display-res
-    public static int offlineDenoised = 0;           // 0=Raw Fast (RR on), 1=Raw Slow (RR off), 2=DLSS-D Converge
+    public static int offlineDenoised = 0;           // 0=Raw Fast (RR on), 1=Raw Accurate (RR off), 2=Denoised (epoch-based)
+    public static int dlssEpochLength = 16;          // frames per Denoised epoch (4-64)
     // Camera model (persisted) — industry standard f-stop / focal length / sensor
     public static int sensorPreset = 0;              // 0=FF, 1=APS-C, 2=M4/3, 3=MF
     public static float sensorWidthMM = 36.0f;       // sensor width in mm
@@ -477,8 +478,8 @@ public class Options {
     public static int casSharpnessPercent = 50;
     // Treat speeds as max EV change per second (rate-limited adaptation).
     // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
-    public static int exposureUpSpeedTenths = 13;              // 1-200 → 0.1 to 20.0 (1.3 EV/s dark adapt)
-    public static int exposureDownSpeedTenths = 15;           // 1-200 → 0.1 to 20.0 (1.5 EV/s bright adapt)
+    public static int exposureUpSpeedTenths = 8;               // 1-200 → 0.1 to 20.0 (0.8 EV/s dark adapt)
+    public static int exposureDownSpeedTenths = 10;           // 1-200 → 0.1 to 20.0 (1.0 EV/s bright adapt)
     public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0 (1.0× no boost, eliminates asymmetry)
     public static int exposureHighlightProtectionPercent = 30; // 0-100 → 0.0 to 1.0 (soft nudge, tonemapper clips)
     public static int exposureHighlightPercentileTenK = 9800; // 9000-9999 → 0.9000 to 0.9999 (98th percentile, less sensitive to outliers)
@@ -1573,6 +1574,7 @@ public class Options {
             offlineFocalDistance = Float.parseFloat(props.getProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance)));
             offlineNativeRes = Boolean.parseBoolean(props.getProperty("offlineNativeRes", String.valueOf(offlineNativeRes)));
             offlineDenoised = Integer.parseInt(props.getProperty("offlineDenoised", String.valueOf(offlineDenoised)));
+            dlssEpochLength = Integer.parseInt(props.getProperty("dlssEpochLength", String.valueOf(dlssEpochLength)));
             // Camera model
             sensorPreset = Integer.parseInt(props.getProperty("sensorPreset", String.valueOf(sensorPreset)));
             sensorWidthMM = Float.parseFloat(props.getProperty("sensorWidthMM", String.valueOf(sensorWidthMM)));
@@ -1594,6 +1596,7 @@ public class Options {
                 nativeSetDofStrength(dofStrengthPercent / 100.0f, false);
                 nativeSetOfflineNativeRes(offlineNativeRes, false);
                 nativeSetOfflineDenoised(offlineDenoised, false);
+                nativeSetDlssEpochLength(dlssEpochLength, false);
             } catch (UnsatisfiedLinkError ignored) {
                 // Offline accumulation JNI not available in this core.dll build
             }
@@ -1910,6 +1913,12 @@ public class Options {
                 nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
             }
 
+            if (loadedOptionsVersion < 19) {
+                // v19: Moderate exposure down speed — less pulsing than 1.5, better low-light than 0.7.
+                exposureDownSpeedTenths = 10;
+                nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
+            }
+
             optionsVersion = CURRENT_OPTIONS_VERSION;
 
             // Emission — per-block temperatures
@@ -2123,6 +2132,7 @@ public class Options {
         props.setProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance));
         props.setProperty("offlineNativeRes", String.valueOf(offlineNativeRes));
         props.setProperty("offlineDenoised", String.valueOf(offlineDenoised));
+        props.setProperty("dlssEpochLength", String.valueOf(dlssEpochLength));
         // Camera model
         props.setProperty("sensorPreset", String.valueOf(sensorPreset));
         props.setProperty("sensorWidthMM", String.valueOf(sensorWidthMM));
@@ -2988,7 +2998,7 @@ public class Options {
         sharpenerMode = 0;
         casSharpnessPercent = 50;
         exposureUpSpeedTenths = 8;
-        exposureDownSpeedTenths = 15;
+        exposureDownSpeedTenths = 10;
         exposureBrightAdaptBoostTenths = 10;
         exposureHighlightProtectionPercent = 30;
         exposureHighlightPercentileTenK = 9800;
@@ -4398,8 +4408,10 @@ public class Options {
     }
     public native static void nativeSetOfflineNativeRes(boolean enabled, boolean write);
     public native static void nativeSetOfflineDenoised(int mode, boolean write);
+    public native static void nativeSetDlssEpochLength(int length, boolean write);
     public native static void nativeResetAccumulation();
     public native static int nativeGetAccumFrameCount();
+    public native static int nativeGetDlssEpochCount();
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(7, mode));

@@ -14,6 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(InGameHud.class)
 public class InGameHudMixins {
 
+    private static final String[] PRESET_NAMES = {"RAW FAST", "RAW ACCURATE", "DENOISED"};
+
     @Inject(method = "render", at = @At("TAIL"))
     private void renderOfflineOverlay(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
         if (Options.offlineState == 0) return;
@@ -40,33 +42,38 @@ public class InGameHudMixins {
             int x = 8;
             int lineHeight = 11;
 
-            // Compute lines bottom-up (we know how many lines, draw from bottom)
-            int samples = 0;
-            try { samples = Options.nativeGetAccumFrameCount(); } catch (UnsatisfiedLinkError ignored) {}
-
             // Mode label
             String modeLabel;
             int modeColor;
             if (Options.offlineGroundTruth) {
                 modeLabel = "GROUND TRUTH";
                 modeColor = 0xFFAA00; // orange
-            } else if (Options.offlineDenoised == 2) {
-                modeLabel = "DLSS-RR Temporal";
-                modeColor = 0x00FF88; // cyan
-            } else if (Options.offlineDenoised == 1) {
-                modeLabel = "DLSS + Welford";
-                modeColor = 0x00FF88;
             } else {
-                modeLabel = "Raw";
-                modeColor = 0x00FF88;
+                modeLabel = PRESET_NAMES[Math.min(Options.offlineDenoised, 2)];
+                modeColor = 0x00FF88; // cyan
             }
 
             // Elapsed time
             long elapsedNanos = System.nanoTime() - Options.accumStartTimeNanos;
             String elapsed = formatElapsedTime(elapsedNanos);
 
-            // Stats line: "Samples: N | Xm Xs | N bounces"
-            String statsLine = "Samples: " + samples + " | " + elapsed + " | " + Options.offlineBounces + " bounces";
+            // Stats line: preset-aware
+            String statsLine;
+            if (Options.offlineDenoised == 2 && !Options.offlineGroundTruth) {
+                // Denoised: show epochs and total frames
+                int epochs = 0;
+                int frames = 0;
+                try {
+                    epochs = Options.nativeGetDlssEpochCount();
+                    frames = Options.nativeGetAccumFrameCount();
+                } catch (UnsatisfiedLinkError ignored) {}
+                statsLine = "Epochs: " + epochs + " (" + frames + " frames) | " + elapsed + " | " + Options.offlineBounces + " bounces";
+            } else {
+                // Raw Fast / Raw Accurate / Ground Truth: show samples
+                int samples = 0;
+                try { samples = Options.nativeGetAccumFrameCount(); } catch (UnsatisfiedLinkError ignored) {}
+                statsLine = "Samples: " + samples + " | " + elapsed + " | " + Options.offlineBounces + " bounces";
+            }
 
             // Camera line (only when DOF active: fStop < 22)
             boolean dofActive = Options.fStop < 21.9f;
@@ -154,11 +161,13 @@ public class InGameHudMixins {
             context.drawTextWithShadow(renderer, cameraInfo, x, y, focusModeColor);
             y += lineHeight;
 
-            // Render info
+            // Render info — consistent preset names
             StringBuilder renderInfo = new StringBuilder();
             renderInfo.append(Options.offlineBounces).append(" bounces | ");
-            String[] modeNames = {"Raw", "DLSS + Welford", "DLSS-RR Temporal"};
-            renderInfo.append(modeNames[Math.min(Options.offlineDenoised, 2)]);
+            renderInfo.append(PRESET_NAMES[Math.min(Options.offlineDenoised, 2)]);
+            if (Options.offlineDenoised == 2) {
+                renderInfo.append(" (epoch: ").append(Options.dlssEpochLength).append(")");
+            }
             if (Options.offlineGroundTruth) {
                 renderInfo.append(" | Ground Truth");
             }

@@ -17,28 +17,54 @@ public class OfflinePopulator implements ContentPopulator {
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
 
-        // ── Ground Truth Preset ──
-        SettingsSection preset = panel.addSection("Ground Truth");
+        // ── Render Preset ──
+        SettingsSection preset = panel.addSection("Render Preset");
 
-        SimpleOption<Boolean> groundTruth = SimpleOption.ofBoolean(
-            "Ground Truth Preset",
-            Options.offlineGroundTruth,
+        String[] presetNames = {"Raw Fast", "Raw Accurate", "Denoised"};
+        SelectionDropdownWidget presetDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20,
+            "Render Preset", presetNames, Math.min(Options.offlineDenoised, 2),
             value -> {
-                Options.offlineGroundTruth = value;
-                if (value) {
-                    KeyInputHandler.applyGroundTruthPreset();
-                } else {
-                    KeyInputHandler.restoreGroundTruthPreset();
-                }
-                Options.nativeSetOfflineGroundTruth(value, false);
-                if (Options.offlineState == 2) {
-                    Options.nativeResetAccumulation();
-                }
+                Options.offlineDenoised = value;
+                Options.nativeSetOfflineDenoised(value, true);
+                Options.nativeResetAccumulation();
                 screen.refreshContent();
             });
         preset.addRow(new KeyBindRow(
-            new KeyBindButton(0, 0, KeyInputHandler.offlineGroundTruthKey),
-            groundTruth.createWidget(MinecraftClient.getInstance().options)));
+            new KeyBindButton(0, 0, KeyInputHandler.offlineDenoisedKey),
+            presetDropdown));
+
+        // ── Accumulation ──
+        SettingsSection accum = panel.addSection("Accumulation");
+
+        ResettableSliderWidget bouncesSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            1, 128, Options.offlineBounces, 16,
+            v -> getGenericValueText(
+                Text.literal("Ray Bounces"),
+                Text.literal(String.valueOf(v))),
+            v -> {
+                Options.offlineBounces = v;
+                Options.nativeSetOfflineBounces(v, true);
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+            });
+        accum.addSlider(bouncesSlider);
+
+        // Epoch length slider (only visible when Denoised preset is selected)
+        if (Options.offlineDenoised == 2) {
+            ResettableSliderWidget epochSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                4, 64, Options.dlssEpochLength, 16,
+                v -> getGenericValueText(
+                    Text.literal("Epoch Length"),
+                    Text.literal(v + " frames")),
+                v -> {
+                    Options.dlssEpochLength = v;
+                    Options.nativeSetDlssEpochLength(v, true);
+                    if (Options.offlineState == 2) Options.nativeResetAccumulation();
+                });
+            accum.addSlider(epochSlider);
+        }
 
         // ── Shader Quality ──
         SettingsSection quality = panel.addSection("Shader Quality");
@@ -53,16 +79,6 @@ public class OfflinePopulator implements ContentPopulator {
             });
         quality.addToggle(beerLaw.createWidget(MinecraftClient.getInstance().options));
 
-        SimpleOption<Boolean> noClamp = SimpleOption.ofBoolean(
-            "Disable Emission Clamp",
-            Options.noEmissionClamp,
-            value -> {
-                Options.noEmissionClamp = value;
-                Options.nativeSetNoEmissionClamp(value, true);
-                if (Options.offlineState == 2) Options.nativeResetAccumulation();
-            });
-        quality.addToggle(noClamp.createWidget(MinecraftClient.getInstance().options));
-
         SimpleOption<Boolean> physSun = SimpleOption.ofBoolean(
             "Physical Sun Disk",
             Options.physicalSunDisk,
@@ -72,6 +88,16 @@ public class OfflinePopulator implements ContentPopulator {
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         quality.addToggle(physSun.createWidget(MinecraftClient.getInstance().options));
+
+        SimpleOption<Boolean> noClamp = SimpleOption.ofBoolean(
+            "Disable Emission Clamp",
+            Options.noEmissionClamp,
+            value -> {
+                Options.noEmissionClamp = value;
+                Options.nativeSetNoEmissionClamp(value, true);
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+            });
+        quality.addToggle(noClamp.createWidget(MinecraftClient.getInstance().options));
 
         SimpleOption<Boolean> noHand = SimpleOption.ofBoolean(
             "Disable Hand Ambient",
@@ -83,18 +109,17 @@ public class OfflinePopulator implements ContentPopulator {
             });
         quality.addToggle(noHand.createWidget(MinecraftClient.getInstance().options));
 
-        // ── Variance Reduction ──
-        SettingsSection variance = panel.addSection("Variance Reduction");
-
         SimpleOption<Boolean> disableRR = SimpleOption.ofBoolean(
             "Disable Russian Roulette",
-            Options.offlineDisableRR,
+            Options.offlineDisableRR || Options.offlineDenoised == 1,
             value -> {
+                // Raw Accurate forces RR off — don't allow toggle
+                if (Options.offlineDenoised == 1) return;
                 Options.offlineDisableRR = value;
                 Options.nativeSetOfflineDisableRR(value, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        variance.addToggle(disableRR.createWidget(MinecraftClient.getInstance().options));
+        quality.addToggle(disableRR.createWidget(MinecraftClient.getInstance().options));
 
         SimpleOption<Boolean> disableClamp = SimpleOption.ofBoolean(
             "Disable Throughput Clamp",
@@ -104,7 +129,7 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.nativeSetOfflineDisableClamp(value, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        variance.addToggle(disableClamp.createWidget(MinecraftClient.getInstance().options));
+        quality.addToggle(disableClamp.createWidget(MinecraftClient.getInstance().options));
 
         // ── Camera ──
         SettingsSection camera = panel.addSection("Camera");
@@ -180,22 +205,6 @@ public class OfflinePopulator implements ContentPopulator {
             });
         focus.addSlider(focusSlider);
 
-        // ── Accumulation ──
-        SettingsSection accum = panel.addSection("Accumulation");
-
-        ResettableSliderWidget bouncesSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            1, 128, Options.offlineBounces, 16,
-            v -> getGenericValueText(
-                Text.literal("Ray Bounces"),
-                Text.literal(String.valueOf(v))),
-            v -> {
-                Options.offlineBounces = v;
-                Options.nativeSetOfflineBounces(v, true);
-                if (Options.offlineState == 2) Options.nativeResetAccumulation();
-            });
-        accum.addSlider(bouncesSlider);
-
         // ── Freecam ──
         SettingsSection freecam = panel.addSection("Freecam");
 
@@ -208,7 +217,7 @@ public class OfflinePopulator implements ContentPopulator {
         freecam.addToggle(freecamToggle.createWidget(MinecraftClient.getInstance().options));
 
         SimpleOption<Boolean> showPlayerToggle = SimpleOption.ofBoolean(
-            "Show Player Model",
+            "Show Player",
             Options.freecamShowPlayer,
             value -> {
                 Options.freecamShowPlayer = value;
@@ -228,29 +237,35 @@ public class OfflinePopulator implements ContentPopulator {
             });
         freecam.addSlider(speedSlider);
 
-        // ── Controls ──
-        SettingsSection controls = panel.addSection("Controls");
+        // ── Ground Truth & Controls ──
+        SettingsSection gtControls = panel.addSection("Ground Truth & Controls");
 
-        controls.addRow(new KeyBindRow(
+        SimpleOption<Boolean> groundTruth = SimpleOption.ofBoolean(
+            "Ground Truth",
+            Options.offlineGroundTruth,
+            value -> {
+                Options.offlineGroundTruth = value;
+                if (value) {
+                    KeyInputHandler.applyGroundTruthPreset();
+                } else {
+                    KeyInputHandler.restoreGroundTruthPreset();
+                }
+                Options.nativeSetOfflineGroundTruth(value, false);
+                if (Options.offlineState == 2) {
+                    Options.nativeResetAccumulation();
+                }
+                screen.refreshContent();
+            });
+        gtControls.addRow(new KeyBindRow(
+            new KeyBindButton(0, 0, KeyInputHandler.offlineGroundTruthKey),
+            groundTruth.createWidget(MinecraftClient.getInstance().options)));
+
+        gtControls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.offlineModeKey),
             "Offline Mode"));
 
-        controls.addRow(new KeyBindRow(
+        gtControls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.lockCameraKey),
             "Lock Camera"));
-
-        String[] modeNames = {"Raw Fast", "Raw Slow", "DLSS-D Converge"};
-        SelectionDropdownWidget denoisedDropdown = new SelectionDropdownWidget(
-            0, 0, 150, 20,
-            "Denoised", modeNames, Math.min(Options.offlineDenoised, 2),
-            value -> {
-                Options.offlineDenoised = value;
-                Options.nativeSetOfflineDenoised(value, true);
-                Options.nativeResetAccumulation();
-                screen.refreshContent();
-            });
-        controls.addRow(new KeyBindRow(
-            new KeyBindButton(0, 0, KeyInputHandler.offlineDenoisedKey),
-            denoisedDropdown));
     }
 }
