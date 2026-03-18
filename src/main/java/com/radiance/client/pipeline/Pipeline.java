@@ -397,6 +397,17 @@ public class Pipeline {
 
         // Optional cloud module: RT → Cloud → next stage
         // When present, cloud_radiance replaces radiance for downstream consumers.
+        // NOTE: Cloud module is incompatible with NRD's separated-lighting architecture.
+        // NRD denoises diffuse/specular/direct separately, not combined radiance.
+        // When NRD is active (FSR3 path), cloud module is automatically disabled.
+        boolean nrdActive = !useDlss
+            && Options.upscalerMode != 2
+            && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")
+            && isNativeModuleAvailable("render_pipeline.module.nrd.name");
+        if (useCloud && nrdActive) {
+            useCloud = false;
+            RadianceClient.LOGGER.info("[Pipeline] Cloud module disabled: incompatible with NRD separated-lighting pipeline");
+        }
         Module cloudModule = null;
         if (useCloud) {
             cloudModule = addModule("render_pipeline.module.cloud.name");
