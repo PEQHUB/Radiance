@@ -21,6 +21,7 @@ public class HdrSaturationPopulator implements ContentPopulator {
         Options.TONEMAP_MODE_FROSTBITE,
         Options.TONEMAP_MODE_UNCHARTED2,
         Options.TONEMAP_MODE_GT,
+        Options.TONEMAP_MODE_PSYCHOVISUAL,
     };
 
     // Parameter definitions per tonemapper mode: label, min, max, default
@@ -60,6 +61,8 @@ public class HdrSaturationPopulator implements ContentPopulator {
           new TmParam("Linear Length", 0.1f, 0.9f, 0.4f),
           new TmParam("Black Curve", 0.5f, 3.0f, 1.33f),
           new TmParam("Black Lift", -0.05f, 0.1f, 0.0f) },
+        // Mode 8: PsychoVisual (uses dedicated PsychoV sliders, no per-mode params)
+        {},
     };
 
     @Override
@@ -69,14 +72,14 @@ public class HdrSaturationPopulator implements ContentPopulator {
         // ── SDR Tonemapping ──
         SettingsSection tonemap = panel.addSection(Text.literal("SDR Tonemapping"));
 
-        // Tonemapper mode selector (0-7)
+        // Tonemapper mode selector (0-8)
         SimpleOption<Integer> tonemapMode = new SimpleOption<>(
             Options.TONEMAP_MODE_KEY,
             SimpleOption.emptyTooltip(),
             (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(SDR_TONEMAP_MODE_KEYS[Math.max(0, Math.min(7, value))])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 7),
-            Codec.intRange(0, 7),
+                Text.translatable(SDR_TONEMAP_MODE_KEYS[Math.max(0, Math.min(8, value))])),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 8),
+            Codec.intRange(0, 8),
             Options.tonemappingMode,
             value -> {
                 Options.setTonemappingMode(value, true);
@@ -147,11 +150,21 @@ public class HdrSaturationPopulator implements ContentPopulator {
             hdr.addToggle(hdrEnabled.createWidget(gameOptions));
 
             if (Options.hdrEnabled) {
-                // PsychoV toggle — HDR only
-                SimpleOption<Boolean> psychoToggle = SimpleOption.ofBoolean(
-                    Options.PSYCHO_ENABLED_KEY, Options.psychoEnabled,
-                    value -> Options.setPsychoEnabled(value, true));
-                hdr.addToggle(psychoToggle.createWidget(gameOptions));
+                // HDR tonemapper selector: 0 = PsychoVisual, 1 = ITU EETF (Hermite)
+                String[] HDR_TM_KEYS = { Options.HDR_TONEMAP_PSYCHOVISUAL, Options.HDR_TONEMAP_BT2390 };
+                SimpleOption<Integer> hdrTmMode = new SimpleOption<>(
+                    Options.HDR_TONEMAP_MODE_KEY,
+                    SimpleOption.emptyTooltip(),
+                    (optionText, value) -> getGenericValueText(optionText,
+                        Text.translatable(HDR_TM_KEYS[Math.max(0, Math.min(1, value))])),
+                    new SimpleOption.ValidatingIntSliderCallbacks(0, 1),
+                    Codec.intRange(0, 1),
+                    Options.hdrTonemapMode,
+                    value -> {
+                        Options.setHdrTonemapMode(value, true);
+                        screen.refreshContent();
+                    });
+                hdr.addToggle(hdrTmMode.createWidget(gameOptions));
 
                 hdr.addTwoSliders(
                     new ResettableSliderWidget(0, 0, 150, 20,

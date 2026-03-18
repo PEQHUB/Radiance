@@ -25,7 +25,7 @@ public class KeyInputHandler {
     public static KeyBinding offlineDenoisedKey;
     public static KeyBinding offlineGroundTruthKey;
     public static KeyBinding offlineNativeResKey;
-    public static KeyBinding offlineTabPeekKey;
+
     public static KeyBinding focusKey;
 
     // Debounce for AF-S click (prevent re-triggering on same press)
@@ -81,13 +81,6 @@ public class KeyInputHandler {
             Options.KEY_CATEGORY_RADIANCE
         ));
 
-        offlineTabPeekKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            "key.radiance.offline_tab_peek",
-            InputUtil.Type.KEYSYM,
-            GLFW.GLFW_KEY_TAB,
-            Options.KEY_CATEGORY_RADIANCE
-        ));
-
         focusKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.radiance.focus",
             InputUtil.Type.KEYSYM,
@@ -106,15 +99,6 @@ public class KeyInputHandler {
                 }
             }
 
-            // Tab: peek settings menu while held (offline mode only)
-            while (offlineTabPeekKey.wasPressed()) {
-                if (Options.offlineState != 0 && client.currentScreen == null) {
-                    RadianceUnifiedScreen.openedViaTab = true;
-                    RadianceUnifiedScreen.tabPeekOpenTimeMs = System.currentTimeMillis();
-                    MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(null));
-                }
-            }
-
             // F7: toggle offline mode (NORMAL <-> FREE)
             while (offlineModeKey.wasPressed()) {
                 if (client.currentScreen == null && client.world != null) {
@@ -126,6 +110,9 @@ public class KeyInputHandler {
                         if (Options.freecamEnabled) {
                             Options.freecam.initFromCamera(client.gameRenderer.getCamera());
                         }
+                        // Clear existing particles — they'll never age/die with tick frozen
+                        var pmExt = (com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleManagerExt) client.particleManager;
+                        pmExt.neoVoxelRT$getParticles().values().forEach(java.util.Queue::clear);
                         RadianceClient.LOGGER.info("[Offline] Entered FREE mode (time frozen at {})", Options.frozenDayTimeTicks);
                     } else {
                         Options.offlineState = 0;
@@ -180,21 +167,7 @@ public class KeyInputHandler {
                 }
             }
 
-            // Freecam movement tick (in FREE mode with freecam enabled)
-            if (Options.offlineState == 1 && Options.freecamEnabled && client.currentScreen == null) {
-                long handle = client.getWindow().getHandle();
-                float forward = 0, strafe = 0, up = 0;
-                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_W) == GLFW.GLFW_PRESS) forward += 1;
-                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_S) == GLFW.GLFW_PRESS) forward -= 1;
-                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_A) == GLFW.GLFW_PRESS) strafe += 1;
-                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_D) == GLFW.GLFW_PRESS) strafe -= 1;
-                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_SPACE) == GLFW.GLFW_PRESS) up += 1;
-                if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS) up -= 1;
-                boolean slow = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS;
-                if (forward != 0 || strafe != 0 || up != 0) {
-                    Options.freecam.tick(forward, strafe, up, Options.freecamSpeed, slow);
-                }
-            }
+            // Freecam movement is now per-frame in WorldRendererMixins (smooth, frame-rate independent)
 
             // ── Focus mode handling ──
             // F key: enter AF-S (single), Ctrl+F: toggle AF-C (continuous)

@@ -91,6 +91,11 @@ public class Options {
     public static final String TONEMAP_MODE_FROSTBITE = "options.video.tonemap_mode.frostbite";
     public static final String TONEMAP_MODE_UNCHARTED2 = "options.video.tonemap_mode.uncharted2";
     public static final String TONEMAP_MODE_GT = "options.video.tonemap_mode.gt";
+    public static final String TONEMAP_MODE_PSYCHOVISUAL = "options.video.tonemap_mode.psychovisual";
+    // HDR tonemappers
+    public static final String HDR_TONEMAP_MODE_KEY = "options.video.hdr_tonemap_mode";
+    public static final String HDR_TONEMAP_PSYCHOVISUAL = "options.video.hdr_tonemap_mode.psychovisual";
+    public static final String HDR_TONEMAP_BT2390 = "options.video.hdr_tonemap_mode.bt2390";
     // HDR tonemappers (shown when hdrEnabled=true)
     public static final String TONEMAP_MODE_HDR_HERMITE_REINHARD = "options.video.tonemap_mode.hdr_hermite_reinhard";
     public static final String TONEMAP_MODE_HDR_REINHARD_EXTENDED = "options.video.tonemap_mode.hdr_reinhard_extended";
@@ -152,10 +157,12 @@ public class Options {
     public static final String UPSCALER_PRESET_KEY = "options.video.upscaler_preset";
     public static final String OUTPUT_SCALE_2X_KEY = "options.video.output_scale_2x";
 
-    // NVIDIA Reflex
+    // VSync + NVIDIA Reflex
+    public static final String VSYNC_KEY = "options.video.radiance_vsync";
     public static final String REFLEX_ENABLED_KEY = "options.video.reflex_enabled";
     public static final String REFLEX_BOOST_KEY = "options.video.reflex_boost";
     public static final String VRR_MODE_KEY = "options.video.vrr_mode";
+    public static final String MAX_FPS_KEY = "options.video.max_fps";
 
     // Frame Generation (DLSS-G)
     public static final String FRAME_GEN_MODE_KEY = "options.video.frame_gen_mode";
@@ -315,7 +322,7 @@ public class Options {
     public static int dofStrengthPercent = 100;      // 100-2000 (1.0x-20.0x artistic DOF multiplier)
     // Freecam (persisted preferences)
     public static boolean freecamEnabled = true;     // true=freecam, false=stick to player
-    public static float freecamSpeed = 1.0f;         // 0.1-10.0 movement speed multiplier
+    public static float freecamSpeed = 10.0f;        // 0.1-50.0 movement speed multiplier
     public static boolean freecamShowPlayer = false;  // show player model in freecam
     // Freecam transient state — use Options.freecam.x/y/z/yaw/pitch instead
     // HUD transient state
@@ -545,8 +552,11 @@ public class Options {
 
     public static int upscalerPreset = 4; // DLSS: 4=D (default), 5=E. Generic for future upscalers.
 
+    // HDR tonemapper mode: 0 = PsychoVisual, 1 = BT.2390 EETF
+    public static int hdrTonemapMode = 0;
+
     // PsychoV tonemapper (stored as integer percent/tenths for slider UI)
-    public static boolean psychoEnabled = true;
+    public static boolean psychoEnabled = true;  // kept for SDR mode 8 visibility
     public static int psychoHighlightsPercent = 100;     // 0-300 → 0.0 to 3.0
     public static int psychoShadowsPercent = 100;        // 0-300 → 0.0 to 3.0
     public static int psychoContrastPercent = 100;       // 0-300 → 0.0 to 3.0
@@ -1763,6 +1773,10 @@ public class Options {
             colorExpansionPercent = Integer.parseInt(props.getProperty(
                 "colorExpansionPercent", String.valueOf(colorExpansionPercent)));
 
+            // HDR tonemapper mode
+            hdrTonemapMode = Integer.parseInt(props.getProperty("hdrTonemapMode", "0"));
+            nativeSetHdrTonemapMode(hdrTonemapMode, false);
+
             // PsychoV tonemapper
             psychoEnabled = Boolean.parseBoolean(props.getProperty("psychoEnabled", "true"));
             nativeSetPsychoEnabled(psychoEnabled, false);
@@ -2291,7 +2305,8 @@ public class Options {
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
         props.setProperty("saturationAdaptive", String.valueOf(saturationAdaptive));
         props.setProperty("colorExpansionPercent", String.valueOf(colorExpansionPercent));
-        // PsychoV tonemapper
+        // HDR tonemapper + PsychoV
+        props.setProperty("hdrTonemapMode", String.valueOf(hdrTonemapMode));
         props.setProperty("psychoEnabled", String.valueOf(psychoEnabled));
         props.setProperty("psychoHighlightsPercent", String.valueOf(psychoHighlightsPercent));
         props.setProperty("psychoShadowsPercent", String.valueOf(psychoShadowsPercent));
@@ -3022,7 +3037,8 @@ public class Options {
         exposureLog2Max = 18;
         middleGreyPercent = 18;
         LwhiteTenths = 40;
-        // PsychoV tonemapper defaults
+        // HDR tonemapper + PsychoV defaults
+        hdrTonemapMode = 0;  // 0 = PsychoVisual
         psychoEnabled = true;
         psychoHighlightsPercent = 100;
         psychoShadowsPercent = 100;
@@ -3118,7 +3134,8 @@ public class Options {
         nativeSetExposureLog2MaxImproved(exposureLog2Max, false);
         nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
         nativeSetLwhite(LwhiteTenths / 10.0f, false);
-        // PsychoV tonemapper
+        // HDR tonemapper + PsychoV
+        nativeSetHdrTonemapMode(hdrTonemapMode, false);
         nativeSetPsychoEnabled(psychoEnabled, false);
         nativeSetPsychoHighlights(psychoHighlightsPercent / 100.0f, false);
         nativeSetPsychoShadows(psychoShadowsPercent / 100.0f, false);
@@ -3977,6 +3994,7 @@ public class Options {
     // --- VRR Mode (Reflex frame cap) ---
     public native static void nativeSetVrrMode(boolean enabled, boolean write);
     public native static int nativeGetDisplayRefreshRate();
+    public native static void nativeApplyReflexSettings();
 
     public static void setVrrMode(boolean enabled, boolean write) {
         Options.vrrMode = enabled;
@@ -4253,6 +4271,14 @@ public class Options {
         }
     }
 
+    // --- HDR Tonemapper ---
+    public native static void nativeSetHdrTonemapMode(int mode, boolean write);
+    public static void setHdrTonemapMode(int mode, boolean write) {
+        Options.hdrTonemapMode = mode;
+        nativeSetHdrTonemapMode(mode, write);
+        if (write) overwriteConfig();
+    }
+
     // --- PsychoV Tonemapper ---
     public native static void nativeSetPsychoEnabled(boolean enabled, boolean write);
     public native static void nativeSetPsychoHighlights(float value, boolean write);
@@ -4470,7 +4496,7 @@ public class Options {
     public native static int nativeGetDlssEpochCount();
 
     private static int clampTonemappingMode(int mode) {
-        return Math.max(0, Math.min(7, mode));
+        return Math.max(0, Math.min(8, mode));  // 0-7 = standard, 8 = PsychoVisual
     }
 
     // ── UI Theme setters ──

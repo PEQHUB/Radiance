@@ -224,11 +224,11 @@ public class OfflinePopulator implements ContentPopulator {
             });
         freecam.addToggle(showPlayerToggle.createWidget(MinecraftClient.getInstance().options));
 
-        // Movement speed (0.1-10.0, stored as int 1-100 → display as float)
+        // Movement speed (0.1-50.0, stored as int 1-500 → display as float)
         int speedInt = Math.round(Options.freecamSpeed * 10.0f);
         ResettableSliderWidget speedSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            1, 100, speedInt, 10,
+            1, 500, speedInt, 100,
             v -> getGenericValueText(
                 Text.literal("Movement Speed"),
                 Text.literal(String.format("%.1f×", v / 10.0))),

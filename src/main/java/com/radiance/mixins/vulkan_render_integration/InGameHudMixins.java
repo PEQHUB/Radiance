@@ -16,6 +16,18 @@ public class InGameHudMixins {
 
     private static final String[] PRESET_NAMES = {"RAW FAST", "RAW ACCURATE", "DENOISED"};
 
+    // Suppress entire vanilla HUD (hotbar, crosshair, health) during F2 screenshot in offline mode
+    @Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    private void suppressHudForScreenshot(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        if (Options.offlineState != 0) {
+            if (Options.suppressHudOverlay) return; // let TAIL handle reset
+            long handle = MinecraftClient.getInstance().getWindow().getHandle();
+            if (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_F2) == GLFW.GLFW_PRESS) {
+                ci.cancel(); // skip entire HUD render for this frame
+            }
+        }
+    }
+
     @Inject(method = "render", at = @At("TAIL"))
     private void renderOfflineOverlay(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
         if (Options.offlineState == 0) return;
@@ -95,7 +107,7 @@ public class InGameHudMixins {
             }
 
             // Count total lines and compute Y start
-            int totalLines = 2; // mode + stats always
+            int totalLines = 3; // mode + stats + keybinds always
             if (cameraLine != null) totalLines++;
             if (timeLine != null) totalLines++;
             int y = height - 8 - (totalLines * lineHeight);
@@ -111,7 +123,9 @@ public class InGameHudMixins {
             }
             if (timeLine != null) {
                 context.drawTextWithShadow(renderer, timeLine, x, y, 0x888888);
+                y += lineHeight;
             }
+            context.drawTextWithShadow(renderer, "F5: Stop | F7: Exit", x, y, 0x666666);
 
         } else if (Options.offlineState == 1) {
             // ═══════ FREE MODE ═══════
@@ -134,7 +148,7 @@ public class InGameHudMixins {
                 timeStr = String.format("%02d:%02d", hours, minutes);
             }
 
-            int totalLines = 4;
+            int totalLines = 7;
             if (timeStr != null) totalLines++;
             int y = height - 8 - (totalLines * lineHeight);
 
@@ -184,6 +198,14 @@ public class InGameHudMixins {
             // Camera mode indicator
             String camMode = Options.freecamEnabled ? "[Freecam]" : "[Player]";
             context.drawTextWithShadow(renderer, camMode, x, y, 0x888888);
+            y += lineHeight;
+
+            // Keybind reference
+            context.drawTextWithShadow(renderer, "F5: Render | D: Preset | N: Native", x, y, 0x666666);
+            y += lineHeight;
+            context.drawTextWithShadow(renderer, "G: Ground Truth | F: Focus", x, y, 0x666666);
+            y += lineHeight;
+            context.drawTextWithShadow(renderer, "Scroll: Focus | Shift+Scroll: Time", x, y, 0x666666);
 
             // Focus toast (centered, 30% from top)
             if (Options.focusToastMessage != null) {

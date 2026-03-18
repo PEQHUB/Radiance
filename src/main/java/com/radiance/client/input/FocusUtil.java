@@ -3,13 +3,17 @@ package com.radiance.client.input;
 import com.radiance.client.option.Options;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.projectile.ProjectileUtil;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
 
 /**
  * Focus distance raycast utility for AF-S and AF-C modes.
  * Works from arbitrary position (freecam-aware), 256-block range.
+ * Hits both blocks AND entities — returns whichever is closer.
  */
 public class FocusUtil {
 
@@ -17,16 +21,16 @@ public class FocusUtil {
 
     /**
      * Raycast from the given camera position/orientation up to maxDist blocks.
+     * Checks both blocks and entities, returns the closer hit.
      * @return hit distance in blocks, or -1 on miss (sky/void)
      */
     public static double raycastFromCamera(ClientWorld world, float yaw, float pitch,
                                            double x, double y, double z, double maxDist) {
         if (world == null) return -1;
 
-        // Need a non-null entity for RaycastContext (MC requires it)
         var client = net.minecraft.client.MinecraftClient.getInstance();
-        Entity entity = client.player;
-        if (entity == null) return -1;
+        Entity cameraEntity = client.player;
+        if (cameraEntity == null) return -1;
 
         // Build direction vector from yaw/pitch (Minecraft convention)
         double yawRad = Math.toRadians(yaw);
@@ -39,23 +43,34 @@ public class FocusUtil {
         Vec3d start = new Vec3d(x, y, z);
         Vec3d end = new Vec3d(x + dirX * maxDist, y + dirY * maxDist, z + dirZ * maxDist);
 
-        HitResult result = world.raycast(new RaycastContext(
+        // Block raycast
+        HitResult blockResult = world.raycast(new RaycastContext(
             start, end,
             RaycastContext.ShapeType.OUTLINE,
             RaycastContext.FluidHandling.NONE,
-            entity
+            cameraEntity
         ));
 
-        if (result == null || result.getType() == HitResult.Type.MISS) {
-            return -1;
-        }
+        double blockDist = (blockResult != null && blockResult.getType() != HitResult.Type.MISS)
+            ? start.distanceTo(blockResult.getPos()) : maxDist;
 
-        return start.distanceTo(result.getPos());
+        // Entity raycast — expand search box along the ray
+        Vec3d entityEnd = start.add(dirX * blockDist, dirY * blockDist, dirZ * blockDist);
+        Box searchBox = new Box(start, entityEnd).expand(1.0);
+        EntityHitResult entityResult = ProjectileUtil.raycast(
+            cameraEntity, start, entityEnd, searchBox,
+            e -> !e.isSpectator() && e.canHit(), blockDist * blockDist);
+
+        double entityDist = (entityResult != null)
+            ? start.distanceTo(entityResult.getPos()) : maxDist;
+
+        // Return the closer hit
+        double closest = Math.min(blockDist, entityDist);
+        return (closest >= maxDist) ? -1 : closest;
     }
 
     /**
      * Raycast from the current camera (freecam or player) center.
-     * Convenience method that reads position from Options.freecam or the provided camera coords.
      */
     public static double raycastFromCurrentCamera(ClientWorld world) {
         if (world == null) return -1;

@@ -42,11 +42,12 @@ public class ParticleManagerMixins implements IParticleManagerExt {
         }
     }
 
-    // Prevent new particles from spawning during accumulation
-    // (torch flames, lava drips, ambient particles would otherwise appear mid-accumulation)
+    // Prevent new particles from spawning during offline mode (FREE + ACCUMULATING)
+    // Without this, torch flames, lava drips, ambient particles accumulate forever
+    // since tick() is frozen and particles never age/die.
     @Inject(method = "addParticle(Lnet/minecraft/client/particle/Particle;)V", at = @At("HEAD"), cancellable = true)
-    private void preventSpawnDuringAccumulation(Particle particle, CallbackInfo ci) {
-        if (Options.offlineState == 2) {
+    private void preventSpawnDuringOffline(Particle particle, CallbackInfo ci) {
+        if (Options.offlineState != 0) {
             ci.cancel();
         }
     }

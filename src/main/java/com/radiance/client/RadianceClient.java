@@ -79,6 +79,12 @@ public class RadianceClient implements ClientModInitializer {
             } catch (RuntimeException e) {
                 LOGGER.info("sl.dlss_g.dll not found in JAR (Frame Generation will be unavailable)");
             }
+            // NGX DLSS-G snippet DLL — required for Frame Generation alongside sl.dlss_g.dll
+            try {
+                copyFileFromResource(radianceDir.resolve("nvngx_dlssg.dll"), Path.of("nvngx_dlssg.dll"));
+            } catch (RuntimeException e) {
+                LOGGER.info("nvngx_dlssg.dll not found in JAR (Frame Generation will be unavailable)");
+            }
 
             System.load(dllTargetPath.toAbsolutePath().toString());
 

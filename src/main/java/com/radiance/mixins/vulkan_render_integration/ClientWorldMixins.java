@@ -10,8 +10,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(ClientWorld.class)
 public class ClientWorldMixins {
 
+    // Freeze entity ticks (movement, AI, aging)
     @Inject(method = "tickEntities", at = @At("HEAD"), cancellable = true)
     private void cancelEntityTicks(CallbackInfo ci) {
+        if (Options.offlineState != 0) {
+            ci.cancel();
+        }
+    }
+
+    // Freeze world tick — covers weather updates, block ticks, fluid flow,
+    // random ticks, scheduled ticks, and time progression.
+    @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
+    private void cancelWorldTick(CallbackInfo ci) {
         if (Options.offlineState != 0) {
             ci.cancel();
         }

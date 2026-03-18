@@ -245,7 +245,10 @@ public class EntityProxy {
                 vertexConsumerProvider = entityStorageVertexConsumerProvider;
             }
 
-            float tickDelta = tickCounter.getTickDelta(!tickManager.shouldSkipTick(entity));
+            // In offline mode, freeze entity interpolation to prevent jitter
+            // (entities aren't ticking, so lastRenderPos == currentPos, but tickDelta varies)
+            float tickDelta = (Options.offlineState != 0) ? 1.0f
+                : tickCounter.getTickDelta(!tickManager.shouldSkipTick(entity));
             double entityPosX = MathHelper.lerp(tickDelta, entity.lastRenderX,
                 entity.getX());
             double entityPosY = MathHelper.lerp(tickDelta, entity.lastRenderY,

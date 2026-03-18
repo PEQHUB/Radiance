@@ -211,7 +211,20 @@ public abstract class WorldRendererMixins {
             PlayerProxy.setCameraPos(new net.minecraft.util.math.Vec3d(
                 Options.frozenCamX, Options.frozenCamY, Options.frozenCamZ));
         } else if (Options.offlineState == 1 && Options.freecamEnabled) {
-            // Free mode + freecam: use freecam position (from instance, not static fields)
+            // Per-frame freecam movement update (smooth, frame-rate independent)
+            long handle = this.client.getWindow().getHandle();
+            if (this.client.currentScreen == null) {
+                float fwd = 0, str = 0, up = 0;
+                if (org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_W) == 1) fwd += 1;
+                if (org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_S) == 1) fwd -= 1;
+                if (org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_A) == 1) str += 1;
+                if (org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_D) == 1) str -= 1;
+                if (org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_SPACE) == 1) up += 1;
+                if (org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT) == 1) up -= 1;
+                boolean slow = org.lwjgl.glfw.GLFW.glfwGetKey(handle, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_CONTROL) == 1;
+                Options.freecam.tick(fwd, str, up, Options.freecamSpeed, slow);
+            }
+            // Free mode + freecam: use freecam position
             PlayerProxy.setCameraPos(new net.minecraft.util.math.Vec3d(
                 Options.freecam.x, Options.freecam.y, Options.freecam.z));
         } else {
