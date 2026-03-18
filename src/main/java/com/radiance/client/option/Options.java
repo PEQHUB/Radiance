@@ -157,6 +157,10 @@ public class Options {
     public static final String REFLEX_BOOST_KEY = "options.video.reflex_boost";
     public static final String VRR_MODE_KEY = "options.video.vrr_mode";
 
+    // Frame Generation (DLSS-G)
+    public static final String FRAME_GEN_MODE_KEY = "options.video.frame_gen_mode";
+    public static final String FRAME_GEN_MULTIPLIER_KEY = "options.video.frame_gen_multiplier";
+
     // DLSS-D (Ray Reconstruction)
     public static final String DLSS_D_ENABLED_KEY = "options.video.dlss_d_enabled";
 
@@ -463,6 +467,10 @@ public class Options {
     public static boolean reflexBoost = false;
     public static boolean vrrMode = false;
     private static boolean reflexExplicitlyConfigured = false; // true if user saved a preference
+
+    // Frame Generation (DLSS-G)
+    public static int frameGenMode = 0;          // 0=Off, 1=On, 2=Auto (dynamic MFG)
+    public static int frameGenMultiplier = 1;    // 1=2x, 2=3x, 3=4x
     public static int chunkBuildingBatchSize = 32;
     public static int chunkBuildingTotalBatches = 32;
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
@@ -1722,6 +1730,12 @@ public class Options {
             vrrMode = Boolean.parseBoolean(props.getProperty("vrrMode", String.valueOf(vrrMode)));
             nativeSetVrrMode(vrrMode, false);
 
+            // Frame Generation
+            frameGenMode = Integer.parseInt(props.getProperty("frameGenMode", String.valueOf(frameGenMode)));
+            nativeSetFrameGenMode(frameGenMode, false);
+            frameGenMultiplier = Integer.parseInt(props.getProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier)));
+            nativeSetFrameGenMultiplier(frameGenMultiplier, false);
+
             exposureCompensation = Integer.parseInt(props.getProperty(
                 "exposureCompensation", String.valueOf(exposureCompensation)));
             manualExposureEnabled = Boolean.parseBoolean(props.getProperty(
@@ -2244,6 +2258,8 @@ public class Options {
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
         props.setProperty("vrrMode", String.valueOf(vrrMode));
+        props.setProperty("frameGenMode", String.valueOf(frameGenMode));
+        props.setProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
@@ -3941,6 +3957,10 @@ public class Options {
     public static void setReflexEnabled(boolean enabled, boolean write) {
         Options.reflexEnabled = enabled;
         nativeSetReflexEnabled(enabled, write);
+        // DLSS-G requires Reflex — auto-disable Frame Gen if Reflex is turned off
+        if (!enabled && Options.frameGenMode != 0) {
+            setFrameGenMode(0, write);
+        }
         if (write) {
             overwriteConfig();
         }
@@ -3969,6 +3989,42 @@ public class Options {
     public static int getDisplayRefreshRate() {
         try { return nativeGetDisplayRefreshRate(); }
         catch (UnsatisfiedLinkError e) { return 0; }
+    }
+
+    // --- Frame Generation (DLSS-G) ---
+    public native static void nativeSetFrameGenMode(int mode, boolean write);
+    public native static void nativeSetFrameGenMultiplier(int multiplier, boolean write);
+    public native static boolean nativeIsFrameGenSupported();
+    public native static int nativeGetFrameGenMaxMultiplier();
+
+    public static boolean isFrameGenSupported() {
+        try { return nativeIsFrameGenSupported(); }
+        catch (UnsatisfiedLinkError e) { return false; }
+    }
+
+    public static int getFrameGenMaxMultiplier() {
+        try { return nativeGetFrameGenMaxMultiplier(); }
+        catch (UnsatisfiedLinkError e) { return 0; }
+    }
+
+    public static void setFrameGenMode(int mode, boolean write) {
+        Options.frameGenMode = mode;
+        // DLSS-G requires Reflex — auto-enable it when Frame Gen is turned on
+        if (mode != 0 && !Options.reflexEnabled && isReflexSupported()) {
+            setReflexEnabled(true, write);
+        }
+        nativeSetFrameGenMode(mode, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setFrameGenMultiplier(int multiplier, boolean write) {
+        Options.frameGenMultiplier = multiplier;
+        nativeSetFrameGenMultiplier(multiplier, write);
+        if (write) {
+            overwriteConfig();
+        }
     }
 
     // --- Min Exposure ---

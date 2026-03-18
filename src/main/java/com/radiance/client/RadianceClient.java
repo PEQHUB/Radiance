@@ -60,8 +60,9 @@ public class RadianceClient implements ClientModInitializer {
             Path dllResourcePath = Path.of("core.dll");
             copyFileFromResource(dllTargetPath, dllResourcePath);
 
-            // Extract Streamline SDK DLLs (Reflex, DLSS-G) next to core.dll.
-            // These are optional — if missing, Reflex simply won't be available.
+            // Extract Streamline SDK DLLs next to core.dll.
+            // Core SL DLLs (interposer, common, reflex, pcl) must all be present.
+            // sl.dlss_g.dll is optional — DLSS-G won't be available if missing.
             for (String slDll : new String[]{
                     "sl.interposer.dll", "sl.common.dll", "sl.reflex.dll",
                     "sl.pcl.dll", "NvLowLatencyVk.dll"}) {
@@ -69,8 +70,14 @@ public class RadianceClient implements ClientModInitializer {
                     copyFileFromResource(radianceDir.resolve(slDll), Path.of(slDll));
                 } catch (RuntimeException e) {
                     LOGGER.warn("Streamline DLL not found in JAR: {} (Reflex will be unavailable)", slDll);
-                    break; // If one is missing, they're all missing
+                    break; // If one core DLL is missing, they're all missing
                 }
+            }
+            // DLSS-G plugin is optional — extract separately so failure doesn't break Reflex
+            try {
+                copyFileFromResource(radianceDir.resolve("sl.dlss_g.dll"), Path.of("sl.dlss_g.dll"));
+            } catch (RuntimeException e) {
+                LOGGER.info("sl.dlss_g.dll not found in JAR (Frame Generation will be unavailable)");
             }
 
             System.load(dllTargetPath.toAbsolutePath().toString());

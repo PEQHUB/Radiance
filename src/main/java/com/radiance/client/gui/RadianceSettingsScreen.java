@@ -443,6 +443,43 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             }
         }
 
+        // ── FRAME GENERATION ──
+        if (Options.isFrameGenSupported()) {
+            String[] fgModeNames = {"Off", "On", "Auto"};
+            int maxModes = 3; // Off, On, Auto
+            SimpleOption<Integer> frameGenMode = new SimpleOption<>(
+                Options.FRAME_GEN_MODE_KEY,
+                SimpleOption.emptyTooltip(),
+                (optionText, value) -> getGenericValueText(optionText,
+                    Text.literal(value < fgModeNames.length ? fgModeNames[value] : "Off")),
+                new SimpleOption.ValidatingIntSliderCallbacks(0, maxModes - 1),
+                Codec.intRange(0, maxModes - 1),
+                Options.frameGenMode,
+                value -> {
+                    Options.setFrameGenMode(value, true);
+                    mc.setScreen(new RadianceSettingsScreen(self.parentScreen));
+                });
+
+            ClickableWidget fgRightWidget = null;
+            int maxMulti = Options.getFrameGenMaxMultiplier();
+            if (Options.frameGenMode != 0 && maxMulti > 1) {
+                String[] multiNames = {"2x", "3x", "4x"};
+                SimpleOption<Integer> frameGenMulti = new SimpleOption<>(
+                    Options.FRAME_GEN_MULTIPLIER_KEY,
+                    SimpleOption.emptyTooltip(),
+                    (optionText, value) -> getGenericValueText(optionText,
+                        Text.literal(value >= 1 && value <= 3 ? multiNames[value - 1] : "2x")),
+                    new SimpleOption.ValidatingIntSliderCallbacks(1, maxMulti),
+                    Codec.intRange(1, maxMulti),
+                    Options.frameGenMultiplier,
+                    value -> Options.setFrameGenMultiplier(value, true));
+                fgRightWidget = frameGenMulti.createWidget(gameOptions);
+            }
+
+            this.body.addEntry(new TwoColumnOptionEntry(
+                frameGenMode.createWidget(gameOptions), fgRightWidget, body));
+        }
+
         // ── ENVIRONMENT ──
         this.body.addEntry(
             new CategoryVideoOptionEntry(Text.translatable(Options.CATEGORY_ENVIRONMENT), body));
