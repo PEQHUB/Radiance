@@ -19,24 +19,27 @@ public class WindowPopulator implements ContentPopulator {
 
         SettingsSection section = panel.addSection(Options.CATEGORY_WINDOW);
 
-        SimpleOption<Integer> maxFps = new SimpleOption<>(
-            "options.framerateLimit",
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> value == 260
-                ? getGenericValueText(optionText, Text.translatable("options.framerateLimit.max"))
-                : getGenericValueText(optionText, Text.translatable("options.framerate", value)),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 26).withModifier(
-                value -> value * 10, value -> value / 10),
-            Codec.intRange(10, 260),
-            Options.maxFps,
-            value -> {
-                mc.getInactivityFpsLimiter().setMaxFps(value);
-                Options.setMaxFps(value, true);
-            });
-
-        SimpleOption<Boolean> enableVsync = SimpleOption.ofBoolean("options.vsync", Options.vsync,
-            value -> Options.setVsync(value, true));
-        section.addTwoWidgets(maxFps.createWidget(gameOptions), enableVsync.createWidget(gameOptions));
+        // FPS limit slider — only show vanilla limiter when Reflex isn't handling it
+        // (Reflex FPS limiter is in Upscaler tab with 5-999 range)
+        if (!Options.isReflexSupported()) {
+            SimpleOption<Integer> maxFps = new SimpleOption<>(
+                "options.framerateLimit",
+                SimpleOption.emptyTooltip(),
+                (optionText, value) -> value == 260
+                    ? getGenericValueText(optionText, Text.translatable("options.framerateLimit.max"))
+                    : getGenericValueText(optionText, Text.translatable("options.framerate", value)),
+                new SimpleOption.ValidatingIntSliderCallbacks(1, 26).withModifier(
+                    value -> value * 10, value -> value / 10),
+                Codec.intRange(10, 260),
+                Options.maxFps,
+                value -> {
+                    mc.getInactivityFpsLimiter().setMaxFps(value);
+                    Options.setMaxFps(value, true);
+                });
+            SimpleOption<Boolean> enableVsync = SimpleOption.ofBoolean("options.vsync", Options.vsync,
+                value -> Options.setVsync(value, true));
+            section.addTwoWidgets(maxFps.createWidget(gameOptions), enableVsync.createWidget(gameOptions));
+        }
 
         // Window dimensions — width and height sliders
         var window = mc.getWindow();
