@@ -1,7 +1,7 @@
 name: "render_pipeline.module.fsr3_upscaler.name"
 inputImageConfigs:
   - name: "color"
-    format: "R16G16B16A16_SFLOAT"
+    format: "R32G32B32A32_SFLOAT"
   - name: "depth"
     format: "R16_SFLOAT"
   - name: "motion_vector"
@@ -10,7 +10,7 @@ inputImageConfigs:
     format: "R16_SFLOAT"
 outputImageConfigs:
   - name: "upscaled_radiance"
-    format: "R16G16B16A16_SFLOAT"
+    format: "R32G32B32A32_SFLOAT"
   - name: "upscaled_first_hit_depth"
     format: "R16_SFLOAT"
 attributeConfigs:
