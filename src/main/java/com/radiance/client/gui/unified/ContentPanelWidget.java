@@ -5,6 +5,8 @@ import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.SelectionDropdownWidget;
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.widget.ClickableWidget;
@@ -98,6 +100,9 @@ public class ContentPanelWidget extends ClickableWidget {
     protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
         if (RadianceTheme.peekActive) return;
 
+        // Clear tooltip hover state each frame (sections will set it if hovered)
+        SettingsSection.hoveredTooltip = null;
+
         // Initialize scroll on first frame
         if (!scrollInitialized) {
             scrollDisplay = scrollTarget;
@@ -174,6 +179,38 @@ public class ContentPanelWidget extends ClickableWidget {
         // Render dropdown overlays OUTSIDE scissor so they aren't clipped
         MaterialDropdownWidget.renderAllOverlays(context, mouseX, mouseY);
         SelectionDropdownWidget.renderAllOverlays(context, mouseX, mouseY);
+
+        // Render tooltip popup (on top of everything)
+        if (SettingsSection.hoveredTooltip != null) {
+            renderTooltipPopup(context, SettingsSection.hoveredTooltip,
+                SettingsSection.hoveredTooltipX, SettingsSection.hoveredTooltipY);
+        }
+    }
+
+    /** Draw a tooltip box at the cursor position. */
+    private void renderTooltipPopup(DrawContext ctx, String text, int mx, int my) {
+        TextRenderer renderer = MinecraftClient.getInstance().textRenderer;
+        int textW = renderer.getWidth(text);
+        int padH = 6;
+        int padV = 4;
+        int boxW = textW + padH * 2;
+        int boxH = 12 + padV * 2;
+
+        // Position above cursor, clamped to screen
+        int bx = mx - boxW / 2;
+        int by = my - boxH - 4;
+        if (bx < 2) bx = 2;
+        if (bx + boxW > getX() + getWidth() - 2) bx = getX() + getWidth() - boxW - 2;
+        if (by < getY()) by = my + 14;
+
+        // Background + border
+        ctx.fill(bx - 1, by - 1, bx + boxW + 1, by + boxH + 1,
+            RadianceTheme.scaleAlpha(RadianceTheme.textAccent, 0.6f));
+        ctx.fill(bx, by, bx + boxW, by + boxH, RadianceTheme.withAlpha(0x1A1A22, 0.95f));
+
+        // Text
+        ctx.drawText(renderer, Text.literal(text),
+            bx + padH, by + padV, 0xFFE0E0E0, false);
     }
 
     // ── Input handling ──

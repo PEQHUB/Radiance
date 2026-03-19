@@ -4,12 +4,11 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.google.common.collect.ImmutableList;
 import com.mojang.serialization.Codec;
-import com.radiance.client.gui.AreaLightSettingsScreen;
 import com.radiance.client.gui.LightTypeDetailScreen;
 import com.radiance.client.gui.PotentialValuesBasedCallbacksNoValue;
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
-import com.radiance.client.gui.unified.rows.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.widget.ClickableWidget;
@@ -28,24 +27,14 @@ public class AreaLightPopulator implements ContentPopulator {
             Options.AREA_LIGHTS_ENABLED_KEY, Options.areaLightsEnabled,
             value -> Options.setAreaLightsEnabled(value, true));
 
-        String[] modeLabels = {
-            Options.GLOBAL_LIGHT_MODE_AUTO_KEY,
-            Options.GLOBAL_LIGHT_MODE_AREA_KEY,
-            Options.GLOBAL_LIGHT_MODE_EMISSIVE_KEY
-        };
-        SimpleOption<Integer> globalLightMode = new SimpleOption<>(
-            Options.GLOBAL_LIGHT_MODE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(modeLabels[Math.min(value, modeLabels.length - 1)])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 2),
-            Codec.intRange(0, 2),
-            Options.globalLightMode,
-            value -> Options.setGlobalLightMode(value, true));
+        SelectionDropdownWidget globalLightMode = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Light Mode",
+            new String[]{"Auto", "Area Lights", "Emissive"},
+            Options.globalLightMode, value -> Options.setGlobalLightMode(value, true));
 
         enableSection.addTwoWidgets(
             areaLightsEnabled.createWidget(gameOptions),
-            globalLightMode.createWidget(gameOptions));
+            globalLightMode);
 
         // Global Controls
         SettingsSection global = enableSection;
@@ -60,16 +49,15 @@ public class AreaLightPopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable(Options.AREA_LIGHT_RANGE_KEY), Text.literal(v + " blocks")),
                 v -> Options.setAreaLightRange(v, true)));
 
-        ResettableSliderWidget shadowSlider = new ResettableSliderWidget(0, 0, 150, 20,
+        global.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 200, Options.shadowSoftnessPercent, 100,
             v -> getGenericValueText(Text.translatable(Options.AREA_LIGHT_SHADOW_SOFTNESS_KEY), Text.literal(v + "%")),
-            v -> Options.setShadowSoftnessPercent(v, true));
+            v -> Options.setShadowSoftnessPercent(v, true)));
 
         SimpleOption<Boolean> restirToggle = SimpleOption.ofBoolean(
             "options.video.area_light.restir", Options.restirEnabled,
             value -> Options.setRestirEnabled(value, true));
-        ClickableWidget restirWidget = restirToggle.createWidget(MinecraftClient.getInstance().options);
-        global.addTwoWidgets(shadowSlider, restirWidget);
+        global.addToggle(restirToggle.createWidget(MinecraftClient.getInstance().options));
 
         // ReSTIR Tuning
         SettingsSection restir = panel.addSection(Options.CATEGORY_RESTIR);
@@ -82,14 +70,16 @@ public class AreaLightPopulator implements ContentPopulator {
             new ResettableSliderWidget(0, 0, 150, 20,
                 5, 50, Options.restirTemporalMClamp, 20,
                 v -> getGenericValueText(Text.translatable(Options.RESTIR_TEMPORAL_M_CLAMP_KEY), Text.literal(String.valueOf(v))),
-                v -> Options.setRestirTemporalMClamp(v, true)));
+                v -> Options.setRestirTemporalMClamp(v, true)))
+              .tooltip("RIS Candidates = lights evaluated per pixel for initial selection. M Clamp limits temporal history to prevent stale reservoirs.");
 
         restir.addTwoSliders(
             new ResettableSliderWidget(0, 0, 150, 20,
                 10, 200, Options.restirWClamp, 30,
                 v -> getGenericValueText(Text.translatable(Options.RESTIR_W_CLAMP_KEY), Text.literal(String.valueOf(v))),
                 v -> Options.setRestirWClamp(v, true)),
-            null);
+            null)
+              .tooltip("W Clamp limits the maximum importance weight. Lower = less noise but more bias.");
 
         // ReSTIR Performance
         SettingsSection perf = panel.addSection(Options.CATEGORY_RESTIR_PERFORMANCE);
@@ -101,11 +91,12 @@ public class AreaLightPopulator implements ContentPopulator {
             value -> Options.setRestirBounceEnabled(value, true));
         perf.addTwoWidgets(
             simplifiedBRDF.createWidget(MinecraftClient.getInstance().options),
-            bounceEnabled.createWidget(MinecraftClient.getInstance().options));
+            bounceEnabled.createWidget(MinecraftClient.getInstance().options))
+              .tooltip("Simplified BRDF uses Lambertian instead of Disney for area light evaluation. Bounce enables ReSTIR on indirect bounces.");
 
         // Per-Block Controls
         SettingsSection perBlock = panel.addSection("options.video.area_light.per_block_category");
-        String[] lightTypeKeys = AreaLightSettingsScreen.LIGHT_TYPE_KEYS;
+        String[] lightTypeKeys = Options.LIGHT_TYPE_KEYS;
         int count = Math.min(Options.AREA_LIGHT_TYPE_COUNT, lightTypeKeys.length);
         java.util.List<Integer> visibleTypes = new java.util.ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -123,6 +114,21 @@ public class AreaLightPopulator implements ContentPopulator {
         }
     }
 
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Area Lights Enabled", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Light Mode", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Area Light Intensity", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Area Light Range", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Shadow Softness", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("ReSTIR Enabled", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("ReSTIR Candidates", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("ReSTIR Temporal M Clamp", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("ReSTIR W Clamp", category, nodeId, true)
+        );
+    }
+
     private ClickableWidget createBlockSettingsWidget(int lightTypeId, String translationKey, RadianceUnifiedScreen screen) {
         SimpleOption<Boolean> blockSettings = new SimpleOption<>(
             translationKey,
@@ -131,7 +137,7 @@ public class AreaLightPopulator implements ContentPopulator {
             new PotentialValuesBasedCallbacksNoValue<>(
                 ImmutableList.of(Boolean.TRUE, Boolean.FALSE), Codec.BOOL),
             false,
-            value -> MinecraftClient.getInstance().setScreen(
+            value -> screen.showOverlay(
                 new LightTypeDetailScreen(screen, lightTypeId, translationKey)));
         return blockSettings.createWidget(MinecraftClient.getInstance().options);
     }

@@ -1,5 +1,6 @@
 package com.radiance.client.util;
 
+import com.radiance.client.material.MaterialClass;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.registry.Registries;
@@ -16,7 +17,7 @@ import java.util.Map;
  * Metals (isMetal=true): F0 is wavelength-dependent RGB.
  * Dielectrics (isMetal=false): F0 derived from IOR, all channels equal.
  *
- * Values flow: MaterialBlock defaults → Options arrays → WorldUBO.materialData[] → CHS shader.
+ * Values flow: MaterialBlock defaults → Options arrays → MaterialClassMapping SSBO → CHS shader.
  * The vertex materialBlockType (packed into upper bits of emissiveBlockType) selects the UBO entry.
  */
 public enum MaterialBlock {
@@ -197,6 +198,8 @@ public enum MaterialBlock {
     private MaterialCategory category = MaterialCategory.MISC;
     /** Parent material for child variants (null = this is a parent). Set in static init. */
     private MaterialBlock parentMaterial = null;
+    /** Material class for unified SSBO system. Set in static init. */
+    private MaterialClass materialClass = MaterialClass.GENERIC;
     /** Cached children list, built lazily. */
     private List<MaterialBlock> childrenCache = null;
 
@@ -247,6 +250,7 @@ public enum MaterialBlock {
     // ====== Category & Parent/Child ======
 
     public MaterialCategory getCategory() { return category; }
+    public MaterialClass getMaterialClass() { return materialClass; }
     public MaterialBlock getParentMaterial() { return parentMaterial; }
     /** True if this is a top-level material (not a child variant). */
     public boolean isParent() { return parentMaterial == null; }
@@ -1037,6 +1041,92 @@ public enum MaterialBlock {
         STONE_BRICKS_MAT.parentMaterial = STONE;
         MOSSY_STONE_BRICKS_MAT.parentMaterial = STONE;
         SMOOTH_STONE.parentMaterial = STONE;
+
+        // ====== MaterialClass assignments (unified SSBO system) ======
+        // Metals
+        IRON_BLOCK.materialClass = MaterialClass.IRON;
+        IRON_BARS.materialClass = MaterialClass.IRON;
+        ANVIL.materialClass = MaterialClass.IRON;
+        CAULDRON.materialClass = MaterialClass.IRON;
+        HOPPER.materialClass = MaterialClass.IRON;
+        HEAVY_WEIGHTED_PRESSURE_PLATE.materialClass = MaterialClass.IRON;
+        IRON_DOOR.materialClass = MaterialClass.IRON;
+        RAIL.materialClass = MaterialClass.IRON;
+        RAW_IRON_BLOCK.materialClass = MaterialClass.IRON;
+        LODESTONE.materialClass = MaterialClass.IRON;
+        SMITHING_TABLE.materialClass = MaterialClass.IRON;
+        GOLD_BLOCK.materialClass = MaterialClass.GOLD;
+        LIGHT_WEIGHTED_PRESSURE_PLATE.materialClass = MaterialClass.GOLD;
+        BELL.materialClass = MaterialClass.GOLD;
+        RAW_GOLD_BLOCK.materialClass = MaterialClass.GOLD;
+        COPPER_BLOCK.materialClass = MaterialClass.COPPER;
+        LIGHTNING_ROD.materialClass = MaterialClass.COPPER;
+        RAW_COPPER_BLOCK.materialClass = MaterialClass.COPPER;
+        NETHERITE_BLOCK.materialClass = MaterialClass.NETHERITE;
+        ANCIENT_DEBRIS.materialClass = MaterialClass.NETHERITE;
+        CHAIN.materialClass = MaterialClass.CHAIN;
+        REDSTONE_BLOCK.materialClass = MaterialClass.REDSTONE;
+        GILDED_BLACKSTONE.materialClass = MaterialClass.STONE;
+
+        // Gems & crystals
+        DIAMOND_BLOCK.materialClass = MaterialClass.DIAMOND;
+        EMERALD_BLOCK.materialClass = MaterialClass.EMERALD;
+        AMETHYST_BLOCK.materialClass = MaterialClass.AMETHYST;
+        AMETHYST_CLUSTER.materialClass = MaterialClass.AMETHYST;
+        LAPIS_BLOCK.materialClass = MaterialClass.LAPIS;
+        QUARTZ_BLOCK.materialClass = MaterialClass.QUARTZ;
+        PRISMARINE.materialClass = MaterialClass.PRISMARINE;
+
+        // Stone types
+        for (MaterialBlock mb : new MaterialBlock[]{STONE, GRANITE, POLISHED_GRANITE, DIORITE,
+                POLISHED_DIORITE, ANDESITE, POLISHED_ANDESITE, DEEPSLATE, TUFF,
+                COBBLESTONE_MAT, MOSSY_COBBLESTONE_MAT, STONE_BRICKS_MAT, MOSSY_STONE_BRICKS_MAT,
+                SANDSTONE_MAT, RED_SANDSTONE_MAT, SMOOTH_STONE, OBSIDIAN, CRYING_OBSIDIAN,
+                CALCITE, BASALT_MAT, BLACKSTONE_MAT, END_STONE_MAT, END_STONE_BRICKS_MAT,
+                PURPUR, NETHERRACK, DRIPSTONE_MAT})
+            mb.materialClass = MaterialClass.STONE;
+
+        // Wood types
+        for (MaterialBlock mb : new MaterialBlock[]{OAK_PLANKS, SPRUCE_PLANKS, BIRCH_PLANKS,
+                JUNGLE_PLANKS, ACACIA_PLANKS, DARK_OAK_PLANKS, MANGROVE_PLANKS, CHERRY_PLANKS,
+                BOOKSHELF_MAT, CRAFTING_TABLE_MAT})
+            mb.materialClass = MaterialClass.WOOD;
+
+        // Glass & ice
+        GLASS.materialClass = MaterialClass.GLASS;
+        ICE.materialClass = MaterialClass.ICE;
+
+        // Ceramics
+        BRICKS_MAT.materialClass = MaterialClass.CERAMIC;
+        NETHER_BRICKS_MAT.materialClass = MaterialClass.CERAMIC;
+        MUD_BRICKS_MAT.materialClass = MaterialClass.CERAMIC;
+        GLAZED_TERRACOTTA.materialClass = MaterialClass.CERAMIC;
+        TERRACOTTA_MAT.materialClass = MaterialClass.TERRACOTTA;
+        CONCRETE.materialClass = MaterialClass.CERAMIC;
+
+        // Organic
+        for (MaterialBlock mb : new MaterialBlock[]{LEAVES_MAT, CORAL_MAT, MUSHROOM_BLOCK,
+                SPONGE_MAT, HAY_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT, NETHER_WART_BLOCK_MAT,
+                WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT, MELON_MAT, PUMPKIN_MAT,
+                DRIED_KELP_BLOCK_MAT, HONEYCOMB_BLOCK_MAT})
+            mb.materialClass = MaterialClass.ORGANIC;
+        BONE_BLOCK_MAT.materialClass = MaterialClass.BONE;
+        WOOL_MAT.materialClass = MaterialClass.WOOL;
+
+        // Earth types
+        for (MaterialBlock mb : new MaterialBlock[]{DIRT_MAT, MUD_MAT, PACKED_MUD,
+                SOUL_SAND, SOUL_SOIL, CONCRETE_POWDER, CLAY_MAT})
+            mb.materialClass = MaterialClass.SOIL;
+        SAND_MAT.materialClass = MaterialClass.SAND;
+        RED_SAND_MAT.materialClass = MaterialClass.SAND;
+        GRAVEL_MAT.materialClass = MaterialClass.SAND;
+        SNOW_BLOCK_MAT.materialClass = MaterialClass.ICE;
+
+        // Liquids
+        WATER_MAT.materialClass = MaterialClass.WATER;
+        LAVA_MAT.materialClass = MaterialClass.LAVA;
+        HONEY_MAT.materialClass = MaterialClass.HONEY;
+        SLIME_MAT.materialClass = MaterialClass.SLIME;
     }
 
     private static void register(Block block, MaterialBlock materialBlock) {

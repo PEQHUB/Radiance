@@ -19,8 +19,12 @@ loom {
     accessWidenerPath = file("src/main/resources/radiance.accesswidener")
 }
 
+// Branch-specific game directory: Radiance-Clouds → mc-test/clouds, Radiance → mc-test/main
+def worktreeSuffix = project.projectDir.name.replaceFirst(/^Radiance-?/, '')
+def runDirName = worktreeSuffix.isEmpty() ? 'main' : worktreeSuffix.toLowerCase()
+
 tasks.named("runClient", JavaExec) {
-    args "--gameDir", file("../mc-test/instance").absolutePath
+    args "--gameDir", file("../mc-test/${runDirName}").absolutePath
     args "--width", "1920", "--height", "1080"
     // Force Java 21 for runtime — LWJGL 3.3.3 is incompatible with Java 25
     javaLauncher = javaToolchains.launcherFor {

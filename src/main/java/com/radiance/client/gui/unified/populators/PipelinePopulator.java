@@ -12,4 +12,11 @@ public class PipelinePopulator implements ContentPopulator {
         section.addLauncher(Options.PIPELINE_SETUP_KEY,
             new RenderPipelineScreen(screen), screen);
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Pipeline", category, nodeId, false)
+        );
+    }
 }

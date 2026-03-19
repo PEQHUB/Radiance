@@ -27,7 +27,10 @@ public class SettingsSection {
     private static final int HEADER_HEIGHT = 22;
     private static final long COLLAPSE_ANIM_MS = 150;
 
+    private static final int DESCRIPTION_PAD = 4;
+
     private final Text title;
+    private Text description;
     private final List<SettingsRow> rows = new ArrayList<>();
 
     private boolean collapsed = false;
@@ -37,6 +40,13 @@ public class SettingsSection {
 
     /** Height of content rows when fully expanded. */
     private int expandedContentHeight = 0;
+
+    // ── Tooltip state (shared across all sections, read by ContentPanelWidget) ──
+    static String hoveredTooltip;
+    static int hoveredTooltipX;
+    static int hoveredTooltipY;
+
+    private static final int ICON_SIZE = 7;
 
     /** The row that consumed the last mouseClicked — drags/releases route here. */
     private SettingsRow clickedRow;
@@ -50,6 +60,20 @@ public class SettingsSection {
     }
 
     // ── Builder API ──
+
+    /** Set a brief description shown below the section header in dim text. */
+    public SettingsSection setDescription(String desc) {
+        this.description = Text.literal(desc);
+        return this;
+    }
+
+    /** Attach a tooltip to the most recently added row. Shows a tiny "?" icon on hover. */
+    public SettingsSection tooltip(String text) {
+        if (!rows.isEmpty()) {
+            rows.get(rows.size() - 1).tooltip = text;
+        }
+        return this;
+    }
 
     /** Add a raw row. */
     public SettingsSection addRow(SettingsRow row) {
@@ -111,11 +135,15 @@ public class SettingsSection {
         }
     }
 
-    /** Total height of this section including header. */
+    private int descriptionHeight() {
+        return description != null ? 12 : 0;
+    }
+
+    /** Total height of this section including header and optional description. */
     public int getHeight() {
         recalculate();
         float contentHeight = getAnimatedContentHeight();
-        return HEADER_HEIGHT + (int) contentHeight;
+        return HEADER_HEIGHT + descriptionHeight() + (int) contentHeight;
     }
 
     /** Returns the animated content height (interpolates during collapse/expand). */
@@ -153,27 +181,64 @@ public class SettingsSection {
         // Draw header
         renderHeader(context, x, y, width, mouseX, mouseY, alphaMult);
 
+        // Draw description (if set)
+        int descH = descriptionHeight();
+        if (descH > 0 && alphaMult > 0.01f) {
+            var textRenderer = MinecraftClient.getInstance().textRenderer;
+            RadianceTheme.drawOutlinedText(context, textRenderer,
+                description, x + 14, y + HEADER_HEIGHT + 1,
+                RadianceTheme.textSecondary, alphaMult * 0.6f);
+        }
+
         float contentH = getAnimatedContentHeight();
         if (contentH <= 0.5f) {
-            return HEADER_HEIGHT;
+            return HEADER_HEIGHT + descH;
         }
 
         // Enable scissor for smooth collapse animation
-        int contentTop = y + HEADER_HEIGHT;
+        int contentTop = y + HEADER_HEIGHT + descH;
         int contentBottom = contentTop + (int) contentH;
 
-        // Render rows
+        // Render rows + tooltip icons
         int rowY = contentTop;
+        var textRenderer = MinecraftClient.getInstance().textRenderer;
         for (SettingsRow row : rows) {
             if (!row.isVisible()) continue;
             int rowHeight = row.getHeight();
-            if (rowY + rowHeight > contentBottom) break; // Clipped by animation
+            if (rowY + rowHeight > contentBottom) break;
             if (rowY >= contentBottom) break;
             row.render(context, x, rowY, width, mouseX, mouseY, delta, alphaMult);
+
+            // Draw tiny "?" icon if this row has a tooltip
+            if (row.tooltip != null && alphaMult > 0.01f) {
+                int ix = x + width - ICON_SIZE - 3;
+                int iy = rowY + (rowHeight - ICON_SIZE) / 2;
+                boolean iconHovered = mouseX >= ix && mouseX < ix + ICON_SIZE
+                    && mouseY >= iy && mouseY < iy + ICON_SIZE;
+
+                // Circle background
+                int bg = iconHovered
+                    ? RadianceTheme.scaleAlpha(RadianceTheme.textAccent, 0.9f * alphaMult)
+                    : RadianceTheme.scaleAlpha(RadianceTheme.textSecondary, 0.35f * alphaMult);
+                context.fill(ix, iy, ix + ICON_SIZE, iy + ICON_SIZE, bg);
+
+                // "?" glyph
+                int glyphColor = iconHovered ? 0xFFFFFFFF
+                    : RadianceTheme.scaleAlpha(RadianceTheme.textSecondary, 0.7f * alphaMult);
+                context.drawText(textRenderer, Text.literal("?"),
+                    ix + 1, iy - 1, glyphColor, false);
+
+                if (iconHovered) {
+                    hoveredTooltip = row.tooltip;
+                    hoveredTooltipX = mouseX;
+                    hoveredTooltipY = mouseY;
+                }
+            }
+
             rowY += rowHeight;
         }
 
-        return HEADER_HEIGHT + (int) contentH;
+        return HEADER_HEIGHT + descH + (int) contentH;
     }
 
     private void renderHeader(DrawContext context, int x, int y, int width,
@@ -223,7 +288,7 @@ public class SettingsSection {
         // Delegate to rows if not collapsed
         if (collapsed && !animating) return false;
 
-        int rowY = sectionY + HEADER_HEIGHT;
+        int rowY = sectionY + HEADER_HEIGHT + descriptionHeight();
         for (SettingsRow row : rows) {
             if (!row.isVisible()) continue;
             int rowHeight = row.getHeight();

@@ -34,4 +34,12 @@ public class WaterPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable("options.video.environment.water_fog_strength"), Text.literal(v + "%")),
             v -> Options.setWaterFogStrengthPercent(dim, v, true)));
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Water Tint", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Water Fog", category, nodeId, false)
+        );
+    }
 }

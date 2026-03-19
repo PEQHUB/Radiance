@@ -1,5 +1,6 @@
 package com.radiance.client.gui;
 
+import com.radiance.client.gui.RadianceTheme;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
@@ -62,8 +63,8 @@ public class KeyBindButton extends PressableWidget {
         TextRenderer textRenderer = MinecraftClient.getInstance().textRenderer;
         boolean hovered = isHovered();
 
-        int bgColor = listening ? 0xFF4488FF : (hovered ? 0xFF555555 : 0xFF333333);
-        int borderColor = listening ? 0xFF6699FF : (hovered ? 0xFF888888 : 0xFF555555);
+        int bgColor = listening ? RadianceTheme.borderFocused : (hovered ? RadianceTheme.widgetBgHover : RadianceTheme.widgetBg);
+        int borderColor = listening ? RadianceTheme.borderFocused : (hovered ? RadianceTheme.borderDefault : RadianceTheme.widgetBg);
 
         // Draw background
         context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), bgColor);
@@ -75,7 +76,7 @@ public class KeyBindButton extends PressableWidget {
         int textWidth = textRenderer.getWidth(text);
         int textX = getX() + (getWidth() - textWidth) / 2;
         int textY = getY() + (getHeight() - 8) / 2;
-        context.drawTextWithShadow(textRenderer, text, textX, textY, 0xFFFFFF);
+        context.drawTextWithShadow(textRenderer, text, textX, textY, RadianceTheme.textPrimary);
     }
 
     @Override

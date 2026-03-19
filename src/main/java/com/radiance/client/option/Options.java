@@ -47,6 +47,12 @@ public class Options {
     public static final String KEY_MATERIAL_PICKER = "key.radiance.material_picker";
     public static final String KEY_CATEGORY_RADIANCE = "key.category.radiance";
 
+    public static final String CATEGORY_FPV = "options.video.category.fpv";
+    public static final String FPV_ENABLED_KEY = "options.video.fpv_enabled";
+    public static final String FPV_OFFSET_FORWARD_KEY = "options.video.fpv_offset_forward";
+    public static final String FPV_OFFSET_VERTICAL_KEY = "options.video.fpv_offset_vertical";
+    public static final String FPV_OFFSET_LATERAL_KEY = "options.video.fpv_offset_lateral";
+
     public static final String CATEGORY_EMISSION = "options.video.category.emission";
     public static final String CATEGORY_LIGHTING = "options.video.category.lighting";
     public static final String GLOBAL_LIGHT_MODE_KEY = "options.video.global_light_mode";
@@ -207,6 +213,60 @@ public class Options {
     public static final String CATEGORY_AREA_LIGHTS = "options.video.category.area_lights";
     public static final int AREA_LIGHT_TYPE_COUNT = 50;
 
+    // Human-readable names for each light type ID (indices match C++ LightTypeId enum)
+    public static final String[] LIGHT_TYPE_KEYS = {
+        "options.video.area_light.block.torch",
+        "options.video.area_light.block.soul_torch",
+        "options.video.area_light.block.lantern",
+        "options.video.area_light.block.soul_lantern",
+        "options.video.area_light.block.campfire",
+        "options.video.area_light.block.soul_campfire",
+        "options.video.area_light.block.glowstone",
+        "options.video.area_light.block.sea_lantern",
+        "options.video.area_light.block.shroomlight",
+        "options.video.area_light.block.jack_o_lantern",
+        "options.video.area_light.block.end_rod",
+        "options.video.area_light.block.beacon",
+        "options.video.area_light.block.ochre_froglight",
+        "options.video.area_light.block.verdant_froglight",
+        "options.video.area_light.block.pearl_froglight",
+        "options.video.area_light.block.redstone_torch",
+        "options.video.area_light.block.redstone_lamp",
+        "options.video.area_light.block.candle",
+        null, // 18: unused (formerly candle_2)
+        null, // 19: unused (formerly candle_3)
+        null, // 20: unused (formerly candle_4)
+        "options.video.area_light.block.cave_vines",
+        "options.video.area_light.block.glow_lichen",
+        "options.video.area_light.block.furnace",
+        "options.video.area_light.block.blast_furnace",
+        "options.video.area_light.block.smoker",
+        "options.video.area_light.block.ender_chest",
+        "options.video.area_light.block.crying_obsidian",
+        "options.video.area_light.block.nether_portal",
+        "options.video.area_light.block.conduit",
+        "options.video.area_light.block.respawn_anchor_1",
+        "options.video.area_light.block.respawn_anchor_2",
+        "options.video.area_light.block.respawn_anchor_3",
+        "options.video.area_light.block.respawn_anchor_4",
+        "options.video.area_light.block.amethyst_cluster",
+        "options.video.area_light.block.large_amethyst_bud",
+        "options.video.area_light.block.copper_bulb",
+        "options.video.area_light.block.enchanting_table",
+        "options.video.area_light.block.lava",
+        "options.video.area_light.block.fire",
+        "options.video.area_light.block.soul_fire",
+        "options.video.area_light.block.magma_block",
+        "options.video.area_light.block.sculk_sensor",
+        "options.video.area_light.block.sculk_catalyst",
+        "options.video.area_light.block.sculk_vein",
+        "options.video.area_light.block.sculk",
+        "options.video.area_light.block.sculk_shrieker",
+        "options.video.area_light.block.brewing_stand",
+        "options.video.area_light.block.end_portal",
+        "options.video.area_light.block.end_portal_frame",
+    };
+
     // ReSTIR DI Tuning
     public static final String RESTIR_CANDIDATES_KEY = "options.video.restir_candidates";
     public static final String RESTIR_TEMPORAL_M_CLAMP_KEY = "options.video.restir_temporal_m_clamp";
@@ -268,6 +328,13 @@ public class Options {
     public static int pomSteps = 64;                // 8-512
     public static int pomRefinement = 4;            // 0-8
     public static int pomFadeDistance = 64;          // 8-256 blocks
+    // Displacement (proper RT displacement, replaces POM)
+    public static int displacementQuality = 0;      // 0=Off, 1=Intersection DDA, 2=Micro-Tessellation, 3=CLAS
+    // SER: Shader Execution Reordering — groups threads by material for cache coherence
+    // serEnabled: toggle hit-object reordering (requires VK_EXT_ray_tracing_invocation_reorder)
+    // serHints: explicit geometry-based coherence hints (additional 10-20% on top of basic SER)
+    public static boolean serEnabled = true;
+    public static boolean serHintsEnabled = true;
     public static boolean sharcEnabled = true;
     public static int sharcSceneScaleTenths = 200;          // 10-200 → 1.0-20.0
     public static int sharcRoughnessThresholdPercent = 70;  // 0-100 → 0.0-1.0
@@ -278,6 +345,99 @@ public class Options {
     public static int sharcUpdateBounces = 16;               // 2-16 (max bounces in update pass)
     public static int sharcCapacityExponent = 21;           // 18-26 (2^N entries)
     public static int sharcQualityPreset = 5;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
+
+    // ── Overall Quality Preset (simple mode master slider) ──
+    public static int overallQualityPreset = 4;              // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Custom
+    public static final String[] OVERALL_QUALITY_NAMES = {"Low", "Medium", "High", "Ultra", "Custom"};
+    public static final String OVERALL_QUALITY_KEY = "radiance.settings.overall_quality";
+
+    /**
+     * Apply master quality preset. Sets ray bounces, SHARC preset, and upscaler quality together.
+     * Custom (4) does nothing.
+     */
+    public static void applyOverallPreset(int preset, boolean write) {
+        overallQualityPreset = preset;
+        if (preset == 4) return; // Custom — don't change anything
+        // {rayBounces, sharcPreset, upscalerQuality}
+        int[][] presets = {
+            {1, 0, 0},  // Low:    1 bounce, SHARC Low, Performance
+            {2, 1, 1},  // Medium: 2 bounces, SHARC Medium, Balanced
+            {4, 2, 2},  // High:   4 bounces, SHARC High, Quality
+            {8, 3, 3},  // Ultra:  8 bounces, SHARC Ultra, Native
+        };
+        int[] p = presets[preset];
+        setRayBounces(p[0], false);
+        applySharcPreset(p[1], false);
+        setUpscalerQuality(p[2], false);
+        if (write) overwriteConfig();
+    }
+
+    /**
+     * Detect which overall quality preset matches the current settings.
+     * Returns 4 (Custom) if no preset matches.
+     */
+    public static int detectOverallPreset() {
+        int[][] presets = {
+            {1, 0, 0}, {2, 1, 1}, {4, 2, 2}, {8, 3, 3},
+        };
+        for (int i = 0; i < presets.length; i++) {
+            if (rayBounces == presets[i][0]
+                    && sharcQualityPreset == presets[i][1]
+                    && upscalerQuality == presets[i][2]) {
+                return i;
+            }
+        }
+        return 4; // Custom
+    }
+
+    /**
+     * Count how many advanced-only settings are non-default.
+     * Used by simple mode to show a "N advanced settings modified" badge.
+     */
+    public static int countNonDefaultAdvancedSettings() {
+        int count = 0;
+        // ReSTIR tuning
+        if (restirCandidates != 32) count++;
+        if (restirTemporalMClamp != 20) count++;
+        if (restirWClamp != 30) count++;
+        if (restirSimplifiedBRDF) count++;
+        if (restirBounceEnabled) count++;
+        // SHARC individual params (only if preset is Custom)
+        if (sharcQualityPreset == 5) {
+            if (sharcSceneScaleTenths != 40) count++;
+            if (sharcRoughnessThresholdPercent != 25) count++;
+            if (sharcAccumulationFrames != 32) count++;
+            if (sharcStaleFrames != 16) count++;
+            if (sharcUpdateBlockSize != 5) count++;
+            if (sharcUpdateBounces != 4) count++;
+            if (sharcCapacityExponent != 21) count++;
+        }
+        // PsychoV (all non-default values)
+        if (psychoHighlightsPercent != 100) count++;
+        if (psychoShadowsPercent != 100) count++;
+        if (psychoContrastPercent != 100) count++;
+        if (psychoPurityPercent != 100) count++;
+        if (psychoBleachingPercent != 0) count++;
+        if (psychoHueRestorePercent != 0) count++;
+        // Exposure tuning
+        if (exposureUpSpeedTenths != 8) count++;
+        if (exposureDownSpeedTenths != 10) count++;
+        if (exposureBrightAdaptBoostTenths != 10) count++;
+        // OMM baker level
+        if (ommBakerLevel != 4) count++;
+        // Multi-scatter / EON (default is true)
+        if (!multiScatterGGX) count++;
+        if (!eonDiffuse) count++;
+        // POM (default disabled)
+        if (pomEnabled) count++;
+        // SER (default enabled)
+        if (!serEnabled) count++;
+        if (!serHintsEnabled) count++;
+        // Volumetric cloud module (non-default tuning)
+        if (volCloudQuality != 3) count++;
+        if (volCloudScatterOctaves != 3) count++;
+        return count;
+    }
 
     /** SHARC quality preset definitions. Each row: {sceneScaleTenths, roughnessPercent, accumFrames,
      *  staleFrames, downscale, updateBlockSize, updateBounces, capacityExponent} */
@@ -320,6 +480,11 @@ public class Options {
     public static int focalLengthMM = 50;            // 14-200mm
     public static float fStop = 5.6f;                // f/1.4 - f/22
     public static int dofStrengthPercent = 100;      // 100-2000 (1.0x-20.0x artistic DOF multiplier)
+    // First-person view (renders third-person body model in first person)
+    public static boolean fpvEnabled = true;          // show body in first person
+    public static int fpvOffsetForward = 20;          // forward offset in centimetres (0-50)
+    public static int fpvOffsetVertical = 0;          // vertical offset in centimetres (-30 to 30, positive = down)
+    public static int fpvOffsetLateral = 0;           // lateral offset in centimetres (-20 to 20, positive = right)
     // Freecam (persisted preferences)
     public static boolean freecamEnabled = true;     // true=freecam, false=stick to player
     public static float freecamSpeed = 10.0f;        // 0.1-50.0 movement speed multiplier
@@ -585,6 +750,7 @@ public class Options {
     // Persistent UI state (not reset by Reset to Defaults)
     public static boolean showWelcomeMessage = true;
     public static boolean useUnifiedUI = true;           // true = new unified panel UI, false = legacy screens
+    public static boolean advancedMode = false;            // false = AAA simple menu, true = full tweaker menu
     public static int uiGlobalAlphaPercent = 55;         // 0-100, controls menu transparency
     public static boolean uiAdaptiveDimming = false;     // auto-adjust alpha based on scene brightness
 
@@ -807,6 +973,20 @@ public class Options {
         com.radiance.client.debug.CrashContext.recordChange("materialDirty");
         com.radiance.client.debug.RadianceLogger.logMaterialDirty("markMaterialDirty");
     }
+    public static void setMaterialOverridesEnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("materialOverridesEnabled=" + enabled);
+        Options.materialOverridesEnabled = enabled;
+        markMaterialDirty();
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setAutoPBREnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("autoPBREnabled=" + enabled);
+        Options.autoPBREnabled = enabled;
+        markMaterialDirty();
+        if (write) { overwriteConfig(); }
+    }
+
     // Material overrides: max 160 blocks (4 vec4 per block × 160 = 640 vec4 in UBO)
     public static final int MAX_MATERIALS = 160;
     // Per-block properties (indexed by MaterialBlock.ordinal())
@@ -1253,7 +1433,6 @@ public class Options {
                 materialSpecularInputType[ci] = materialSpecularInputType[parentOrdinal];
                 materialCustomNormalPath[ci] = materialCustomNormalPath[parentOrdinal];
                 materialCustomSpecularPath[ci] = materialCustomSpecularPath[parentOrdinal];
-                materialBlenderFolder[ci] = materialBlenderFolder[parentOrdinal];
                 materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
             }
         }
@@ -1296,16 +1475,14 @@ public class Options {
     // (bit 0 = invertRoughness, bit 1 = invertNormal, bit 2 = invertHeight)
     public static int autoPBRHeightGamma = 100;          // 10-300, /100 = 0.1-3.0 (height contrast for POM)
 
-    // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat, 3=Blender PBR
+    // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat
     public static final int[] materialNormalInputType = new int[MAX_MATERIALS];
     public static final int[] materialSpecularInputType = new int[MAX_MATERIALS];
     public static final String[] materialCustomNormalPath = new String[MAX_MATERIALS];
     public static final String[] materialCustomSpecularPath = new String[MAX_MATERIALS];
-    public static final String[] materialBlenderFolder = new String[MAX_MATERIALS];
     static {
         java.util.Arrays.fill(materialCustomNormalPath, "");
         java.util.Arrays.fill(materialCustomSpecularPath, "");
-        java.util.Arrays.fill(materialBlenderFolder, "");
     }
 
     // Noise target channels: bit 0=roughness (default ON), bit 1=normal perturbation, bit 2=metallic
@@ -1335,6 +1512,27 @@ public class Options {
     public static final int[] cloudDensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
     // Default: enable mottled cloud shadows in the overworld only.
     public static final int[] cloudNoiseAffectsShadows = new int[]{1, 0, 0};
+
+    // Volumetric cloud module settings (global, not per-dimension)
+    public static int volCloudQuality = 3;            // 0=Off, 1=Low, 2=Medium, 3=High, 4=Ultra, 5=Extreme
+    public static int volCloudDensityTenths = 10;     // 1-30 → 0.1-3.0
+    public static int volCloudCoveragePercent = 35;   // 0-100 → 0.0-1.0
+    public static int volCloudTypePercent = 67;       // 0-100 → 0.0-1.0 (0=Stratus, 33=Sc, 67=Cumulus, 100=Cb)
+    public static int volCloudSpeedTenths = 50;       // 0-300 tenths of m/s (÷50 for internal multiplier)
+    public static int volCloudAltitude = 192;         // 128-320 blocks
+    public static int volCloudThickness = 64;         // 32-128 blocks
+    public static int volCloudDetailStrengthPercent = 100; // 0-200 → 0.0-2.0
+    public static int volCloudScatterOctaves = 3;     // 1-4
+
+    public static final String[] VOL_CLOUD_QUALITY_NAMES = {
+        "Off", "Low", "Medium", "High", "Ultra", "Extreme"
+    };
+
+    // Ordered by increasing meteorological altitude: low → high
+    public static final String[] VOL_CLOUD_TYPE_NAMES = {
+        "Stratus", "Stratocumulus", "Cumulus", "Cumulonimbus"
+    };
+
     public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
     public static final int[] waterTintG = new int[]{WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT};
     public static final int[] waterTintB = new int[]{WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT};
@@ -1512,6 +1710,14 @@ public class Options {
             pomFadeDistance = clamp(Integer.parseInt(props.getProperty("pomFadeDistance", String.valueOf(pomFadeDistance))), 8, 256);
             nativeSetPOMFadeDistance((float) pomFadeDistance, false);
 
+            displacementQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))), 0, 3);
+            nativeSetDisplacementQuality(displacementQuality, false);
+
+            serEnabled = Boolean.parseBoolean(props.getProperty("serEnabled", String.valueOf(serEnabled)));
+            nativeSetSEREnabled(serEnabled, false);
+            serHintsEnabled = Boolean.parseBoolean(props.getProperty("serHintsEnabled", String.valueOf(serHintsEnabled)));
+            nativeSetSERHintsEnabled(serHintsEnabled, false);
+
             sharcEnabled = Boolean.parseBoolean(props.getProperty("sharcEnabled", String.valueOf(sharcEnabled)));
             nativeSetSharcEnabled(sharcEnabled, false);
 
@@ -1601,6 +1807,13 @@ public class Options {
             fStop = Float.parseFloat(props.getProperty("fStop", String.valueOf(fStop)));
             dofStrengthPercent = clamp(Integer.parseInt(props.getProperty(
                 "dofStrengthPercent", String.valueOf(dofStrengthPercent))), 100, 2000);
+            // First-person view
+            fpvEnabled = Boolean.parseBoolean(props.getProperty("fpvEnabled", String.valueOf(fpvEnabled)));
+            fpvOffsetForward = clamp(Integer.parseInt(props.getProperty("fpvOffsetForward",
+                props.getProperty("fpvCameraOffset", String.valueOf(fpvOffsetForward)))), 0, 50);
+            fpvOffsetVertical = clamp(Integer.parseInt(props.getProperty("fpvOffsetVertical", String.valueOf(fpvOffsetVertical))), -30, 30);
+            fpvOffsetLateral = clamp(Integer.parseInt(props.getProperty("fpvOffsetLateral", String.valueOf(fpvOffsetLateral))), -20, 20);
+            syncFpvSettings();
             // Freecam preferences
             freecamEnabled = Boolean.parseBoolean(props.getProperty("freecamEnabled", String.valueOf(freecamEnabled)));
             freecamSpeed = Float.parseFloat(props.getProperty("freecamSpeed", String.valueOf(freecamSpeed)));
@@ -1699,9 +1912,8 @@ public class Options {
                 materialAutoPBREdgeWeight[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBREdgeWeight." + pid, String.valueOf(materialAutoPBREdgeWeight[i]))), 0, 100);
                 materialAutoPBRHeightGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]))), 10, 300);
                 materialAutoPBRFlags[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]))), 0, 7);
-                materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 3);
-                materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, 3);
-                materialBlenderFolder[i] = props.getProperty("materialBlenderFolder." + pid, "");
+                materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 2);
+                materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, 2);
                 materialCustomNormalPath[i] = props.getProperty("materialCustomNormalPath." + pid, "");
                 materialCustomSpecularPath[i] = props.getProperty("materialCustomSpecularPath." + pid, "");
                 materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 15);
@@ -2126,6 +2338,9 @@ public class Options {
         props.setProperty("pomSteps", String.valueOf(pomSteps));
         props.setProperty("pomRefinement", String.valueOf(pomRefinement));
         props.setProperty("pomFadeDistance", String.valueOf(pomFadeDistance));
+        props.setProperty("displacementQuality", String.valueOf(displacementQuality));
+        props.setProperty("serEnabled", String.valueOf(serEnabled));
+        props.setProperty("serHintsEnabled", String.valueOf(serHintsEnabled));
         props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
         props.setProperty("sharcSceneScaleTenths", String.valueOf(sharcSceneScaleTenths));
         props.setProperty("sharcRoughnessThresholdPercent", String.valueOf(sharcRoughnessThresholdPercent));
@@ -2168,6 +2383,11 @@ public class Options {
         props.setProperty("focalLengthMM", String.valueOf(focalLengthMM));
         props.setProperty("fStop", String.valueOf(fStop));
         props.setProperty("dofStrengthPercent", String.valueOf(dofStrengthPercent));
+        // First-person view
+        props.setProperty("fpvEnabled", String.valueOf(fpvEnabled));
+        props.setProperty("fpvOffsetForward", String.valueOf(fpvOffsetForward));
+        props.setProperty("fpvOffsetVertical", String.valueOf(fpvOffsetVertical));
+        props.setProperty("fpvOffsetLateral", String.valueOf(fpvOffsetLateral));
         // Freecam preferences
         props.setProperty("freecamEnabled", String.valueOf(freecamEnabled));
         props.setProperty("freecamSpeed", String.valueOf(freecamSpeed));
@@ -2241,9 +2461,6 @@ public class Options {
             }
             if (!materialCustomSpecularPath[i].isEmpty()) {
                 props.setProperty("materialCustomSpecularPath." + pid, materialCustomSpecularPath[i]);
-            }
-            if (!materialBlenderFolder[i].isEmpty()) {
-                props.setProperty("materialBlenderFolder." + pid, materialBlenderFolder[i]);
             }
             props.setProperty("materialNoiseTarget." + pid, String.valueOf(materialNoiseTarget[i]));
         }
@@ -2439,6 +2656,17 @@ public class Options {
             props.setProperty("env.moonIntensityPercent." + dim, String.valueOf(moonIntensityPercent[dim]));
         }
 
+        // Volumetric cloud module settings (global, not per-dimension)
+        props.setProperty("volCloudQuality", String.valueOf(volCloudQuality));
+        props.setProperty("volCloudDensityTenths", String.valueOf(volCloudDensityTenths));
+        props.setProperty("volCloudCoveragePercent", String.valueOf(volCloudCoveragePercent));
+        props.setProperty("volCloudTypePercent", String.valueOf(volCloudTypePercent));
+        props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
+        props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
+        props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
+        props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
+        props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
+
         // Sun/Moon orbit (Overworld-only)
         props.setProperty("sunPathMode", String.valueOf(sunPathMode));
         props.setProperty("sunInclinationDeg", String.valueOf(sunInclinationDeg));
@@ -2451,6 +2679,7 @@ public class Options {
         props.setProperty("showWelcomeMessage", String.valueOf(showWelcomeMessage));
         props.setProperty("uiGlobalAlphaPercent", String.valueOf(uiGlobalAlphaPercent));
         props.setProperty("uiAdaptiveDimming", String.valueOf(uiAdaptiveDimming));
+        props.setProperty("advancedMode", String.valueOf(advancedMode));
 
         try {
             Files.createDirectories(path.getParent());
@@ -2562,6 +2791,39 @@ public class Options {
                     String.valueOf(dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT))));
         }
 
+        // Volumetric cloud module settings (global, not per-dimension)
+        volCloudQuality = clamp(Integer.parseInt(
+            props.getProperty("volCloudQuality", "3")), 0, 5);
+        volCloudDensityTenths = clamp(Integer.parseInt(
+            props.getProperty("volCloudDensityTenths", "10")), 1, 30);
+        volCloudCoveragePercent = clamp(Integer.parseInt(
+            props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
+        volCloudTypePercent = clamp(Integer.parseInt(
+            props.getProperty("volCloudTypePercent", "67")), 0, 100);
+        volCloudSpeedTenths = clamp(Integer.parseInt(
+            props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
+        volCloudAltitude = clamp(Integer.parseInt(
+            props.getProperty("volCloudAltitude", "192")), 128, 320);
+        volCloudThickness = clamp(Integer.parseInt(
+            props.getProperty("volCloudThickness", "64")), 32, 128);
+        volCloudDetailStrengthPercent = clamp(Integer.parseInt(
+            props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 200);
+        volCloudScatterOctaves = clamp(Integer.parseInt(
+            props.getProperty("volCloudScatterOctaves", "3")), 1, 4);
+
+        // Push volumetric cloud settings to native
+        try {
+            nativeSetCloudQuality(volCloudQuality, false);
+            nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
+            nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
+            nativeSetCloudType(volCloudTypePercent / 100.0f, false);
+            nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, false);
+            nativeSetCloudAltitude((float) volCloudAltitude, false);
+            nativeSetCloudThicknessVol((float) volCloudThickness, false);
+            nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
+            nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
+        } catch (UnsatisfiedLinkError ignored) {}
+
         // Sun/Moon orbit (Overworld-only, not per-dimension)
         sunPathMode = Math.max(0, Math.min(1, Integer.parseInt(
             props.getProperty("sunPathMode", String.valueOf(SUN_PATH_MODE_DEFAULT)))));
@@ -2583,6 +2845,8 @@ public class Options {
             props.getProperty("uiGlobalAlphaPercent", "55"))));
         uiAdaptiveDimming = Boolean.parseBoolean(
             props.getProperty("uiAdaptiveDimming", "false"));
+        advancedMode = Boolean.parseBoolean(
+            props.getProperty("advancedMode", "false"));
 
         // Apply UI theme from loaded values
         com.radiance.client.gui.RadianceTheme.setGlobalAlpha(uiGlobalAlphaPercent / 100f);
@@ -2615,6 +2879,17 @@ public class Options {
             moonIntensityPercent[dim] = dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT;
         }
 
+        // Volumetric cloud module defaults
+        volCloudQuality = 3;
+        volCloudDensityTenths = 10;
+        volCloudCoveragePercent = 35;
+        volCloudTypePercent = 67;
+        volCloudSpeedTenths = 50;
+        volCloudAltitude = 192;
+        volCloudThickness = 64;
+        volCloudDetailStrengthPercent = 100;
+        volCloudScatterOctaves = 3;
+
         // Sun/Moon orbit defaults
         sunPathMode = SUN_PATH_MODE_DEFAULT;
         sunInclinationDeg = SUN_INCLINATION_DEFAULT;
@@ -2622,6 +2897,38 @@ public class Options {
         moonFollowSun = true;
         moonInclinationDeg = MOON_INCLINATION_DEFAULT;
         moonAzimuthOffsetDeg = MOON_AZIMUTH_OFFSET_DEFAULT;
+    }
+
+    public static void setFpvEnabled(boolean value, boolean write) {
+        fpvEnabled = value;
+        syncFpvSettings();
+        if (write) overwriteConfig();
+    }
+
+    public static void setFpvOffsetForward(int cm, boolean write) {
+        fpvOffsetForward = clamp(cm, 0, 50);
+        syncFpvSettings();
+        if (write) overwriteConfig();
+    }
+
+    public static void setFpvOffsetVertical(int cm, boolean write) {
+        fpvOffsetVertical = clamp(cm, -30, 30);
+        syncFpvSettings();
+        if (write) overwriteConfig();
+    }
+
+    public static void setFpvOffsetLateral(int cm, boolean write) {
+        fpvOffsetLateral = clamp(cm, -20, 20);
+        syncFpvSettings();
+        if (write) overwriteConfig();
+    }
+
+    /** Sync FPV option values to the FirstPersonView runtime fields. */
+    public static void syncFpvSettings() {
+        com.radiance.client.fpv.FirstPersonView.enabled = fpvEnabled;
+        com.radiance.client.fpv.FirstPersonView.offsetForward = fpvOffsetForward / 100.0f;
+        com.radiance.client.fpv.FirstPersonView.offsetVertical = fpvOffsetVertical / 100.0f;
+        com.radiance.client.fpv.FirstPersonView.offsetLateral = fpvOffsetLateral / 100.0f;
     }
 
     private static int clampDimIndex(int dim) {
@@ -2820,6 +3127,61 @@ public class Options {
         }
     }
 
+    // ── Volumetric Cloud Module setters (global) ──
+
+    public static void setVolCloudQuality(int quality, boolean write) {
+        volCloudQuality = clamp(quality, 0, 5);
+        try { nativeSetCloudQuality(volCloudQuality, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudDensityTenths(int tenths, boolean write) {
+        volCloudDensityTenths = clamp(tenths, 1, 30);
+        try { nativeSetCloudDensity(volCloudDensityTenths / 10.0f, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudCoveragePercent(int percent, boolean write) {
+        volCloudCoveragePercent = clamp(percent, 0, 100);
+        try { nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudTypePercent(int percent, boolean write) {
+        volCloudTypePercent = clamp(percent, 0, 100);
+        try { nativeSetCloudType(volCloudTypePercent / 100.0f, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudSpeedTenths(int tenths, boolean write) {
+        volCloudSpeedTenths = clamp(tenths, 0, 300);
+        try { nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudAltitude(int altitude, boolean write) {
+        volCloudAltitude = clamp(altitude, 128, 320);
+        try { nativeSetCloudAltitude((float) volCloudAltitude, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudThickness(int thickness, boolean write) {
+        volCloudThickness = clamp(thickness, 32, 128);
+        try { nativeSetCloudThicknessVol((float) volCloudThickness, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudDetailStrengthPercent(int percent, boolean write) {
+        volCloudDetailStrengthPercent = clamp(percent, 0, 200);
+        try { nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudScatterOctaves(int octaves, boolean write) {
+        volCloudScatterOctaves = clamp(octaves, 1, 4);
+        try { nativeSetCloudScatterOctaves(volCloudScatterOctaves, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
 
     public static float getWaterTintR(int dim) {
         return waterTintR[clampDimIndex(dim)] / 100.0f;
@@ -3474,6 +3836,34 @@ public class Options {
     public static void setPOMFadeDistance(int distance, boolean write) {
         Options.pomFadeDistance = Math.max(8, Math.min(256, distance));
         nativeSetPOMFadeDistance((float) Options.pomFadeDistance, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    // --- Displacement ---
+    public native static void nativeSetDisplacementQuality(int quality, boolean write);
+
+    public static void setDisplacementQuality(int quality, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("displacementQuality=" + quality);
+        Options.displacementQuality = Math.max(0, Math.min(3, quality));
+        nativeSetDisplacementQuality(Options.displacementQuality, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    // --- SER (Shader Execution Reordering) ---
+    public native static void nativeSetSEREnabled(boolean enabled, boolean write);
+    public native static void nativeSetSERHintsEnabled(boolean enabled, boolean write);
+
+    public static void setSEREnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("serEnabled=" + enabled);
+        Options.serEnabled = enabled;
+        nativeSetSEREnabled(enabled, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSERHintsEnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("serHintsEnabled=" + enabled);
+        Options.serHintsEnabled = enabled;
+        nativeSetSERHintsEnabled(enabled, write);
         if (write) { overwriteConfig(); }
     }
 
@@ -4494,6 +4884,17 @@ public class Options {
     public native static void nativeResetAccumulation();
     public native static int nativeGetAccumFrameCount();
     public native static int nativeGetDlssEpochCount();
+
+    // ── Volumetric Cloud Module native methods ──
+    public native static void nativeSetCloudQuality(int quality, boolean write);
+    public native static void nativeSetCloudDensity(float density, boolean write);
+    public native static void nativeSetCloudCoverage(float coverage, boolean write);
+    public native static void nativeSetCloudType(float type, boolean write);
+    public native static void nativeSetCloudSpeed(float speed, boolean write);
+    public native static void nativeSetCloudAltitude(float altitude, boolean write);
+    public native static void nativeSetCloudThicknessVol(float thickness, boolean write);
+    public native static void nativeSetCloudDetailStrength(float strength, boolean write);
+    public native static void nativeSetCloudScatterOctaves(int octaves, boolean write);
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(8, mode));  // 0-7 = standard, 8 = PsychoVisual

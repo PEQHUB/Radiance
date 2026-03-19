@@ -26,4 +26,14 @@ public class ParticlesEmissionPopulator implements ContentPopulator {
                 EmissionWidgetFactory.makeParticlePuritySlider(i)));
         }
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        java.util.List<UnifiedSearchOverlay.SearchEntry> entries = new java.util.ArrayList<>();
+        entries.add(new UnifiedSearchOverlay.SearchEntry("Particle Emission", category, nodeId, false));
+        for (EmissionWidgetFactory.ParticleDef def : EmissionWidgetFactory.PARTICLE_DEFS) {
+            entries.add(new UnifiedSearchOverlay.SearchEntry(def.label(), category, nodeId, false));
+        }
+        return entries;
+    }
 }

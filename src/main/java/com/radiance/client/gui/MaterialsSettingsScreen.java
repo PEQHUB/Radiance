@@ -534,10 +534,10 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         var accessor = (com.radiance.mixins.vulkan_render_integration.WindowAccessorMixin) (Object) window;
         int pixelWidth = window.getWidth();
         double radianceScale = Math.max(1.0, Math.round((double) pixelWidth / 900.0));
-        if (RadianceSettingsScreen.savedScaleFactor < 0) {
-            RadianceSettingsScreen.savedScaleFactor = accessor.radiance$getScaleFactor();
-            RadianceSettingsScreen.savedScaledWidth = accessor.radiance$getScaledWidth();
-            RadianceSettingsScreen.savedScaledHeight = accessor.radiance$getScaledHeight();
+        if (GuiScaleHelper.savedScaleFactor < 0) {
+            GuiScaleHelper.savedScaleFactor = accessor.radiance$getScaleFactor();
+            GuiScaleHelper.savedScaledWidth = accessor.radiance$getScaledWidth();
+            GuiScaleHelper.savedScaledHeight = accessor.radiance$getScaledHeight();
         }
         accessor.radiance$setScaleFactor(radianceScale);
         accessor.radiance$setScaledWidth((int) Math.ceil((double) pixelWidth / radianceScale));
@@ -552,8 +552,9 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         super.removed();
         // Restore scale when leaving to non-Radiance screen
         Screen next = this.client != null ? this.client.currentScreen : null;
-        if (!(next instanceof RadianceSettingsScreen) && !(next instanceof MaterialsSettingsScreen)) {
-            RadianceSettingsScreen.restoreOriginalScale();
+        if (!(next instanceof MaterialsSettingsScreen)
+                && !(next instanceof com.radiance.client.gui.unified.RadianceUnifiedScreen)) {
+            GuiScaleHelper.restoreOriginalScale();
         }
     }
 
@@ -749,7 +750,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             // Rebuild screen to show the newly selected block's settings
             rebuildSelf();
         });
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(blockSelector, body));
+        this.body.addEntry(new LegacySliderEntry(blockSelector, body));
 
         // === Reset + Actions (one compact row) ===
         ButtonWidget resetBtn = ButtonWidget.builder(Text.literal("Reset"), btn -> {
@@ -762,7 +763,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         ButtonWidget pasteBtn = ButtonWidget.builder(Text.literal("Paste"), btn -> {
             if (MaterialClipboard.paste(idx)) rebuildSelf();
         }).width(70).build();
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnButtonEntry(resetBtn, copyBtn, pasteBtn, null, body));
+        this.body.addEntry(new LegacyFourColumnButtonEntry(resetBtn, copyBtn, pasteBtn, null, body));
 
         // === Presets (one-click metal setup) ===
         MetalPreset[] presets = MetalPreset.values();
@@ -778,7 +779,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.markMaterialDirty();
             rebuildSelf();
         }).width(150).build();
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(presetSelector, loadPresetBtn, body));
+        this.body.addEntry(new LegacyTwoColumnOptionEntry(presetSelector, loadPresetBtn, body));
 
         // === Surface ===
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Surface"), body));
@@ -812,7 +813,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 1000, Options.materialTransmission[i], block.getDefaultTransmission(),
             v -> getGenericValueText(Text.literal("Transmission"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialTransmission[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(metallic, roughness, ior, transmission, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(metallic, roughness, ior, transmission, body));
 
         ResettableSliderWidget subsurface = new ResettableSliderWidget(0, 0, 100, 20,
             0, 1000, Options.materialSubsurface[i], block.getDefaultSubsurface(),
@@ -832,7 +833,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(Text.literal("Norm Smooth"),
                 Text.literal(v > 0 ? v + "%" : "Sharp")),
             v -> { Options.materialNormalSmoothing[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(subsurface, anisotropic, normalStr, normalSmooth, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(subsurface, anisotropic, normalStr, normalSmooth, body));
 
         // === Material validation warnings ===
         List<String> warnings = Options.validateMaterial(i);
@@ -859,7 +860,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 1000, Options.materialSheenTint[i], block.getDefaultSheenTint(),
             v -> getGenericValueText(Text.literal("Sheen Tint"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialSheenTint[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(coatWeight, coatRoughness, sheenWeight, sheenTint, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(coatWeight, coatRoughness, sheenWeight, sheenTint, body));
 
         // === Advanced (F0 + Texture Mapping) ===
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Advanced"), body));
@@ -880,7 +881,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(Text.literal("Tex Rough"),
                 Text.literal(v > 0 ? v + "%" : "off")),
             v -> { Options.materialTextureBlend[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(f0r, f0g, f0b, textureBlend, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(f0r, f0g, f0b, textureBlend, body));
 
         ResettableSliderWidget gamutBoost = new ResettableSliderWidget(0, 0, 100, 20,
             0, 200, Options.materialGamutBoost[i], 100,
@@ -898,7 +899,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 1000, Options.materialChannelB[i], 72,
             v -> getGenericValueText(Text.literal("Chan B"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialChannelB[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(gamutBoost, channelR, channelG, channelB, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(gamutBoost, channelR, channelG, channelB, body));
 
         // Procedural Noise
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Procedural Noise"), body));
@@ -945,9 +946,9 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 btn.setMessage(Text.literal("Mask: " + maskModeLabels[next]));
                 onSliderChanged(i);
             }).dimensions(0, 0, 100, 20).build();
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(noiseDropdown, noiseTargetBtn, body));
+        this.body.addEntry(new LegacyTwoColumnOptionEntry(noiseDropdown, noiseTargetBtn, body));
         // Row 1b: Wrap + Mask
-        this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(wrapBtn, maskModeBtn, body));
+        this.body.addEntry(new LegacyTwoColumnOptionEntry(wrapBtn, maskModeBtn, body));
 
         // Row 2: Strength / Scale / Octaves / Seed
         ResettableSliderWidget noiseStrength = new ResettableSliderWidget(0, 0, 100, 20,
@@ -966,7 +967,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 999, Options.materialNoiseSeed[i], 0,
             v -> getGenericValueText(Text.literal("Seed"), Text.literal(String.valueOf(v))),
             v -> { Options.materialNoiseSeed[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(noiseStrength, noiseScale, noiseOctaves, noiseSeed, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(noiseStrength, noiseScale, noiseOctaves, noiseSeed, body));
 
         // Row 3: Rotation / Aspect / Lacunarity / Contrast
         ResettableSliderWidget noiseRotation = new ResettableSliderWidget(0, 0, 100, 20,
@@ -985,7 +986,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             10, 200, Options.materialNoiseContrast[i], 100,
             v -> getGenericValueText(Text.literal("Con"), Text.literal(String.format("%.1f", v / 100.0))),
             v -> { Options.materialNoiseContrast[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(noiseRotation, noiseAspect, noiseLacunarity, noiseContrast, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(noiseRotation, noiseAspect, noiseLacunarity, noiseContrast, body));
 
         // Row 4 (conditional): Mask Threshold + Invert — only when mask is active
         if (Options.materialNoiseMaskMode[i] > 0) {
@@ -1000,7 +1001,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                     btn.setMessage(Text.literal("Invert: " + (Options.materialNoiseMaskInvert[i] ? "ON" : "OFF")));
                     onSliderChanged(i);
                 }).dimensions(0, 0, 100, 20).build();
-            this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(maskThreshold, maskInvertBtn, body));
+            this.body.addEntry(new LegacyTwoColumnOptionEntry(maskThreshold, maskInvertBtn, body));
         }
 
         // === Auto-PBR (This Block) — mask-specific controls ===
@@ -1042,7 +1043,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                     rebuildSelf();
                 }).width(150).build();
             presetBtn.active = autoPBRActive;
-            this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(presetBtn, null, body));
+            this.body.addEntry(new LegacyTwoColumnOptionEntry(presetBtn, null, body));
 
             ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 100, 20,
                 0, 100, Options.materialAutoPBRRoughnessMin[i], Options.autoPBRRoughnessMin,
@@ -1064,7 +1065,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             roughMax.active = autoPBRActive;
             perCenter.active = autoPBRActive;
             perSpread.active = autoPBRActive;
-            this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(roughMin, roughMax, perCenter, perSpread, body));
+            this.body.addEntry(new LegacyFourColumnSliderEntry(roughMin, roughMax, perCenter, perSpread, body));
 
             SimpleOption<Boolean> perInvertRough = SimpleOption.ofBoolean(
                 "options.video.materials.autoPBRInvertRoughness",
@@ -1084,7 +1085,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 v -> { Options.materialAutoPBREdgeWeight[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             perNormStr.active = autoPBRActive;
             perEdgeWt.active = autoPBRActive;
-            this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(perNormStr, perEdgeWt, body));
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(perNormStr, perEdgeWt, body));
 
             SimpleOption<Boolean> perInvertNormal = SimpleOption.ofBoolean(
                 "options.video.materials.autoPBRInvertNormal",
@@ -1099,7 +1100,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 v -> getGenericValueText(Text.literal("Height Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
                 v -> { Options.materialAutoPBRHeightGamma[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             perHeightGamma.active = autoPBRActive;
-            this.body.addEntry(new RadianceSettingsScreen.TwoColumnSliderEntry(perHeightGamma, null, body));
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(perHeightGamma, null, body));
 
             SimpleOption<Boolean> perInvertHeight = SimpleOption.ofBoolean(
                 "options.video.materials.autoPBRInvertHeight",
@@ -1144,7 +1145,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         normStr.active = globalPBROn;
         globalRoughMin.active = globalPBROn;
         globalRoughMax.active = globalPBROn;
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(roughGamma, normStr, globalRoughMin, globalRoughMax, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(roughGamma, normStr, globalRoughMin, globalRoughMax, body));
 
         ResettableSliderWidget varianceWt = new ResettableSliderWidget(0, 0, 100, 20,
             0, 100, Options.autoPBRVarianceWeight, 30,
@@ -1161,7 +1162,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         varianceWt.active = globalPBROn;
         edgeWt.active = globalPBROn;
         heightGamma.active = globalPBROn;
-        this.body.addEntry(new RadianceSettingsScreen.FourColumnSliderEntry(varianceWt, edgeWt, heightGamma, null, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(varianceWt, edgeWt, heightGamma, null, body));
 
         // === Parent/Child ===
         if (!block.isParent()) {
@@ -1177,7 +1178,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 Options.materialChildOverride[i] = false;
                 rebuildSelf();
             }).width(150).build();
-            this.body.addEntry(new RadianceSettingsScreen.TwoColumnOptionEntry(variantLabel, resetParentBtn, body));
+            this.body.addEntry(new LegacyTwoColumnOptionEntry(variantLabel, resetParentBtn, body));
         }
     }
 

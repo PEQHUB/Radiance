@@ -20,6 +20,10 @@ import org.lwjgl.glfw.GLFW;
  * Unified Radiance settings screen with tree navigation (left) and content panel (right).
  * Replaces RadianceSettingsScreen and all 15+ sub-screens in a single panel+sidebar layout.
  *
+ * Two modes:
+ * - Simple (default): AAA-style flat menu with 6 curated categories
+ * - Advanced: Full tree with all sub-categories and every setting exposed
+ *
  * Features:
  * - Category nodes populate ALL child sections at once
  * - Leaf nodes populate only their own section
@@ -52,6 +56,10 @@ public class RadianceUnifiedScreen extends Screen {
     // ── Header controls ──
     private ResettableSliderWidget opacitySlider;
     private ButtonWidget resetDefaultsButton;
+    private ButtonWidget advancedToggleButton;
+
+    // ── Search ──
+    private UnifiedSearchOverlay searchOverlay;
 
     public RadianceUnifiedScreen(Screen parent) {
         super(Text.translatable("radiance.settings.title"));
@@ -95,10 +103,22 @@ public class RadianceUnifiedScreen extends Screen {
             .build();
         this.addDrawableChild(resetDefaultsButton);
 
-        // Opacity slider (to the left of Reset button)
+        // Advanced/Simple toggle button (to the left of Reset)
+        int toggleBtnW = 80;
+        int toggleBtnH = 18;
+        int toggleBtnX = resetBtnX - toggleBtnW - 6;
+        int toggleBtnY = (HEADER_HEIGHT - toggleBtnH) / 2;
+        advancedToggleButton = ButtonWidget.builder(
+            Text.literal(Options.advancedMode ? "Simple" : "Advanced"),
+            btn -> toggleAdvancedMode())
+            .dimensions(toggleBtnX, toggleBtnY, toggleBtnW, toggleBtnH)
+            .build();
+        this.addDrawableChild(advancedToggleButton);
+
+        // Opacity slider (to the left of Advanced toggle)
         int sliderW = 140;
         int sliderH = 18;
-        int sliderX = resetBtnX - sliderW - 8;
+        int sliderX = toggleBtnX - sliderW - 8;
         int sliderY = (HEADER_HEIGHT - sliderH) / 2;
         opacitySlider = new ResettableSliderWidget(
             sliderX, sliderY, sliderW, sliderH,
@@ -111,6 +131,9 @@ public class RadianceUnifiedScreen extends Screen {
         opacitySlider.settingKey = "uiGlobalAlphaPercent";
         this.addDrawableChild(opacitySlider);
 
+        // Search overlay
+        searchOverlay = new UnifiedSearchOverlay(this);
+
         // Re-init overlay if active (window may have resized)
         if (overlayShowing && overlayScreen != null) {
             MinecraftClient mc = MinecraftClient.getInstance();
@@ -119,18 +142,71 @@ public class RadianceUnifiedScreen extends Screen {
 
         // Restore remembered position, or select first category
         if (rememberedNodeId != null) {
-            tree.selectById(rememberedNodeId);
-            if (rememberedScrollY > 0) {
-                content.setScrollTarget(rememberedScrollY);
+            TreeNode found = findNodeById(rememberedNodeId);
+            if (found != null) {
+                tree.selectById(rememberedNodeId);
+                if (rememberedScrollY > 0) {
+                    content.setScrollTarget(rememberedScrollY);
+                }
+            } else {
+                // Node from other mode — select first
+                rememberedNodeId = null;
+                tree.selectFirst();
             }
         } else {
             tree.selectFirst();
         }
     }
 
+    private TreeNode findNodeById(String id) {
+        for (TreeNode root : tree.getRootNodes()) {
+            TreeNode found = root.findById(id);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    /** Toggle between simple and advanced modes, rebuild the tree. */
+    private void toggleAdvancedMode() {
+        Options.advancedMode = !Options.advancedMode;
+        Options.overwriteConfig();
+        // Reset remembered node since tree structure changes
+        rememberedNodeId = null;
+        rememberedScrollY = 0;
+        activeNode = null;
+        // Full reinit — re-set screen to trigger init()
+        MinecraftClient mc = MinecraftClient.getInstance();
+        mc.setScreen(new RadianceUnifiedScreen(parent));
+    }
+
     // ── Tree structure ──
 
     private void populateTree() {
+        if (Options.advancedMode) {
+            populateAdvancedTree();
+        } else {
+            populateSimpleTree();
+        }
+        tree.setOnSelect(this::onCategorySelected);
+    }
+
+    /**
+     * Simple mode: 6 flat categories with curated AAA-style settings.
+     * No sub-categories, no deep nesting — clean and approachable.
+     */
+    private void populateSimpleTree() {
+        tree.addRoot(new TreeNode("s_graphics", "Graphics", new SimpleGraphicsPopulator()));
+        tree.addRoot(new TreeNode("s_display", "Display", new SimpleDisplayPopulator()));
+        tree.addRoot(new TreeNode("s_lighting", "Lighting", new SimpleLightingPopulator()));
+        tree.addRoot(new TreeNode("s_post", "Post Processing", new SimplePostProcessingPopulator()));
+        tree.addRoot(new TreeNode("s_environment", "Environment", new SimpleEnvironmentPopulator()));
+        tree.addRoot(new TreeNode("s_camera", "Camera", new SimpleCameraPopulator()));
+    }
+
+    /**
+     * Advanced mode: full tree with all sub-categories — every setting exposed.
+     */
+    private void populateAdvancedTree() {
         // ▼ Offline Rendering (top of tree)
         TreeNode offline = new TreeNode("offline", "Offline Rendering");
         offline.populator = new OfflinePopulator();
@@ -209,11 +285,9 @@ public class RadianceUnifiedScreen extends Screen {
         display.addChild(new TreeNode("terrain", "Terrain", new TerrainPopulator()));
         display.addChild(new TreeNode("pipeline", "Pipeline", new PipelinePopulator()));
         display.addChild(new TreeNode("ui_settings", "UI Settings", new UiSettingsPopulator()));
+        display.addChild(new TreeNode("fpv", "First-Person View", new FpvPopulator()));
         display.populator = compositePopulator(display.children);
         tree.addRoot(display);
-
-        // Wire selection callback
-        tree.setOnSelect(this::onCategorySelected);
     }
 
     /**
@@ -305,6 +379,11 @@ public class RadianceUnifiedScreen extends Screen {
         if (overlayShowing && overlayScreen != null) {
             renderOverlay(context, mouseX, mouseY, delta);
         }
+
+        // Search overlay (rendered last, on top of everything)
+        if (searchOverlay != null) {
+            searchOverlay.render(context, this.textRenderer, this.width, this.height);
+        }
     }
 
     private void renderHeader(DrawContext context, int mouseX, int mouseY, float delta) {
@@ -324,18 +403,40 @@ public class RadianceUnifiedScreen extends Screen {
             if (opacitySlider != null) {
                 opacitySlider.render(context, mouseX, mouseY, delta);
             }
+            if (advancedToggleButton != null) {
+                renderHeaderButton(context, mouseX, mouseY, advancedToggleButton);
+
+                // Modified badge: orange dot + count when simple mode has non-default advanced settings
+                if (!Options.advancedMode) {
+                    int modCount = Options.countNonDefaultAdvancedSettings();
+                    if (modCount > 0) {
+                        int dotX = advancedToggleButton.getX() + advancedToggleButton.getWidth() + 4;
+                        int dotY = advancedToggleButton.getY() + (advancedToggleButton.getHeight() - 8) / 2;
+                        // Orange dot
+                        context.fill(dotX, dotY, dotX + 6, dotY + 6, 0xFFE8712A);
+                        // Count text
+                        String badge = modCount + " modified";
+                        RadianceTheme.drawOutlinedText(context, this.textRenderer,
+                            Text.literal(badge), dotX + 9, dotY - 1,
+                            RadianceTheme.textAccent, fade);
+                    }
+                }
+            }
             if (resetDefaultsButton != null) {
-                // Custom render for the reset button
-                int x = resetDefaultsButton.getX();
-                int y = resetDefaultsButton.getY();
-                int w = resetDefaultsButton.getWidth();
-                int h = resetDefaultsButton.getHeight();
-                boolean hovered = mouseX >= x && mouseX < x + w
-                    && mouseY >= y && mouseY < y + h;
-                RadianceTheme.drawCustomButton(context, x, y, w, h,
-                    hovered, this.textRenderer, resetDefaultsButton.getMessage());
+                renderHeaderButton(context, mouseX, mouseY, resetDefaultsButton);
             }
         }
+    }
+
+    private void renderHeaderButton(DrawContext context, int mouseX, int mouseY, ButtonWidget btn) {
+        int x = btn.getX();
+        int y = btn.getY();
+        int w = btn.getWidth();
+        int h = btn.getHeight();
+        boolean hovered = mouseX >= x && mouseX < x + w
+            && mouseY >= y && mouseY < y + h;
+        RadianceTheme.drawCustomButton(context, x, y, w, h,
+            hovered, this.textRenderer, btn.getMessage());
     }
 
     private void renderOverlay(DrawContext context, int mouseX, int mouseY, float delta) {
@@ -354,6 +455,10 @@ public class RadianceUnifiedScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Search overlay consumes clicks when visible
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.mouseClicked(mouseX, mouseY, button);
+        }
         if (overlayShowing && overlayScreen != null) {
             return overlayScreen.mouseClicked(mouseX, mouseY, button);
         }
@@ -379,6 +484,11 @@ public class RadianceUnifiedScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // Search overlay consumes all input when visible
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.keyPressed(keyCode, scanCode, modifiers);
+        }
+
         // Overlay intercepts input
         if (overlayShowing && overlayScreen != null) {
             if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
@@ -394,6 +504,12 @@ public class RadianceUnifiedScreen extends Screen {
             return true;
         }
 
+        // Search: Space opens search (when no overlay active)
+        if (keyCode == GLFW.GLFW_KEY_SPACE) {
+            if (searchOverlay != null) searchOverlay.toggle();
+            return true;
+        }
+
         // Escape closes screen
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             this.close();
@@ -401,6 +517,14 @@ public class RadianceUnifiedScreen extends Screen {
         }
 
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.charTyped(chr, modifiers);
+        }
+        return super.charTyped(chr, modifiers);
     }
 
     @Override

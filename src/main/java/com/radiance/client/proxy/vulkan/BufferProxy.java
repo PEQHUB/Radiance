@@ -11,7 +11,7 @@ import static org.lwjgl.system.MemoryUtil.memSet;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.constant.Constants;
-import com.radiance.client.compat.FirstPersonCompat;
+import com.radiance.client.fpv.FirstPersonView;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.util.MaterialBlock;
@@ -32,12 +32,6 @@ import org.joml.Vector3f;
 import org.lwjgl.system.MemoryStack;
 
 public class BufferProxy {
-
-    // Material UBO dirty-tracking cache: direct ByteBuffer for zero-copy memCopy
-    private static final int MATERIAL_UBO_SIZE = Options.MAX_MATERIALS * 7 * 16; // 17920 bytes
-    private static final ByteBuffer materialUBOCacheBuf = ByteBuffer.allocateDirect(MATERIAL_UBO_SIZE);
-    private static final long materialUBOCacheAddr = memAddress(materialUBOCacheBuf);
-    private static boolean materialCacheValid = false;
 
     public static native int allocateBuffer();
 
@@ -219,7 +213,7 @@ public class BufferProxy {
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
         try (MemoryStack stack = stackPush()) {
-            int size = 560 + 50 * 16 + 13 * 16 + Options.MAX_MATERIALS * 7 * 16; // base + emissionData[50] + emissiveGamut[13] + materialData[MAX*7]
+            int size = 560 + 50 * 16 + 13 * 16; // base + emissionData[50] + emissiveGamut[13] (materialData moved to SSBO)
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -250,16 +244,19 @@ public class BufferProxy {
 
             bb.putInt(baseAddr, overlayTextureID);
             baseAddr += Integer.BYTES;
-            // When FirstPerson mod is active, tell shader camera is "third person"
-            // so PLAYER_MASK is included in ray mask (player body visible)
-            // In offline freecam: show player if freecamShowPlayer is on, else hide
-            boolean hidePlayer;
+            // isFirstPerson: 0 = third person (show body+head), 1 = first person (hide all),
+            //                2 = FPV (show body, hide head from direct rays)
+            int firstPersonMode;
             if (Options.offlineState != 0 && Options.freecamEnabled) {
-                hidePlayer = !Options.freecamShowPlayer;
+                firstPersonMode = Options.freecamShowPlayer ? 0 : 1;
+            } else if (FirstPersonView.isActive()) {
+                firstPersonMode = 2; // FPV: body visible, head hidden from direct rays
+            } else if (camera.isThirdPerson()) {
+                firstPersonMode = 0; // third person: everything visible
             } else {
-                hidePlayer = !camera.isThirdPerson() && !FirstPersonCompat.isActive();
+                firstPersonMode = 1; // regular first person: hide player
             }
-            bb.putInt(baseAddr, hidePlayer ? 1 : 0);
+            bb.putInt(baseAddr, firstPersonMode);
             baseAddr += Integer.BYTES;
             bb.putFloat(baseAddr, fog.start());
             baseAddr += Float.BYTES;
@@ -348,125 +345,14 @@ public class BufferProxy {
             }
             baseAddr += 13 * 16; // 13 × vec4
 
-            // Principled BSDF material data: 6 × vec4[MAX_MATERIALS] per block
-            // Pack 0 [idx+0]:     (f0.r, f0.g, f0.b, roughness)
-            // Pack 1 [idx+N]:     (metallic, transmission, ior, subsurface)
-            // Pack 2 [idx+2*N]:   (anisotropic, sheenWeight, sheenTint, coatWeight)
-            // Pack 3 [idx+3*N]:   (coatRoughness, noiseScale, noiseStrength, noisePacked)
-            // Pack 4 [idx+4*N]:   (channelR, channelG, channelB, textureBlend)
-            // Pack 5 [idx+5*N]:   (gamutBoost, pomDepth, reserved, reserved)
-            // When disabled, write MaterialBlock defaults so physics properties are preserved
-            final int N = Options.MAX_MATERIALS;
-            final int materialDataOffset = baseAddr;
-            final long materialDstAddr = addr + materialDataOffset;
-
-            if (false && !Options.materialDirty && materialCacheValid) { // DIAGNOSTIC: cache disabled
-                // Material state unchanged — bulk copy from cache, skip expensive packing
-                memCopy(materialUBOCacheAddr, materialDstAddr, MATERIAL_UBO_SIZE);
-            } else {
-                // Material state changed — run full packing loop
-                boolean matEnabled = Options.materialOverridesEnabled;
-                for (int i = 0; i < N; i++) {
-                    int p0 = baseAddr + i * 16;            // Pack 0
-                    int p1 = baseAddr + (N + i) * 16;      // Pack 1
-                    int p2 = baseAddr + (2 * N + i) * 16;  // Pack 2
-                    int p3 = baseAddr + (3 * N + i) * 16;  // Pack 3
-                    int p4 = baseAddr + (4 * N + i) * 16;  // Pack 4
-                    int p5 = baseAddr + (5 * N + i) * 16;  // Pack 5
-                    int p6 = baseAddr + (6 * N + i) * 16;  // Pack 6
-                    if (matEnabled && i < MaterialBlock.COUNT) {
-                        // Pack 0: F0 RGB + roughness
-                        bb.putFloat(p0,      Options.materialF0R[i] / 1000.0f);
-                        bb.putFloat(p0 + 4,  Options.materialF0G[i] / 1000.0f);
-                        bb.putFloat(p0 + 8,  Options.materialF0B[i] / 1000.0f);
-                        bb.putFloat(p0 + 12, Options.materialRoughness[i] / 100.0f);
-                        // Pack 1: metallic, transmission, IOR, subsurface
-                        bb.putFloat(p1,      Options.materialMetallic[i] / 1000.0f);
-                        bb.putFloat(p1 + 4,  Options.materialTransmission[i] / 1000.0f);
-                        bb.putFloat(p1 + 8,  Options.materialIOR[i] / 1000.0f);
-                        bb.putFloat(p1 + 12, Options.materialSubsurface[i] / 1000.0f);
-                        // Pack 2: anisotropic, sheen weight, sheen tint, coat weight
-                        bb.putFloat(p2,      Options.materialAnisotropic[i] / 1000.0f);
-                        bb.putFloat(p2 + 4,  Options.materialSheenWeight[i] / 1000.0f);
-                        bb.putFloat(p2 + 8,  Options.materialSheenTint[i] / 1000.0f);
-                        bb.putFloat(p2 + 12, Options.materialCoatWeight[i] / 1000.0f);
-                        // Pack 3: coat roughness + noise parameters
-                        bb.putFloat(p3,      Options.materialCoatRoughness[i] / 100.0f);
-                        bb.putFloat(p3 + 4,  Options.materialNoiseScale[i] / 10.0f);       // 0.1-100.0
-                        bb.putFloat(p3 + 8,  Options.materialNoiseStrength[i] / 1000.0f);  // 0.0-1.0
-                        // Pack octaves(0-3) | type(4-8) | seed(9-17) | target(20-23) — fits in 24 bits (float-safe)
-                        int noisePacked = Options.materialNoiseOctaves[i]
-                                        | (Options.materialNoiseType[i] << 4)
-                                        | (Options.materialNoiseSeed[i] << 9)
-                                        | (Options.materialNoiseTarget[i] << 20);
-                        bb.putFloat(p3 + 12, (float) noisePacked);
-                        // Pack 4: texture roughness channel routing
-                        bb.putFloat(p4,      Options.materialChannelR[i] / 1000.0f);
-                        bb.putFloat(p4 + 4,  Options.materialChannelG[i] / 1000.0f);
-                        bb.putFloat(p4 + 8,  Options.materialChannelB[i] / 1000.0f);
-                        bb.putFloat(p4 + 12, Options.materialTextureBlend[i] / 100.0f);
-                        // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
-                        bb.putFloat(p5,      Options.materialGamutBoost[i] / 100.0f);
-                        bb.putFloat(p5 + 4,  Options.materialNoiseMaskThreshold[i] / 1000.0f);
-                        // maskMode(0-2) | invert(3) | wrapMode(4-6) packed as small float
-                        int maskPacked = Options.materialNoiseMaskMode[i]
-                                       | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 3)
-                                       | (Options.materialNoiseWrap[i] << 4);
-                        bb.putFloat(p5 + 8,  (float) maskPacked);
-                        bb.putFloat(p5 + 12, Options.materialNormalStrength[i] / 100.0f);
-                        // Pack 6: rotation, aspect, lacunarity, contrast
-                        bb.putFloat(p6,      (float) Math.toRadians(Options.materialNoiseRotation[i] / 10.0));
-                        bb.putFloat(p6 + 4,  Options.materialNoiseAspect[i] / 100.0f);
-                        bb.putFloat(p6 + 8,  Options.materialNoiseLacunarity[i] / 10.0f);
-                        bb.putFloat(p6 + 12, Options.materialNoiseContrast[i] / 100.0f);
-                    } else if (i < MaterialBlock.COUNT) {
-                        // Overrides disabled: write physics-accurate defaults so water/ice/metals
-                        // retain essential properties (IOR, transmission, metallic, F0).
-                        MaterialBlock mb = MaterialBlock.values()[i];
-                        // Pack 0: default F0 + default roughness
-                        bb.putFloat(p0,      mb.getDefaultF0R() / 1000.0f);
-                        bb.putFloat(p0 + 4,  mb.getDefaultF0G() / 1000.0f);
-                        bb.putFloat(p0 + 8,  mb.getDefaultF0B() / 1000.0f);
-                        bb.putFloat(p0 + 12, mb.getDefaultRoughness() / 100.0f);
-                        // Pack 1: metallic, transmission, IOR, subsurface
-                        bb.putFloat(p1,      mb.getDefaultMetallic() / 1000.0f);
-                        bb.putFloat(p1 + 4,  mb.getDefaultTransmission() / 1000.0f);
-                        bb.putFloat(p1 + 8,  mb.getDefaultIOR() / 1000.0f);
-                        bb.putFloat(p1 + 12, mb.getDefaultSubsurface() / 1000.0f);
-                        // Pack 2-4: zeros (no cosmetic overrides)
-                        for (int p : new int[]{p2, p3, p4}) {
-                            bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
-                            bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
-                        }
-                        // Pack 5: neutral gamut (1.0) and POM depth (1.0)
-                        bb.putFloat(p5, 1.0f); bb.putFloat(p5 + 4, 1.0f);
-                        bb.putFloat(p5 + 8, 0); bb.putFloat(p5 + 12, 0);
-                        // Pack 6: defaults (rotation=0, aspect=1, lacunarity=2, contrast=1)
-                        bb.putFloat(p6, 0); bb.putFloat(p6 + 4, 1.0f);
-                        bb.putFloat(p6 + 8, 2.0f); bb.putFloat(p6 + 12, 1.0f);
-                    } else {
-                        // Unused slot beyond MaterialBlock.COUNT: zeros + transmission sentinel
-                        for (int p : new int[]{p0, p2, p3, p4}) {
-                            bb.putFloat(p, 0); bb.putFloat(p + 4, 0);
-                            bb.putFloat(p + 8, 0); bb.putFloat(p + 12, 0);
-                        }
-                        // Pack 1: metallic=0, transmission=-1 (auto-detect from LabPBR), ior=0, subsurface=0
-                        bb.putFloat(p1, 0); bb.putFloat(p1 + 4, -1.0f);
-                        bb.putFloat(p1 + 8, 0); bb.putFloat(p1 + 12, 0);
-                        bb.putFloat(p5, 1.0f); bb.putFloat(p5 + 4, 1.0f);
-                        bb.putFloat(p5 + 8, 0); bb.putFloat(p5 + 12, 0);
-                        bb.putFloat(p6, 0); bb.putFloat(p6 + 4, 1.0f);
-                        bb.putFloat(p6 + 8, 2.0f); bb.putFloat(p6 + 12, 1.0f);
-                    }
-                }
-                // Cache the packed bytes for future frames
-                memCopy(materialDstAddr, materialUBOCacheAddr, MATERIAL_UBO_SIZE);
-                materialCacheValid = true;
-                Options.materialDirty = false;
-            }
-            baseAddr += N * 7 * 16; // MAX_MATERIALS × 7 vec4
+            // Material data now lives in MaterialClassMapping SSBO (set 1, binding 11).
+            // No longer packed into WorldUBO — saves ~18 KB from UBO.
 
             updateWorldUniform(addr);
+
+            // Upload material SSBO (unified material system — replaces old UBO packing)
+            com.radiance.client.material.MaterialRegistry.init();
+            com.radiance.client.material.MaterialRegistry.uploadIfDirty();
         }
     }
 
@@ -636,15 +522,12 @@ public class BufferProxy {
     }
 
     public static native void updateMapping(long ptr);
-    public static native void updateBlenderPBRMapping(long ptr);
+    public static native void updateMaterialClassMapping(long ptr);
 
-    // TextureMapEntry: 4 ints (16 bytes) — hot path, read by every ray hit
-    // BlenderPBREntry: 8 ints (32 bytes) — cold path, only read when TEX_PROP_DIRECT_PBR set
-    private static final int TEX_ENTRY_INTS = 4;
-    private static final int BP_ENTRY_INTS = 8;
+    // TextureMapEntry: 5 ints (20 bytes) — hot path, read by every ray hit
+    private static final int TEX_ENTRY_INTS = 5;
     private static final int TEX_ENTRY_COUNT = 4096;
     private static final int TEX_PROP_HAS_HEIGHT_MAP = 1;
-    private static final int TEX_PROP_DIRECT_PBR = 4;
 
     public static void updateMapping() {
         // === Main TextureMapping SSBO (compact, 128KB) ===
@@ -685,15 +568,15 @@ public class BufferProxy {
                 }
             }
 
-            // Set TEX_PROP_DIRECT_PBR + height flag from Blender PBR entries
-            for (Map.Entry<Integer, Map<TextureTracker.BlenderChannel, Integer>> entry :
-                    TextureTracker.blenderPBRTextures.entrySet()) {
-                int id = entry.getKey();
-                if (id < 0 || id >= TEX_ENTRY_COUNT) continue;
-                int off = id * TEX_ENTRY_INTS + 3;
-                texView.put(off, texView.get(off) | TEX_PROP_DIRECT_PBR);
-                if (entry.getValue().containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
-                    texView.put(off, texView.get(off) | TEX_PROP_HAS_HEIGHT_MAP);
+            // Flush pending mask registrations — ensures texture data is uploaded before
+            // the mask ID appears in the TextureMapping SSBO (prevents UNDEFINED-layout reads)
+            TextureTracker.flushPendingMasks();
+
+            // Material class mask textures (R8_UNORM, per-texel class index)
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2MaskGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS + 4, e.getValue());
                 }
             }
 
@@ -702,38 +585,6 @@ public class BufferProxy {
             memFree(texBB);
         }
 
-        // === Blender PBR SSBO (cold path, 256KB) — only uploaded if any Blender textures exist ===
-        if (!TextureTracker.blenderPBRTextures.isEmpty()) {
-            int bpSize = TEX_ENTRY_COUNT * Integer.BYTES * BP_ENTRY_INTS;
-            ByteBuffer bpBB = memAlloc(bpSize);
-            try {
-                long bpAddr = memAddress(bpBB);
-                memSet(bpAddr, -1, bpSize); // all -1 = no texture
-                IntBuffer bpView = bpBB.asIntBuffer();
-
-                // Clear _reserved field to 0
-                for (int i = 0; i < TEX_ENTRY_COUNT; i++) {
-                    bpView.put(i * BP_ENTRY_INTS + 7, 0);
-                }
-
-                for (Map.Entry<Integer, Map<TextureTracker.BlenderChannel, Integer>> entry :
-                        TextureTracker.blenderPBRTextures.entrySet()) {
-                    int id = entry.getKey();
-                    if (id < 0 || id >= TEX_ENTRY_COUNT) continue;
-                    int base = id * BP_ENTRY_INTS;
-                    for (Map.Entry<TextureTracker.BlenderChannel, Integer> ch : entry.getValue().entrySet()) {
-                        // BlenderChannel ssboOffset was for the old combined struct (4-11)
-                        // Remap to BlenderPBREntry offsets (0-7)
-                        int bpOffset = ch.getKey().ssboOffset - 4;
-                        bpView.put(base + bpOffset, ch.getValue());
-                    }
-                }
-
-                updateBlenderPBRMapping(bpAddr);
-            } finally {
-                memFree(bpBB);
-            }
-        }
     }
 
     public static native void updateLightMapUniform(long ptr);

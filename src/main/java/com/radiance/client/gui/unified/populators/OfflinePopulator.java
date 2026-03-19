@@ -32,7 +32,8 @@ public class OfflinePopulator implements ContentPopulator {
             });
         preset.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.offlineDenoisedKey),
-            presetDropdown));
+            presetDropdown))
+              .tooltip("Raw Fast = RR on, no denoise. Raw Accurate = RR off, no denoise. Denoised = epoch-based DLSS-RR convergence.");
 
         // ── Accumulation ──
         SettingsSection accum = panel.addSection("Accumulation");
@@ -48,7 +49,8 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.nativeSetOfflineBounces(v, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        accum.addSlider(bouncesSlider);
+        accum.addSlider(bouncesSlider)
+              .tooltip("Maximum ray bounces during accumulation. Higher = more accurate global illumination.");
 
         // Epoch length slider (only visible when Denoised preset is selected)
         if (Options.offlineDenoised == 2) {
@@ -63,7 +65,8 @@ public class OfflinePopulator implements ContentPopulator {
                     Options.nativeSetDlssEpochLength(v, true);
                     if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 });
-            accum.addSlider(epochSlider);
+            accum.addSlider(epochSlider)
+                  .tooltip("Frames per epoch before Welford statistics snapshot. Longer = smoother but slower convergence.");
         }
 
         // ── Shader Quality ──
@@ -77,7 +80,8 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.nativeSetBeerLawShadows(value, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        quality.addToggle(beerLaw.createWidget(MinecraftClient.getInstance().options));
+        quality.addToggle(beerLaw.createWidget(MinecraftClient.getInstance().options))
+              .tooltip("Accurate volumetric shadow attenuation through translucent materials.");
 
         SimpleOption<Boolean> physSun = SimpleOption.ofBoolean(
             "Physical Sun Disk",
@@ -87,7 +91,8 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.nativeSetPhysicalSunDisk(value, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        quality.addToggle(physSun.createWidget(MinecraftClient.getInstance().options));
+        quality.addToggle(physSun.createWidget(MinecraftClient.getInstance().options))
+              .tooltip("Renders the sun as a physical disk instead of a directional light. Affects soft shadows.");
 
         SimpleOption<Boolean> noClamp = SimpleOption.ofBoolean(
             "Disable Emission Clamp",
@@ -158,7 +163,8 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.syncApertureToNative();
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        camera.addSlider(focalSlider);
+        camera.addSlider(focalSlider)
+              .tooltip("Lens focal length in mm. Shorter = wider FOV. Longer = telephoto compression.");
 
         // F-stop (1.4 - 22.0, stored as int 14-220 → display as f/x.x)
         int fStopInt = Math.round(Options.fStop * 10.0f);
@@ -173,7 +179,8 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.syncApertureToNative();
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        camera.addSlider(fStopSlider);
+        camera.addSlider(fStopSlider)
+              .tooltip("Aperture size. Lower f-stop = shallower depth of field and more bokeh.");
 
         // ── Focus ──
         SettingsSection focus = panel.addSection("Focus");
@@ -189,7 +196,8 @@ public class OfflinePopulator implements ContentPopulator {
                     MinecraftClient.getInstance().setScreen(null);
                 }
             });
-        focus.addTwoWidgets(focusModeDropdown, null);
+        focus.addTwoWidgets(focusModeDropdown, null)
+              .tooltip("MF = manual focus. AF-S = single autofocus. AF-C = continuous autofocus tracking.");
 
         // Focus distance slider (1-256 blocks, scroll wheel gives sub-block precision)
         ResettableSliderWidget focusSlider = new ResettableSliderWidget(
@@ -267,5 +275,23 @@ public class OfflinePopulator implements ContentPopulator {
         gtControls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.lockCameraKey),
             "Lock Camera"));
+    }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Render Preset", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Ray Bounces (Offline)", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Epoch Length", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Beer's Law Shadows", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Physical Sun Disk", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Sensor Size Preset", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Focal Length", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("F-Stop", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Focus Mode", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Focus Distance", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Freecam Mode", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Ground Truth", category, nodeId, false)
+        );
     }
 }

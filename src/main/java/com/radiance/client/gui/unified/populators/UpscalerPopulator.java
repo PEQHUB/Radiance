@@ -25,7 +25,7 @@ public class UpscalerPopulator implements ContentPopulator {
         if (RadianceClient.dlssMissing) {
             section.addButton(ButtonWidget.builder(
                 Text.translatable("options.video.dlss_missing_warning"),
-                btn -> mc.setScreen(new DlssMissingScreen(screen)))
+                btn -> screen.showOverlay(new DlssMissingScreen(screen)))
                 .width(150).build());
         }
 
@@ -42,7 +42,8 @@ public class UpscalerPopulator implements ContentPopulator {
             "options.video.dlss_d_enabled", Options.dlssDEnabled,
             value -> Options.setDlssDEnabled(value, true));
 
-        section.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions));
+        section.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions))
+              .tooltip("DLSS-RR = NVIDIA ray reconstruction. FSR3 = AMD upscaler. DLSS-D denoises without upscaling.");
 
         // Controls shown for DLSS-RR and FSR3
         if (Options.upscalerMode != 2) {
@@ -63,7 +64,8 @@ public class UpscalerPopulator implements ContentPopulator {
                     Options.upscalerPreset == 5 ? 1 : 0, value -> {
                         Options.setUpscalerPreset(value == 1 ? 5 : 4, true);
                     });
-                section.addTwoWidgets(qualityDropdown, presetDropdown);
+                section.addTwoWidgets(qualityDropdown, presetDropdown)
+                      .tooltip("Quality preset controls render resolution. RR Model D/E are different neural network weights.");
             } else {
                 // FSR3: quality dropdown paired with 4xSSAA toggle
                 SimpleOption<Boolean> ssaa4x = SimpleOption.ofBoolean(
@@ -71,7 +73,8 @@ public class UpscalerPopulator implements ContentPopulator {
                     SimpleOption.constantTooltip(Text.translatable("options.video.output_scale_2x.tooltip")),
                     Options.outputScale2x,
                     value -> Options.setOutputScale2x(value, true));
-                section.addTwoWidgets(qualityDropdown, ssaa4x.createWidget(gameOptions));
+                section.addTwoWidgets(qualityDropdown, ssaa4x.createWidget(gameOptions))
+                      .tooltip("Quality preset controls render resolution. RR Model D/E are different neural network weights.");
             }
 
             // Row 3: Resolution override — only visible when Custom quality selected
@@ -99,10 +102,12 @@ public class UpscalerPopulator implements ContentPopulator {
                 SimpleOption.constantTooltip(Text.translatable("options.video.output_scale_2x.tooltip")),
                 Options.outputScale2x,
                 value -> Options.setOutputScale2x(value, true));
-            section.addTwoWidgets(sharpenerDropdown, ssaa4x.createWidget(gameOptions));
+            section.addTwoWidgets(sharpenerDropdown, ssaa4x.createWidget(gameOptions))
+                  .tooltip("CAS = AMD Contrast Adaptive Sharpening. RCAS = FidelityFX RCAS from FSR pipeline.");
         } else {
             // FSR/Off path: pair sharpener with something else or solo
-            section.addTwoWidgets(sharpenerDropdown, null);
+            section.addTwoWidgets(sharpenerDropdown, null)
+                  .tooltip("CAS = AMD Contrast Adaptive Sharpening. RCAS = FidelityFX RCAS from FSR pipeline.");
         }
 
         // Sharpness slider (conditional — only when sharpener is active)
@@ -174,10 +179,28 @@ public class UpscalerPopulator implements ContentPopulator {
                     multiNames, Options.frameGenMultiplier - 1, value -> {
                         Options.setFrameGenMultiplier(value + 1, true);
                     });
-                section.addTwoWidgets(fgModeDropdown, fgMultiDropdown);
+                section.addTwoWidgets(fgModeDropdown, fgMultiDropdown)
+                      .tooltip("Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
             } else {
-                section.addTwoWidgets(fgModeDropdown, null);
+                section.addTwoWidgets(fgModeDropdown, null)
+                      .tooltip("Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
             }
         }
+    }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Upscaler Mode", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("DLSS-D Enabled", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Upscaler Quality", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("RR Model", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("4x SSAA", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Resolution Override", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("VSync", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Reflex", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("FPS Limit", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Frame Generation", category, nodeId, true)
+        );
     }
 }

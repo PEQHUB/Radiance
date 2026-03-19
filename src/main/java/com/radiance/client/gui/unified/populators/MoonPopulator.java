@@ -50,4 +50,12 @@ public class MoonPopulator implements ContentPopulator {
             }
         }
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Moon Size", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Moon Intensity", category, nodeId, false)
+        );
+    }
 }

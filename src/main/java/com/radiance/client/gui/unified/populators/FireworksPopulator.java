@@ -58,4 +58,15 @@ public class FireworksPopulator implements ContentPopulator {
                 v -> Options.setFireworkColorPurity(idx, v, true)));
         }
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        java.util.List<UnifiedSearchOverlay.SearchEntry> entries = new java.util.ArrayList<>();
+        entries.add(new UnifiedSearchOverlay.SearchEntry("Firework Spark Intensity", category, nodeId, false));
+        entries.add(new UnifiedSearchOverlay.SearchEntry("Firework Flash Intensity", category, nodeId, false));
+        for (String name : Options.FIREWORK_COLOR_NAMES) {
+            entries.add(new UnifiedSearchOverlay.SearchEntry("Firework " + name, category, nodeId, false));
+        }
+        return entries;
+    }
 }

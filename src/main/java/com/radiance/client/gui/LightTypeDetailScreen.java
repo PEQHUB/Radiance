@@ -100,7 +100,7 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                     Text.literal(labels[v]));
             },
             v -> Options.setBlockLightMode(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(modeSlider, body));
+        this.body.addEntry(new LegacySliderEntry(modeSlider, body));
 
         // --- Intensity ---
         ResettableSliderWidget intensitySlider = new ResettableSliderWidget(
@@ -110,7 +110,7 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                 Text.translatable("options.video.area_light.block.intensity"),
                 Text.literal(v + "%")),
             v -> Options.setAreaLightBlockIntensityPercent(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(intensitySlider, body));
+        this.body.addEntry(new LegacySliderEntry(intensitySlider, body));
 
         // --- Scale ---
         ResettableSliderWidget scaleSlider = new ResettableSliderWidget(
@@ -120,7 +120,7 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                 Text.translatable("options.video.area_light.block.scale"),
                 Text.literal(v + "%")),
             v -> Options.setAreaLightBlockScale(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(scaleSlider, body));
+        this.body.addEntry(new LegacySliderEntry(scaleSlider, body));
 
         // --- Y Offset ---
         ResettableSliderWidget yOffsetSlider = new ResettableSliderWidget(
@@ -130,7 +130,7 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                 Text.translatable("options.video.area_light.block.y_offset"),
                 Text.literal(String.format("%.2f blocks", v / 100.0))),
             v -> Options.setAreaLightBlockYOffset(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(yOffsetSlider, body));
+        this.body.addEntry(new LegacySliderEntry(yOffsetSlider, body));
 
         // --- Color ---
         this.body.addEntry(new CategoryVideoOptionEntry(
@@ -147,7 +147,7 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                 Text.translatable("options.video.area_light.block.color_r"),
                 Text.literal(String.valueOf(v))),
             v -> Options.setAreaLightBlockColorR(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(rSlider, body));
+        this.body.addEntry(new LegacySliderEntry(rSlider, body));
 
         ResettableSliderWidget gSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
@@ -156,7 +156,7 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                 Text.translatable("options.video.area_light.block.color_g"),
                 Text.literal(String.valueOf(v))),
             v -> Options.setAreaLightBlockColorG(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(gSlider, body));
+        this.body.addEntry(new LegacySliderEntry(gSlider, body));
 
         ResettableSliderWidget bSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
@@ -165,6 +165,6 @@ public class LightTypeDetailScreen extends GameOptionsScreen {
                 Text.translatable("options.video.area_light.block.color_b"),
                 Text.literal(String.valueOf(v))),
             v -> Options.setAreaLightBlockColorB(id, v, true));
-        this.body.addEntry(new RadianceSettingsScreen.SliderEntry(bSlider, body));
+        this.body.addEntry(new LegacySliderEntry(bSlider, body));
     }
 }

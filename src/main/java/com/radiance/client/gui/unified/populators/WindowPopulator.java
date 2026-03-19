@@ -98,4 +98,14 @@ public class WindowPopulator implements ContentPopulator {
         Options.windowHeight = h;
         Options.overwriteConfig();
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("FPS Limit", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("VSync", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Window Size", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Fullscreen", category, nodeId, false)
+        );
+    }
 }

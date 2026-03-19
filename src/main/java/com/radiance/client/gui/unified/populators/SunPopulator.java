@@ -2,12 +2,10 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
 public class SunPopulator implements ContentPopulator {
@@ -31,19 +29,14 @@ public class SunPopulator implements ContentPopulator {
         if (dim == Options.DIM_OVERWORLD) {
             SettingsSection orbit = panel.addSection("options.video.environment.sun.orbit_category");
 
-            SimpleOption<Integer> sunPathMode = new SimpleOption<>(
-                Options.SUN_PATH_MODE_KEY,
-                SimpleOption.emptyTooltip(),
-                (optionText, value) -> getGenericValueText(optionText,
-                    Text.translatable(value == 0 ? Options.SUN_PATH_MODE_LEGACY : Options.SUN_PATH_MODE_PHYSICAL)),
-                new SimpleOption.ValidatingIntSliderCallbacks(0, 1),
-                Codec.intRange(0, 1),
-                Options.sunPathMode,
-                value -> {
+            SelectionDropdownWidget sunPathMode = new SelectionDropdownWidget(
+                0, 0, 150, 20, "Sun Path",
+                new String[]{"Legacy", "Physical"},
+                Options.sunPathMode, value -> {
                     Options.setSunPathMode(value, true);
                     screen.refreshContent();
                 });
-            orbit.addToggle(sunPathMode.createWidget(MinecraftClient.getInstance().options));
+            orbit.addTwoWidgets(sunPathMode, null);
 
             if (Options.sunPathMode == 1) {
                 orbit.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
@@ -57,5 +50,14 @@ public class SunPopulator implements ContentPopulator {
                     v -> Options.setSunAzimuthOffsetDeg(v, true)));
             }
         }
+    }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Sun Size", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Sun Intensity", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Sun Path Mode", category, nodeId, false)
+        );
     }
 }

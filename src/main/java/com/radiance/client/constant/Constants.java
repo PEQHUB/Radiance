@@ -220,7 +220,7 @@ public class Constants {
     public enum RayTracingFlags {
         WORLD(0b00000001),
         PLAYER(0b00000010),
-        FISHING_BOBBER(0b00000100),
+        PLAYER_HEAD(0b00000100),
         HAND(0b00001000),
         WEATHER(0b00010000),
         PARTICLE(0b00100000),

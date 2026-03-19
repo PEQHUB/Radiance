@@ -2,8 +2,8 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
@@ -11,18 +11,6 @@ import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
 public class HdrSaturationPopulator implements ContentPopulator {
-
-    private static final String[] SDR_TONEMAP_MODE_KEYS = {
-        Options.TONEMAP_MODE_PBR_NEUTRAL,
-        Options.TONEMAP_MODE_REINHARD_EXTENDED,
-        Options.TONEMAP_MODE_ACES,
-        Options.TONEMAP_MODE_AGX,
-        Options.TONEMAP_MODE_LOTTES,
-        Options.TONEMAP_MODE_FROSTBITE,
-        Options.TONEMAP_MODE_UNCHARTED2,
-        Options.TONEMAP_MODE_GT,
-        Options.TONEMAP_MODE_PSYCHOVISUAL,
-    };
 
     // Parameter definitions per tonemapper mode: label, min, max, default
     private record TmParam(String label, float min, float max, float defaultVal) {}
@@ -73,37 +61,29 @@ public class HdrSaturationPopulator implements ContentPopulator {
         SettingsSection tonemap = panel.addSection(Text.literal("SDR Tonemapping"));
 
         // Tonemapper mode selector (0-8)
-        SimpleOption<Integer> tonemapMode = new SimpleOption<>(
-            Options.TONEMAP_MODE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(SDR_TONEMAP_MODE_KEYS[Math.max(0, Math.min(8, value))])),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 8),
-            Codec.intRange(0, 8),
-            Options.tonemappingMode,
-            value -> {
+        SelectionDropdownWidget tonemapMode = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Tonemapper",
+            new String[]{"PBR Neutral", "Reinhard", "ACES", "AgX", "Lottes",
+                         "Frostbite", "Uncharted 2", "GT", "PsychoVisual"},
+            Options.tonemappingMode, value -> {
                 Options.setTonemappingMode(value, true);
                 screen.refreshContent();
             });
 
-        SimpleOption<Integer> sdrTransferFn = new SimpleOption<>(
-            Options.SDR_TRANSFER_FUNCTION_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.translatable(value == Options.SDR_TRANSFER_FUNCTION_SRGB
-                    ? Options.SDR_TRANSFER_FUNCTION_SRGB_KEY
-                    : Options.SDR_TRANSFER_FUNCTION_GAMMA_22_KEY)),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 1),
-            Codec.intRange(0, 1),
+        SelectionDropdownWidget sdrTransferFn = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Transfer Fn",
+            new String[]{"Gamma 2.2", "sRGB"},
             Options.sdrTransferFunction,
             value -> Options.setSdrTransferFunction(value, true));
-        tonemap.addTwoWidgets(tonemapMode.createWidget(gameOptions), sdrTransferFn.createWidget(gameOptions));
+        tonemap.addTwoWidgets(tonemapMode, sdrTransferFn)
+              .tooltip("Tonemapper maps HDR scene values to displayable range. Transfer function controls gamma encoding.");
 
         tonemap.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 400, Options.saturationPercent, Options.SATURATION_DEFAULT_PERCENT,
             v -> getGenericValueText(Text.translatable(Options.SATURATION_KEY),
                 Text.literal(String.format("%.2f", v / 100.0))),
-            v -> Options.setSaturation(v, true)));
+            v -> Options.setSaturation(v, true)))
+              .tooltip("Global color saturation multiplier. 1.0 = neutral. Applied after tonemapping.");
 
         // Per-tonemapper parameter sliders
         int mode = Options.tonemappingMode;
@@ -135,7 +115,8 @@ public class HdrSaturationPopulator implements ContentPopulator {
         SimpleOption<Boolean> eonDiffuse = SimpleOption.ofBoolean(
             Options.EON_DIFFUSE_KEY, Options.eonDiffuse,
             value -> Options.setEonDiffuse(value, true));
-        color.addTwoWidgets(msGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions));
+        color.addTwoWidgets(msGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions))
+              .tooltip("BRDF energy conservation models. Multi-Scatter prevents energy loss at high roughness. EON improves diffuse accuracy.");
 
         // HDR10 Output (conditional)
         if (Options.isHdrSupported()) {
@@ -147,24 +128,19 @@ public class HdrSaturationPopulator implements ContentPopulator {
                     Options.setHdrEnabled(value, true);
                     screen.refreshContent();
                 });
-            hdr.addToggle(hdrEnabled.createWidget(gameOptions));
+            hdr.addToggle(hdrEnabled.createWidget(gameOptions))
+                  .tooltip("Outputs HDR10 signal via BT.2020 color space with PQ transfer function.");
 
             if (Options.hdrEnabled) {
                 // HDR tonemapper selector: 0 = PsychoVisual, 1 = ITU EETF (Hermite)
-                String[] HDR_TM_KEYS = { Options.HDR_TONEMAP_PSYCHOVISUAL, Options.HDR_TONEMAP_BT2390 };
-                SimpleOption<Integer> hdrTmMode = new SimpleOption<>(
-                    Options.HDR_TONEMAP_MODE_KEY,
-                    SimpleOption.emptyTooltip(),
-                    (optionText, value) -> getGenericValueText(optionText,
-                        Text.translatable(HDR_TM_KEYS[Math.max(0, Math.min(1, value))])),
-                    new SimpleOption.ValidatingIntSliderCallbacks(0, 1),
-                    Codec.intRange(0, 1),
-                    Options.hdrTonemapMode,
-                    value -> {
+                SelectionDropdownWidget hdrTmMode = new SelectionDropdownWidget(
+                    0, 0, 150, 20, "HDR Tonemapper",
+                    new String[]{"PsychoVisual", "ITU EETF"},
+                    Options.hdrTonemapMode, value -> {
                         Options.setHdrTonemapMode(value, true);
                         screen.refreshContent();
                     });
-                hdr.addToggle(hdrTmMode.createWidget(gameOptions));
+                hdr.addTwoWidgets(hdrTmMode, null);
 
                 hdr.addTwoSliders(
                     new ResettableSliderWidget(0, 0, 150, 20,
@@ -174,7 +150,8 @@ public class HdrSaturationPopulator implements ContentPopulator {
                     new ResettableSliderWidget(0, 0, 150, 20,
                         1, 500, Options.hdrPaperWhiteNits, 203,
                         v -> getGenericValueText(Text.translatable(Options.HDR_PAPER_WHITE_NITS_KEY), Text.literal(v + " nits")),
-                        v -> Options.setHdrPaperWhiteNits(v, true)));
+                        v -> Options.setHdrPaperWhiteNits(v, true)))
+                      .tooltip("Peak Nits = display maximum brightness. Paper White = reference white level for UI and text.");
 
                 hdr.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                     5, 30, Options.hdrUiBrightnessNits / 10, 10,
@@ -182,5 +159,19 @@ public class HdrSaturationPopulator implements ContentPopulator {
                     v -> Options.setHdrUiBrightnessNits(v * 10, true)));
             }
         }
+    }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Tone Mapper", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Saturation", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("SDR Transfer Function", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Multi-Scatter GGX", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("EON Diffuse", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("HDR Enabled", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("HDR Peak Nits", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("HDR Paper White Nits", category, nodeId, false)
+        );
     }
 }

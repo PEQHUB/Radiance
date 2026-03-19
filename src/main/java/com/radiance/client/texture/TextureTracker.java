@@ -14,30 +14,26 @@ public class TextureTracker {
     public static Map<Integer, Integer> GLID2SpecularGLID = new ConcurrentHashMap<>();
     public static Map<Integer, Integer> GLID2NormalGLID = new ConcurrentHashMap<>();
     public static Map<Integer, Integer> GLID2FlagGLID = new ConcurrentHashMap<>();
-    // Albedo GLIDs whose normal map contains valid height data (for POM)
-    public static Set<Integer> hasHeightMap = ConcurrentHashMap.newKeySet();
-
-    // Blender PBR per-channel texture IDs, keyed by albedo GLID
-    public static Map<Integer, Map<BlenderChannel, Integer>> blenderPBRTextures = new ConcurrentHashMap<>();
-    // All Blender PBR texture IDs (for cleanup on world unload / resource pack reload)
-    public static Set<Integer> blenderTextureIDs = ConcurrentHashMap.newKeySet();
+    // Material class mask: albedo GLID → R8_UNORM mask texture ID (per-texel class index)
+    public static Map<Integer, Integer> GLID2MaskGLID = new ConcurrentHashMap<>();
+    // Pending mask registrations: flushed after performQueuedUpload() to ensure texture data
+    // is uploaded before the descriptor is referenced. Without this, the mask texture is in
+    // UNDEFINED layout when the shader first reads it → garbage material index → flickering.
+    public static Map<Integer, Integer> pendingMaskGLID = new ConcurrentHashMap<>();
 
     /**
-     * Blender PBR channel types. ssboOffset is the int index within TextureMapEntry
-     * (shared.hpp) where this channel's texture ID is stored.
+     * Flush pending mask texture registrations into the active GLID2MaskGLID map.
+     * Called from BufferProxy after performQueuedUpload() completes, ensuring the
+     * texture data is resident before the mask ID appears in the TextureMapping SSBO.
      */
-    public enum BlenderChannel {
-        ROUGHNESS(4),
-        METALLIC(5),
-        EMISSION(6),
-        NORMAL(7),
-        HEIGHT(8),
-        AO(9),
-        EXTRA(10);
-
-        public final int ssboOffset;
-        BlenderChannel(int ssboOffset) { this.ssboOffset = ssboOffset; }
+    public static void flushPendingMasks() {
+        if (!pendingMaskGLID.isEmpty()) {
+            GLID2MaskGLID.putAll(pendingMaskGLID);
+            pendingMaskGLID.clear();
+        }
     }
+    // Albedo GLIDs whose normal map contains valid height data (for POM)
+    public static Set<Integer> hasHeightMap = ConcurrentHashMap.newKeySet();
 
     // Albedo NativeImage copies keyed by albedo GLID — for live auto-PBR re-generation
     public static Map<Integer, NativeImage> materialBlockAlbedoCache = new ConcurrentHashMap<>();

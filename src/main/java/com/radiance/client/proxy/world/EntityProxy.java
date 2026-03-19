@@ -6,7 +6,7 @@ import static net.minecraft.client.render.VertexFormat.DrawMode.QUADS;
 import static net.minecraft.client.render.VertexFormat.DrawMode.TRIANGLE_STRIP;
 import static org.lwjgl.system.MemoryUtil.memAddress;
 
-import com.radiance.client.compat.FirstPersonCompat;
+import com.radiance.client.fpv.FirstPersonView;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.constant.Constants.RayTracingFlags;
 import com.radiance.client.proxy.vulkan.BufferProxy;
@@ -73,7 +73,7 @@ import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.BlockBreakingInfo;
-import net.minecraft.entity.projectile.FishingBobberEntity;
+
 import net.minecraft.util.Colors;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Pair;
@@ -265,83 +265,118 @@ public class EntityProxy {
                 }
             }
 
-            // FirstPerson mod compat: replicate WorldRendererMixin flow
-            // Set isRenderingPlayer + apply position offset during player entity render
-            // so FirstPerson's LivingEntityRendererMixin hides head and optionally arms
             boolean isPlayerEntity = entity.equals(camera.getFocusedEntity());
-            boolean fpActive = isPlayerEntity && FirstPersonCompat.isActive();
+            boolean fpvActive = isPlayerEntity && FirstPersonView.isActive();
 
-            // Save entity position before FirstPerson offset
+            // Update smooth crouch progress before FPV rendering
+            if (fpvActive) {
+                FirstPersonView.updateCrouchProgress(tickDelta, camera);
+            }
+
+            // FPV: apply small forward offset to prevent body clipping into camera
             double savedX = 0, savedLastX = 0, savedY = 0, savedLastY = 0, savedZ = 0, savedLastZ = 0;
-            if (fpActive) {
-                FirstPersonCompat.setRenderingPlayer(true);
-                FirstPersonCompat.setRenderingPlayerPost(true);
-
-                // Apply position offset (prevents model clipping into camera)
-                FirstPersonCompat.updatePositionOffset(entity, tickDelta);
-                net.minecraft.util.math.Vec3d offset = FirstPersonCompat.getOffset();
-                if (offset != null) {
-                    savedX = entity.getX(); savedLastX = entity.lastRenderX;
-                    savedY = entity.getY(); savedLastY = entity.lastRenderY;
-                    savedZ = entity.getZ(); savedLastZ = entity.lastRenderZ;
-                    entity.setPosition(savedX + offset.x, savedY + offset.y, savedZ + offset.z);
-                    entity.lastRenderX = savedLastX + offset.x;
-                    entity.lastRenderY = savedLastY + offset.y;
-                    entity.lastRenderZ = savedLastZ + offset.z;
-                }
-            }
-            try {
-                entityRenderDispatcher.render(entity,
-                    0,
-                    0,
-                    0,
-                    tickDelta,
-                    matrixStack,
-                    vertexConsumerProvider,
-                    entityRenderDispatcher.getLight(entity, tickDelta));
-            } finally {
-                if (fpActive) {
-                    // Restore entity position
-                    net.minecraft.util.math.Vec3d offset = FirstPersonCompat.getOffset();
-                    if (offset != null) {
-                        entity.setPosition(savedX, savedY, savedZ);
-                        entity.lastRenderX = savedLastX;
-                        entity.lastRenderY = savedLastY;
-                        entity.lastRenderZ = savedLastZ;
-                    }
-                    FirstPersonCompat.setRenderingPlayer(false);
-                    FirstPersonCompat.setRenderingPlayerPost(false);
-                }
-                PBRVertexConsumer.clearItemMaterialBlockType();
+            if (fpvActive) {
+                double[] offset = FirstPersonView.computeOffset(entity, tickDelta, camera);
+                savedX = entity.getX(); savedLastX = entity.lastRenderX;
+                savedY = entity.getY(); savedLastY = entity.lastRenderY;
+                savedZ = entity.getZ(); savedLastZ = entity.lastRenderZ;
+                entity.setPosition(savedX + offset[0], savedY + offset[1], savedZ + offset[2]);
+                entity.lastRenderX = savedLastX + offset[0];
+                entity.lastRenderY = savedLastY + offset[1];
+                entity.lastRenderZ = savedLastZ + offset[2];
             }
 
-            if (entity.equals(camera.getFocusedEntity())) {
+            if (fpvActive) {
+                // Two-pass FPV render: body (head hidden) + head (body hidden)
+                // Items rendered into separate fpvItemProvider during body pass via
+                // PlayerEntityRendererMixins redirect — no Pass 3 needed.
+                double[] fpvOffset = FirstPersonView.computeOffset(entity, tickDelta, camera);
+                double fpvPosX = entityPosX + fpvOffset[0];
+                double fpvPosY = entityPosY + fpvOffset[1];
+                double fpvPosZ = entityPosZ + fpvOffset[2];
+                int entityLight = entityRenderDispatcher.getLight(entity, tickDelta);
+
+                // Create separate provider for held items — populated by the mixin's
+                // feature renderer redirect during the body pass. This completely
+                // isolates item vertices from body vertices (no ThreadLocal contamination).
+                StorageVertexConsumerProvider itemProvider = new StorageVertexConsumerProvider(8192);
+                entityStorageVertexConsumerProviders.add(itemProvider);
+                FirstPersonView.fpvItemProvider = itemProvider;
+
+                // Pass 1: Body (head/hat hidden by PlayerEntityRendererMixins)
+                // HeldItemFeatureRenderer is redirected to fpvItemProvider by the mixin.
+                FirstPersonView.renderingBodyPass = true;
+                try {
+                    entityRenderDispatcher.render(entity, 0, 0, 0, tickDelta,
+                        matrixStack, vertexConsumerProvider, entityLight);
+                } finally {
+                    FirstPersonView.renderingBodyPass = false;
+                    FirstPersonView.fpvItemProvider = null;
+                    PBRVertexConsumer.clearItemMaterialBlockType();
+                }
+
                 processWorldEntityRenderData(entityStorageVertexConsumerProvider,
                     System.identityHashCode(entity),
-                    entityPosX,
-                    entityPosY,
-                    entityPosZ,
+                    fpvPosX, fpvPosY, fpvPosZ,
                     Constants.RayTracingFlags.PLAYER,
-                    true,
-                    entityRenderDataList);
-            } else if (entity instanceof FishingBobberEntity) {
-                processWorldEntityRenderData(entityStorageVertexConsumerProvider,
-                    System.identityHashCode(entity),
-                    entityPosX,
-                    entityPosY,
-                    entityPosZ,
-                    Constants.RayTracingFlags.FISHING_BOBBER,
-                    true,
-                    entityRenderDataList);
+                    true, entityRenderDataList);
+
+                // Pass 2: Head only (body hidden by PlayerEntityRendererMixins)
+                StorageVertexConsumerProvider headProvider = new StorageVertexConsumerProvider(
+                    DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
+                entityStorageVertexConsumerProviders.add(headProvider);
+
+                FirstPersonView.renderingHeadPass = true;
+                try {
+                    entityRenderDispatcher.render(entity, 0, 0, 0, tickDelta,
+                        matrixStack, headProvider, entityLight);
+                } finally {
+                    FirstPersonView.renderingHeadPass = false;
+                    PBRVertexConsumer.clearItemMaterialBlockType();
+                }
+
+                processWorldEntityRenderData(headProvider,
+                    System.identityHashCode(entity) ^ 0x48454144, // "HEAD" xor
+                    fpvPosX, fpvPosY, fpvPosZ,
+                    Constants.RayTracingFlags.PLAYER_HEAD,
+                    true, entityRenderDataList);
+
+                // Submit held items with HAND flag (10-block range, hand.rmiss,
+                // no self-shadow, softer sun, ambient floor, correct DLSS guide buffers)
+                processWorldEntityRenderData(itemProvider,
+                    System.identityHashCode(entity) ^ 0x4954454D, // "ITEM" xor
+                    fpvPosX, fpvPosY, fpvPosZ,
+                    Constants.RayTracingFlags.HAND,
+                    true, entityRenderDataList);
+
+                // Restore entity position
+                entity.setPosition(savedX, savedY, savedZ);
+                entity.lastRenderX = savedLastX;
+                entity.lastRenderY = savedLastY;
+                entity.lastRenderZ = savedLastZ;
             } else {
-                processWorldEntityRenderData(entityStorageVertexConsumerProvider,
-                    System.identityHashCode(entity),
-                    entityPosX,
-                    entityPosY,
-                    entityPosZ,
-                    Constants.RayTracingFlags.WORLD,
-                    true,
-                    entityRenderDataList);
+                // Normal render (non-player entities or third-person)
+                try {
+                    entityRenderDispatcher.render(entity, 0, 0, 0, tickDelta,
+                        matrixStack, vertexConsumerProvider,
+                        entityRenderDispatcher.getLight(entity, tickDelta));
+                } finally {
+                    PBRVertexConsumer.clearItemMaterialBlockType();
+                }
+
+                if (isPlayerEntity) {
+                    processWorldEntityRenderData(entityStorageVertexConsumerProvider,
+                        System.identityHashCode(entity),
+                        entityPosX, entityPosY, entityPosZ,
+                        Constants.RayTracingFlags.PLAYER,
+                        true, entityRenderDataList);
+                } else {
+                    processWorldEntityRenderData(entityStorageVertexConsumerProvider,
+                        System.identityHashCode(entity),
+                        entityPosX, entityPosY, entityPosZ,
+                        Constants.RayTracingFlags.WORLD,
+                        true, entityRenderDataList);
+                }
             }
         }
 
@@ -597,12 +632,12 @@ public class EntityProxy {
 
         boolean bl = client.getCameraEntity() instanceof LivingEntity
             && ((LivingEntity) client.getCameraEntity()).isSleeping();
-        // Skip first-person hand render when FirstPerson mod is active and hides vanilla hands
-        boolean fpSkipHands = FirstPersonCompat.isActive() && !FirstPersonCompat.showVanillaHands();
+        // Skip first-person hand render when FPV is active (third-person arms show items)
+        boolean fpvSkipHands = FirstPersonView.isActive();
 
         if (client.options.getPerspective()
             .isFirstPerson() && !bl && !client.options.hudHidden &&
-            client.interactionManager.getCurrentGameMode() != GameMode.SPECTATOR && !fpSkipHands) {
+            client.interactionManager.getCurrentGameMode() != GameMode.SPECTATOR && !fpvSkipHands) {
             ((IHeldItemRendererExt) firstPersonRenderer).neoVoxelRT$renderItem(tickDelta,
                 matrixStack,
                 storageVertexConsumerProvider,

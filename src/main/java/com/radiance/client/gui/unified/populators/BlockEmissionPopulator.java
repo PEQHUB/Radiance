@@ -3,8 +3,10 @@ package com.radiance.client.gui.unified.populators;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.gui.unified.rows.FiveColumnEmissionRow;
 import com.radiance.client.util.EmissiveBlock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 /**
  * Parameterized populator for a page of emissive blocks.
@@ -43,5 +45,15 @@ public class BlockEmissionPopulator implements ContentPopulator {
                 EmissionWidgetFactory.makeGamutBoostCycling(block),
                 EmissionWidgetFactory.makeEvenGlowToggle(block));
         }
+    }
+
+    @Override
+    public List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        List<UnifiedSearchOverlay.SearchEntry> entries = new ArrayList<>();
+        entries.add(new UnifiedSearchOverlay.SearchEntry("Block Emission", category, nodeId, false));
+        for (EmissiveBlock block : blocks) {
+            entries.add(new UnifiedSearchOverlay.SearchEntry(block.getId(), category, nodeId, false));
+        }
+        return entries;
     }
 }

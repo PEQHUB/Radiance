@@ -2,19 +2,16 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
-import com.radiance.client.gui.unified.rows.TwoWidgetRow;
 import com.radiance.client.option.Options;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
-import net.minecraft.client.gui.widget.ClickableWidget;
-import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
 
@@ -35,12 +32,13 @@ public class SharcPopulator implements ContentPopulator {
             Options.SHARC_ENABLED_KEY, Options.sharcEnabled,
             value -> Options.setSharcEnabled(value, true));
 
-        SimpleOption<Integer> sharcDownscale = new SimpleOption<>(
-            Options.SHARC_DOWNSCALE_KEY, SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText, Text.literal(value + "x")),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 8), Codec.intRange(1, 8),
-            Options.sharcDownscale, value -> Options.setSharcDownscale(value, true));
-        section.addTwoWidgets(sharcEnabled.createWidget(gameOptions), sharcDownscale.createWidget(gameOptions));
+        SelectionDropdownWidget sharcDownscale = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Downscale",
+            new String[]{"1x", "2x", "3x", "4x", "5x", "6x", "7x", "8x"},
+            Options.sharcDownscale - 1,
+            value -> Options.setSharcDownscale(value + 1, true));
+        section.addTwoWidgets(sharcEnabled.createWidget(gameOptions), sharcDownscale);
+        section.tooltip("SHARC caches indirect lighting in a hash grid. Downscale reduces update cost.");
 
         // ── Row 2: Quality Preset slider (full width) ──
         // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
@@ -85,6 +83,7 @@ public class SharcPopulator implements ContentPopulator {
         paramSliders.add(sceneScale);
         paramSliders.add(roughness);
         section.addTwoSliders(sceneScale, roughness);
+        section.tooltip("Scene Scale controls grid cell size (larger = coarser). Roughness Threshold limits SHARC to rough surfaces.");
 
         // Accumulation Frames + Stale Frames
         ResettableSliderWidget accumFrames = new ResettableSliderWidget(
@@ -106,6 +105,7 @@ public class SharcPopulator implements ContentPopulator {
         paramSliders.add(accumFrames);
         paramSliders.add(staleFrames);
         section.addTwoSliders(accumFrames, staleFrames);
+        section.tooltip("Accumulation = frames to blend for stability. Stale = frames before evicting unused entries.");
 
         // Update Block Size + Update Bounces
         ResettableSliderWidget blockSize = new ResettableSliderWidget(
@@ -127,6 +127,7 @@ public class SharcPopulator implements ContentPopulator {
         paramSliders.add(blockSize);
         paramSliders.add(bounces);
         section.addTwoSliders(blockSize, bounces);
+        section.tooltip("Block Size = NxN pixel blocks per frame (lower = more coverage). Bounces = ray depth for cache updates.");
 
         // Cache Capacity (exponent: 20-24 → display 2^N entries + VRAM)
         ResettableSliderWidget capacity = new ResettableSliderWidget(
@@ -146,6 +147,7 @@ public class SharcPopulator implements ContentPopulator {
 
         paramSliders.add(capacity);
         section.addSlider(capacity);
+        section.tooltip("Maximum hash grid entries. More entries = more cached lighting but more VRAM (40 bytes/entry).");
     }
 
     /** When an individual slider is moved, detect if we still match a preset or go Custom. */
@@ -207,5 +209,17 @@ public class SharcPopulator implements ContentPopulator {
         public List<? extends Element> children() {
             return List.of();
         }
+    }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("SHARC Enabled", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Quality Preset", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Scene Scale", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Roughness Threshold", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Accumulation Frames", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Cache Capacity", category, nodeId, true)
+        );
     }
 }

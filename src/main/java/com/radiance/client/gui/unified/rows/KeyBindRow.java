@@ -79,7 +79,7 @@ public class KeyBindRow extends SettingsRow {
         } else if (label != null) {
             // Just draw a label
             int textY = y + (getHeight() - 8) / 2;
-            context.drawTextWithShadow(renderer, label, rightX + 4, textY, 0xCCCCCC);
+            context.drawTextWithShadow(renderer, label, rightX + 4, textY, RadianceTheme.textPrimary);
         }
     }
 

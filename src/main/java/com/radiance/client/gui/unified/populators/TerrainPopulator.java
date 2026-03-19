@@ -36,4 +36,11 @@ public class TerrainPopulator implements ContentPopulator {
 
         section.addTwoWidgets(chunkBatchSize.createWidget(gameOptions), chunkTotalBatches.createWidget(gameOptions));
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Chunk Batch Size", category, nodeId, false)
+        );
+    }
 }

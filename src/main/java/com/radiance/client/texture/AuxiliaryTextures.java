@@ -2,6 +2,7 @@ package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
 import com.radiance.client.proxy.vulkan.TextureProxy;
+import com.radiance.client.util.MaterialBlock;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
 import java.util.Arrays;
@@ -320,25 +321,28 @@ public enum AuxiliaryTextures {
                 }
             }
 
-            // Blender PBR: scan for per-channel textures on first mip level only.
-            // Quick-detect first: only probe individual textures if a PBR resource pack exists.
-            if (level == 0 && (identifier.getPath().contains("textures/block")
-                    || identifier.getPath().contains("textures/item")
-                    || identifier.getPath().contains("textures/entity"))) {
-                BlenderTextureLoader.detectPBRResourcePack(resourceManager);
-                if (BlenderTextureLoader.isPBRResourcePackDetected()
-                    && !TextureTracker.blenderPBRTextures.containsKey(targetId)) {
-                    var bpChannels = BlenderTextureLoader.scan(resourceManager, identifier);
-                    if (!bpChannels.isEmpty()) {
-                        var texIDs = BlenderTextureLoader.uploadAll(bpChannels);
-                        if (!texIDs.isEmpty()) {
-                            TextureTracker.blenderPBRTextures.put(targetId, texIDs);
-                            TextureTracker.blenderTextureIDs.addAll(texIDs.values());
-                            if (texIDs.containsKey(TextureTracker.BlenderChannel.HEIGHT)) {
-                                TextureTracker.hasHeightMap.add(targetId);
-                            }
-                        }
-                    }
+            // Material class mask auto-generation (Phase B): create 1x1 R8_UNORM mask
+            // for registered blocks so every texel maps to the correct MaterialClass.
+            if (level == 0 && !TextureTracker.GLID2MaskGLID.containsKey(targetId)
+                    && !TextureTracker.pendingMaskGLID.containsKey(targetId)) {
+                int mbOrdinal = MaterialBlock.getOrdinalForTexture(identifier.getPath());
+                if (mbOrdinal >= 0) {
+                    // Create 1x1 R8_UNORM texture: value = mbOrdinal (SSBO index)
+                    int maskTexId = TextureProxy.generateTextureId();
+                    TextureProxy.prepareImage(maskTexId, 1, 1, 1,
+                        VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM);
+                    TextureProxy.setFilter(maskTexId, 0, 0); // NEAREST — no interpolation
+
+                    java.nio.ByteBuffer maskData = org.lwjgl.system.MemoryUtil.memAlloc(1);
+                    maskData.put(0, (byte) mbOrdinal);
+                    long maskPtr = org.lwjgl.system.MemoryUtil.memAddress(maskData);
+                    TextureProxy.queueUpload(maskPtr, 1, 1, maskTexId, 0, 0, 0, 0, 1, 1, 0);
+                    org.lwjgl.system.MemoryUtil.memFree(maskData);
+
+                    TextureTracker.pendingMaskGLID.put(targetId, maskTexId);
+                    TextureTracker.GLID2Texture.put(maskTexId,
+                        new TextureTracker.Texture(1, 1, 1,
+                            VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM, 0));
                 }
             }
         }

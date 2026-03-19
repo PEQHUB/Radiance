@@ -137,8 +137,7 @@ public class RadianceClient implements ClientModInitializer {
 
         Pipeline.reloadAllModuleEntries();
 
-        // Mod compatibility
-        com.radiance.client.compat.FirstPersonCompat.init();
+        // Native first-person view (no external mod needed)
 
         KeyInputHandler.register();
 

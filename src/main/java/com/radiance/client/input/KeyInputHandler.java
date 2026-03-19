@@ -2,7 +2,6 @@ package com.radiance.client.input;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.gui.MaterialsSettingsScreen;
-import com.radiance.client.gui.RadianceSettingsScreen;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.MaterialBlock;
@@ -91,11 +90,7 @@ public class KeyInputHandler {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (radianceSettingsKey.wasPressed()) {
                 if (client.currentScreen == null) {
-                    if (Options.useUnifiedUI) {
-                        MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(null));
-                    } else {
-                        MinecraftClient.getInstance().setScreen(new RadianceSettingsScreen(null));
-                    }
+                    MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(null));
                 }
             }
 

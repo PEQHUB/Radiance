@@ -33,4 +33,12 @@ public class PostProcessingPopulator implements ContentPopulator {
                 v -> Options.setCasSharpnessPercent(v, true)));
         }
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Sharpener", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("CAS Sharpness", category, nodeId, false)
+        );
+    }
 }

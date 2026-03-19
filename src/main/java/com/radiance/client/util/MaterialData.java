@@ -50,12 +50,11 @@ public class MaterialData {
     public int pomDepth;               // 0-200 (×0.01, 0=off, per-block POM depth)
     public int normalSmoothing;        // 0-100 (×0.01 = 0.0-1.0 LOD bias)
     public int normalStrength = 100;   // 0-200 (×0.01 = 0.00-2.00, 100=neutral)
-    // Per-channel input types: 0=Auto, 1=Custom, 2=Flat, 3=Blender PBR
+    // Per-channel input types: 0=Auto, 1=Custom, 2=Flat
     public int normalInputType;
     public int specularInputType;
     public String customNormalPath = "";
     public String customSpecularPath = "";
-    public String blenderFolder = "";
     // Noise target channels: bit 0=roughness, bit 1=normal, bit 2=metallic
     public int noiseTarget = 1;
 
@@ -100,7 +99,6 @@ public class MaterialData {
         d.specularInputType = Options.materialSpecularInputType[blockIndex];
         d.customNormalPath = Options.materialCustomNormalPath[blockIndex];
         d.customSpecularPath = Options.materialCustomSpecularPath[blockIndex];
-        d.blenderFolder = Options.materialBlenderFolder[blockIndex];
         d.noiseTarget = Options.materialNoiseTarget[blockIndex];
         return d;
     }
@@ -159,7 +157,6 @@ public class MaterialData {
         Options.materialSpecularInputType[blockIndex] = specularInputType;
         Options.materialCustomNormalPath[blockIndex] = customNormalPath != null ? customNormalPath : "";
         Options.materialCustomSpecularPath[blockIndex] = customSpecularPath != null ? customSpecularPath : "";
-        Options.materialBlenderFolder[blockIndex] = blenderFolder != null ? blenderFolder : "";
         Options.materialNoiseTarget[blockIndex] = noiseTarget;
         Options.markMaterialDirty();
     }

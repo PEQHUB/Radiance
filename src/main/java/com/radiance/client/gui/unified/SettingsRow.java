@@ -24,6 +24,9 @@ public abstract class SettingsRow {
     /** Whether this row is visible (for conditional rows). */
     protected boolean visible = true;
 
+    /** Tooltip text shown when hovering the "?" icon. Null = no icon. */
+    String tooltip;
+
     /** The child that consumed the last mouseClicked — drags/releases route here. */
     private Element clickedChild;
 

@@ -28,4 +28,12 @@ public class SkyPopulator implements ContentPopulator {
                 Text.literal(v + "%")),
             v -> Options.setRainBlendPercent(dim, v, true)));
     }
+
+    @Override
+    public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+        return java.util.List.of(
+            new UnifiedSearchOverlay.SearchEntry("Sky Brightness", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Rain Blend", category, nodeId, false)
+        );
+    }
 }
