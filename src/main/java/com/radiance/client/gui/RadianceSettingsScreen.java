@@ -404,7 +404,15 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
             this.body.addEntry(new TwoColumnOptionEntry(
                 outputScale2x.createWidget(gameOptions), rightWidget, body));
 
-            // VRR removed — frame limit is now controlled by maxFps slider in UpscalerPopulator
+            // [VRR Mode | (empty)] — only when Reflex is enabled
+            if (Options.isReflexSupported() && Options.reflexEnabled) {
+                SimpleOption<Boolean> vrrMode = SimpleOption.ofBoolean(
+                    Options.VRR_MODE_KEY,
+                    Options.vrrMode,
+                    value -> Options.setVrrMode(value, true));
+                this.body.addEntry(new TwoColumnOptionEntry(
+                    vrrMode.createWidget(gameOptions), null, body));
+            }
         } else {
             // DLSS disabled — just show DLSS toggle + Output Scale 2x
             SimpleOption<Boolean> outputScale2x = SimpleOption.ofBoolean(
@@ -422,15 +430,23 @@ public class RadianceSettingsScreen extends GameOptionsScreen {
                         Options.setReflexEnabled(value, true);
                         mc.setScreen(new RadianceSettingsScreen(self.parentScreen));
                     });
+                ClickableWidget rightWidget = null;
+                if (Options.reflexEnabled) {
+                    SimpleOption<Boolean> vrrMode = SimpleOption.ofBoolean(
+                        Options.VRR_MODE_KEY,
+                        Options.vrrMode,
+                        value -> Options.setVrrMode(value, true));
+                    rightWidget = vrrMode.createWidget(gameOptions);
+                }
                 this.body.addEntry(new TwoColumnOptionEntry(
-                    reflexEnabled.createWidget(gameOptions), null, body));
+                    reflexEnabled.createWidget(gameOptions), rightWidget, body));
             }
         }
 
         // ── FRAME GENERATION ──
         if (Options.isFrameGenSupported()) {
-            String[] fgModeNames = {"Off", "On", "Auto"};
-            int maxModes = 3; // Off, On, Auto
+            String[] fgModeNames = {"Off", "On"};
+            int maxModes = 2; // Off, On
             SimpleOption<Integer> frameGenMode = new SimpleOption<>(
                 Options.FRAME_GEN_MODE_KEY,
                 SimpleOption.emptyTooltip(),
