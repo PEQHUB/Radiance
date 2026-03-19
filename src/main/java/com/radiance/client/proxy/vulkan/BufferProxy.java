@@ -477,7 +477,7 @@ public class BufferProxy {
         float horizontalColorA, Vector3f sunDirection, Vector3f moonDirection,
         int skyType, boolean sunRisingOrSetting,
         boolean skyDark, boolean hasBlindnessOrDarkness, int submersionType, int moonPhase,
-        float rainGradient, int sunTextureID, int moonTextureID,
+        float rainGradient, float thunderGradient, int sunTextureID, int moonTextureID,
         float sunSizeMultiplier, float moonSizeMultiplier,
         float sunIntensityMultiplier, float moonIntensityMultiplier,
         float waterTintR, float waterTintG, float waterTintB, float waterFogStrength,
@@ -542,9 +542,10 @@ public class BufferProxy {
 
             bb.putFloat(baseAddr, rainGradient);
             baseAddr += Float.BYTES;
+            baseAddr += Float.BYTES; // hdrRadianceScale
+            bb.putFloat(baseAddr, thunderGradient);
             baseAddr += Float.BYTES;
-            baseAddr += Float.BYTES;
-            baseAddr += Float.BYTES; // padding
+            baseAddr += Float.BYTES; // pad2
 
             // AtmosphereParams
             baseAddr += Float.BYTES * 4 * 3; // skip

@@ -3,8 +3,11 @@ package com.radiance.client.gui.unified.populators;
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.widget.CyclingButtonWidget;
 import net.minecraft.text.Text;
 
 public class CloudPopulator implements ContentPopulator {
@@ -51,10 +54,15 @@ public class CloudPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable("options.video.environment.cloud_thickness"), Text.literal(v + " blocks")),
             v -> Options.setCloudThicknessBlocks(dim, v, true)));
 
-        volumetric.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 300, Options.cloudDensityPercent[dim], Options.PERCENT_DEFAULT,
-            v -> getGenericValueText(Text.translatable("options.video.environment.cloud_density"), Text.literal(v + "%")),
-            v -> Options.setCloudDensityPercent(dim, v, true)));
+        volumetric.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 300, Options.cloudDensityPercent[dim], Options.PERCENT_DEFAULT,
+                v -> getGenericValueText(Text.translatable("options.video.environment.cloud_density"), Text.literal(v + "%")),
+                v -> Options.setCloudDensityPercent(dim, v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 300, Options.cloudPuffinessPercent[dim], 3,
+                v -> getGenericValueText(Text.translatable("options.video.environment.cloud_puffiness"), Text.literal(v + "%")),
+                v -> Options.setCloudPuffinessPercent(dim, v, true)));
 
         volumetric.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 1, Options.cloudNoiseAffectsShadows[dim], dim == 0 ? 1 : 0,
@@ -65,45 +73,69 @@ public class CloudPopulator implements ContentPopulator {
         // --- Volumetric Cloud Module ---
         SettingsSection volModule = panel.addSection("options.video.environment.clouds.volumetric_module.category");
 
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 5, Options.volCloudQuality, 3,
-            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_quality"),
-                Text.literal(Options.VOL_CLOUD_QUALITY_NAMES[v])),
-            v -> Options.setVolCloudQuality(v, true)));
+        // Quality dropdown (6 values → SelectionDropdownWidget)
+        SelectionDropdownWidget qualityDropdown = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Quality",
+            Options.VOL_CLOUD_QUALITY_NAMES, Options.volCloudQuality,
+            value -> {
+                Options.setVolCloudQuality(value, true);
+                screen.refreshContent();
+            });
 
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 30, Options.volCloudDensityTenths, 10,
-            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_density"),
-                Text.literal(String.format("%.1f", v / 10.0))),
-            v -> Options.setVolCloudDensityTenths(v, true)));
+        // Scatter Octaves (4 values → CyclingButtonWidget per R9)
+        CyclingButtonWidget<Integer> scatterBtn = CyclingButtonWidget.<Integer>builder(
+            value -> Text.literal(String.valueOf(value)))
+            .values(1, 2, 3, 4)
+            .initially(Options.volCloudScatterOctaves)
+            .build(0, 0, 150, 20,
+                Text.translatable("options.video.environment.vol_cloud_scatter"),
+                (button, value) -> Options.setVolCloudScatterOctaves(value, true));
 
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 100, Options.volCloudCoveragePercent, 35,
-            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_coverage"),
-                Text.literal(v + "%")),
-            v -> Options.setVolCloudCoveragePercent(v, true)));
+        volModule.addTwoWidgets(qualityDropdown, scatterBtn);
 
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 100, Options.volCloudTypePercent, 0,
-            v -> {
-                String label = v <= 25 ? "Cumulus" : v >= 75 ? "Stratus" : "Mixed";
-                return getGenericValueText(Text.translatable("options.video.environment.vol_cloud_type"),
-                    Text.literal(label));
-            },
-            v -> Options.setVolCloudTypePercent(v, true)));
+        // Density + Detail Strength paired sliders
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                1, 30, Options.volCloudDensityTenths, 10,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_density"),
+                    Text.literal(String.format("%.1f", v / 10.0))),
+                v -> Options.setVolCloudDensityTenths(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 200, Options.volCloudDetailStrengthPercent, 100,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_detail"),
+                    Text.literal(v + "%")),
+                v -> Options.setVolCloudDetailStrengthPercent(v, true)));
 
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 50, Options.volCloudSpeedTenths, 10,
-            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_wind_speed"),
-                Text.literal(String.format("%.1f", v / 10.0))),
-            v -> Options.setVolCloudSpeedTenths(v, true)));
+        // Coverage + Type paired sliders
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 100, Options.volCloudCoveragePercent, 35,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_coverage"),
+                    Text.literal(v + "%")),
+                v -> Options.setVolCloudCoveragePercent(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 100, Options.volCloudTypePercent, 0,
+                v -> {
+                    int idx = Math.min(v * 4 / 101, 3);
+                    return getGenericValueText(Text.translatable("options.video.environment.vol_cloud_type"),
+                        Text.literal(Options.VOL_CLOUD_TYPE_NAMES[idx]));
+                },
+                v -> Options.setVolCloudTypePercent(v, true)));
 
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            128, 320, Options.volCloudAltitude, 192,
-            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_altitude"),
-                Text.literal(v + " blocks")),
-            v -> Options.setVolCloudAltitude(v, true)));
+        // Wind Speed + Altitude paired sliders
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 300, Options.volCloudSpeedTenths, 50,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_wind_speed"),
+                    Text.literal(String.format("%.1f m/s", v / 10.0))),
+                v -> Options.setVolCloudSpeedTenths(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                128, 320, Options.volCloudAltitude, 192,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_altitude"),
+                    Text.literal(v + " blocks")),
+                v -> Options.setVolCloudAltitude(v, true)));
 
+        // Thickness (solo — odd one out)
         volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             32, 128, Options.volCloudThickness, 64,
             v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_thickness"),

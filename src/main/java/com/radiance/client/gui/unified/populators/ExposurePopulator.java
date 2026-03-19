@@ -97,9 +97,14 @@ public class ExposurePopulator implements ContentPopulator {
             0, 60, Options.exposureCompensation + 30, 0 + 30,
             v -> getGenericValueText(Text.translatable(Options.EXPOSURE_COMPENSATION_KEY), Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
             v -> Options.setExposureCompensation(v - 30, true)));
-        range.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 50, Options.middleGreyPercent, 18,
-            v -> getGenericValueText(Text.translatable(Options.MIDDLE_GREY_KEY), Text.literal(String.format("%.2f", v / 100.0))),
-            v -> Options.setMiddleGrey(v, true)));
+        range.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                1, 50, Options.middleGreyPercent, 18,
+                v -> getGenericValueText(Text.translatable(Options.MIDDLE_GREY_KEY), Text.literal(String.format("%.2f", v / 100.0))),
+                v -> Options.setMiddleGrey(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                10, 200, Options.LwhiteTenths, 40,
+                v -> getGenericValueText(Text.translatable(Options.LWHITE_KEY), Text.literal(String.format("%.1f", v / 10.0))),
+                v -> Options.setLwhite(v, true)));
     }
 }

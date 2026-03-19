@@ -176,11 +176,12 @@ public class CloudSettingsScreen extends GameOptionsScreen {
 
         ResettableSliderWidget volCloudTypeSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
-            0, 100, Options.volCloudTypePercent, 0,
+            0, 100, Options.volCloudTypePercent, 67,
             v -> {
-                String label = v <= 25 ? "Cumulus" : v >= 75 ? "Stratus" : "Mixed";
+                // New ordering: 0=Stratus, 33=Stratocumulus, 67=Cumulus, 100=Cumulonimbus
+                int idx = Math.min(v * 4 / 101, 3);
                 return getGenericValueText(Text.translatable("options.video.environment.vol_cloud_type"),
-                    Text.literal(label));
+                    Text.literal(Options.VOL_CLOUD_TYPE_NAMES[idx]));
             },
             v -> Options.setVolCloudTypePercent(v, true));
         this.body.addEntry(new RadianceSettingsScreen.SliderEntry(volCloudTypeSlider, body));

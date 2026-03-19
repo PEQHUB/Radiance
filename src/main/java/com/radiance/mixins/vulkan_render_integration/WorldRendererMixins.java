@@ -402,6 +402,7 @@ public abstract class WorldRendererMixins {
         int moonPhase = this.world.getMoonPhase();
 
         float rainGradient = this.world.getRainGradient(tickDelta);
+        float thunderGradient = this.world.getThunderGradient(tickDelta);
 
         int sunTextureID = textureManager.getTexture(SkyRendering.SUN_TEXTURE).getGlId();
 
@@ -497,7 +498,7 @@ public abstract class WorldRendererMixins {
         BufferProxy.updateSkyUniform(baseColorR, baseColorG, baseColorB, horizontalColorR,
             horizontalColorG, horizontalColorB, horizontalColorA, sunDirection, moonDirection,
             skyType, sunRisingOrSetting, skyDark, hasBlindnessOrDarkness, submersionType,
-            moonPhase, rainGradient, sunTextureID, moonTextureID, sunSizeMultiplier,
+            moonPhase, rainGradient, thunderGradient, sunTextureID, moonTextureID, sunSizeMultiplier,
             moonSizeMultiplier, sunIntensityMultiplier, moonIntensityMultiplier,
             waterTintR, waterTintG, waterTintB, waterFogStrength, rainBlendStrength,
             skyBrightness, cloudBaseHeight, cloudThickness, cloudDensityScale, cloudAlbedoScale,

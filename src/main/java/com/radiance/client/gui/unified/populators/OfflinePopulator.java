@@ -191,7 +191,7 @@ public class OfflinePopulator implements ContentPopulator {
             });
         focus.addTwoWidgets(focusModeDropdown, null);
 
-        // Focus distance slider (1-256 blocks, scroll wheel gives sub-block precision)
+        // Focus distance + DOF Strength paired
         ResettableSliderWidget focusSlider = new ResettableSliderWidget(
             0, 0, 150, 20,
             1, 256, Math.round(Options.offlineFocalDistance), 10,
@@ -203,7 +203,17 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.nativeSetOfflineFocalDistance((float) v, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
-        focus.addSlider(focusSlider);
+        ResettableSliderWidget dofStrengthSlider = new ResettableSliderWidget(
+            0, 0, 150, 20,
+            100, 2000, Options.dofStrengthPercent, 100,
+            v -> getGenericValueText(
+                Text.literal("DOF Strength"),
+                Text.literal(String.format("%.1fx", v / 100.0))),
+            v -> {
+                Options.setDofStrength(v, true);
+                if (Options.offlineState == 2) Options.nativeResetAccumulation();
+            });
+        focus.addTwoSliders(focusSlider, dofStrengthSlider);
 
         // ── Freecam ──
         SettingsSection freecam = panel.addSection("Freecam");

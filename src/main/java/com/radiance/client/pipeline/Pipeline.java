@@ -395,30 +395,14 @@ public class Pipeline {
 
         Module postRenderModule = addModule("render_pipeline.module.post_render.name");
 
-        // Optional cloud module: RT → Cloud → next stage
-        // When present, cloud_radiance replaces radiance for downstream consumers.
-        // NOTE: Cloud module is incompatible with NRD's separated-lighting architecture.
-        // NRD denoises diffuse/specular/direct separately, not combined radiance.
-        // When NRD is active (FSR3 path), cloud module is automatically disabled.
-        boolean nrdActive = !useDlss
-            && Options.upscalerMode != 2
-            && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")
-            && isNativeModuleAvailable("render_pipeline.module.nrd.name");
-        if (useCloud && nrdActive) {
-            useCloud = false;
-            RadianceClient.LOGGER.info("[Pipeline] Cloud module disabled: incompatible with NRD separated-lighting pipeline");
-        }
+        // Optional cloud module: composites volumetric clouds onto radiance.
+        // Radiance input is path-dependent (RT raw or NRD denoised), connected per-path below.
+        // linear_depth always from RT.
         boolean useVolumetric = isNativeModuleAvailable("render_pipeline.module.volumetric.name");
-        // VML also incompatible with NRD (same reason as clouds)
-        if (useVolumetric && nrdActive) {
-            useVolumetric = false;
-        }
 
         Module cloudModule = null;
         if (useCloud) {
             cloudModule = addModule("render_pipeline.module.cloud.name");
-            connect(rayTracingModule.getOutputImageConfig("radiance"),
-                cloudModule.getInputImageConfig("radiance"));
             connect(rayTracingModule.getOutputImageConfig("linear_depth"),
                 cloudModule.getInputImageConfig("linear_depth"));
         }
@@ -444,8 +428,10 @@ public class Pipeline {
         if (useDlss) {
             Module dlssModule = addModule("render_pipeline.module.dlss.name");
 
-            // Radiance: from cloud module if available, else from RT
+            // Radiance: RT → Cloud (if available) → DLSS-RR
             if (useCloud) {
+                connect(rayTracingModule.getOutputImageConfig("radiance"),
+                    cloudModule.getInputImageConfig("radiance"));
                 connect(cloudModule.getOutputImageConfig("cloud_radiance"),
                     dlssModule.getInputImageConfig("radiance"));
             } else {
@@ -509,17 +495,16 @@ public class Pipeline {
 
             connect(dlssModule.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
-        } else if (Options.upscalerMode != 2 && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
-            // FSR3 path: explicit FSR3 selection or DLSS fallback.
-            // NRD denoiser + FSR3 upscaler (DLSS-RR combines both stages).
+        }
+
+        if (!useDlss && Options.upscalerMode != 2 && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
+            // FSR3 path (with or without NRD). Format mismatches auto-adapt via connect().
             boolean useNrd = isNativeModuleAvailable("render_pipeline.module.nrd.name");
             Module fsr3Module = addModule("render_pipeline.module.fsr3_upscaler.name");
 
             if (useNrd) {
-                // RT → NRD (denoise) → FSR3 (upscale) → tone mapping
                 Module nrdModule = addModule("render_pipeline.module.nrd.name");
 
-                // NRD inputs: 12 images from RT (separated lighting for REBLUR denoising)
                 connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_indirect_light"),
                     nrdModule.getInputImageConfig("diffuse_radiance"));
                 connect(rayTracingModule.getOutputImageConfig("first_hit_specular"),
@@ -545,12 +530,19 @@ public class Pipeline {
                 connect(rayTracingModule.getOutputImageConfig("specular_hit_depth"),
                     nrdModule.getInputImageConfig("specularHitDepthImage"));
 
-                // NRD denoised output → FSR3 color input
-                connect(nrdModule.getOutputImageConfig("denoised_radiance"),
-                    fsr3Module.getInputImageConfig("color"));
-            } else {
-                // No NRD available: feed raw radiance (or cloud-composited) to FSR3
                 if (useCloud) {
+                    connect(nrdModule.getOutputImageConfig("denoised_radiance"),
+                        cloudModule.getInputImageConfig("radiance"));
+                    connect(cloudModule.getOutputImageConfig("cloud_radiance"),
+                        fsr3Module.getInputImageConfig("color"));
+                } else {
+                    connect(nrdModule.getOutputImageConfig("denoised_radiance"),
+                        fsr3Module.getInputImageConfig("color"));
+                }
+            } else {
+                if (useCloud) {
+                    connect(rayTracingModule.getOutputImageConfig("radiance"),
+                        cloudModule.getInputImageConfig("radiance"));
                     connect(cloudModule.getOutputImageConfig("cloud_radiance"),
                         fsr3Module.getInputImageConfig("color"));
                 } else {
@@ -559,7 +551,6 @@ public class Pipeline {
                 }
             }
 
-            // FSR3 needs depth + MVs from RT directly (bypasses denoiser)
             connect(rayTracingModule.getOutputImageConfig("linear_depth"),
                 fsr3Module.getInputImageConfig("depth"));
             connect(rayTracingModule.getOutputImageConfig("motion_vector"),
@@ -567,14 +558,15 @@ public class Pipeline {
             connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
                 fsr3Module.getInputImageConfig("first_hit_depth"));
 
-            // FSR3 upscaled output → tone mapping → post
             connect(fsr3Module.getOutputImageConfig("upscaled_radiance"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
             connect(fsr3Module.getOutputImageConfig("upscaled_first_hit_depth"),
                 postRenderModule.getInputImageConfig("first_hit_depth"));
-        } else {
-            // No upscaler available: feed raw (or cloud-composited) radiance to tone mapping.
+        } else if (!useDlss) {
+            // No upscaler: RT → Cloud (if available) → tone mapping
             if (useCloud) {
+                connect(rayTracingModule.getOutputImageConfig("radiance"),
+                    cloudModule.getInputImageConfig("radiance"));
                 connect(cloudModule.getOutputImageConfig("cloud_radiance"),
                     toneMappingModule.getInputImageConfig("denoised_radiance"));
             } else {
@@ -591,16 +583,12 @@ public class Pipeline {
 
         connectOutput(postRenderModule.getOutputImageConfig("post_rendered"));
 
-        // Log selected pipeline path for diagnostics / A-B testing
+        // Log selected pipeline path for diagnostics
         String cloudStr = useCloud ? " -> Clouds" : "";
         if (useDlss) {
-            RadianceClient.LOGGER.info("[Pipeline] RT{} -> DLSS-RR (denoise+upscale) -> tone mapping -> post", cloudStr);
-        } else if (isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
-            boolean nrd = isNativeModuleAvailable("render_pipeline.module.nrd.name");
-            RadianceClient.LOGGER.info("[Pipeline] RT{} -> {} -> FSR3 (upscale) -> tone mapping -> post{}",
-                cloudStr,
-                nrd ? "NRD (denoise)" : "no denoiser",
-                !Options.dlssDEnabled ? " [DLSS-RR disabled in options — set dlssDEnabled=true to restore]" : "");
+            RadianceClient.LOGGER.info("[Pipeline] RT{} -> DLSS-RR -> tone mapping -> post", cloudStr);
+        } else if (Options.upscalerMode != 2 && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
+            RadianceClient.LOGGER.info("[Pipeline] RT{} -> FSR3 -> tone mapping -> post", cloudStr);
         } else {
             RadianceClient.LOGGER.info("[Pipeline] RT{} -> tone mapping -> post (no upscaler)", cloudStr);
         }

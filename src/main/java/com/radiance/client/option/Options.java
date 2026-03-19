@@ -163,6 +163,7 @@ public class Options {
     public static final String REFLEX_BOOST_KEY = "options.video.reflex_boost";
     public static final String VRR_MODE_KEY = "options.video.vrr_mode";
     public static final String MAX_FPS_KEY = "options.video.max_fps";
+    public static final String INACTIVITY_FPS_KEY = "options.video.inactivity_fps_limit";
 
     // Frame Generation (DLSS-G)
     public static final String FRAME_GEN_MODE_KEY = "options.video.frame_gen_mode";
@@ -1323,7 +1324,7 @@ public class Options {
     public static final int[] cloudHeightOffset = new int[]{0, 0, 0};
 
     // Volumetric cloud tuning (Fancy layout)
-    public static final int[] cloudPuffinessPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
+    public static final int[] cloudPuffinessPercent = new int[]{3, 3, 3};
     public static final int[] cloudDetailScalePercent = new int[]{
         CLOUD_DETAIL_SCALE_DEFAULT_PERCENT, CLOUD_DETAIL_SCALE_DEFAULT_PERCENT, CLOUD_DETAIL_SCALE_DEFAULT_PERCENT};
     public static final int[] cloudDetailStrengthPercent = new int[]{
@@ -1340,13 +1341,21 @@ public class Options {
     public static int volCloudQuality = 3;            // 0=Off, 1=Low, 2=Medium, 3=High, 4=Ultra, 5=Extreme
     public static int volCloudDensityTenths = 10;     // 1-30 → 0.1-3.0
     public static int volCloudCoveragePercent = 35;   // 0-100 → 0.0-1.0
-    public static int volCloudTypePercent = 0;        // 0-100 → 0.0-1.0 (0=Cumulus, 100=Stratus)
-    public static int volCloudSpeedTenths = 10;       // 0-50 → 0.0-5.0
+    public static int volCloudTypePercent = 67;       // 0-100 → 0.0-1.0 (0=Stratus, 33=Sc, 67=Cumulus, 100=Cb)
+    public static int volCloudSpeedTenths = 50;       // 0-300 tenths of m/s (÷50 for internal multiplier)
     public static int volCloudAltitude = 192;         // 128-320 blocks
     public static int volCloudThickness = 64;         // 32-128 blocks
+    public static int volCloudDetailStrengthPercent = 100; // 0-200 → 0.0-2.0
+    public static int volCloudScatterOctaves = 3;    // 1-4
+    public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
     public static final String[] VOL_CLOUD_QUALITY_NAMES = {
         "Off", "Low", "Medium", "High", "Ultra", "Extreme"
+    };
+
+    // Ordered by increasing meteorological altitude: low → high
+    public static final String[] VOL_CLOUD_TYPE_NAMES = {
+        "Stratus", "Stratocumulus", "Cumulus", "Cumulonimbus"
     };
 
     public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
@@ -2452,6 +2461,9 @@ public class Options {
         props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
         props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
         props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
+        props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
+        props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
+        props.setProperty("wetSurfaceStrengthPercent", String.valueOf(wetSurfaceStrengthPercent));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
             props.setProperty("env.waterTintG." + dim, String.valueOf(waterTintG[dim]));
@@ -2512,7 +2524,7 @@ public class Options {
 
             if (loadedOptionsVersion >= 5) {
                 cloudPuffinessPercent[dim] = clampPercent(Integer.parseInt(
-                    props.getProperty("env.cloudPuffinessPercent." + dim, String.valueOf(PERCENT_DEFAULT))));
+                    props.getProperty("env.cloudPuffinessPercent." + dim, "3")));
                 cloudDetailScalePercent[dim] = clampPercent(Integer.parseInt(
                     props.getProperty("env.cloudDetailScalePercent." + dim,
                         String.valueOf(CLOUD_DETAIL_SCALE_DEFAULT_PERCENT))));
@@ -2538,7 +2550,7 @@ public class Options {
                     }
                 }
             } else {
-                cloudPuffinessPercent[dim] = PERCENT_DEFAULT;
+                cloudPuffinessPercent[dim] = 3;
                 cloudDetailScalePercent[dim] = CLOUD_DETAIL_SCALE_DEFAULT_PERCENT;
                 cloudDetailStrengthPercent[dim] = CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT;
                 cloudAnisotropyPercent[dim] = 0;
@@ -2577,13 +2589,19 @@ public class Options {
             volCloudCoveragePercent = clamp(Integer.parseInt(
                 props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
             volCloudTypePercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudTypePercent", "0")), 0, 100);
+                props.getProperty("volCloudTypePercent", "67")), 0, 100);
             volCloudSpeedTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudSpeedTenths", "10")), 0, 50);
+                props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
             volCloudAltitude = clamp(Integer.parseInt(
                 props.getProperty("volCloudAltitude", "192")), 128, 320);
             volCloudThickness = clamp(Integer.parseInt(
                 props.getProperty("volCloudThickness", "64")), 32, 128);
+            volCloudDetailStrengthPercent = clamp(Integer.parseInt(
+                props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 200);
+            volCloudScatterOctaves = clamp(Integer.parseInt(
+                props.getProperty("volCloudScatterOctaves", "3")), 1, 4);
+            wetSurfaceStrengthPercent = clamp(Integer.parseInt(
+                props.getProperty("wetSurfaceStrengthPercent", "100")), 0, 200);
         }
         // Push volumetric cloud settings to native
         try {
@@ -2591,9 +2609,12 @@ public class Options {
             nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
             nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
             nativeSetCloudType(volCloudTypePercent / 100.0f, false);
-            nativeSetCloudSpeed(volCloudSpeedTenths / 10.0f, false);
+            nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, false);
             nativeSetCloudAltitude((float) volCloudAltitude, false);
             nativeSetCloudThicknessVol((float) volCloudThickness, false);
+            nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
+            nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
+            nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, false);
         } catch (UnsatisfiedLinkError ignored) {}
 
         for (int dim = 0; dim < DIM_COUNT; dim++) {
@@ -2651,7 +2672,7 @@ public class Options {
             cloudBrightnessPercent[dim] = PERCENT_DEFAULT;
             cloudAlphaPercent[dim] = PERCENT_DEFAULT;
             cloudHeightOffset[dim] = 0;
-            cloudPuffinessPercent[dim] = PERCENT_DEFAULT;
+            cloudPuffinessPercent[dim] = 3;
             cloudDetailScalePercent[dim] = CLOUD_DETAIL_SCALE_DEFAULT_PERCENT;
             cloudDetailStrengthPercent[dim] = CLOUD_DETAIL_STRENGTH_DEFAULT_PERCENT;
             cloudAnisotropyPercent[dim] = 0;
@@ -2784,8 +2805,7 @@ public class Options {
     }
 
     public static float getCloudPuffiness(int dim) {
-        // Locked to 3% — higher values cause visible corner artifacts at concave cloud edges.
-        return 0.03f;
+        return cloudPuffinessPercent[clampDimIndex(dim)] / 100.0f;
     }
 
     public static void setCloudPuffinessPercent(int dim, int value, boolean write) {
@@ -4602,8 +4622,9 @@ public class Options {
     }
 
     public static void setVolCloudSpeedTenths(int tenths, boolean write) {
-        volCloudSpeedTenths = clamp(tenths, 0, 50);
-        nativeSetCloudSpeed(volCloudSpeedTenths / 10.0f, write);
+        volCloudSpeedTenths = clamp(tenths, 0, 300);
+        // Convert m/s to internal multiplier: 5 m/s = 1.0 multiplier
+        nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, write);
         if (write) overwriteConfig();
     }
 
@@ -4616,6 +4637,30 @@ public class Options {
     public static void setVolCloudThickness(int thickness, boolean write) {
         volCloudThickness = clamp(thickness, 32, 128);
         nativeSetCloudThicknessVol((float) volCloudThickness, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetCloudDetailStrength(float strength, boolean write);
+    public native static void nativeSetCloudScatterOctaves(int octaves, boolean write);
+
+    public static void setVolCloudDetailStrengthPercent(int percent, boolean write) {
+        volCloudDetailStrengthPercent = clamp(percent, 0, 200);
+        nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudScatterOctaves(int octaves, boolean write) {
+        volCloudScatterOctaves = clamp(octaves, 1, 4);
+        nativeSetCloudScatterOctaves(volCloudScatterOctaves, write);
+        if (write) overwriteConfig();
+    }
+
+    // --- Wet Surfaces ---
+    public native static void nativeSetWetSurfaceStrength(float strength, boolean write);
+
+    public static void setWetSurfaceStrengthPercent(int percent, boolean write) {
+        wetSurfaceStrengthPercent = clamp(percent, 0, 200);
+        nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, write);
         if (write) overwriteConfig();
     }
 }

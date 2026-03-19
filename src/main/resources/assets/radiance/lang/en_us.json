@@ -175,6 +175,7 @@
   "options.video.vrr_mode": "VRR Frame Cap",
   "options.video.radiance_vsync": "VSync",
   "options.video.max_fps": "FPS Limit",
+  "options.video.inactivity_fps_limit": "Inactive FPS Limit",
 
   "options.video.frame_gen_mode": "Frame Generation",
   "options.video.frame_gen_multiplier": "FG Multiplier",
@@ -303,6 +304,7 @@
   ,"options.video.environment.moon.category": "Moon"
   ,"options.video.environment.sky_brightness": "Sky Brightness"
   ,"options.video.environment.rain_blend": "Rain Blend Strength"
+  ,"options.video.environment.wet_surface": "Wet Surfaces"
   ,"options.video.environment.cloud_brightness": "Cloud Brightness"
   ,"options.video.environment.cloud_alpha": "Cloud Alpha"
   ,"options.video.environment.cloud_height_offset": "Cloud Height Offset"
@@ -322,6 +324,8 @@
   ,"options.video.environment.vol_cloud_altitude": "Cloud Altitude"
   ,"options.video.environment.vol_cloud_thickness": "Cloud Layer Thickness"
   ,"options.video.environment.vol_cloud_density": "Cloud Density"
+  ,"options.video.environment.vol_cloud_detail": "Detail Erosion"
+  ,"options.video.environment.vol_cloud_scatter": "Scatter Bounces"
   ,"options.video.environment.water_tint_r": "Water Tint Red"
   ,"options.video.environment.water_tint_g": "Water Tint Green"
   ,"options.video.environment.water_tint_b": "Water Tint Blue"
