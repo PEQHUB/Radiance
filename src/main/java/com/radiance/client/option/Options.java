@@ -22,7 +22,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 19;
+    public static final int CURRENT_OPTIONS_VERSION = 20;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 0;
     public static final int SATURATION_DEFAULT_PERCENT = 100;
     public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
@@ -1336,6 +1336,20 @@ public class Options {
     public static final int[] cloudDensityPercent = new int[]{PERCENT_DEFAULT, PERCENT_DEFAULT, PERCENT_DEFAULT};
     // Default: enable mottled cloud shadows in the overworld only.
     public static final int[] cloudNoiseAffectsShadows = new int[]{1, 0, 0};
+
+    // Volumetric cloud module settings (global, NOT per-dimension — clouds only render in Overworld)
+    public static int volCloudQuality = 3;            // 0=Off, 1=Low, 2=Medium, 3=High, 4=Ultra, 5=Extreme
+    public static int volCloudDensityTenths = 10;     // 1-30 → 0.1-3.0
+    public static int volCloudCoveragePercent = 35;   // 0-100 → 0.0-1.0
+    public static int volCloudTypePercent = 0;        // 0-100 → 0.0-1.0 (0=Cumulus, 100=Stratus)
+    public static int volCloudSpeedTenths = 10;       // 0-50 → 0.0-5.0
+    public static int volCloudAltitude = 192;         // 128-320 blocks
+    public static int volCloudThickness = 64;         // 32-128 blocks
+
+    public static final String[] VOL_CLOUD_QUALITY_NAMES = {
+        "Off", "Low", "Medium", "High", "Ultra", "Extreme"
+    };
+
     public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
     public static final int[] waterTintG = new int[]{WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT};
     public static final int[] waterTintB = new int[]{WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT, WATER_TINT_B_DEFAULT};
@@ -2433,6 +2447,16 @@ public class Options {
             props.setProperty("env.cloudThicknessBlocks." + dim, String.valueOf(cloudThicknessBlocks[dim]));
             props.setProperty("env.cloudDensityPercent." + dim, String.valueOf(cloudDensityPercent[dim]));
             props.setProperty("env.cloudNoiseAffectsShadows." + dim, String.valueOf(cloudNoiseAffectsShadows[dim]));
+        }
+        // Volumetric cloud module settings (global, not per-dimension)
+        props.setProperty("volCloudQuality", String.valueOf(volCloudQuality));
+        props.setProperty("volCloudDensityTenths", String.valueOf(volCloudDensityTenths));
+        props.setProperty("volCloudCoveragePercent", String.valueOf(volCloudCoveragePercent));
+        props.setProperty("volCloudTypePercent", String.valueOf(volCloudTypePercent));
+        props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
+        props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
+        props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
+        for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
             props.setProperty("env.waterTintG." + dim, String.valueOf(waterTintG[dim]));
             props.setProperty("env.waterTintB." + dim, String.valueOf(waterTintB[dim]));
@@ -2546,7 +2570,37 @@ public class Options {
             } else {
                 cloudNoiseAffectsShadows[dim] = dim == DIM_OVERWORLD ? 1 : 0;
             }
+        }
 
+        // Volumetric cloud module settings (global, not per-dimension)
+        if (loadedOptionsVersion >= 20) {
+            volCloudQuality = clamp(Integer.parseInt(
+                props.getProperty("volCloudQuality", "3")), 0, 5);
+            volCloudDensityTenths = clamp(Integer.parseInt(
+                props.getProperty("volCloudDensityTenths", "10")), 1, 30);
+            volCloudCoveragePercent = clamp(Integer.parseInt(
+                props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
+            volCloudTypePercent = clamp(Integer.parseInt(
+                props.getProperty("volCloudTypePercent", "0")), 0, 100);
+            volCloudSpeedTenths = clamp(Integer.parseInt(
+                props.getProperty("volCloudSpeedTenths", "10")), 0, 50);
+            volCloudAltitude = clamp(Integer.parseInt(
+                props.getProperty("volCloudAltitude", "192")), 128, 320);
+            volCloudThickness = clamp(Integer.parseInt(
+                props.getProperty("volCloudThickness", "64")), 32, 128);
+        }
+        // Push volumetric cloud settings to native
+        try {
+            nativeSetCloudQuality(volCloudQuality, false);
+            nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
+            nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
+            nativeSetCloudType(volCloudTypePercent / 100.0f, false);
+            nativeSetCloudSpeed(volCloudSpeedTenths / 10.0f, false);
+            nativeSetCloudAltitude((float) volCloudAltitude, false);
+            nativeSetCloudThicknessVol((float) volCloudThickness, false);
+        } catch (UnsatisfiedLinkError ignored) {}
+
+        for (int dim = 0; dim < DIM_COUNT; dim++) {
             waterTintR[dim] = clampColorChannel(Integer.parseInt(
                 props.getProperty("env.waterTintR." + dim, String.valueOf(WATER_TINT_R_DEFAULT))));
             waterTintG[dim] = clampColorChannel(Integer.parseInt(
@@ -4536,6 +4590,58 @@ public class Options {
     public static void setUiAdaptiveDimming(boolean enabled, boolean write) {
         uiAdaptiveDimming = enabled;
         com.radiance.client.gui.RadianceTheme.setAdaptiveDimmingEnabled(enabled);
+        if (write) overwriteConfig();
+    }
+
+    // --- Volumetric cloud module native setters ---
+
+    public native static void nativeSetCloudQuality(int quality, boolean write);
+    public native static void nativeSetCloudDensity(float density, boolean write);
+    public native static void nativeSetCloudCoverage(float coverage, boolean write);
+    public native static void nativeSetCloudType(float type, boolean write);
+    public native static void nativeSetCloudSpeed(float speed, boolean write);
+    public native static void nativeSetCloudAltitude(float altitude, boolean write);
+    public native static void nativeSetCloudThicknessVol(float thickness, boolean write);
+
+    public static void setVolCloudQuality(int quality, boolean write) {
+        volCloudQuality = clamp(quality, 0, 5);
+        nativeSetCloudQuality(volCloudQuality, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudDensityTenths(int tenths, boolean write) {
+        volCloudDensityTenths = clamp(tenths, 1, 30);
+        nativeSetCloudDensity(volCloudDensityTenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudCoveragePercent(int percent, boolean write) {
+        volCloudCoveragePercent = clamp(percent, 0, 100);
+        nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudTypePercent(int percent, boolean write) {
+        volCloudTypePercent = clamp(percent, 0, 100);
+        nativeSetCloudType(volCloudTypePercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudSpeedTenths(int tenths, boolean write) {
+        volCloudSpeedTenths = clamp(tenths, 0, 50);
+        nativeSetCloudSpeed(volCloudSpeedTenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudAltitude(int altitude, boolean write) {
+        volCloudAltitude = clamp(altitude, 128, 320);
+        nativeSetCloudAltitude((float) volCloudAltitude, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudThickness(int thickness, boolean write) {
+        volCloudThickness = clamp(thickness, 32, 128);
+        nativeSetCloudThicknessVol((float) volCloudThickness, write);
         if (write) overwriteConfig();
     }
 }

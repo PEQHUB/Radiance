@@ -61,5 +61,53 @@ public class CloudPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable("options.video.environment.cloud_shadow_noise"),
                 v == 1 ? Text.translatable("options.on") : Text.translatable("options.off")),
             v -> Options.setCloudNoiseAffectsShadows(dim, v == 1, true)));
+
+        // --- Volumetric Cloud Module ---
+        SettingsSection volModule = panel.addSection("options.video.environment.clouds.volumetric_module.category");
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            0, 5, Options.volCloudQuality, 3,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_quality"),
+                Text.literal(Options.VOL_CLOUD_QUALITY_NAMES[v])),
+            v -> Options.setVolCloudQuality(v, true)));
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            1, 30, Options.volCloudDensityTenths, 10,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_density"),
+                Text.literal(String.format("%.1f", v / 10.0))),
+            v -> Options.setVolCloudDensityTenths(v, true)));
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            0, 100, Options.volCloudCoveragePercent, 35,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_coverage"),
+                Text.literal(v + "%")),
+            v -> Options.setVolCloudCoveragePercent(v, true)));
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            0, 100, Options.volCloudTypePercent, 0,
+            v -> {
+                String label = v <= 25 ? "Cumulus" : v >= 75 ? "Stratus" : "Mixed";
+                return getGenericValueText(Text.translatable("options.video.environment.vol_cloud_type"),
+                    Text.literal(label));
+            },
+            v -> Options.setVolCloudTypePercent(v, true)));
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            0, 50, Options.volCloudSpeedTenths, 10,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_wind_speed"),
+                Text.literal(String.format("%.1f", v / 10.0))),
+            v -> Options.setVolCloudSpeedTenths(v, true)));
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            128, 320, Options.volCloudAltitude, 192,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_altitude"),
+                Text.literal(v + " blocks")),
+            v -> Options.setVolCloudAltitude(v, true)));
+
+        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            32, 128, Options.volCloudThickness, 64,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_thickness"),
+                Text.literal(v + " blocks")),
+            v -> Options.setVolCloudThickness(v, true)));
     }
 }
