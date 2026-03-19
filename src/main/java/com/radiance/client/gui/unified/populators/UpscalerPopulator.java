@@ -133,11 +133,11 @@ public class UpscalerPopulator implements ContentPopulator {
             section.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexEnabled.createWidget(gameOptions));
 
             if (Options.reflexEnabled) {
-                // Row: FPS limit slider (Reflex frame limiter — authoritative when Reflex is on)
+                // Row: FPS limit slider
                 section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                    5, 999, Math.max(5, Options.maxFps), 260,
+                    0, 999, Options.maxFps, 0,
                     v -> getGenericValueText(Text.translatable(Options.MAX_FPS_KEY),
-                        Text.literal(v + " fps")),
+                        Text.literal(v == 0 ? "Unlimited" : v + " fps")),
                     v -> Options.setMaxFps(v, true)));
 
                 // Row: Auto VRR Cap button — computes target from display Hz, writes to maxFps
@@ -155,39 +155,28 @@ public class UpscalerPopulator implements ContentPopulator {
             }
         }
 
-        // Frame Generation — backend selector: Off / DLSS-G / FSR FG
+        // Frame Generation (DLSS-G) — requires Reflex
         if (Options.isFrameGenSupported()) {
-            // Build backend list: Off always, DLSS-G only if hardware supports it, FSR FG always
-            java.util.List<String> backendNames = new java.util.ArrayList<>();
-            java.util.List<Integer> backendValues = new java.util.ArrayList<>();
-            backendNames.add("Off");          backendValues.add(0);
-            if (Options.isDlssFrameGenSupported()) {
-                backendNames.add("DLSS-G");   backendValues.add(1);
-            }
-            backendNames.add("FSR FG");       backendValues.add(2);
-
-            int selectedIdx = backendValues.indexOf(Options.frameGenBackend);
-            if (selectedIdx < 0) selectedIdx = 0;
-
-            SelectionDropdownWidget backendDropdown = new SelectionDropdownWidget(
+            String[] fgModeNames = {"Off", "On"};
+            SelectionDropdownWidget fgModeDropdown = new SelectionDropdownWidget(
                 0, 0, 150, 20, "Frame Generation",
-                backendNames.toArray(new String[0]), selectedIdx, value -> {
-                    Options.setFrameGenBackend(backendValues.get(value), true);
+                fgModeNames, Options.frameGenMode, value -> {
+                    Options.setFrameGenMode(value, true);
                     screen.refreshContent();
                 });
 
-            if (Options.frameGenBackend != 0) {
-                // FG Mode: On / Auto
-                String[] fgModeNames = {"Off", "On", "Auto"};
-                SelectionDropdownWidget fgModeDropdown = new SelectionDropdownWidget(
-                    0, 0, 150, 20, "FG Mode",
-                    fgModeNames, Options.frameGenMode, value -> {
-                        Options.setFrameGenMode(value, true);
-                        screen.refreshContent();
+            int maxMulti = Options.getFrameGenMaxMultiplier();
+            if (Options.frameGenMode != 0 && maxMulti > 1) {
+                String[] multiNames = new String[maxMulti];
+                for (int i = 0; i < maxMulti; i++) multiNames[i] = (i + 2) + "x";
+                SelectionDropdownWidget fgMultiDropdown = new SelectionDropdownWidget(
+                    0, 0, 150, 20, "FG Multiplier",
+                    multiNames, Options.frameGenMultiplier - 1, value -> {
+                        Options.setFrameGenMultiplier(value + 1, true);
                     });
-                section.addTwoWidgets(backendDropdown, fgModeDropdown);
+                section.addTwoWidgets(fgModeDropdown, fgMultiDropdown);
             } else {
-                section.addTwoWidgets(backendDropdown, null);
+                section.addTwoWidgets(fgModeDropdown, null);
             }
         }
     }

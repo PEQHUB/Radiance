@@ -475,8 +475,7 @@ public class Options {
     public static boolean vrrMode = false;
     private static boolean reflexExplicitlyConfigured = false; // true if user saved a preference
 
-    // Frame Generation
-    public static int frameGenBackend = 0;       // 0=Off, 1=DLSS-G, 2=FSR FG
+    // Frame Generation (DLSS-G)
     public static int frameGenMode = 0;          // 0=Off, 1=On, 2=Auto (dynamic MFG)
     public static int frameGenMultiplier = 1;    // 1=2x, 2=3x, 3=4x
     public static int chunkBuildingBatchSize = 32;
@@ -508,14 +507,14 @@ public class Options {
     public static int colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
 
     // Per-tonemapper params: [mode][paramIndex], float values sent directly to native
-    public static float[][] tonemapParams = new float[8][8];
+    public static float[][] tonemapParams = new float[9][8];
 
     static {
         initTonemapDefaults();
     }
 
     public static void initTonemapDefaults() {
-        for (int m = 0; m < 8; m++) for (int p = 0; p < 8; p++) tonemapParams[m][p] = 0.0f;
+        for (int m = 0; m < 9; m++) for (int p = 0; p < 8; p++) tonemapParams[m][p] = 0.0f;
         // Mode 0: PBR Neutral
         tonemapParams[0][0] = 0.76f;   // startCompression
         tonemapParams[0][1] = 0.15f;   // desaturation
@@ -1430,7 +1429,7 @@ public class Options {
             nativeSetTonemappingMode(tonemappingMode, false);
 
             // Load per-tonemapper params
-            for (int m = 0; m < 8; m++) {
+            for (int m = 0; m < 9; m++) {
                 for (int p = 0; p < 8; p++) {
                     String key = "tmParam_" + m + "_" + p;
                     String stored = props.getProperty(key);
@@ -1742,8 +1741,6 @@ public class Options {
             nativeSetVrrMode(vrrMode, false);
 
             // Frame Generation
-            frameGenBackend = Integer.parseInt(props.getProperty("frameGenBackend", String.valueOf(frameGenBackend)));
-            nativeSetFrameGenBackend(frameGenBackend, false);
             frameGenMode = Integer.parseInt(props.getProperty("frameGenMode", String.valueOf(frameGenMode)));
             nativeSetFrameGenMode(frameGenMode, false);
             frameGenMultiplier = Integer.parseInt(props.getProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier)));
@@ -2275,7 +2272,6 @@ public class Options {
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
         props.setProperty("vrrMode", String.valueOf(vrrMode));
-        props.setProperty("frameGenBackend", String.valueOf(frameGenBackend));
         props.setProperty("frameGenMode", String.valueOf(frameGenMode));
         props.setProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
@@ -2283,7 +2279,7 @@ public class Options {
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
         // Save per-tonemapper params
-        for (int m = 0; m < 8; m++) {
+        for (int m = 0; m < 9; m++) {
             for (int p = 0; p < 8; p++) {
                 props.setProperty("tmParam_" + m + "_" + p, String.valueOf(tonemapParams[m][p]));
             }
@@ -3195,11 +3191,6 @@ public class Options {
     public static void setMaxFps(int maxFps, boolean write) {
         Options.maxFps = maxFps;
         nativeSetMaxFps(maxFps, write);
-        // When Reflex handles FPS limiting, push MC's vanilla limiter to max so it can't interfere
-        if (reflexEnabled) {
-            var mc = net.minecraft.client.MinecraftClient.getInstance();
-            if (mc != null) mc.getInactivityFpsLimiter().setMaxFps(260);
-        }
         if (write) {
             overwriteConfig();
         }
@@ -3274,7 +3265,7 @@ public class Options {
     }
 
     public static void setTonemapParam(int mode, int paramIndex, float value, boolean write) {
-        if (mode < 0 || mode >= tonemapParams.length || paramIndex < 0 || paramIndex > 7) return;
+        if (mode < 0 || mode > 8 || paramIndex < 0 || paramIndex > 7) return;
         tonemapParams[mode][paramIndex] = value;
         if (mode == tonemappingMode) {
             nativeSetTonemapParam(paramIndex, value, write);
@@ -3283,7 +3274,6 @@ public class Options {
     }
 
     public static void pushActiveTonemapParams() {
-        if (tonemappingMode < 0 || tonemappingMode >= tonemapParams.length) return;
         for (int i = 0; i < 8; i++) {
             nativeSetTonemapParam(i, tonemapParams[tonemappingMode][i], false);
         }
@@ -3984,10 +3974,9 @@ public class Options {
     public static void setReflexEnabled(boolean enabled, boolean write) {
         Options.reflexEnabled = enabled;
         nativeSetReflexEnabled(enabled, write);
-        // DLSS-G requires Reflex — auto-disable DLSS-G backend if Reflex is turned off
-        // (FSR FG does not require Reflex)
-        if (!enabled && Options.frameGenBackend == 1) {
-            setFrameGenBackend(0, write);
+        // DLSS-G requires Reflex — auto-disable Frame Gen if Reflex is turned off
+        if (!enabled && Options.frameGenMode != 0) {
+            setFrameGenMode(0, write);
         }
         if (write) {
             overwriteConfig();
@@ -4020,21 +4009,14 @@ public class Options {
         catch (UnsatisfiedLinkError e) { return 0; }
     }
 
-    // --- Frame Generation ---
-    public native static void nativeSetFrameGenBackend(int backend, boolean write);
+    // --- Frame Generation (DLSS-G) ---
     public native static void nativeSetFrameGenMode(int mode, boolean write);
     public native static void nativeSetFrameGenMultiplier(int multiplier, boolean write);
     public native static boolean nativeIsFrameGenSupported();
-    public native static boolean nativeIsDlssFrameGenSupported();
     public native static int nativeGetFrameGenMaxMultiplier();
 
     public static boolean isFrameGenSupported() {
         try { return nativeIsFrameGenSupported(); }
-        catch (UnsatisfiedLinkError e) { return false; }
-    }
-
-    public static boolean isDlssFrameGenSupported() {
-        try { return nativeIsDlssFrameGenSupported(); }
         catch (UnsatisfiedLinkError e) { return false; }
     }
 
@@ -4043,20 +4025,12 @@ public class Options {
         catch (UnsatisfiedLinkError e) { return 0; }
     }
 
-    public static void setFrameGenBackend(int backend, boolean write) {
-        Options.frameGenBackend = backend;
-        nativeSetFrameGenBackend(backend, write);
-        // DLSS-G requires Reflex — auto-enable when switching to DLSS-G backend
-        if (backend == 1 && !Options.reflexEnabled && isReflexSupported()) {
-            setReflexEnabled(true, write);
-        }
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
     public static void setFrameGenMode(int mode, boolean write) {
         Options.frameGenMode = mode;
+        // DLSS-G requires Reflex — auto-enable it when Frame Gen is turned on
+        if (mode != 0 && !Options.reflexEnabled && isReflexSupported()) {
+            setReflexEnabled(true, write);
+        }
         nativeSetFrameGenMode(mode, write);
         if (write) {
             overwriteConfig();
