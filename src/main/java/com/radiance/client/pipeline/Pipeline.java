@@ -408,6 +408,12 @@ public class Pipeline {
             useCloud = false;
             RadianceClient.LOGGER.info("[Pipeline] Cloud module disabled: incompatible with NRD separated-lighting pipeline");
         }
+        boolean useVolumetric = isNativeModuleAvailable("render_pipeline.module.volumetric.name");
+        // VML also incompatible with NRD (same reason as clouds)
+        if (useVolumetric && nrdActive) {
+            useVolumetric = false;
+        }
+
         Module cloudModule = null;
         if (useCloud) {
             cloudModule = addModule("render_pipeline.module.cloud.name");
@@ -415,6 +421,24 @@ public class Pipeline {
                 cloudModule.getInputImageConfig("radiance"));
             connect(rayTracingModule.getOutputImageConfig("linear_depth"),
                 cloudModule.getInputImageConfig("linear_depth"));
+        }
+
+        // VML cloud shadow integration: feed CloudModule's physically-accurate
+        // shadow map into VolumetricModule, replacing its internal hash-based shadow.
+        // Both modules must be available (requires clouds + vml branch merge).
+        Module volumetricModule = null;
+        if (useVolumetric) {
+            volumetricModule = addModule("render_pipeline.module.volumetric.name");
+            // Connect cloud shadow → VML (when cloud module is active)
+            if (useCloud) {
+                try {
+                    connect(cloudModule.getOutputImageConfig("cloud_shadow_map"),
+                        volumetricModule.getInputImageConfig("cloud_shadow"));
+                } catch (Exception e) {
+                    // cloud_shadow input not yet defined in VML YAML — will be added at merge
+                    RadianceClient.LOGGER.debug("[Pipeline] Cloud shadow → VML connection deferred (VML input not yet available)");
+                }
+            }
         }
 
         if (useDlss) {
