@@ -1353,7 +1353,7 @@ public class Options {
     public static int volCloudSharpeningPercent = 45;  // 20-100 → 0.20-1.00 (density sharpening exponent)
     public static int volCloudNoiseScale = 192;        // 128-512 blocks (noise texture period)
     public static int volCloudCellFrequencyTenths = 80; // 20-160 → 2.0-16.0 cells
-    public static int volCloudAtmosphereFadeDist = 200; // 200-2000 blocks
+    public static int volCloudAtmosphereFadeDist = 800; // 200-2000 blocks (visual fade only, not march clamp)
     public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
     public static final String[] VOL_CLOUD_QUALITY_NAMES = {

@@ -159,7 +159,7 @@ public class CloudPopulator implements ContentPopulator {
                     Text.literal(v + "%")),
                 v -> Options.setVolCloudAmbientPercent(v, true)));
 
-        // Sharpening + Noise Scale paired
+        // Sharpening + Cell Size paired
         volModule.addTwoSliders(
             new ResettableSliderWidget(0, 0, 150, 20,
                 20, 100, Options.volCloudSharpeningPercent, 45,
@@ -167,22 +167,9 @@ public class CloudPopulator implements ContentPopulator {
                     Text.literal(v + "%")),
                 v -> Options.setVolCloudSharpeningPercent(v, true)),
             new ResettableSliderWidget(0, 0, 150, 20,
-                128, 512, Options.volCloudNoiseScale, 192,
-                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_noise_scale"),
-                    Text.literal(v + " blocks")),
-                v -> Options.setVolCloudNoiseScale(v, true)));
-
-        // Cell Size + Draw Distance paired
-        volModule.addTwoSliders(
-            new ResettableSliderWidget(0, 0, 150, 20,
                 20, 160, Options.volCloudCellFrequencyTenths, 80,
                 v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_cell_size"),
                     Text.literal(String.format("%.1f", v / 10.0))),
-                v -> Options.setVolCloudCellFrequencyTenths(v, true)),
-            new ResettableSliderWidget(0, 0, 150, 20,
-                200, 2000, Options.volCloudAtmosphereFadeDist, 200,
-                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_fade_distance"),
-                    Text.literal(v + " blocks")),
-                v -> Options.setVolCloudAtmosphereFadeDist(v, true)));
+                v -> Options.setVolCloudCellFrequencyTenths(v, true)));
     }
 }
