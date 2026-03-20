@@ -47,6 +47,8 @@ public class Options {
     public static final String KEY_MATERIAL_PICKER = "key.radiance.material_picker";
     public static final String KEY_CATEGORY_RADIANCE = "key.category.radiance";
 
+    public static final int FALLBACK_AUTOPBR_ORDINAL = 255;
+
     public static final String CATEGORY_FPV = "options.video.category.fpv";
     public static final String FPV_ENABLED_KEY = "options.video.fpv_enabled";
     public static final String FPV_OFFSET_FORWARD_KEY = "options.video.fpv_offset_forward";
@@ -987,8 +989,10 @@ public class Options {
         if (write) { overwriteConfig(); }
     }
 
-    // Material overrides: max 160 blocks (4 vec4 per block × 160 = 640 vec4 in UBO)
-    public static final int MAX_MATERIALS = 160;
+    // Material overrides: max 512 entries (108 enum + dynamic auto-registered blocks)
+    // Vertex packing is 8-bit (max ordinal 254 via vertex path), mask texture handles 0-255.
+    // SSBO has room for 512 entries for future wider packing.
+    public static final int MAX_MATERIALS = 512;
     // Per-block properties (indexed by MaterialBlock.ordinal())
     // F0 in permille (0-1000), roughness in percent (0-100)
     public static final int[] materialF0R = new int[MAX_MATERIALS];
@@ -1038,6 +1042,38 @@ public class Options {
     public static final int[] materialAutoPBRHeightGamma = new int[MAX_MATERIALS];     // 10-300, /100
     public static final int[] materialAutoPBRFlags = new int[MAX_MATERIALS];           // bit 0=invertRoughness, bit 1=invertNormal, bit 2=invertHeight
     static {
+        // Pre-fill ALL slots with safe generic dielectric defaults (important for dynamic blocks
+        // whose ordinals > enum COUNT that haven't been explicitly initialized yet)
+        for (int i = 0; i < MAX_MATERIALS; i++) {
+            materialF0R[i] = 40;  // F0 ~0.04 (generic dielectric)
+            materialF0G[i] = 40;
+            materialF0B[i] = 40;
+            materialRoughness[i] = 80;
+            materialIOR[i] = 1500;
+            materialNoiseScale[i] = 50;
+            materialNoiseOctaves[i] = 2;
+            materialNoiseMaskThreshold[i] = 500;
+            materialNoiseWrap[i] = 1;
+            materialNoiseAspect[i] = 100;
+            materialNoiseLacunarity[i] = 20;
+            materialNoiseContrast[i] = 100;
+            materialChannelR[i] = 213;
+            materialChannelG[i] = 715;
+            materialChannelB[i] = 72;
+            materialGamutBoost[i] = 100;
+            materialNormalStrength[i] = 100;
+            materialAutoPBRRoughnessMin[i] = 30;
+            materialAutoPBRRoughnessMax[i] = 95;
+            materialAutoPBRGamma[i] = 50;
+            materialPercentileCenter[i] = 50;
+            materialPercentileSpread[i] = 80;
+            materialAutoPBRNormalStrength[i] = 25;
+            materialAutoPBRVarianceWeight[i] = 30;
+            materialAutoPBREdgeWeight[i] = 15;
+            materialAutoPBRHeightGamma[i] = 100;
+        }
+
+        // Override with enum-specific physically-measured defaults
         for (MaterialBlock mb : MaterialBlock.values()) {
             int i = mb.ordinal();
             materialF0R[i] = mb.getDefaultF0R();
@@ -1926,6 +1962,19 @@ public class Options {
             }
             markMaterialDirty();
 
+            // Entity material overrides
+            for (com.radiance.client.material.EntityMaterial.Category cat : com.radiance.client.material.EntityMaterial.Category.values()) {
+                int i = cat.getOrdinal();
+                String eid = "entity." + cat.name().toLowerCase();
+                materialRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialRoughness." + eid, String.valueOf(materialRoughness[i]))), 0, 100);
+                materialMetallic[i] = clamp(Integer.parseInt(props.getProperty("materialMetallic." + eid, String.valueOf(materialMetallic[i]))), 0, 1000);
+                materialSubsurface[i] = clamp(Integer.parseInt(props.getProperty("materialSubsurface." + eid, String.valueOf(materialSubsurface[i]))), 0, 1000);
+                materialIOR[i] = clamp(Integer.parseInt(props.getProperty("materialIOR." + eid, String.valueOf(materialIOR[i]))), 1000, 3000);
+                materialF0R[i] = clamp(Integer.parseInt(props.getProperty("materialF0R." + eid, String.valueOf(materialF0R[i]))), 0, 1000);
+                materialF0G[i] = clamp(Integer.parseInt(props.getProperty("materialF0G." + eid, String.valueOf(materialF0G[i]))), 0, 1000);
+                materialF0B[i] = clamp(Integer.parseInt(props.getProperty("materialF0B." + eid, String.valueOf(materialF0B[i]))), 0, 1000);
+            }
+
             // Auto-PBR generation
             autoPBREnabled = Boolean.parseBoolean(props.getProperty("autoPBREnabled", String.valueOf(autoPBREnabled)));
             for (MaterialBlock mb : MaterialBlock.values()) {
@@ -2470,6 +2519,19 @@ public class Options {
             if (materialChildOverride[mb.ordinal()]) {
                 props.setProperty("materialChildOverride." + mb.getId(), "true");
             }
+        }
+
+        // Entity material overrides
+        for (com.radiance.client.material.EntityMaterial.Category cat : com.radiance.client.material.EntityMaterial.Category.values()) {
+            int i = cat.getOrdinal();
+            String eid = "entity." + cat.name().toLowerCase();
+            props.setProperty("materialRoughness." + eid, String.valueOf(materialRoughness[i]));
+            props.setProperty("materialMetallic." + eid, String.valueOf(materialMetallic[i]));
+            props.setProperty("materialSubsurface." + eid, String.valueOf(materialSubsurface[i]));
+            props.setProperty("materialIOR." + eid, String.valueOf(materialIOR[i]));
+            props.setProperty("materialF0R." + eid, String.valueOf(materialF0R[i]));
+            props.setProperty("materialF0G." + eid, String.valueOf(materialF0G[i]));
+            props.setProperty("materialF0B." + eid, String.valueOf(materialF0B[i]));
         }
 
         // Auto-PBR generation

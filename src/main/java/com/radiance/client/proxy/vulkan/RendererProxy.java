@@ -66,6 +66,9 @@ public class RendererProxy {
     public static native String nativeGetGpuProfile();
     public static native void nativeSetGpuProfileEnabled(boolean enabled);
 
+    // Overlay compositor diagnostics (CSV key=value pairs)
+    public static native String nativeGetOverlayDiag();
+
     public static native void shouldRenderWorld(boolean renderWorld);
 
     public static native void takeScreenshot(boolean withUI, int width, int height, int channel,

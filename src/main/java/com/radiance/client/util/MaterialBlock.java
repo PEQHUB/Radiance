@@ -1,9 +1,12 @@
 package com.radiance.client.util;
 
 import com.radiance.client.material.MaterialClass;
+import com.radiance.client.option.Options;
 import net.minecraft.block.Block;
 import net.minecraft.block.Blocks;
 import net.minecraft.registry.Registries;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -1143,26 +1146,333 @@ public enum MaterialBlock {
         return BLOCK_MAP.get(block);
     }
 
+    // ====== Dynamic Block Registration (Phase 1A: Universal Coverage) ======
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("Radiance/MaterialBlock");
+
+    /** Dynamic blocks: Block → ordinal (for blocks not in the MaterialBlock enum). */
+    private static final Map<Block, Integer> DYNAMIC_ORDINAL_MAP = new HashMap<>();
+    /** Dynamic texture names: registry path → ordinal. */
+    private static final Map<String, Integer> DYNAMIC_TEXTURE_MAP = new HashMap<>();
+    /** Dynamic block MaterialClass assignments. */
+    private static final Map<Integer, MaterialClass> DYNAMIC_CLASS_MAP = new HashMap<>();
+    /** Next available dynamic ordinal (starts after the last enum entry). */
+    private static int nextDynamicOrdinal = COUNT;
+    /** Whether initDynamic() has been called. */
+    private static boolean dynamicInitialized = false;
+
+    /**
+     * Returns the material ordinal for a block, checking both enum and dynamic registrations.
+     * Returns -1 if the block has no material assignment.
+     */
+    public static int getOrdinalForBlock(Block block) {
+        MaterialBlock mb = BLOCK_MAP.get(block);
+        if (mb != null) return mb.ordinal();
+        Integer dyn = DYNAMIC_ORDINAL_MAP.get(block);
+        return dyn != null ? dyn : -1;
+    }
+
+    /**
+     * Auto-register all blocks from Registries.BLOCK that aren't already in BLOCK_MAP.
+     * Must be called AFTER the block registry is populated (during mod init).
+     * Dynamic blocks get ordinals starting at COUNT (after the last enum entry).
+     * Variants (stairs/slabs/walls/fences) share their parent's ordinal.
+     */
+    public static void initDynamic() {
+        if (dynamicInitialized) return;
+        dynamicInitialized = true;
+
+        // First pass: register all unique base blocks
+        Map<String, Integer> baseOrdinals = new HashMap<>();
+        int registered = 0;
+
+        for (Block block : Registries.BLOCK) {
+            if (BLOCK_MAP.containsKey(block)) continue;
+
+            String id = Registries.BLOCK.getId(block).getPath();
+
+            // Try to find a parent ordinal for variant blocks (stairs/slabs/walls/fences)
+            int parentOrdinal = findVariantParentOrdinal(id);
+            if (parentOrdinal >= 0) {
+                DYNAMIC_ORDINAL_MAP.put(block, parentOrdinal);
+                DYNAMIC_TEXTURE_MAP.put(id, parentOrdinal);
+                continue;
+            }
+
+            // Check if another dynamic block with the same base name exists
+            String baseName = extractBaseName(id);
+            Integer existingOrdinal = baseOrdinals.get(baseName);
+            if (existingOrdinal != null) {
+                DYNAMIC_ORDINAL_MAP.put(block, existingOrdinal);
+                DYNAMIC_TEXTURE_MAP.put(id, existingOrdinal);
+                continue;
+            }
+
+            // Assign a new dynamic ordinal
+            if (nextDynamicOrdinal >= Options.MAX_MATERIALS) {
+                LOGGER.warn("Material slot limit ({}) reached, skipping block: {}",
+                    Options.MAX_MATERIALS, id);
+                continue;
+            }
+            // Vertex packing is 8-bit: ordinal+1 must fit in uint8 (max ordinal 254)
+            // Reserve ordinals 200-254 for entity materials, 255 for fallback AutoPBR
+            if (nextDynamicOrdinal >= com.radiance.client.material.EntityMaterial.ENTITY_ORDINAL_BASE) {
+                LOGGER.warn("Entity material ordinal range (200+) reached, skipping block: {}", id);
+                continue;
+            }
+
+            int ordinal = nextDynamicOrdinal++;
+            DYNAMIC_ORDINAL_MAP.put(block, ordinal);
+            DYNAMIC_TEXTURE_MAP.put(id, ordinal);
+            baseOrdinals.put(baseName, ordinal);
+
+            MaterialClass cls = inferMaterialClass(id);
+            DYNAMIC_CLASS_MAP.put(ordinal, cls);
+            initMaterialDefaults(ordinal, cls);
+            registered++;
+        }
+
+        // Invalidate cached texture map so it rebuilds with dynamic entries
+        textureMap = null;
+
+        LOGGER.info("Auto-registered {} dynamic material blocks (ordinals {}-{})",
+            registered, COUNT, nextDynamicOrdinal - 1);
+    }
+
+    /** Returns the total number of active material ordinals (enum + dynamic). */
+    public static int getActiveMaterialCount() {
+        return nextDynamicOrdinal;
+    }
+
+    /** Returns the MaterialClass for a given ordinal (enum or dynamic). */
+    public static MaterialClass getMaterialClassForOrdinal(int ordinal) {
+        if (ordinal >= 0 && ordinal < COUNT) {
+            return values()[ordinal].getMaterialClass();
+        }
+        MaterialClass cls = DYNAMIC_CLASS_MAP.get(ordinal);
+        return cls != null ? cls : MaterialClass.GENERIC;
+    }
+
+    /**
+     * For variant blocks (stairs, slabs, walls, fences, etc.), find the parent block's ordinal.
+     * E.g., "oak_stairs" → looks up "oak_planks" ordinal.
+     */
+    private static int findVariantParentOrdinal(String id) {
+        String[][] variantSuffixes = {
+            {"_stairs", "_planks"}, {"_slab", "_planks"}, {"_wall", ""},
+            {"_fence", "_planks"}, {"_fence_gate", "_planks"},
+            {"_door", "_planks"}, {"_trapdoor", "_planks"},
+            {"_pressure_plate", ""}, {"_button", ""},
+            {"_sign", "_planks"}, {"_hanging_sign", "_planks"},
+        };
+
+        for (String[] pair : variantSuffixes) {
+            String suffix = pair[0];
+            if (!id.endsWith(suffix)) continue;
+            String base = id.substring(0, id.length() - suffix.length());
+
+            // Try direct lookup of parent with suffix replacement
+            if (!pair[1].isEmpty()) {
+                Integer ord = lookupOrdinalByName(base + pair[1]);
+                if (ord != null) return ord;
+            }
+            // Try the base itself
+            Integer ord = lookupOrdinalByName(base);
+            if (ord != null) return ord;
+            // Try base + "_block"
+            ord = lookupOrdinalByName(base + "_block");
+            if (ord != null) return ord;
+        }
+        return -1;
+    }
+
+    /** Look up an ordinal by block registry name in both enum BLOCK_MAP and dynamic map. */
+    private static Integer lookupOrdinalByName(String name) {
+        // Check enum entries via BLOCK_MAP
+        for (Map.Entry<Block, MaterialBlock> entry : BLOCK_MAP.entrySet()) {
+            if (Registries.BLOCK.getId(entry.getKey()).getPath().equals(name)) {
+                return entry.getValue().ordinal();
+            }
+        }
+        // Check dynamic entries
+        return DYNAMIC_TEXTURE_MAP.get(name);
+    }
+
+    /** Extract the base name of a block, stripping common suffixes. */
+    private static String extractBaseName(String id) {
+        String[] removable = {"_block", "_ore", "_bricks", "_brick"};
+        for (String suffix : removable) {
+            if (id.endsWith(suffix)) return id.substring(0, id.length() - suffix.length());
+        }
+        return id;
+    }
+
+    /**
+     * Infer a MaterialClass from block registry name using heuristics.
+     * Used for auto-registered blocks that don't have hand-tuned entries.
+     */
+    static MaterialClass inferMaterialClass(String id) {
+        // Wood
+        if (id.contains("_planks") || id.contains("_log") || id.contains("_wood")
+            || id.contains("_fence") || id.contains("_sign") || id.contains("_stem")
+            || id.contains("_hyphae") || id.contains("bamboo"))
+            return MaterialClass.WOOD;
+
+        // Glass
+        if (id.contains("glass") || id.contains("_pane"))
+            return MaterialClass.GLASS;
+
+        // Organic / plant matter
+        if (id.startsWith("flower_") || id.contains("_bush") || id.contains("_grass")
+            || id.contains("_fern") || id.contains("_sapling") || id.contains("_crop")
+            || id.contains("vine") || id.contains("_leaves") || id.contains("azalea")
+            || id.contains("moss") || id.contains("lichen") || id.contains("spore")
+            || id.contains("lily") || id.contains("dripleaf") || id.contains("mangrove_roots")
+            || id.contains("mushroom") || id.contains("wart") || id.contains("fungus")
+            || id.contains("sweet_berry") || id.contains("cave_vines") || id.contains("kelp")
+            || id.contains("seagrass") || id.contains("cocoa") || id.contains("cactus")
+            || id.contains("sugar_cane") || id.contains("bamboo_shoot")
+            || id.equals("poppy") || id.equals("dandelion") || id.equals("cornflower")
+            || id.equals("allium") || id.equals("lily_of_the_valley") || id.equals("torchflower")
+            || id.equals("pitcher_plant") || id.equals("pink_petals")
+            || id.equals("dead_bush") || id.equals("short_grass") || id.equals("tall_grass")
+            || id.equals("fern") || id.equals("large_fern"))
+            return MaterialClass.ORGANIC;
+
+        // Ore blocks
+        if (id.contains("_ore"))
+            return MaterialClass.STONE;
+
+        // Wool / carpet
+        if (id.contains("wool") || id.contains("carpet"))
+            return MaterialClass.WOOL;
+
+        // Terracotta
+        if (id.contains("terracotta"))
+            return MaterialClass.TERRACOTTA;
+
+        // Concrete
+        if (id.contains("concrete"))
+            return MaterialClass.CERAMIC;
+
+        // Metal
+        if (id.contains("copper") || id.contains("iron") || id.contains("gold"))
+            return MaterialClass.STONE; // generic metallic-looking blocks
+
+        // Redstone components
+        if (id.contains("redstone") || id.equals("repeater") || id.equals("comparator")
+            || id.equals("observer") || id.equals("piston") || id.equals("sticky_piston")
+            || id.equals("dispenser") || id.equals("dropper") || id.equals("hopper")
+            || id.equals("lever") || id.equals("tripwire") || id.equals("target"))
+            return MaterialClass.STONE;
+
+        // Sand / soil
+        if (id.contains("sand") || id.contains("gravel") || id.contains("dirt")
+            || id.contains("mud") || id.contains("clay") || id.contains("soul"))
+            return MaterialClass.SOIL;
+
+        // Stone catch-all
+        if (id.contains("stone") || id.contains("brick") || id.contains("cobble")
+            || id.contains("basalt") || id.contains("blackstone") || id.contains("deepslate")
+            || id.contains("tuff") || id.contains("calcite") || id.contains("dripstone"))
+            return MaterialClass.STONE;
+
+        return MaterialClass.GENERIC;
+    }
+
+    /**
+     * Initialize Options material arrays for a dynamically registered block.
+     * Sets class-appropriate defaults for PBR properties.
+     */
+    private static void initMaterialDefaults(int ordinal, MaterialClass cls) {
+        // Safe bounds check
+        if (ordinal < 0 || ordinal >= Options.MAX_MATERIALS) return;
+
+        // Base properties are already pre-filled by Options static init.
+        // Override class-specific values:
+        switch (cls) {
+            case WOOD:
+                Options.materialRoughness[ordinal] = 75;
+                Options.materialIOR[ordinal] = 1500;
+                break;
+            case STONE:
+                Options.materialRoughness[ordinal] = 80;
+                Options.materialIOR[ordinal] = 1540;
+                break;
+            case ORGANIC:
+                Options.materialRoughness[ordinal] = 85;
+                Options.materialIOR[ordinal] = 1500;
+                Options.materialSubsurface[ordinal] = 200;
+                break;
+            case GLASS:
+                Options.materialRoughness[ordinal] = 5;
+                Options.materialIOR[ordinal] = 1520;
+                Options.materialTransmission[ordinal] = 1000;
+                break;
+            case WOOL:
+                Options.materialRoughness[ordinal] = 95;
+                Options.materialIOR[ordinal] = 1500;
+                Options.materialSubsurface[ordinal] = 100;
+                break;
+            case TERRACOTTA:
+                Options.materialRoughness[ordinal] = 70;
+                Options.materialIOR[ordinal] = 1560;
+                break;
+            case CERAMIC:
+                Options.materialRoughness[ordinal] = 80;
+                Options.materialIOR[ordinal] = 1540;
+                break;
+            case SOIL:
+            case SAND:
+                Options.materialRoughness[ordinal] = 90;
+                Options.materialIOR[ordinal] = 1500;
+                break;
+            case ICE:
+                Options.materialRoughness[ordinal] = 10;
+                Options.materialIOR[ordinal] = 1309;
+                break;
+            default:
+                // Generic defaults already set by Options pre-fill
+                break;
+        }
+        // Recompute F0 from IOR for dielectrics
+        int ior = Options.materialIOR[ordinal];
+        if (ior > 0) {
+            float n = ior / 1000.0f;
+            float f0 = (n - 1.0f) / (n + 1.0f);
+            f0 = f0 * f0;
+            int f0pm = Math.round(f0 * 1000.0f);
+            Options.materialF0R[ordinal] = f0pm;
+            Options.materialF0G[ordinal] = f0pm;
+            Options.materialF0B[ordinal] = f0pm;
+        }
+        // Enable AutoPBR for dynamic blocks
+        Options.materialAutoPBR[ordinal] = true;
+    }
+
     // ====== Texture-to-MaterialBlock lookup (for auto-PBR) ======
 
-    /** Maps block registry name → MaterialBlock ordinal. Built lazily from BLOCK_MAP. */
+    /** Maps block registry name → material ordinal. Built lazily from BLOCK_MAP + dynamic. */
     private static volatile Map<String, Integer> textureMap;
 
     private static Map<String, Integer> getTextureMap() {
         if (textureMap == null) {
             Map<String, Integer> map = new HashMap<>();
+            // Enum entries from BLOCK_MAP
             for (Map.Entry<Block, MaterialBlock> entry : BLOCK_MAP.entrySet()) {
                 String name = Registries.BLOCK.getId(entry.getKey()).getPath();
                 map.put(name, entry.getValue().ordinal());
             }
+            // Dynamic entries
+            map.putAll(DYNAMIC_TEXTURE_MAP);
             textureMap = map;
         }
         return textureMap;
     }
 
     /**
-     * Given a texture path (e.g. "textures/block/iron_block.png"), returns the MaterialBlock
-     * ordinal if it matches a registered block, or -1 if not.
+     * Given a texture path (e.g. "textures/block/iron_block.png"), returns the material
+     * ordinal if it matches a registered block (enum or dynamic), or -1 if not.
      */
     public static int getOrdinalForTexture(String texturePath) {
         // Extract filename without extension

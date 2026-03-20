@@ -132,6 +132,12 @@ public class RadianceClient implements ClientModInitializer {
 
         Options.readOptions();
 
+        // Auto-register all blocks from Registries.BLOCK for universal AutoPBR coverage
+        com.radiance.client.util.MaterialBlock.initDynamic();
+
+        // Initialize entity material categories (ordinals 200+)
+        com.radiance.client.material.EntityMaterial.init();
+
         // Crash diagnostics — shutdown hook writes context if GPU crash detected
         com.radiance.client.debug.CrashContext.init();
 

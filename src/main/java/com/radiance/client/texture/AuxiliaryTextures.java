@@ -254,7 +254,36 @@ public enum AuxiliaryTextures {
                             // Auto: existing LabPBR/auto-PBR path
                             boolean autoPBR = mbOrdinal >= 0
                                 && (com.radiance.client.option.Options.autoPBREnabled || com.radiance.client.option.Options.materialAutoPBR[mbOrdinal]);
+                            // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
+                            if (autoPBR && level == 0) {
+                                float wR = com.radiance.client.option.Options.materialChannelR[mbOrdinal] / 1000f;
+                                float wG = com.radiance.client.option.Options.materialChannelG[mbOrdinal] / 1000f;
+                                float wB = com.radiance.client.option.Options.materialChannelB[mbOrdinal] / 1000f;
+                                float wSum = wR + wG + wB;
+                                if (wSum < 0.001f) { wR = 0.2126f; wG = 0.7152f; wB = 0.0722f; }
+                                else { wR /= wSum; wG /= wSum; wB /= wSum; }
+                                int sw = source.getWidth(), sh = source.getHeight();
+                                float lMin = Float.MAX_VALUE, lMax = 0f;
+                                for (int py = 0; py < sh; py++) {
+                                    for (int px = 0; px < sw; px++) {
+                                        int pixel = source.getColorArgb(px, py);
+                                        if (((pixel >> 24) & 0xFF) == 0) continue;
+                                        float sr = ((pixel >> 16) & 0xFF) / 255f;
+                                        float sg = ((pixel >> 8) & 0xFF) / 255f;
+                                        float sb = (pixel & 0xFF) / 255f;
+                                        float lr = sr <= 0.04045f ? sr / 12.92f : (float) Math.pow((sr + 0.055) / 1.055, 2.4);
+                                        float lg = sg <= 0.04045f ? sg / 12.92f : (float) Math.pow((sg + 0.055) / 1.055, 2.4);
+                                        float lb = sb <= 0.04045f ? sb / 12.92f : (float) Math.pow((sb + 0.055) / 1.055, 2.4);
+                                        float lum = wR * lr + wG * lg + wB * lb;
+                                        lMin = Math.min(lMin, lum);
+                                        lMax = Math.max(lMax, lum);
+                                    }
+                                }
+                                if (lMin >= lMax) { lMin = 0f; lMax = 1f; }
+                                com.radiance.client.material.MaterialRegistry.setLumRange(mbOrdinal, lMin, lMax);
+                            }
                             if (autoPBR && auxiliaryTexture == NORMAL) {
+                                // Keep generating normal texture for POM height data (alpha channel)
                                 auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
                                     com.radiance.client.option.Options.materialAutoPBRNormalStrength[mbOrdinal],
                                     (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 2) != 0,
@@ -265,15 +294,8 @@ public enum AuxiliaryTextures {
                                     com.radiance.client.option.Options.materialChannelB[mbOrdinal]);
                                 TextureTracker.hasHeightMap.add(targetId);
                             } else if (autoPBR && auxiliaryTexture == SPECULAR) {
-                                auxiliaryTemplateImage = AutoPBRGenerator.generateSpecularPercentile(source,
-                                    com.radiance.client.option.Options.materialAutoPBRRoughnessMin[mbOrdinal],
-                                    com.radiance.client.option.Options.materialAutoPBRRoughnessMax[mbOrdinal],
-                                    com.radiance.client.option.Options.materialPercentileCenter[mbOrdinal],
-                                    com.radiance.client.option.Options.materialPercentileSpread[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 1) != 0,
-                                    com.radiance.client.option.Options.materialChannelR[mbOrdinal],
-                                    com.radiance.client.option.Options.materialChannelG[mbOrdinal],
-                                    com.radiance.client.option.Options.materialChannelB[mbOrdinal]);
+                                // GPU-side AutoPBR: roughness computed in shader, skip CPU bake
+                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                             } else {
                                 auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                             }
@@ -326,8 +348,8 @@ public enum AuxiliaryTextures {
             if (level == 0 && !TextureTracker.GLID2MaskGLID.containsKey(targetId)
                     && !TextureTracker.pendingMaskGLID.containsKey(targetId)) {
                 int mbOrdinal = MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                if (mbOrdinal >= 0) {
-                    // Create 1x1 R8_UNORM texture: value = mbOrdinal (SSBO index)
+                if (mbOrdinal >= 0 && mbOrdinal < 256) {
+                    // Registered block: create per-block 1x1 mask texture
                     int maskTexId = TextureProxy.generateTextureId();
                     TextureProxy.prepareImage(maskTexId, 1, 1, 1,
                         VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM);

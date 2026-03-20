@@ -71,6 +71,13 @@ public class PBRVertexConsumer implements VertexConsumer {
     public static void setItemMaterialBlockType(int ordinal) { itemMaterialBlockType.set(ordinal); }
     public static void clearItemMaterialBlockType() { itemMaterialBlockType.set(255); }
 
+    // Thread-local for entity rendering: set before entity render dispatch, cleared after.
+    // Priority: block material > item material > entity material (prevents dropped blocks getting mob roughness).
+    private static final ThreadLocal<Integer> entityMaterialType = ThreadLocal.withInitial(() -> 255);
+
+    public static void setEntityMaterialType(int ordinal) { entityMaterialType.set(ordinal); }
+    public static void clearEntityMaterialType() { entityMaterialType.set(255); }
+
     public PBRVertexConsumer(BufferAllocator allocator, RenderLayer renderLayer) {
         this(allocator, VertexFormat.DrawMode.QUADS, PBRVertexFormats.PBR_TRIANGLE, renderLayer);
     }
@@ -293,7 +300,9 @@ public class PBRVertexConsumer implements VertexConsumer {
         // Pack emissiveBlockType (bits 0-7) + materialBlockType+1 (bits 8-15) into one uint
         // Material uses ordinal+1 so that 0 = "no material" (default for untagged vertices)
         // Check thread-local for item rendering when instance field not set
-        int effectiveMaterial = (pendingMaterialBlockType != 255) ? pendingMaterialBlockType : itemMaterialBlockType.get();
+        int effectiveMaterial = (pendingMaterialBlockType != 255) ? pendingMaterialBlockType
+            : (itemMaterialBlockType.get() != 255) ? itemMaterialBlockType.get()
+            : entityMaterialType.get();
         if (pendingEmissiveBlockType != 255 || effectiveMaterial != 255 || pendingVividColor) {
             int materialVal = (effectiveMaterial != 255) ? (effectiveMaterial + 1) : 0;
             int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8)

@@ -172,11 +172,11 @@ public abstract class FluidRendererMixins {
             }
         }
 
-        // Tag material block type for water/lava material overrides
+        // Tag material block type for water/lava material overrides (enum + dynamic)
         if (vertexConsumer instanceof PBRVertexConsumer pbrVc) {
-            MaterialBlock mb = MaterialBlock.fromBlock(fluidState.getBlockState().getBlock());
-            if (mb != null) {
-                pbrVc.setPendingMaterialBlockType(mb.ordinal());
+            int materialOrdinal = MaterialBlock.getOrdinalForBlock(fluidState.getBlockState().getBlock());
+            if (materialOrdinal >= 0) {
+                pbrVc.setPendingMaterialBlockType(materialOrdinal);
             }
         }
 

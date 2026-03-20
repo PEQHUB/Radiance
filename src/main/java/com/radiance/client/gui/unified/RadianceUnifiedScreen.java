@@ -109,7 +109,7 @@ public class RadianceUnifiedScreen extends Screen {
         int toggleBtnX = resetBtnX - toggleBtnW - 6;
         int toggleBtnY = (HEADER_HEIGHT - toggleBtnH) / 2;
         advancedToggleButton = ButtonWidget.builder(
-            Text.literal(Options.advancedMode ? "Simple" : "Advanced"),
+            Text.literal(Options.advancedMode ? "Advanced" : "Simple"),
             btn -> toggleAdvancedMode())
             .dimensions(toggleBtnX, toggleBtnY, toggleBtnW, toggleBtnH)
             .build();
@@ -249,6 +249,7 @@ public class RadianceUnifiedScreen extends Screen {
         lighting.addChild(emission);
         lighting.addChild(new TreeNode("fireworks", "Fireworks", new FireworksPopulator()));
         lighting.addChild(new TreeNode("materials", "Materials", new MaterialsPopulator()));
+        lighting.addChild(new TreeNode("entity_materials", "Entity Materials", new EntityMaterialPopulator()));
         lighting.populator = compositePopulator(lighting.children);
         tree.addRoot(lighting);
 

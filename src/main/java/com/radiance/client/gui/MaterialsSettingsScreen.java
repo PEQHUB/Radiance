@@ -67,6 +67,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.materialChildOverride[blockOrdinal] = true;
         }
         Options.markMaterialDirty();
+        com.radiance.client.material.MaterialRegistry.markDirty();
     }
 
     // Snapshot of all values when screen first opens — used by Cancel
@@ -196,6 +197,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         Options.autoPBREdgeWeight = snapAutoPBREdgeWeight;
         Options.autoPBRHeightGamma = snapAutoPBRHeightGamma;
         Options.markMaterialDirty();
+        com.radiance.client.material.MaterialRegistry.markDirty();
     }
 
     private boolean autoPBRParamsChanged() {
@@ -734,7 +736,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         SimpleOption<Boolean> overridesToggle = SimpleOption.ofBoolean(
             "options.video.materials.overridesEnabled",
             Options.materialOverridesEnabled,
-            value -> { Options.materialOverridesEnabled = value; Options.markMaterialDirty(); Options.overwriteConfig(); });
+            value -> { Options.materialOverridesEnabled = value; Options.markMaterialDirty(); com.radiance.client.material.MaterialRegistry.markDirty(); Options.overwriteConfig(); });
         this.body.addAll(new SimpleOption[]{overridesToggle});
 
         // === Block selector ===
@@ -777,6 +779,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.materialF0R[idx] = p.getF0R(); Options.materialF0G[idx] = p.getF0G(); Options.materialF0B[idx] = p.getF0B();
             Options.materialRoughness[idx] = p.getRoughness(); Options.materialMetallic[idx] = 1000;
             Options.markMaterialDirty();
+            com.radiance.client.material.MaterialRegistry.markDirty();
             rebuildSelf();
         }).width(150).build();
         this.body.addEntry(new LegacyTwoColumnOptionEntry(presetSelector, loadPresetBtn, body));

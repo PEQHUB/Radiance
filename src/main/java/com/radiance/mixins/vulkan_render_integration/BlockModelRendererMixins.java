@@ -127,10 +127,10 @@ public class BlockModelRendererMixins {
                 pbrVertexConsumer.setPendingEmissiveBlockType(eb.ordinal());
             }
 
-            // Tag material blocks for physically accurate material override
-            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
-            if (mb != null) {
-                pbrVertexConsumer.setPendingMaterialBlockType(mb.ordinal());
+            // Tag material blocks for physically accurate material override (enum + dynamic)
+            int materialOrdinal = MaterialBlock.getOrdinalForBlock(state.getBlock());
+            if (materialOrdinal >= 0) {
+                pbrVertexConsumer.setPendingMaterialBlockType(materialOrdinal);
             }
 
             // Tag vivid color blocks for chroma expansion (bit 16 of emissiveBlockType)

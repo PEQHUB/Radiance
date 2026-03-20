@@ -35,6 +35,13 @@ public class TextureTracker {
     // Albedo GLIDs whose normal map contains valid height data (for POM)
     public static Set<Integer> hasHeightMap = ConcurrentHashMap.newKeySet();
 
+    // Shared singleton fallback mask texture (1x1 R8_UNORM, value=255).
+    // Reused for ALL unregistered block textures — zero descriptor bloat.
+    public static volatile int fallbackMaskGLID = -1;
+
+    // Fallback luminance range for unregistered textures (mbOrdinal == -1)
+    public static Map<Integer, float[]> fallbackLumRange = new ConcurrentHashMap<>();
+
     // Albedo NativeImage copies keyed by albedo GLID — for live auto-PBR re-generation
     public static Map<Integer, NativeImage> materialBlockAlbedoCache = new ConcurrentHashMap<>();
     // Albedo GLID → MaterialBlock ordinal (for per-block Auto-PBR toggle check)
