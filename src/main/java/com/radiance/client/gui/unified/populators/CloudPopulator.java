@@ -7,7 +7,7 @@ import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.widget.CyclingButtonWidget;
+
 import net.minecraft.text.Text;
 
 public class CloudPopulator implements ContentPopulator {
@@ -82,16 +82,14 @@ public class CloudPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
 
-        // Scatter Octaves (4 values → CyclingButtonWidget per R9)
-        CyclingButtonWidget<Integer> scatterBtn = CyclingButtonWidget.<Integer>builder(
-            value -> Text.literal(String.valueOf(value)))
-            .values(1, 2, 3, 4)
-            .initially(Options.volCloudScatterOctaves)
-            .build(0, 0, 150, 20,
-                Text.translatable("options.video.environment.vol_cloud_scatter"),
-                (button, value) -> Options.setVolCloudScatterOctaves(value, true));
+        // Scatter Octaves slider (1-8)
+        ResettableSliderWidget scatterSlider = new ResettableSliderWidget(0, 0, 150, 20,
+            1, 8, Options.volCloudScatterOctaves, 3,
+            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_scatter"),
+                Text.literal(String.valueOf(v))),
+            v -> Options.setVolCloudScatterOctaves(v, true));
 
-        volModule.addTwoWidgets(qualityDropdown, scatterBtn);
+        volModule.addTwoWidgets(qualityDropdown, scatterSlider);
 
         // Density + Detail Strength paired sliders
         volModule.addTwoSliders(
@@ -160,5 +158,31 @@ public class CloudPopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_ambient"),
                     Text.literal(v + "%")),
                 v -> Options.setVolCloudAmbientPercent(v, true)));
+
+        // Sharpening + Noise Scale paired
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                20, 100, Options.volCloudSharpeningPercent, 45,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_sharpening"),
+                    Text.literal(v + "%")),
+                v -> Options.setVolCloudSharpeningPercent(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                128, 512, Options.volCloudNoiseScale, 192,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_noise_scale"),
+                    Text.literal(v + " blocks")),
+                v -> Options.setVolCloudNoiseScale(v, true)));
+
+        // Cell Size + Draw Distance paired
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                20, 160, Options.volCloudCellFrequencyTenths, 80,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_cell_size"),
+                    Text.literal(String.format("%.1f", v / 10.0))),
+                v -> Options.setVolCloudCellFrequencyTenths(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                200, 2000, Options.volCloudAtmosphereFadeDist, 200,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_fade_distance"),
+                    Text.literal(v + " blocks")),
+                v -> Options.setVolCloudAtmosphereFadeDist(v, true)));
     }
 }
