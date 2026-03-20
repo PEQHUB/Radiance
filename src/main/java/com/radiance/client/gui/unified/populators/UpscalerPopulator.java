@@ -128,9 +128,12 @@ public class UpscalerPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
 
+            // DLSS-G requires Reflex — lock toggle on when FG is active
+            boolean fgForced = Options.frameGenMode != 0;
             SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
-                Options.REFLEX_ENABLED_KEY, Options.reflexEnabled,
+                Options.REFLEX_ENABLED_KEY, fgForced || Options.reflexEnabled,
                 value -> {
+                    if (fgForced) return; // prevent disable while FG active
                     Options.setReflexEnabled(value, true);
                     screen.refreshContent();
                 });
