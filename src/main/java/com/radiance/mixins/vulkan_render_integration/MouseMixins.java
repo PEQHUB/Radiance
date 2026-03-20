@@ -16,10 +16,21 @@ public class MouseMixins {
     @Shadow private double y;
     private static double lastFreecamX = Double.NaN;
     private static double lastFreecamY = Double.NaN;
+    private static boolean rawMouseEnabled = false;
 
     // Handle mouse look: suppress in accumulating, route to freecam in FREE+freecam
     @Inject(method = "onCursorPos", at = @At("HEAD"), cancellable = true)
     private void handleMouseLook(long window, double mouseX, double mouseY, CallbackInfo ci) {
+        // Enable raw mouse input on first call (bypasses OS acceleration)
+        if (!rawMouseEnabled) {
+            if (org.lwjgl.glfw.GLFW.glfwRawMouseMotionSupported()) {
+                org.lwjgl.glfw.GLFW.glfwSetInputMode(window,
+                    org.lwjgl.glfw.GLFW.GLFW_RAW_MOUSE_MOTION,
+                    org.lwjgl.glfw.GLFW.GLFW_TRUE);
+            }
+            rawMouseEnabled = true;
+        }
+
         if (Options.offlineState == 2 && MinecraftClient.getInstance().currentScreen == null) {
             // Accumulating: suppress all mouse look
             ci.cancel();
