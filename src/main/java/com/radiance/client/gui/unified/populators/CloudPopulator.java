@@ -135,11 +135,30 @@ public class CloudPopulator implements ContentPopulator {
                     Text.literal(v + " blocks")),
                 v -> Options.setVolCloudAltitude(v, true)));
 
-        // Thickness (solo — odd one out)
-        volModule.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            32, 128, Options.volCloudThickness, 64,
-            v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_thickness"),
-                Text.literal(v + " blocks")),
-            v -> Options.setVolCloudThickness(v, true)));
+        // Thickness + Temporal Blend paired
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                32, 128, Options.volCloudThickness, 64,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_thickness"),
+                    Text.literal(v + " blocks")),
+                v -> Options.setVolCloudThickness(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                80, 99, Math.max(Options.volCloudTemporalPercent, 80), 95,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_temporal"),
+                    Text.literal(v + "%")),
+                v -> Options.setVolCloudTemporalPercent(v, true)));
+
+        // Powder Strength + Ambient Occlusion paired
+        volModule.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 200, Options.volCloudPowderPercent, 100,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_powder"),
+                    Text.literal(v + "%")),
+                v -> Options.setVolCloudPowderPercent(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 200, Options.volCloudAmbientPercent, 100,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_ambient"),
+                    Text.literal(v + "%")),
+                v -> Options.setVolCloudAmbientPercent(v, true)));
     }
 }

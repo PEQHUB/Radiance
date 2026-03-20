@@ -1347,6 +1347,9 @@ public class Options {
     public static int volCloudThickness = 64;         // 32-128 blocks
     public static int volCloudDetailStrengthPercent = 100; // 0-200 → 0.0-2.0
     public static int volCloudScatterOctaves = 3;    // 1-4
+    public static int volCloudPowderPercent = 100;    // 0-200 → 0.0-2.0 (beer-powder dark edge)
+    public static int volCloudAmbientPercent = 100;   // 0-200 → 0.0-2.0 (ambient occlusion)
+    public static int volCloudTemporalPercent = -1;   // -1=auto, 80-99 → 0.80-0.99
     public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
     public static final String[] VOL_CLOUD_QUALITY_NAMES = {
@@ -2463,6 +2466,9 @@ public class Options {
         props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
         props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
         props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
+        props.setProperty("volCloudPowderPercent", String.valueOf(volCloudPowderPercent));
+        props.setProperty("volCloudAmbientPercent", String.valueOf(volCloudAmbientPercent));
+        props.setProperty("volCloudTemporalPercent", String.valueOf(volCloudTemporalPercent));
         props.setProperty("wetSurfaceStrengthPercent", String.valueOf(wetSurfaceStrengthPercent));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
@@ -2600,6 +2606,12 @@ public class Options {
                 props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 200);
             volCloudScatterOctaves = clamp(Integer.parseInt(
                 props.getProperty("volCloudScatterOctaves", "3")), 1, 4);
+            volCloudPowderPercent = clamp(Integer.parseInt(
+                props.getProperty("volCloudPowderPercent", "100")), 0, 200);
+            volCloudAmbientPercent = clamp(Integer.parseInt(
+                props.getProperty("volCloudAmbientPercent", "100")), 0, 200);
+            volCloudTemporalPercent = clamp(Integer.parseInt(
+                props.getProperty("volCloudTemporalPercent", "-1")), -1, 99);
             wetSurfaceStrengthPercent = clamp(Integer.parseInt(
                 props.getProperty("wetSurfaceStrengthPercent", "100")), 0, 200);
         }
@@ -2614,6 +2626,9 @@ public class Options {
             nativeSetCloudThicknessVol((float) volCloudThickness, false);
             nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
             nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
+            nativeSetCloudPowderStrength(volCloudPowderPercent / 100.0f, false);
+            nativeSetCloudAmbientStrength(volCloudAmbientPercent / 100.0f, false);
+            nativeSetCloudTemporalBlend(volCloudTemporalPercent < 0 ? -1.0f : volCloudTemporalPercent / 100.0f, false);
             nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, false);
         } catch (UnsatisfiedLinkError ignored) {}
 
@@ -4642,6 +4657,9 @@ public class Options {
 
     public native static void nativeSetCloudDetailStrength(float strength, boolean write);
     public native static void nativeSetCloudScatterOctaves(int octaves, boolean write);
+    public native static void nativeSetCloudPowderStrength(float strength, boolean write);
+    public native static void nativeSetCloudAmbientStrength(float strength, boolean write);
+    public native static void nativeSetCloudTemporalBlend(float blend, boolean write);
 
     public static void setVolCloudDetailStrengthPercent(int percent, boolean write) {
         volCloudDetailStrengthPercent = clamp(percent, 0, 200);
@@ -4652,6 +4670,25 @@ public class Options {
     public static void setVolCloudScatterOctaves(int octaves, boolean write) {
         volCloudScatterOctaves = clamp(octaves, 1, 4);
         nativeSetCloudScatterOctaves(volCloudScatterOctaves, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudPowderPercent(int percent, boolean write) {
+        volCloudPowderPercent = clamp(percent, 0, 200);
+        nativeSetCloudPowderStrength(volCloudPowderPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudAmbientPercent(int percent, boolean write) {
+        volCloudAmbientPercent = clamp(percent, 0, 200);
+        nativeSetCloudAmbientStrength(volCloudAmbientPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudTemporalPercent(int percent, boolean write) {
+        volCloudTemporalPercent = clamp(percent, -1, 99);
+        float blend = percent < 0 ? -1.0f : percent / 100.0f;
+        nativeSetCloudTemporalBlend(blend, write);
         if (write) overwriteConfig();
     }
 
