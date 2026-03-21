@@ -98,13 +98,11 @@ public class MinecraftClientMixins {
         // Publish game state snapshot for decoupled UI thread
         com.radiance.client.ui.UIStateSnapshot.publish();
 
-        // Start/stop UI thread based on frame gen mode (only when in-game)
-        boolean inGame = ((MinecraftClient)(Object)this).player != null;
-        if (com.radiance.client.option.Options.frameGenMode != 0
-                && inGame && !com.radiance.client.ui.UIThread.isRunning()) {
-            com.radiance.client.ui.UIThread.start();
-        } else if ((com.radiance.client.option.Options.frameGenMode == 0 || !inGame)
-                && com.radiance.client.ui.UIThread.isRunning()) {
+        // UIThread disabled — DLSS-G handles UI via kBufferTypeUIColorAndAlpha tagging.
+        // Render thread draws UI to overlayDrawColorImage, tags it for DLSS-G, which
+        // composites it without motion compensation (no ghosting/interpolation).
+        // UIThread + DComp overlay is incompatible with Streamline's queue interposer.
+        if (com.radiance.client.ui.UIThread.isRunning()) {
             com.radiance.client.ui.UIThread.stop();
         }
     }
