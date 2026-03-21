@@ -13,6 +13,12 @@ import org.lwjgl.opengl.GL11;
  */
 public class UIThreadProxy {
 
+    public static volatile int uiPipelineType = -1;
+
+    // Thread-local matrix state — prevents race with render thread's RenderSystem globals
+    public static final org.joml.Matrix4f uiProjectionMatrix = new org.joml.Matrix4f();
+    public static final org.joml.Matrix4fStack uiModelViewStack = new org.joml.Matrix4fStack(16);
+
     // ── Lifecycle ──
 
     /** Create UIRenderContext on-demand. Returns true if ready. */
@@ -32,6 +38,12 @@ public class UIThreadProxy {
 
     /** Whether decoupled UI is currently active (UIRenderContext exists). */
     public static native boolean isDecoupledUIActive();
+
+    /** Whether UI thread has presented at least one frame (safe to suppress render-thread overlay). */
+    public static native boolean isUIThreadRenderingOverlay();
+
+    /** Whether C++ has requested UIThread to pause (for swapchain recreate). */
+    public static native boolean isPauseRequested();
 
     // ── Draw commands ──
 

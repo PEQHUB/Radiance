@@ -240,4 +240,19 @@ public class MinecraftClientMixins {
         ChunkProxy.builtChunkNum = 0;
     }
     // endregion
+
+    // region <decoupled UI screen handoff>
+    // Disabled — needs MainThreadTaskQueue (UI thread → render thread close callback)
+    // before screen handoff can work. Without it, escape can't close screens.
+    // @Inject(method = "setScreen(Lnet/minecraft/client/gui/screen/Screen;)V", at = @At("TAIL"))
+    // public void afterSetScreen(Screen screen, CallbackInfo ci) {
+    //     if (com.radiance.client.ui.UIThread.isRunning()) {
+    //         if (screen != null) {
+    //             com.radiance.client.ui.UIThread.handoffScreen(screen);
+    //         } else {
+    //             com.radiance.client.ui.UIThread.closeScreen();
+    //         }
+    //     }
+    // }
+    // endregion
 }

@@ -1,5 +1,6 @@
 package com.radiance.mixins.vulkan_render_integration;
 
+import com.radiance.client.ui.UIThread;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
@@ -8,6 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Screen.class)
 public class ScreenMixins {
@@ -47,4 +49,17 @@ public class ScreenMixins {
             ci.cancel();
         }
     }
+
+    // ── Decoupled UI: gate screen input to only accept from UI thread ──
+    // When UIThread is running, the main thread must not dispatch input to screens
+    // (the UI thread handles it via InputEventQueue). Prevents double-dispatch.
+    // Only gate methods that Screen actually declares — parent interface methods
+    // (mouseClicked, keyReleased, etc.) are handled by InputEventQueue consumption.
+
+    // Input gating disabled — needs MainThreadTaskQueue for close-screen callback.
+    // Without it, blocking render-thread keyPressed prevents escape from closing screens.
+    // @Inject(method = "keyPressed", at = @At("HEAD"), cancellable = true)
+    // private void gateKeyPressed(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+    //     if (UIThread.isRunning() && !UIThread.isUIThread()) cir.setReturnValue(false);
+    // }
 }

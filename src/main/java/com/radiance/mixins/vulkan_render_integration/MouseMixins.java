@@ -16,8 +16,8 @@ public class MouseMixins {
 
     @Shadow private double x;
     @Shadow private double y;
-    private static double lastFreecamX = Double.NaN;
-    private static double lastFreecamY = Double.NaN;
+    private static volatile double lastFreecamX = Double.NaN;
+    private static volatile double lastFreecamY = Double.NaN;
     private static boolean rawMouseEnabled = false;
 
     // Handle mouse look: suppress in accumulating, route to freecam in FREE+freecam
@@ -72,7 +72,7 @@ public class MouseMixins {
     }
 
     // Focus scroll acceleration state
-    private static long lastFocusScrollNanos = 0;
+    private static volatile long lastFocusScrollNanos = 0;
 
     // Scroll wheel: plain=focus distance, Shift=time dial (offline mode only)
     // Focus distance: 1/16th block base step with velocity acceleration (cinema lens feel)
