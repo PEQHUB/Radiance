@@ -76,8 +76,6 @@
     "vulkan_render_integration.InGameHudMixins",
     "vulkan_render_integration.MouseMixins",
     "vulkan_render_integration.KeyboardInputMixins",
-    "vulkan_render_integration.KeyboardMixins",
-    "vulkan_render_integration.RenderSystemAssertMixin",
     "vulkan_render_integration.SpriteAnimationMixin"
   ],
   "injectors": {

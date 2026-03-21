@@ -95,16 +95,6 @@ public class MinecraftClientMixins {
             // Now gameRenderer exists — tell Minecraft about the actual window size
             ((MinecraftClient)(Object)this).onResolutionChanged();
         }
-        // Publish game state snapshot for decoupled UI thread
-        com.radiance.client.ui.UIStateSnapshot.publish();
-
-        // UIThread disabled — DLSS-G handles UI via kBufferTypeUIColorAndAlpha tagging.
-        // Render thread draws UI to overlayDrawColorImage, tags it for DLSS-G, which
-        // composites it without motion compensation (no ghosting/interpolation).
-        // UIThread + DComp overlay is incompatible with Streamline's queue interposer.
-        if (com.radiance.client.ui.UIThread.isRunning()) {
-            com.radiance.client.ui.UIThread.stop();
-        }
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
@@ -239,18 +229,4 @@ public class MinecraftClientMixins {
     }
     // endregion
 
-    // region <decoupled UI screen handoff>
-    // Disabled — needs MainThreadTaskQueue (UI thread → render thread close callback)
-    // before screen handoff can work. Without it, escape can't close screens.
-    // @Inject(method = "setScreen(Lnet/minecraft/client/gui/screen/Screen;)V", at = @At("TAIL"))
-    // public void afterSetScreen(Screen screen, CallbackInfo ci) {
-    //     if (com.radiance.client.ui.UIThread.isRunning()) {
-    //         if (screen != null) {
-    //             com.radiance.client.ui.UIThread.handoffScreen(screen);
-    //         } else {
-    //             com.radiance.client.ui.UIThread.closeScreen();
-    //         }
-    //     }
-    // }
-    // endregion
 }

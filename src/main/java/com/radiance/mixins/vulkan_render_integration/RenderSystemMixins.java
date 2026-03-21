@@ -2,37 +2,16 @@ package com.radiance.mixins.vulkan_render_integration;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.proxy.vulkan.RendererProxy;
-import com.radiance.client.proxy.vulkan.UIThreadProxy;
-import com.radiance.client.ui.UIThread;
 import net.minecraft.client.gl.ShaderProgram;
 import net.minecraft.client.gl.ShaderProgramKey;
-import org.joml.Matrix4f;
-import org.joml.Matrix4fStack;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import com.mojang.blaze3d.systems.ProjectionType;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(RenderSystem.class)
 public abstract class RenderSystemMixins {
-
-    @Shadow(remap = false)
-    private static Matrix4f projectionMatrix;
-
-    @Shadow(remap = false)
-    private static Matrix4f savedProjectionMatrix;
-
-    @Final
-    @Shadow(remap = false)
-    private static Matrix4fStack modelViewStack;
-
-    @Shadow(remap = false)
-    private static Matrix4f textureMatrix;
 
     @Inject(method = "maxSupportedTextureSize()I", at = @At(value = "HEAD"), cancellable = true, remap = false)
     private static void redirectMaxSupportedTextureSize(CallbackInfoReturnable<Integer> cir) {
@@ -74,11 +53,7 @@ public abstract class RenderSystemMixins {
                     "Unexpected value: " + shaderProgramKey.configId());
             };
 
-        if (UIThread.isUIThread()) {
-            UIThreadProxy.uiPipelineType = type;
-        } else {
-            RendererProxy.bindOverlayPipeline(type);
-        }
+        RendererProxy.bindOverlayPipeline(type);
 
         cir.setReturnValue(null);
     }
@@ -95,34 +70,4 @@ public abstract class RenderSystemMixins {
 
     }
 
-    // ── Thread-local matrix routing (prevents UIThread/render-thread race on RenderSystem globals) ──
-
-    @Inject(method = "setProjectionMatrix", at = @At("HEAD"), cancellable = true)
-    private static void redirectSetProjectionMatrix(Matrix4f matrix, ProjectionType projectionType, CallbackInfo ci) {
-        if (UIThread.isUIThread()) {
-            UIThreadProxy.uiProjectionMatrix.set(matrix);
-            ci.cancel();
-        }
-    }
-
-    @Inject(method = "getProjectionMatrix", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void redirectGetProjectionMatrix(CallbackInfoReturnable<Matrix4f> cir) {
-        if (UIThread.isUIThread()) {
-            cir.setReturnValue(UIThreadProxy.uiProjectionMatrix);
-        }
-    }
-
-    @Inject(method = "getModelViewStack", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void redirectGetModelViewStack(CallbackInfoReturnable<Matrix4fStack> cir) {
-        if (UIThread.isUIThread()) {
-            cir.setReturnValue(UIThreadProxy.uiModelViewStack);
-        }
-    }
-
-    @Inject(method = "getModelViewMatrix", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void redirectGetModelViewMatrix(CallbackInfoReturnable<Matrix4f> cir) {
-        if (UIThread.isUIThread()) {
-            cir.setReturnValue(new Matrix4f(UIThreadProxy.uiModelViewStack));
-        }
-    }
 }
