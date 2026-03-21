@@ -78,100 +78,100 @@ public class UIThread {
     }
 
     private static void loop() {
-        // Create UIRenderContext on-demand (waits until FG + overlay are ready)
-        System.out.println("[UIThread] waiting for UIRenderContext...");
-        while (running && !UIThreadProxy.createUIRenderContext()) {
-            try { Thread.sleep(100); } catch (InterruptedException ignored) {}
-        }
-        if (!running) return;
-        System.out.println("[UIThread] UIRenderContext created, entering frame loop");
-
         MinecraftClient mc = MinecraftClient.getInstance();
         BufferAllocator allocator = new BufferAllocator(786432);
         try {
             VertexConsumerProvider.Immediate immediate = VertexConsumerProvider.immediate(allocator);
 
+            // Outer loop: survives recreate cycles. UIThread stays alive, just
+            // destroys/recreates the C++ UIRenderContext across swapchain recreate.
             while (running) {
-                if (!UIThreadProxy.isDecoupledUIActive()) {
-                    // UIRenderContext may have been destroyed during recreate.
-                    // Try to recreate it if FG is still enabled.
-                    if (com.radiance.client.option.Options.frameGenMode != 0) {
-                        UIThreadProxy.createUIRenderContext();
-                    }
-                    // Short sleep — must be fast enough to not miss pause requests
-                    // (pause check is in beginFrame, but we skip it when inactive)
-                    try { Thread.sleep(5); } catch (InterruptedException ignored) {}
-                    continue;
+                // Phase 1: Wait for UIRenderContext (created on-demand when FG + overlay ready)
+                System.out.println("[UIThread] waiting for UIRenderContext...");
+                while (running && !UIThreadProxy.createUIRenderContext()) {
+                    try { Thread.sleep(100); } catch (InterruptedException ignored) {}
                 }
+                if (!running) break;
+                System.out.println("[UIThread] UIRenderContext created, entering frame loop");
 
-                try {
-                    // Check pause FIRST — before anything else. During alt-tab,
-                    // dimensions are 0x0 which would skip to sleep(16) and never
-                    // reach the pause check, causing a 13s freeze.
-                    if (UIThreadProxy.isPauseRequested()) {
-                        try { Thread.sleep(1); } catch (InterruptedException ignored) {}
+                // Phase 2: Frame loop — renders until stop is requested (recreate) or shutdown
+                while (running) {
+                    // Stop/pause checkpoint — must be FIRST. Returns false if render thread
+                    // requested stop for swapchain recreate. UIThread exits frame loop,
+                    // destroys context, then loops back to Phase 1 to create a fresh one.
+                    if (!UIThreadProxy.checkPause()) {
+                        System.out.println("[UIThread] stop requested — exiting frame loop");
+                        break;
+                    }
+
+                    if (!UIThreadProxy.isDecoupledUIActive()) {
+                        try { Thread.sleep(5); } catch (InterruptedException ignored) {}
                         continue;
                     }
 
-                    // Process screen handoff
-                    Object pending = pendingScreen.getAndSet(null);
-                    if (pending == CLOSE_SENTINEL) {
-                        currentScreen = null;
-                    } else if (pending instanceof Screen s) {
-                        currentScreen = s;
-                    }
+                    try {
+                        // Process screen handoff
+                        Object pending = pendingScreen.getAndSet(null);
+                        if (pending == CLOSE_SENTINEL) {
+                            currentScreen = null;
+                        } else if (pending instanceof Screen s) {
+                            currentScreen = s;
+                        }
 
-                    // Process input events
-                    processInput();
+                        // Process input events
+                        processInput();
 
-                    // Get game state
-                    UIStateSnapshot snap = UIStateSnapshot.current();
-                    int sw = snap.scaledWidth();
-                    int sh = snap.scaledHeight();
-                    if (sw <= 0 || sh <= 0) {
+                        // Get game state
+                        UIStateSnapshot snap = UIStateSnapshot.current();
+                        int sw = snap.scaledWidth();
+                        int sh = snap.scaledHeight();
+                        if (sw <= 0 || sh <= 0) {
+                            try { Thread.sleep(16); } catch (InterruptedException ignored) {}
+                            continue;
+                        }
+
+                        UIThreadProxy.setUIClearColor(0f, 0f, 0f, 0f);
+                        UIThreadProxy.beginUIFrame();
+
+                        // Set up 2D orthographic projection (routes to thread-local via mixin)
+                        Matrix4f ortho = new Matrix4f().ortho(0, sw, sh, 0, 1000f, 21000f);
+                        RenderSystem.setProjectionMatrix(ortho, com.mojang.blaze3d.systems.ProjectionType.ORTHOGRAPHIC);
+                        RenderSystem.getModelViewStack().identity();
+                        RenderSystem.getModelViewStack().translate(0, 0, -11000f);
+                        UIThreadProxy.setUIViewport(0, 0, snap.framebufferWidth(), snap.framebufferHeight());
+
+                        DrawContext ctx = new DrawContext(mc, immediate);
+
+                        Screen screen = currentScreen;  // snapshot
+                        if (screen != null) {
+                            screen.render(ctx, (int) mouseX, (int) mouseY, snap.tickDelta());
+                        } else if (mc.player != null) {
+                            hudRenderer.render(ctx, snap, mc.textRenderer);
+                        }
+
+                        // Flush all pending vertex batches
+                        ctx.draw();
+
+                        UIThreadProxy.endUIFrame();
+                        UIThreadProxy.submitUIFrame();
+                    } catch (OutOfMemoryError e) {
+                        System.err.println("[UIThread] OOM, stopping: " + e.getMessage());
+                        running = false;
+                        break;
+                    } catch (Exception e) {
+                        System.err.println("[UIThread] frame error (retrying): " + e.getMessage());
                         try { Thread.sleep(16); } catch (InterruptedException ignored) {}
-                        continue;
                     }
-
-                    UIThreadProxy.setUIClearColor(0f, 0f, 0f, 0f);
-                    UIThreadProxy.beginUIFrame();
-
-                    // Set up 2D orthographic projection (routes to thread-local via mixin)
-                    Matrix4f ortho = new Matrix4f().ortho(0, sw, sh, 0, 1000f, 21000f);
-                    RenderSystem.setProjectionMatrix(ortho, com.mojang.blaze3d.systems.ProjectionType.ORTHOGRAPHIC);
-                    RenderSystem.getModelViewStack().identity();
-                    RenderSystem.getModelViewStack().translate(0, 0, -11000f);
-                    UIThreadProxy.setUIViewport(0, 0, snap.framebufferWidth(), snap.framebufferHeight());
-
-                    DrawContext ctx = new DrawContext(mc, immediate);
-
-                    Screen screen = currentScreen;  // snapshot
-                    if (screen != null) {
-                        screen.render(ctx, (int) mouseX, (int) mouseY, snap.tickDelta());
-                    } else if (mc.player != null) {
-                        hudRenderer.render(ctx, snap, mc.textRenderer);
-                    }
-
-                    // Flush all pending vertex batches
-                    ctx.draw();
-
-                    UIThreadProxy.endUIFrame();
-                    UIThreadProxy.submitUIFrame();
-                } catch (OutOfMemoryError e) {
-                    // Fatal — can't recover from OOM
-                    System.err.println("[UIThread] OOM, stopping: " + e.getMessage());
-                    running = false;
-                    break;
-                } catch (Exception e) {
-                    // Transient — retry next frame (stale texture, buffer overflow, etc.)
-                    System.err.println("[UIThread] frame error (retrying): " + e.getMessage());
-                    try { Thread.sleep(16); } catch (InterruptedException ignored) {}
                 }
+
+                // Context cleanup — render thread waits for loopActive==false then destroys,
+                // but we also call destroy as a safety net (no-op if already destroyed).
+                UIThreadProxy.destroyUIRenderContext();
+                System.out.println("[UIThread] UIRenderContext destroyed, will retry if running");
             }
         } finally {
             allocator.close();
-            UIThreadProxy.destroyUIRenderContext();
-            System.out.println("[UIThread] UIRenderContext destroyed");
+            UIThreadProxy.destroyUIRenderContext();  // final cleanup on shutdown
         }
     }
 

@@ -45,6 +45,11 @@ public class UIThreadProxy {
     /** Whether C++ has requested UIThread to pause (for swapchain recreate). */
     public static native boolean isPauseRequested();
 
+    /** Pause/stop checkpoint — called at the top of every UIThread loop iteration.
+     *  If pause requested: blocks until resume, returns true.
+     *  If stop requested: returns false (caller should exit frame loop). */
+    public static native boolean checkPause();
+
     // ── Draw commands ──
 
     public static native void drawUIOverlay(int vertexId, int indexId, int pipelineType,
