@@ -1340,7 +1340,7 @@ public class Options {
     // Volumetric cloud module settings (global, NOT per-dimension — clouds only render in Overworld)
     public static int volCloudQuality = 3;            // 0=Off, 1=Low, 2=Medium, 3=High, 4=Ultra, 5=Extreme
     public static int volCloudDensityTenths = 10;     // 1-30 → 0.1-3.0
-    public static int volCloudCoveragePercent = 35;   // 0-100 → 0.0-1.0
+    public static int volCloudCoveragePercent = 50;   // 0-100 → 0.0-1.0
     public static int volCloudTypePercent = 67;       // 0-100 → 0.0-1.0 (0=Stratus, 33=Sc, 67=Cumulus, 100=Cb)
     public static int volCloudSpeedTenths = 50;       // 0-300 tenths of m/s (÷50 for internal multiplier)
     public static int volCloudAltitude = 192;         // 128-320 blocks
@@ -1349,15 +1349,19 @@ public class Options {
     public static int volCloudScatterOctaves = 3;    // 1-4
     public static int volCloudPowderPercent = 100;    // 0-200 → 0.0-2.0 (beer-powder dark edge)
     public static int volCloudAmbientPercent = 100;   // 0-200 → 0.0-2.0 (ambient occlusion)
-    public static int volCloudTemporalPercent = -1;   // -1=auto, 80-99 → 0.80-0.99
-    public static int volCloudSharpeningPercent = 45;  // 20-100 → 0.20-1.00 (density sharpening exponent)
-    public static int volCloudNoiseScale = 192;        // 128-512 blocks (noise texture period)
-    public static int volCloudCellFrequencyTenths = 80; // 20-160 → 2.0-16.0 cells
+    public static int volCloudTemporalPercent = 0;    // 0=auto, 50-99 → 0.50-0.99
+    public static int volCloudNoiseScale = 214;        // 64-2048 blocks (noise texture period)
+    public static int volCloudCellFrequencyTenths = 40; // 10-320 → 1.0-32.0 cells
     public static int volCloudAtmosphereFadeDist = 800; // 200-2000 blocks (visual fade only, not march clamp)
+    public static int volCloudDebugMode = 0;           // 0=normal, 1-8=debug visualization modes
+    public static int volCloudWindAngleDegrees = 0;  // 0-360 degrees
+    public static int volCloudMarchSteps = 0;          // 0=use preset, 32-256
+    public static int volCloudLightSteps = 0;          // 0=use preset, 1-12
+    public static int volCloudResDivisor = 0;          // 0=use preset, 1-4
     public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
     public static final String[] VOL_CLOUD_QUALITY_NAMES = {
-        "Off", "Low", "Medium", "High", "Ultra", "Extreme"
+        "Off", "Low", "Medium", "High", "Ultra", "Extreme", "Insane"
     };
 
     // Ordered by increasing meteorological altitude: low → high
@@ -2473,10 +2477,14 @@ public class Options {
         props.setProperty("volCloudPowderPercent", String.valueOf(volCloudPowderPercent));
         props.setProperty("volCloudAmbientPercent", String.valueOf(volCloudAmbientPercent));
         props.setProperty("volCloudTemporalPercent", String.valueOf(volCloudTemporalPercent));
-        props.setProperty("volCloudSharpeningPercent", String.valueOf(volCloudSharpeningPercent));
         props.setProperty("volCloudNoiseScale", String.valueOf(volCloudNoiseScale));
         props.setProperty("volCloudCellFrequencyTenths", String.valueOf(volCloudCellFrequencyTenths));
         props.setProperty("volCloudAtmosphereFadeDist", String.valueOf(volCloudAtmosphereFadeDist));
+        props.setProperty("volCloudDebugMode", String.valueOf(volCloudDebugMode));
+        props.setProperty("volCloudWindAngleDegrees", String.valueOf(volCloudWindAngleDegrees));
+        props.setProperty("volCloudMarchSteps", String.valueOf(volCloudMarchSteps));
+        props.setProperty("volCloudLightSteps", String.valueOf(volCloudLightSteps));
+        props.setProperty("volCloudResDivisor", String.valueOf(volCloudResDivisor));
         props.setProperty("wetSurfaceStrengthPercent", String.valueOf(wetSurfaceStrengthPercent));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
@@ -2597,9 +2605,9 @@ public class Options {
         // Volumetric cloud module settings (global, not per-dimension)
         if (loadedOptionsVersion >= 20) {
             volCloudQuality = clamp(Integer.parseInt(
-                props.getProperty("volCloudQuality", "3")), 0, 5);
+                props.getProperty("volCloudQuality", "3")), 0, 6);
             volCloudDensityTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudDensityTenths", "10")), 1, 30);
+                props.getProperty("volCloudDensityTenths", "10")), 1, 50);
             volCloudCoveragePercent = clamp(Integer.parseInt(
                 props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
             volCloudTypePercent = clamp(Integer.parseInt(
@@ -2607,27 +2615,35 @@ public class Options {
             volCloudSpeedTenths = clamp(Integer.parseInt(
                 props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
             volCloudAltitude = clamp(Integer.parseInt(
-                props.getProperty("volCloudAltitude", "192")), 128, 320);
+                props.getProperty("volCloudAltitude", "192")), 64, 320);
             volCloudThickness = clamp(Integer.parseInt(
-                props.getProperty("volCloudThickness", "64")), 32, 128);
+                props.getProperty("volCloudThickness", "64")), 16, 256);
             volCloudDetailStrengthPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 200);
+                props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 300);
             volCloudScatterOctaves = clamp(Integer.parseInt(
-                props.getProperty("volCloudScatterOctaves", "3")), 1, 4);
+                props.getProperty("volCloudScatterOctaves", "3")), 1, 8);
             volCloudPowderPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudPowderPercent", "100")), 0, 200);
+                props.getProperty("volCloudPowderPercent", "100")), 0, 300);
             volCloudAmbientPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudAmbientPercent", "100")), 0, 200);
+                props.getProperty("volCloudAmbientPercent", "100")), 0, 300);
             volCloudTemporalPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudTemporalPercent", "-1")), -1, 99);
-            volCloudSharpeningPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudSharpeningPercent", "45")), 20, 100);
+                props.getProperty("volCloudTemporalPercent", "0")), 0, 99);
             volCloudNoiseScale = clamp(Integer.parseInt(
-                props.getProperty("volCloudNoiseScale", "192")), 128, 512);
+                props.getProperty("volCloudNoiseScale", "214")), 64, 2048);
             volCloudCellFrequencyTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudCellFrequencyTenths", "80")), 20, 160);
+                props.getProperty("volCloudCellFrequencyTenths", "80")), 10, 320);
             volCloudAtmosphereFadeDist = clamp(Integer.parseInt(
-                props.getProperty("volCloudAtmosphereFadeDist", "800")), 200, 2000);
+                props.getProperty("volCloudAtmosphereFadeDist", "800")), 100, 4000);
+            volCloudDebugMode = clamp(Integer.parseInt(
+                props.getProperty("volCloudDebugMode", "0")), 0, 8);
+            volCloudWindAngleDegrees = clamp(Integer.parseInt(
+                props.getProperty("volCloudWindAngleDegrees", "0")), 0, 360);
+            volCloudMarchSteps = clamp(Integer.parseInt(
+                props.getProperty("volCloudMarchSteps", "0")), 0, 512);
+            volCloudLightSteps = clamp(Integer.parseInt(
+                props.getProperty("volCloudLightSteps", "0")), 0, 16);
+            volCloudResDivisor = clamp(Integer.parseInt(
+                props.getProperty("volCloudResDivisor", "0")), 0, 4);
             wetSurfaceStrengthPercent = clamp(Integer.parseInt(
                 props.getProperty("wetSurfaceStrengthPercent", "100")), 0, 200);
         }
@@ -2644,11 +2660,15 @@ public class Options {
             nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
             nativeSetCloudPowderStrength(volCloudPowderPercent / 100.0f, false);
             nativeSetCloudAmbientStrength(volCloudAmbientPercent / 100.0f, false);
-            nativeSetCloudTemporalBlend(volCloudTemporalPercent < 0 ? -1.0f : volCloudTemporalPercent / 100.0f, false);
-            nativeSetCloudSharpening(volCloudSharpeningPercent / 100.0f, false);
+            nativeSetCloudTemporalBlend(volCloudTemporalPercent == 0 ? -1.0f : volCloudTemporalPercent / 100.0f, false);
             nativeSetCloudNoiseScale((float) volCloudNoiseScale, false);
             nativeSetCloudCellFrequency(volCloudCellFrequencyTenths / 10.0f, false);
             nativeSetCloudAtmosphereFadeDist((float) volCloudAtmosphereFadeDist, false);
+            nativeSetCloudDebugMode(volCloudDebugMode, false);
+            nativeSetCloudWindAngle((float)(volCloudWindAngleDegrees * Math.PI / 180.0), false);
+            nativeSetCloudMarchSteps(volCloudMarchSteps, false);
+            nativeSetCloudLightSteps(volCloudLightSteps, false);
+            nativeSetCloudResDivisor(volCloudResDivisor, false);
             nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, false);
         } catch (UnsatisfiedLinkError ignored) {}
 
@@ -4633,13 +4653,13 @@ public class Options {
     public native static void nativeSetCloudThicknessVol(float thickness, boolean write);
 
     public static void setVolCloudQuality(int quality, boolean write) {
-        volCloudQuality = clamp(quality, 0, 5);
+        volCloudQuality = clamp(quality, 0, 6);
         nativeSetCloudQuality(volCloudQuality, write);
         if (write) overwriteConfig();
     }
 
     public static void setVolCloudDensityTenths(int tenths, boolean write) {
-        volCloudDensityTenths = clamp(tenths, 1, 30);
+        volCloudDensityTenths = clamp(tenths, 1, 50);
         nativeSetCloudDensity(volCloudDensityTenths / 10.0f, write);
         if (write) overwriteConfig();
     }
@@ -4670,7 +4690,7 @@ public class Options {
     }
 
     public static void setVolCloudThickness(int thickness, boolean write) {
-        volCloudThickness = clamp(thickness, 32, 128);
+        volCloudThickness = clamp(thickness, 16, 256);
         nativeSetCloudThicknessVol((float) volCloudThickness, write);
         if (write) overwriteConfig();
     }
@@ -4680,11 +4700,14 @@ public class Options {
     public native static void nativeSetCloudPowderStrength(float strength, boolean write);
     public native static void nativeSetCloudAmbientStrength(float strength, boolean write);
     public native static void nativeSetCloudTemporalBlend(float blend, boolean write);
-    public native static void nativeSetCloudSharpening(float sharpening, boolean write);
     public native static void nativeSetCloudNoiseScale(float scale, boolean write);
     public native static void nativeSetCloudCellFrequency(float freq, boolean write);
     public native static void nativeSetCloudAtmosphereFadeDist(float dist, boolean write);
-
+    public native static void nativeSetCloudDebugMode(int mode, boolean write);
+    public native static void nativeSetCloudWindAngle(float angle, boolean write);
+    public native static void nativeSetCloudMarchSteps(int steps, boolean write);
+    public native static void nativeSetCloudLightSteps(int steps, boolean write);
+    public native static void nativeSetCloudResDivisor(int div, boolean needRecreate);
     public static void setVolCloudDetailStrengthPercent(int percent, boolean write) {
         volCloudDetailStrengthPercent = clamp(percent, 0, 200);
         nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, write);
@@ -4710,33 +4733,57 @@ public class Options {
     }
 
     public static void setVolCloudTemporalPercent(int percent, boolean write) {
-        volCloudTemporalPercent = clamp(percent, -1, 99);
-        float blend = percent < 0 ? -1.0f : percent / 100.0f;
+        volCloudTemporalPercent = clamp(percent, 0, 99);
+        float blend = percent == 0 ? -1.0f : percent / 100.0f;
         nativeSetCloudTemporalBlend(blend, write);
         if (write) overwriteConfig();
     }
 
-    public static void setVolCloudSharpeningPercent(int percent, boolean write) {
-        volCloudSharpeningPercent = clamp(percent, 20, 100);
-        nativeSetCloudSharpening(volCloudSharpeningPercent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
     public static void setVolCloudNoiseScale(int scale, boolean write) {
-        volCloudNoiseScale = clamp(scale, 128, 512);
+        volCloudNoiseScale = clamp(scale, 64, 2048);
         nativeSetCloudNoiseScale((float) volCloudNoiseScale, write);
         if (write) overwriteConfig();
     }
 
     public static void setVolCloudCellFrequencyTenths(int tenths, boolean write) {
-        volCloudCellFrequencyTenths = clamp(tenths, 20, 160);
+        volCloudCellFrequencyTenths = clamp(tenths, 10, 320);
         nativeSetCloudCellFrequency(volCloudCellFrequencyTenths / 10.0f, write);
         if (write) overwriteConfig();
     }
 
     public static void setVolCloudAtmosphereFadeDist(int dist, boolean write) {
-        volCloudAtmosphereFadeDist = clamp(dist, 200, 2000);
+        volCloudAtmosphereFadeDist = clamp(dist, 100, 4000);
         nativeSetCloudAtmosphereFadeDist((float) volCloudAtmosphereFadeDist, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudDebugMode(int mode, boolean write) {
+        volCloudDebugMode = clamp(mode, 0, 8);
+        nativeSetCloudDebugMode(volCloudDebugMode, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudWindAngleDegrees(int degrees, boolean write) {
+        volCloudWindAngleDegrees = clamp(degrees, 0, 360);
+        nativeSetCloudWindAngle((float)(volCloudWindAngleDegrees * Math.PI / 180.0), write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudMarchSteps(int steps, boolean write) {
+        volCloudMarchSteps = clamp(steps, 0, 512);
+        nativeSetCloudMarchSteps(volCloudMarchSteps, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudLightSteps(int steps, boolean write) {
+        volCloudLightSteps = clamp(steps, 0, 16);
+        nativeSetCloudLightSteps(volCloudLightSteps, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudResDivisor(int div, boolean write) {
+        volCloudResDivisor = clamp(div, 0, 4);
+        nativeSetCloudResDivisor(volCloudResDivisor, write);
         if (write) overwriteConfig();
     }
 
