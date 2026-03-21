@@ -95,6 +95,18 @@ public class MinecraftClientMixins {
             // Now gameRenderer exists — tell Minecraft about the actual window size
             ((MinecraftClient)(Object)this).onResolutionChanged();
         }
+        // Publish game state snapshot for decoupled UI thread
+        com.radiance.client.ui.UIStateSnapshot.publish();
+
+        // Start/stop UI thread based on frame gen mode (only when in-game)
+        boolean inGame = ((MinecraftClient)(Object)this).player != null;
+        if (com.radiance.client.option.Options.frameGenMode != 0
+                && inGame && !com.radiance.client.ui.UIThread.isRunning()) {
+            com.radiance.client.ui.UIThread.start();
+        } else if ((com.radiance.client.option.Options.frameGenMode == 0 || !inGame)
+                && com.radiance.client.ui.UIThread.isRunning()) {
+            com.radiance.client.ui.UIThread.stop();
+        }
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",

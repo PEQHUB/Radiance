@@ -1,6 +1,8 @@
 package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.option.Options;
+import com.radiance.client.ui.InputEvent;
+import com.radiance.client.ui.InputEventQueue;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.Mouse;
 import org.spongepowered.asm.mixin.Mixin;
@@ -31,6 +33,11 @@ public class MouseMixins {
             rawMouseEnabled = true;
         }
 
+        // Forward mouse position to decoupled UI thread
+        if (InputEventQueue.isActive()) {
+            InputEventQueue.enqueue(new InputEvent.MouseMove(System.nanoTime(), mouseX, mouseY));
+        }
+
         if (Options.offlineState == 2 && MinecraftClient.getInstance().currentScreen == null) {
             // Accumulating: suppress all mouse look
             ci.cancel();
@@ -56,6 +63,14 @@ public class MouseMixins {
         lastFreecamY = Double.NaN;
     }
 
+    // Forward mouse button events to decoupled UI thread
+    @Inject(method = "onMouseButton", at = @At("HEAD"))
+    private void forwardMouseButton(long window, int button, int action, int mods, CallbackInfo ci) {
+        if (InputEventQueue.isActive()) {
+            InputEventQueue.enqueue(new InputEvent.MouseButton(System.nanoTime(), button, action, mods));
+        }
+    }
+
     // Focus scroll acceleration state
     private static long lastFocusScrollNanos = 0;
 
@@ -63,6 +78,11 @@ public class MouseMixins {
     // Focus distance: 1/16th block base step with velocity acceleration (cinema lens feel)
     @Inject(method = "onMouseScroll", at = @At("HEAD"), cancellable = true)
     private void handleOfflineScroll(long window, double horizontal, double vertical, CallbackInfo ci) {
+        // Forward scroll to decoupled UI thread
+        if (InputEventQueue.isActive()) {
+            InputEventQueue.enqueue(new InputEvent.MouseScroll(System.nanoTime(), horizontal, vertical));
+        }
+
         if (Options.offlineState != 0 && MinecraftClient.getInstance().currentScreen == null) {
             boolean shift = org.lwjgl.glfw.GLFW.glfwGetKey(window, org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT_SHIFT)
                 == org.lwjgl.glfw.GLFW.GLFW_PRESS;
