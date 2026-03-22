@@ -211,6 +211,41 @@ public enum AuxiliaryTextures {
                         }
                     }
 
+                    // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
+                    // Must run for ALL AutoPBR blocks, even those with existing LabPBR textures,
+                    // because the GPU shader always needs tight bounds for roughness derivation.
+                    if (level == 0) {
+                        int lumOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
+                        if (lumOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled
+                                && com.radiance.client.option.Options.materialAutoPBR[lumOrdinal]) {
+                            float wR = 0.2627f, wG = 0.6780f, wB = 0.0593f;
+                            // Use block's sprite region, not the full atlas
+                            int rx = offsetX + unpackSkipPixels;
+                            int ry = offsetY + unpackSkipRows;
+                            int rw = regionWidth > 0 ? regionWidth : source.getWidth();
+                            int rh = regionHeight > 0 ? regionHeight : source.getHeight();
+                            float lMin = Float.MAX_VALUE, lMax = 0f;
+                            for (int py = ry; py < ry + rh; py++) {
+                                for (int px = rx; px < rx + rw; px++) {
+                                    if (px < 0 || py < 0 || px >= source.getWidth() || py >= source.getHeight()) continue;
+                                    int pixel = source.getColorArgb(px, py);
+                                    if (((pixel >> 24) & 0xFF) == 0) continue;
+                                    float sr = ((pixel >> 16) & 0xFF) / 255f;
+                                    float sg = ((pixel >> 8) & 0xFF) / 255f;
+                                    float sb = (pixel & 0xFF) / 255f;
+                                    float lr = sr <= 0.04045f ? sr / 12.92f : (float) Math.pow((sr + 0.055) / 1.055, 2.4);
+                                    float lg = sg <= 0.04045f ? sg / 12.92f : (float) Math.pow((sg + 0.055) / 1.055, 2.4);
+                                    float lb = sb <= 0.04045f ? sb / 12.92f : (float) Math.pow((sb + 0.055) / 1.055, 2.4);
+                                    float lum = wR * lr + wG * lg + wB * lb;
+                                    lMin = Math.min(lMin, lum);
+                                    lMax = Math.max(lMax, lum);
+                                }
+                            }
+                            if (lMin >= lMax) { lMin = 0f; lMax = 1f; }
+                            com.radiance.client.material.MaterialRegistry.setLumRange(lumOrdinal, lMin, lMax);
+                        }
+                    }
+
                     if (!success) {
                         int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
 
@@ -254,31 +289,7 @@ public enum AuxiliaryTextures {
                             // Auto: existing LabPBR/auto-PBR path
                             boolean autoPBR = mbOrdinal >= 0
                                 && com.radiance.client.option.Options.autoPBREnabled && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
-                            // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
-                            if (autoPBR && level == 0) {
-                                float wR = 0.2627f; // BT.2020 luminance weights
-                                float wG = 0.6780f;
-                                float wB = 0.0593f;
-                                int sw = source.getWidth(), sh = source.getHeight();
-                                float lMin = Float.MAX_VALUE, lMax = 0f;
-                                for (int py = 0; py < sh; py++) {
-                                    for (int px = 0; px < sw; px++) {
-                                        int pixel = source.getColorArgb(px, py);
-                                        if (((pixel >> 24) & 0xFF) == 0) continue;
-                                        float sr = ((pixel >> 16) & 0xFF) / 255f;
-                                        float sg = ((pixel >> 8) & 0xFF) / 255f;
-                                        float sb = (pixel & 0xFF) / 255f;
-                                        float lr = sr <= 0.04045f ? sr / 12.92f : (float) Math.pow((sr + 0.055) / 1.055, 2.4);
-                                        float lg = sg <= 0.04045f ? sg / 12.92f : (float) Math.pow((sg + 0.055) / 1.055, 2.4);
-                                        float lb = sb <= 0.04045f ? sb / 12.92f : (float) Math.pow((sb + 0.055) / 1.055, 2.4);
-                                        float lum = wR * lr + wG * lg + wB * lb;
-                                        lMin = Math.min(lMin, lum);
-                                        lMax = Math.max(lMax, lum);
-                                    }
-                                }
-                                if (lMin >= lMax) { lMin = 0f; lMax = 1f; }
-                                com.radiance.client.material.MaterialRegistry.setLumRange(mbOrdinal, lMin, lMax);
-                            }
+                            // lumMin/lumMax already computed above (before !success guard)
                             if (autoPBR && auxiliaryTexture == NORMAL) {
                                 // Keep generating normal texture for POM height data (alpha channel)
                                 auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
