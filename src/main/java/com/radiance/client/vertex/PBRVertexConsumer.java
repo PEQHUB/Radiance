@@ -50,7 +50,6 @@ public class PBRVertexConsumer implements VertexConsumer {
     private final int writableMask;
     private final int requiredMask;
     private final int[] offsetsByElementId;
-    private final float albedoEmission = 0;
     private long vertexPointer = -1L;
     private int vertexCount = 0;
     private int currentMask = 0;

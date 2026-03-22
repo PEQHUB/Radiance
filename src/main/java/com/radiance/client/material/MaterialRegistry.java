@@ -24,6 +24,7 @@ public class MaterialRegistry {
     // Per-block luminance histogram bounds (precomputed at texture load)
     private static final float[] blockLumMin = new float[Options.MAX_MATERIALS];
     private static final float[] blockLumMax = new float[Options.MAX_MATERIALS];
+    private static final boolean[] lumRangeSet = new boolean[Options.MAX_MATERIALS];
     static {
         java.util.Arrays.fill(blockLumMax, 1.0f); // safe default: avoid div-by-zero
     }
@@ -32,6 +33,7 @@ public class MaterialRegistry {
         if (ordinal < 0 || ordinal >= Options.MAX_MATERIALS) return;
         blockLumMin[ordinal] = min;
         blockLumMax[ordinal] = max;
+        lumRangeSet[ordinal] = true;
         dirtyFrames = 3;
     }
 
@@ -100,7 +102,7 @@ public class MaterialRegistry {
         int noisePacked = Options.materialNoiseOctaves[i]
                 | (Options.materialNoiseType[i] << 4)
                 | (Options.materialNoiseSeed[i] << 9)
-                | (Options.materialNoiseWrap[i] << 20);
+                | (Options.materialNoiseTarget[i] << 20);  // bits 20-23 = noiseTarget
         buf.putInt(noisePacked);
 
         // Pack 4: reserved (was channelR/G/B/textureBlend — removed)
@@ -112,8 +114,9 @@ public class MaterialRegistry {
         // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
         buf.putFloat(Options.materialGamutBoost[i] / 100f);
         buf.putFloat(Options.materialNoiseMaskThreshold[i] / 1000f);
-        int noiseMaskPacked = Options.materialNoiseMaskMode[i]
-                | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 4);
+        int noiseMaskPacked = Options.materialNoiseMaskMode[i]         // bits 0-2
+                | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 3) // bit 3
+                | (Options.materialNoiseWrap[i] << 4);                 // bits 4-6
         buf.putInt(noiseMaskPacked);
         buf.putFloat(Options.materialNormalStrength[i] / 100f);
 
@@ -128,7 +131,7 @@ public class MaterialRegistry {
         buf.putInt(255);
         buf.putInt(MaterialBlock.getMaterialClassForOrdinal(i).ordinal());
         int flags = 0;
-        boolean hasLumData = blockLumMax[i] > blockLumMin[i];
+        boolean hasLumData = lumRangeSet[i] && blockLumMax[i] > blockLumMin[i];
         if (hasLumData && (Options.autoPBREnabled || Options.materialAutoPBR[i])) flags |= 0x8; // bit 3: AutoPBR
         int apbFlags = Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
         flags |= (apbFlags & 0x7) << 4; // bits 4-6
