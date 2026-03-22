@@ -259,6 +259,24 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             if (Options.materialPercentileCenter[j] != snapPercentileCenter[j]) return true;
             if (Options.materialPercentileSpread[j] != snapPercentileSpread[j]) return true;
             if (Options.materialNormalStrength[j] != snapNormalStrength[j]) return true;
+            if (Options.materialHeightFilter[j] != snapHeightFilter[j]) return true;
+            if (Options.materialFilterRadius[j] != snapFilterRadius[j]) return true;
+            if (Options.materialMipBias[j] != snapMipBias[j]) return true;
+            if (Options.materialPomMode[j] != snapPomMode[j]) return true;
+            if (Options.materialPomSteps[j] != snapPomSteps[j]) return true;
+            if (Options.materialPomRefinement[j] != snapPomRefinement[j]) return true;
+            if (Options.materialPomClipSilhouette[j] != snapPomClipSilhouette[j]) return true;
+            if (Options.materialPomAreaLightOffset[j] != snapPomAreaLightOffset[j]) return true;
+            if (Options.materialPomMotionVectors[j] != snapPomMotionVectors[j]) return true;
+            if (Options.materialHeightSource[j] != snapHeightSource[j]) return true;
+            if (Options.materialHeightContrast[j] != snapHeightContrast[j]) return true;
+            if (Options.materialHeightRemapMin[j] != snapHeightRemapMin[j]) return true;
+            if (Options.materialHeightRemapMax[j] != snapHeightRemapMax[j]) return true;
+            if (Options.materialHeightOffset[j] != snapHeightOffset[j]) return true;
+            if (Options.materialNormalClamp[j] != snapNormalClamp[j]) return true;
+            if (Options.materialGeometricBlend[j] != snapGeometricBlend[j]) return true;
+            if (Options.materialNormalDistanceFade[j] != snapNormalDistanceFade[j]) return true;
+            if (Options.materialPomAOStrength[j] != snapPomAOStrength[j]) return true;
         }
         return false;
     }
@@ -1112,6 +1130,27 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 value -> { Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~2) | (value ? 2 : 0); onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             this.body.addAll(new SimpleOption[]{perInvertNormal});
 
+            // Normal clamp + Geometric blend
+            ResettableSliderWidget normalClamp = new ResettableSliderWidget(0, 0, 100, 20,
+                0, 100, Options.materialNormalClamp[i], 100,
+                v -> getGenericValueText(Text.literal("Clamp"), v == 100 ? Text.literal("Off") : Text.literal(v + "%")),
+                v -> { Options.materialNormalClamp[i] = v; onSliderChanged(i); });
+            ResettableSliderWidget geoBlend = new ResettableSliderWidget(0, 0, 100, 20,
+                0, 100, Options.materialGeometricBlend[i], 0,
+                v -> getGenericValueText(Text.literal("Geo Blend"), Text.literal(v + "%")),
+                v -> { Options.materialGeometricBlend[i] = v; onSliderChanged(i); });
+            normalClamp.active = autoPBRActive;
+            geoBlend.active = autoPBRActive;
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(normalClamp, geoBlend, body));
+
+            // Distance fade
+            ResettableSliderWidget distFade = new ResettableSliderWidget(0, 0, 100, 20,
+                0, 255, Options.materialNormalDistanceFade[i], 0,
+                v -> getGenericValueText(Text.literal("Fade Dist"), v == 0 ? Text.literal("Off") : Text.literal(v + " blocks")),
+                v -> { Options.materialNormalDistanceFade[i] = v; onSliderChanged(i); });
+            distFade.active = autoPBRActive;
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(distFade, null, body));
+
         } else if (selectedPreviewMask == 3) {
             // === Height mask controls ===
             ResettableSliderWidget perHeightGamma = new ResettableSliderWidget(0, 0, 150, 20,
@@ -1129,6 +1168,123 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
         }
         // Albedo (mask 0): no Auto-PBR specific controls — channel weights are in Advanced section
+
+        // === Height Field ===
+        this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Height Field"), body));
+
+        // Height source + Filter mode cycling buttons
+        String[] heightSourceLabels = {"Luminance", "Red", "Green", "Blue", "Alpha", "Max RGB", "Min RGB", "Custom"};
+        ButtonWidget heightSourceBtn = ButtonWidget.builder(
+            Text.literal("Source: " + heightSourceLabels[Options.materialHeightSource[i]]),
+            btn -> {
+                int next = (Options.materialHeightSource[i] + 1) % heightSourceLabels.length;
+                Options.materialHeightSource[i] = next;
+                btn.setMessage(Text.literal("Source: " + heightSourceLabels[next]));
+                onSliderChanged(i);
+            }).dimensions(0, 0, 150, 20).build();
+
+        String[] filterLabels = {"Forward", "Central", "Sobel 3x3", "Bilinear", "Bicubic"};
+        ButtonWidget filterBtn = ButtonWidget.builder(
+            Text.literal("Filter: " + filterLabels[Options.materialHeightFilter[i]]),
+            btn -> {
+                int next = (Options.materialHeightFilter[i] + 1) % filterLabels.length;
+                Options.materialHeightFilter[i] = next;
+                btn.setMessage(Text.literal("Filter: " + filterLabels[next]));
+                onSliderChanged(i);
+            }).dimensions(0, 0, 150, 20).build();
+        this.body.addEntry(new LegacyTwoColumnOptionEntry(heightSourceBtn, filterBtn, body));
+
+        // HeightContrast + FilterRadius
+        ResettableSliderWidget heightContrast = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 30, Options.materialHeightContrast[i], 10,
+            v -> getGenericValueText(Text.literal("Contrast"), Text.literal(String.format("%.1f", v / 10.0))),
+            v -> { Options.materialHeightContrast[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget filterRadius = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 15, Options.materialFilterRadius[i], 0,
+            v -> getGenericValueText(Text.literal("Radius"), Text.literal(String.format("%.2f", 0.5 + v * 0.25))),
+            v -> { Options.materialFilterRadius[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new LegacyTwoColumnSliderEntry(heightContrast, filterRadius, body));
+
+        // HeightRemapMin + HeightRemapMax + HeightOffset + MipBias
+        ResettableSliderWidget remapMin = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.materialHeightRemapMin[i], 0,
+            v -> getGenericValueText(Text.literal("Remap Min"), Text.literal(v + "%")),
+            v -> { Options.materialHeightRemapMin[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget remapMax = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.materialHeightRemapMax[i], 100,
+            v -> getGenericValueText(Text.literal("Remap Max"), Text.literal(v + "%")),
+            v -> { Options.materialHeightRemapMax[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget heightOffset = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 200, Options.materialHeightOffset[i], 100,
+            v -> getGenericValueText(Text.literal("Offset"), Text.literal(String.format("%+.2f", (v - 100) / 100.0))),
+            v -> { Options.materialHeightOffset[i] = v; onSliderChanged(i); });
+        ResettableSliderWidget mipBias = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 15, Options.materialMipBias[i], 0,
+            v -> getGenericValueText(Text.literal("Mip Bias"), Text.literal(String.format("%.1f", v * 0.2))),
+            v -> { Options.materialMipBias[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new LegacyFourColumnSliderEntry(remapMin, remapMax, heightOffset, mipBias, body));
+
+        // === Parallax Mapping ===
+        this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Parallax Mapping"), body));
+
+        ResettableSliderWidget pomDepth = new ResettableSliderWidget(0, 0, 150, 20,
+            0, 200, Options.materialPomDepth[i], 0,
+            v -> getGenericValueText(Text.literal("POM Depth"), v == 0 ? Text.literal("Off") : Text.literal(String.format("%.2f", v / 100.0))),
+            v -> { Options.materialPomDepth[i] = v; onSliderChanged(i); rebuildSelf(); });
+        this.body.addEntry(new LegacyTwoColumnSliderEntry(pomDepth, null, body));
+
+        if (Options.materialPomDepth[i] > 0) {
+            // POM Mode + Refinement cycling buttons
+            String[] pomModeLabels = {"Standard", "Contact", "Shadow", "Full"};
+            ButtonWidget pomModeBtn = ButtonWidget.builder(
+                Text.literal("Mode: " + pomModeLabels[Options.materialPomMode[i]]),
+                btn -> {
+                    int next = (Options.materialPomMode[i] + 1) % pomModeLabels.length;
+                    Options.materialPomMode[i] = next;
+                    btn.setMessage(Text.literal("Mode: " + pomModeLabels[next]));
+                    onSliderChanged(i);
+                }).dimensions(0, 0, 150, 20).build();
+
+            String refinementLabel = Options.materialPomRefinement[i] == 0 ? "Off" : String.valueOf(Options.materialPomRefinement[i]);
+            ButtonWidget pomRefBtn = ButtonWidget.builder(
+                Text.literal("Refine: " + refinementLabel),
+                btn -> {
+                    int next = (Options.materialPomRefinement[i] + 1) % 9; // 0-8
+                    Options.materialPomRefinement[i] = next;
+                    btn.setMessage(Text.literal("Refine: " + (next == 0 ? "Off" : String.valueOf(next))));
+                    onSliderChanged(i);
+                }).dimensions(0, 0, 150, 20).build();
+            this.body.addEntry(new LegacyTwoColumnOptionEntry(pomModeBtn, pomRefBtn, body));
+
+            // POM Steps + AO Strength
+            ResettableSliderWidget pomSteps = new ResettableSliderWidget(0, 0, 100, 20,
+                4, 128, Options.materialPomSteps[i], 64,
+                v -> getGenericValueText(Text.literal("Steps"), Text.literal(String.valueOf(v))),
+                v -> { Options.materialPomSteps[i] = v; onSliderChanged(i); });
+            ResettableSliderWidget pomAO = new ResettableSliderWidget(0, 0, 100, 20,
+                0, 100, Options.materialPomAOStrength[i], 0,
+                v -> getGenericValueText(Text.literal("AO"), Text.literal(v + "%")),
+                v -> { Options.materialPomAOStrength[i] = v; onSliderChanged(i); });
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(pomSteps, pomAO, body));
+
+            // Toggles: ClipSilhouette + AreaLightOffset
+            SimpleOption<Boolean> clipToggle = SimpleOption.ofBoolean(
+                "options.video.materials.pomClipSilhouette",
+                Options.materialPomClipSilhouette[i],
+                value -> { Options.materialPomClipSilhouette[i] = value; onSliderChanged(i); });
+            SimpleOption<Boolean> alOffsetToggle = SimpleOption.ofBoolean(
+                "options.video.materials.pomAreaLightOffset",
+                Options.materialPomAreaLightOffset[i],
+                value -> { Options.materialPomAreaLightOffset[i] = value; onSliderChanged(i); });
+            this.body.addAll(new SimpleOption[]{clipToggle, alOffsetToggle});
+
+            // MV correction toggle
+            SimpleOption<Boolean> mvToggle = SimpleOption.ofBoolean(
+                "options.video.materials.pomMotionVectors",
+                Options.materialPomMotionVectors[i],
+                value -> { Options.materialPomMotionVectors[i] = value; onSliderChanged(i); });
+            this.body.addAll(new SimpleOption[]{mvToggle});
+        }
 
         // Auto-PBR Global Parameters (shared across all blocks)
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Auto-PBR (Global)"), body));
