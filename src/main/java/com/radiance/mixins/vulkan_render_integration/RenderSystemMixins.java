@@ -49,11 +49,12 @@ public abstract class RenderSystemMixins {
                      "minecraft:core/rendertype_armor_translucent" -> 5;
                 case "minecraft:core/rendertype_end_portal" -> 6;
                 case "minecraft:core/position" -> 7;
-                default -> throw new IllegalStateException(
-                    "Unexpected value: " + shaderProgramKey.configId());
+                default -> -1; // Unknown shader — ignore (mod compatibility)
             };
 
-        RendererProxy.bindOverlayPipeline(type);
+        if (type >= 0) {
+            RendererProxy.bindOverlayPipeline(type);
+        }
 
         cir.setReturnValue(null);
     }

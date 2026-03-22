@@ -80,44 +80,23 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     private static final int[] snapCoatWeight = new int[Options.MAX_MATERIALS], snapCoatRoughness = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseScale = new int[Options.MAX_MATERIALS], snapNoiseStrength = new int[Options.MAX_MATERIALS], snapNoiseOctaves = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseType = new int[Options.MAX_MATERIALS], snapNoiseSeed = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseWrap = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseMaskMode = new int[Options.MAX_MATERIALS];
-    private static final boolean[] snapNoiseMaskInvert = new boolean[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseMaskThreshold = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseRotation = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseAspect = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseLacunarity = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNoiseContrast = new int[Options.MAX_MATERIALS];
+    // snapChannelR/G/B and snapTextureBlend removed — dead fields (Pack 4 now uses pomPacked0/1/2 + pomDepth)
     private static final int[] snapGamutBoost = new int[Options.MAX_MATERIALS];
     private static final int[] snapPomDepth = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMin = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMax = new int[Options.MAX_MATERIALS];
+    private static final int[] snapPerBlockAutoPBRGamma = new int[Options.MAX_MATERIALS];
+    private static final int[] snapPerBlockAutoPBRNormStr = new int[Options.MAX_MATERIALS];
+    private static final int[] snapPerBlockAutoPBRVarWt = new int[Options.MAX_MATERIALS];
+    private static final int[] snapPerBlockAutoPBREdgeWt = new int[Options.MAX_MATERIALS];
     private static final int[] snapPerBlockAutoPBRHtGamma = new int[Options.MAX_MATERIALS];
     private static final int[] snapPerBlockAutoPBRFlags = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPercentileCenter = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPercentileSpread = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNormalStrength = new int[Options.MAX_MATERIALS];
-    private static final int[] snapHeightFilter = new int[Options.MAX_MATERIALS];
-    private static final int[] snapFilterRadius = new int[Options.MAX_MATERIALS];
-    private static final int[] snapMipBias = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPomMode = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPomSteps = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPomRefinement = new int[Options.MAX_MATERIALS];
-    private static final boolean[] snapPomClipSilhouette = new boolean[Options.MAX_MATERIALS];
-    private static final boolean[] snapPomAreaLightOffset = new boolean[Options.MAX_MATERIALS];
-    private static final boolean[] snapPomMotionVectors = new boolean[Options.MAX_MATERIALS];
-    private static final int[] snapHeightSource = new int[Options.MAX_MATERIALS];
-    private static final int[] snapHeightContrast = new int[Options.MAX_MATERIALS];
-    private static final int[] snapHeightRemapMin = new int[Options.MAX_MATERIALS];
-    private static final int[] snapHeightRemapMax = new int[Options.MAX_MATERIALS];
-    private static final int[] snapHeightOffset = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNormalClamp = new int[Options.MAX_MATERIALS];
-    private static final int[] snapGeometricBlend = new int[Options.MAX_MATERIALS];
-    private static final int[] snapNormalDistanceFade = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPomAOStrength = new int[Options.MAX_MATERIALS];
     private static final boolean[] snapAutoPBR = new boolean[Options.MAX_MATERIALS];
     private static final boolean[] snapChildOverride = new boolean[Options.MAX_MATERIALS];
     private static boolean snapAutoPBREnabled;
+    private static int snapAutoPBRRoughnessGamma, snapAutoPBRGlobalRoughnessMin, snapAutoPBRGlobalRoughnessMax;
+    private static int snapAutoPBRNormalStrength, snapAutoPBRVarianceWeight, snapAutoPBREdgeWeight;
+    private static int snapAutoPBRHeightGamma;
 
     public MaterialsSettingsScreen(Screen parent) {
         super(parent, MinecraftClient.getInstance().options, Text.translatable("radiance.settings.materials.title"));
@@ -147,44 +126,26 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         System.arraycopy(Options.materialNoiseOctaves, 0, snapNoiseOctaves, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseType, 0, snapNoiseType, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseSeed, 0, snapNoiseSeed, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseWrap, 0, snapNoiseWrap, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseMaskMode, 0, snapNoiseMaskMode, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseMaskInvert, 0, snapNoiseMaskInvert, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseMaskThreshold, 0, snapNoiseMaskThreshold, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseRotation, 0, snapNoiseRotation, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseAspect, 0, snapNoiseAspect, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseLacunarity, 0, snapNoiseLacunarity, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNoiseContrast, 0, snapNoiseContrast, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGamutBoost, 0, snapGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPomDepth, 0, snapPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMin, 0, snapAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMax, 0, snapAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialAutoPBRGamma, 0, snapPerBlockAutoPBRGamma, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialAutoPBRNormalStrength, 0, snapPerBlockAutoPBRNormStr, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialAutoPBRVarianceWeight, 0, snapPerBlockAutoPBRVarWt, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialAutoPBREdgeWeight, 0, snapPerBlockAutoPBREdgeWt, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRHeightGamma, 0, snapPerBlockAutoPBRHtGamma, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRFlags, 0, snapPerBlockAutoPBRFlags, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPercentileCenter, 0, snapPercentileCenter, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPercentileSpread, 0, snapPercentileSpread, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNormalStrength, 0, snapNormalStrength, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialHeightFilter, 0, snapHeightFilter, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialFilterRadius, 0, snapFilterRadius, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialMipBias, 0, snapMipBias, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomMode, 0, snapPomMode, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomSteps, 0, snapPomSteps, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomRefinement, 0, snapPomRefinement, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomClipSilhouette, 0, snapPomClipSilhouette, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomAreaLightOffset, 0, snapPomAreaLightOffset, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomMotionVectors, 0, snapPomMotionVectors, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialHeightSource, 0, snapHeightSource, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialHeightContrast, 0, snapHeightContrast, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialHeightRemapMin, 0, snapHeightRemapMin, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialHeightRemapMax, 0, snapHeightRemapMax, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialHeightOffset, 0, snapHeightOffset, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNormalClamp, 0, snapNormalClamp, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialGeometricBlend, 0, snapGeometricBlend, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialNormalDistanceFade, 0, snapNormalDistanceFade, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialPomAOStrength, 0, snapPomAOStrength, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBR, 0, snapAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChildOverride, 0, snapChildOverride, 0, Options.MAX_MATERIALS);
         snapAutoPBREnabled = Options.autoPBREnabled;
+        snapAutoPBRRoughnessGamma = Options.autoPBRRoughnessGamma;
+        snapAutoPBRGlobalRoughnessMin = Options.autoPBRRoughnessMin;
+        snapAutoPBRGlobalRoughnessMax = Options.autoPBRRoughnessMax;
+        snapAutoPBRNormalStrength = Options.autoPBRNormalStrength;
+        snapAutoPBRVarianceWeight = Options.autoPBRVarianceWeight;
+        snapAutoPBREdgeWeight = Options.autoPBREdgeWeight;
+        snapAutoPBRHeightGamma = Options.autoPBRHeightGamma;
     }
 
     private static void restoreSnapshot() {
@@ -206,92 +167,64 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         System.arraycopy(snapNoiseOctaves, 0, Options.materialNoiseOctaves, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseType, 0, Options.materialNoiseType, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseSeed, 0, Options.materialNoiseSeed, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseWrap, 0, Options.materialNoiseWrap, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseMaskMode, 0, Options.materialNoiseMaskMode, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseMaskInvert, 0, Options.materialNoiseMaskInvert, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseMaskThreshold, 0, Options.materialNoiseMaskThreshold, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseRotation, 0, Options.materialNoiseRotation, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseAspect, 0, Options.materialNoiseAspect, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseLacunarity, 0, Options.materialNoiseLacunarity, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNoiseContrast, 0, Options.materialNoiseContrast, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGamutBoost, 0, Options.materialGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPomDepth, 0, Options.materialPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMin, 0, Options.materialAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMax, 0, Options.materialAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapPerBlockAutoPBRGamma, 0, Options.materialAutoPBRGamma, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapPerBlockAutoPBRNormStr, 0, Options.materialAutoPBRNormalStrength, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapPerBlockAutoPBRVarWt, 0, Options.materialAutoPBRVarianceWeight, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapPerBlockAutoPBREdgeWt, 0, Options.materialAutoPBREdgeWeight, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPerBlockAutoPBRHtGamma, 0, Options.materialAutoPBRHeightGamma, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPerBlockAutoPBRFlags, 0, Options.materialAutoPBRFlags, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPercentileCenter, 0, Options.materialPercentileCenter, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPercentileSpread, 0, Options.materialPercentileSpread, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNormalStrength, 0, Options.materialNormalStrength, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapHeightFilter, 0, Options.materialHeightFilter, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapFilterRadius, 0, Options.materialFilterRadius, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapMipBias, 0, Options.materialMipBias, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomMode, 0, Options.materialPomMode, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomSteps, 0, Options.materialPomSteps, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomRefinement, 0, Options.materialPomRefinement, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomClipSilhouette, 0, Options.materialPomClipSilhouette, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomAreaLightOffset, 0, Options.materialPomAreaLightOffset, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomMotionVectors, 0, Options.materialPomMotionVectors, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapHeightSource, 0, Options.materialHeightSource, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapHeightContrast, 0, Options.materialHeightContrast, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapHeightRemapMin, 0, Options.materialHeightRemapMin, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapHeightRemapMax, 0, Options.materialHeightRemapMax, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapHeightOffset, 0, Options.materialHeightOffset, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNormalClamp, 0, Options.materialNormalClamp, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapGeometricBlend, 0, Options.materialGeometricBlend, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapNormalDistanceFade, 0, Options.materialNormalDistanceFade, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPomAOStrength, 0, Options.materialPomAOStrength, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBR, 0, Options.materialAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChildOverride, 0, Options.materialChildOverride, 0, Options.MAX_MATERIALS);
         Options.autoPBREnabled = snapAutoPBREnabled;
+        Options.autoPBRRoughnessGamma = snapAutoPBRRoughnessGamma;
+        Options.autoPBRRoughnessMin = snapAutoPBRGlobalRoughnessMin;
+        Options.autoPBRRoughnessMax = snapAutoPBRGlobalRoughnessMax;
+        Options.autoPBRNormalStrength = snapAutoPBRNormalStrength;
+        Options.autoPBRVarianceWeight = snapAutoPBRVarianceWeight;
+        Options.autoPBREdgeWeight = snapAutoPBREdgeWeight;
+        Options.autoPBRHeightGamma = snapAutoPBRHeightGamma;
         Options.markMaterialDirty();
         com.radiance.client.material.MaterialRegistry.markDirty();
     }
 
     private boolean autoPBRParamsChanged() {
-        if (Options.autoPBREnabled != snapAutoPBREnabled) return true;
+        if (Options.autoPBREnabled != snapAutoPBREnabled
+            || Options.autoPBRRoughnessGamma != snapAutoPBRRoughnessGamma
+            || Options.autoPBRRoughnessMin != snapAutoPBRGlobalRoughnessMin
+            || Options.autoPBRRoughnessMax != snapAutoPBRGlobalRoughnessMax
+            || Options.autoPBRNormalStrength != snapAutoPBRNormalStrength
+            || Options.autoPBRVarianceWeight != snapAutoPBRVarianceWeight
+            || Options.autoPBREdgeWeight != snapAutoPBREdgeWeight
+            || Options.autoPBRHeightGamma != snapAutoPBRHeightGamma) return true;
         for (int j = 0; j < Options.MAX_MATERIALS; j++) {
             if (Options.materialAutoPBR[j] != snapAutoPBR[j]) return true;
             if (Options.materialAutoPBRRoughnessMin[j] != snapAutoPBRRoughnessMin[j]) return true;
             if (Options.materialAutoPBRRoughnessMax[j] != snapAutoPBRRoughnessMax[j]) return true;
+            if (Options.materialAutoPBRGamma[j] != snapPerBlockAutoPBRGamma[j]) return true;
+            if (Options.materialAutoPBRNormalStrength[j] != snapPerBlockAutoPBRNormStr[j]) return true;
+            if (Options.materialAutoPBRVarianceWeight[j] != snapPerBlockAutoPBRVarWt[j]) return true;
+            if (Options.materialAutoPBREdgeWeight[j] != snapPerBlockAutoPBREdgeWt[j]) return true;
             if (Options.materialAutoPBRHeightGamma[j] != snapPerBlockAutoPBRHtGamma[j]) return true;
             if (Options.materialAutoPBRFlags[j] != snapPerBlockAutoPBRFlags[j]) return true;
-            if (Options.materialPercentileCenter[j] != snapPercentileCenter[j]) return true;
-            if (Options.materialPercentileSpread[j] != snapPercentileSpread[j]) return true;
-            if (Options.materialNormalStrength[j] != snapNormalStrength[j]) return true;
-            if (Options.materialHeightFilter[j] != snapHeightFilter[j]) return true;
-            if (Options.materialFilterRadius[j] != snapFilterRadius[j]) return true;
-            if (Options.materialMipBias[j] != snapMipBias[j]) return true;
-            if (Options.materialPomMode[j] != snapPomMode[j]) return true;
-            if (Options.materialPomSteps[j] != snapPomSteps[j]) return true;
-            if (Options.materialPomRefinement[j] != snapPomRefinement[j]) return true;
-            if (Options.materialPomClipSilhouette[j] != snapPomClipSilhouette[j]) return true;
-            if (Options.materialPomAreaLightOffset[j] != snapPomAreaLightOffset[j]) return true;
-            if (Options.materialPomMotionVectors[j] != snapPomMotionVectors[j]) return true;
-            if (Options.materialHeightSource[j] != snapHeightSource[j]) return true;
-            if (Options.materialHeightContrast[j] != snapHeightContrast[j]) return true;
-            if (Options.materialHeightRemapMin[j] != snapHeightRemapMin[j]) return true;
-            if (Options.materialHeightRemapMax[j] != snapHeightRemapMax[j]) return true;
-            if (Options.materialHeightOffset[j] != snapHeightOffset[j]) return true;
-            if (Options.materialNormalClamp[j] != snapNormalClamp[j]) return true;
-            if (Options.materialGeometricBlend[j] != snapGeometricBlend[j]) return true;
-            if (Options.materialNormalDistanceFade[j] != snapNormalDistanceFade[j]) return true;
-            if (Options.materialPomAOStrength[j] != snapPomAOStrength[j]) return true;
         }
         return false;
     }
 
     private void applyChanges() {
-        boolean needsTextureRegen = autoPBRParamsChanged();
+        boolean needsTextureReload = autoPBRParamsChanged();
         snapshotTaken = false;
         Options.overwriteConfig();
-        com.radiance.client.material.MaterialRegistry.markDirty();
-        if (needsTextureRegen) {
-            // Rebake AutoPBR normals/speculars in-place (no loading screen)
-            com.radiance.client.texture.LiveNormalReuploader.scheduleReupload();
+        if (needsTextureReload) {
+            // Full resource reload to regenerate auto-PBR textures with new parameters
+            MinecraftClient.getInstance().reloadResources();
+        } else {
+            // No texture changes — just rebuild chunks for material constant updates
+            MinecraftClient.getInstance().worldRenderer.reload();
         }
-        // Rebuild chunks for material constant updates (instant, no loading screen)
-        MinecraftClient.getInstance().worldRenderer.reload();
         this.client.setScreen(this.parentScreen);
     }
 
@@ -681,14 +614,15 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         boolean invertRough = (flags & 1) != 0;
         boolean invertNormal = (flags & 2) != 0;
         boolean invertHeight = (flags & 4) != 0;
+        int chR = Options.materialChannelR[ci], chG = Options.materialChannelG[ci], chB = Options.materialChannelB[ci];
         // Use cropped copy for AutoPBR generation (first frame only for animated textures)
         NativeImage normalImg = AutoPBRGenerator.generateNormal(albedoCopy,
-            Options.materialNormalStrength[ci], invertNormal,
-            Options.materialAutoPBRHeightGamma[ci], invertHeight);
+            Options.materialAutoPBRNormalStrength[ci], invertNormal,
+            Options.materialAutoPBRHeightGamma[ci], invertHeight, chR, chG, chB);
         NativeImage roughImg = AutoPBRGenerator.generateRoughnessPreviewPercentile(albedoCopy,
             Options.materialAutoPBRRoughnessMin[ci], Options.materialAutoPBRRoughnessMax[ci],
             Options.materialPercentileCenter[ci], Options.materialPercentileSpread[ci],
-            invertRough);
+            invertRough, chR, chG, chB);
         NativeImage heightImg = AutoPBRGenerator.generateHeightPreview(albedoCopy,
             Options.materialAutoPBRHeightGamma[ci], invertHeight);
 
@@ -843,7 +777,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
         // === Surface ===
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Surface"), body));
-        boolean isMetal = Options.materialMetallic[i] >= 500;
 
         ResettableSliderWidget metallic = new ResettableSliderWidget(0, 0, 150, 20,
             0, 1000, Options.materialMetallic[i], block.getDefaultMetallic(),
@@ -870,8 +803,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 }
                 onSliderChanged(i);
             });
-        // IOR: only meaningful for dielectrics (metals use explicit F0 RGB)
-        ior.active = !isMetal;
         ResettableSliderWidget transmission = new ResettableSliderWidget(0, 0, 100, 20,
             0, 1000, Options.materialTransmission[i], block.getDefaultTransmission(),
             v -> getGenericValueText(Text.literal("Transmission"), Text.literal(String.format("%.1f%%", v / 10.0))),
@@ -891,7 +822,12 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(Text.literal("Norm Str"),
                 Text.literal(String.format("\u00d7%.2f", v / 100.0))),
             v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new LegacyFourColumnSliderEntry(subsurface, anisotropic, normalStr, null, body));
+        ResettableSliderWidget normalSmooth = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.materialNormalSmoothing[i], 0,
+            v -> getGenericValueText(Text.literal("Norm Smooth"),
+                Text.literal(v > 0 ? v + "%" : "Sharp")),
+            v -> { Options.materialNormalSmoothing[i] = v; onSliderChanged(i); });
+        this.body.addEntry(new LegacyFourColumnSliderEntry(subsurface, anisotropic, normalStr, normalSmooth, body));
 
         // === Material validation warnings ===
         List<String> warnings = Options.validateMaterial(i);
@@ -934,10 +870,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 1000, Options.materialF0B[i], block.getDefaultF0B(),
             v -> getGenericValueText(Text.literal("F0 B"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialF0B[i] = v; onSliderChanged(i); });
-        // F0 RGB: only meaningful for metals (dielectrics derive F0 from IOR)
-        f0r.active = isMetal;
-        f0g.active = isMetal;
-        f0b.active = isMetal;
         this.body.addEntry(new LegacyFourColumnSliderEntry(f0r, f0g, f0b, null, body));
 
         ResettableSliderWidget gamutBoost = new ResettableSliderWidget(0, 0, 100, 20,
@@ -1053,12 +985,15 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         String[] maskNames = {"Albedo", "Normal", "Roughness", "Height"};
         this.body.addEntry(new CategoryVideoOptionEntry(
             Text.literal("Auto-PBR \u2014 " + maskNames[selectedPreviewMask]), body));
-        boolean autoPBRActive = Options.autoPBREnabled && Options.materialAutoPBR[i];
+        boolean autoPBRActive = Options.autoPBREnabled || Options.materialAutoPBR[i];
         SimpleOption<Boolean> perBlockAutoPBR = SimpleOption.ofBoolean(
             "options.video.materials.autoPBRBlock",
             Options.materialAutoPBR[i],
             value -> {
                 Options.materialAutoPBR[i] = value;
+                if (value && Options.materialTextureBlend[i] == 0) {
+                    Options.materialTextureBlend[i] = 100;
+                }
                 onSliderChanged(i); LiveNormalReuploader.scheduleReupload();
                 rebuildSelf();
             });
@@ -1088,11 +1023,11 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             this.body.addEntry(new LegacyTwoColumnOptionEntry(presetBtn, null, body));
 
             ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 100, 20,
-                0, 100, Options.materialAutoPBRRoughnessMin[i], 30,
+                0, 100, Options.materialAutoPBRRoughnessMin[i], Options.autoPBRRoughnessMin,
                 v -> getGenericValueText(Text.literal("Rough Min"), Text.literal(v + "%")),
                 v -> { Options.materialAutoPBRRoughnessMin[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             ResettableSliderWidget roughMax = new ResettableSliderWidget(0, 0, 100, 20,
-                0, 100, Options.materialAutoPBRRoughnessMax[i], 95,
+                0, 100, Options.materialAutoPBRRoughnessMax[i], Options.autoPBRRoughnessMax,
                 v -> getGenericValueText(Text.literal("Rough Max"), Text.literal(v + "%")),
                 v -> { Options.materialAutoPBRRoughnessMax[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             ResettableSliderWidget perCenter = new ResettableSliderWidget(0, 0, 100, 20,
@@ -1118,11 +1053,16 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         } else if (selectedPreviewMask == 1) {
             // === Normal mask controls ===
             ResettableSliderWidget perNormStr = new ResettableSliderWidget(0, 0, 150, 20,
-                0, 200, Options.materialNormalStrength[i], 100,
-                v -> getGenericValueText(Text.literal("Normal Strength"), Text.literal(String.format("\u00d7%.2f", v / 100.0))),
-                v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+                0, 100, Options.materialAutoPBRNormalStrength[i], Options.autoPBRNormalStrength,
+                v -> getGenericValueText(Text.literal("Normal Strength"), Text.literal(String.format("%.2f", v / 100.0))),
+                v -> { Options.materialAutoPBRNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            ResettableSliderWidget perEdgeWt = new ResettableSliderWidget(0, 0, 150, 20,
+                0, 100, Options.materialAutoPBREdgeWeight[i], Options.autoPBREdgeWeight,
+                v -> getGenericValueText(Text.literal("Edge Height"), Text.literal(v + "%")),
+                v -> { Options.materialAutoPBREdgeWeight[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             perNormStr.active = autoPBRActive;
-            this.body.addEntry(new LegacyTwoColumnSliderEntry(perNormStr, null, body));
+            perEdgeWt.active = autoPBRActive;
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(perNormStr, perEdgeWt, body));
 
             SimpleOption<Boolean> perInvertNormal = SimpleOption.ofBoolean(
                 "options.video.materials.autoPBRInvertNormal",
@@ -1130,31 +1070,10 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 value -> { Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~2) | (value ? 2 : 0); onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             this.body.addAll(new SimpleOption[]{perInvertNormal});
 
-            // Normal clamp + Geometric blend
-            ResettableSliderWidget normalClamp = new ResettableSliderWidget(0, 0, 100, 20,
-                0, 100, Options.materialNormalClamp[i], 100,
-                v -> getGenericValueText(Text.literal("Clamp"), v == 100 ? Text.literal("Off") : Text.literal(v + "%")),
-                v -> { Options.materialNormalClamp[i] = v; onSliderChanged(i); });
-            ResettableSliderWidget geoBlend = new ResettableSliderWidget(0, 0, 100, 20,
-                0, 100, Options.materialGeometricBlend[i], 0,
-                v -> getGenericValueText(Text.literal("Geo Blend"), Text.literal(v + "%")),
-                v -> { Options.materialGeometricBlend[i] = v; onSliderChanged(i); });
-            normalClamp.active = autoPBRActive;
-            geoBlend.active = autoPBRActive;
-            this.body.addEntry(new LegacyTwoColumnSliderEntry(normalClamp, geoBlend, body));
-
-            // Distance fade
-            ResettableSliderWidget distFade = new ResettableSliderWidget(0, 0, 100, 20,
-                0, 255, Options.materialNormalDistanceFade[i], 0,
-                v -> getGenericValueText(Text.literal("Fade Dist"), v == 0 ? Text.literal("Off") : Text.literal(v + " blocks")),
-                v -> { Options.materialNormalDistanceFade[i] = v; onSliderChanged(i); });
-            distFade.active = autoPBRActive;
-            this.body.addEntry(new LegacyTwoColumnSliderEntry(distFade, null, body));
-
         } else if (selectedPreviewMask == 3) {
             // === Height mask controls ===
             ResettableSliderWidget perHeightGamma = new ResettableSliderWidget(0, 0, 150, 20,
-                10, 300, Options.materialAutoPBRHeightGamma[i], 100,
+                10, 300, Options.materialAutoPBRHeightGamma[i], Options.autoPBRHeightGamma,
                 v -> getGenericValueText(Text.literal("Height Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
                 v -> { Options.materialAutoPBRHeightGamma[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             perHeightGamma.active = autoPBRActive;
@@ -1169,123 +1088,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         }
         // Albedo (mask 0): no Auto-PBR specific controls — channel weights are in Advanced section
 
-        // === Height Field ===
-        this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Height Field"), body));
-
-        // Height source + Filter mode cycling buttons
-        String[] heightSourceLabels = {"Luminance", "Red", "Green", "Blue", "Alpha", "Max RGB", "Min RGB", "Custom"};
-        ButtonWidget heightSourceBtn = ButtonWidget.builder(
-            Text.literal("Source: " + heightSourceLabels[Options.materialHeightSource[i]]),
-            btn -> {
-                int next = (Options.materialHeightSource[i] + 1) % heightSourceLabels.length;
-                Options.materialHeightSource[i] = next;
-                btn.setMessage(Text.literal("Source: " + heightSourceLabels[next]));
-                onSliderChanged(i);
-            }).dimensions(0, 0, 150, 20).build();
-
-        String[] filterLabels = {"Forward", "Central", "Sobel 3x3", "Bilinear", "Bicubic"};
-        ButtonWidget filterBtn = ButtonWidget.builder(
-            Text.literal("Filter: " + filterLabels[Options.materialHeightFilter[i]]),
-            btn -> {
-                int next = (Options.materialHeightFilter[i] + 1) % filterLabels.length;
-                Options.materialHeightFilter[i] = next;
-                btn.setMessage(Text.literal("Filter: " + filterLabels[next]));
-                onSliderChanged(i);
-            }).dimensions(0, 0, 150, 20).build();
-        this.body.addEntry(new LegacyTwoColumnOptionEntry(heightSourceBtn, filterBtn, body));
-
-        // HeightContrast + FilterRadius
-        ResettableSliderWidget heightContrast = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 30, Options.materialHeightContrast[i], 10,
-            v -> getGenericValueText(Text.literal("Contrast"), Text.literal(String.format("%.1f", v / 10.0))),
-            v -> { Options.materialHeightContrast[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget filterRadius = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 15, Options.materialFilterRadius[i], 0,
-            v -> getGenericValueText(Text.literal("Radius"), Text.literal(String.format("%.2f", 0.5 + v * 0.25))),
-            v -> { Options.materialFilterRadius[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new LegacyTwoColumnSliderEntry(heightContrast, filterRadius, body));
-
-        // HeightRemapMin + HeightRemapMax + HeightOffset + MipBias
-        ResettableSliderWidget remapMin = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.materialHeightRemapMin[i], 0,
-            v -> getGenericValueText(Text.literal("Remap Min"), Text.literal(v + "%")),
-            v -> { Options.materialHeightRemapMin[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget remapMax = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.materialHeightRemapMax[i], 100,
-            v -> getGenericValueText(Text.literal("Remap Max"), Text.literal(v + "%")),
-            v -> { Options.materialHeightRemapMax[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget heightOffset = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 200, Options.materialHeightOffset[i], 100,
-            v -> getGenericValueText(Text.literal("Offset"), Text.literal(String.format("%+.2f", (v - 100) / 100.0))),
-            v -> { Options.materialHeightOffset[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget mipBias = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 15, Options.materialMipBias[i], 0,
-            v -> getGenericValueText(Text.literal("Mip Bias"), Text.literal(String.format("%.1f", v * 0.2))),
-            v -> { Options.materialMipBias[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new LegacyFourColumnSliderEntry(remapMin, remapMax, heightOffset, mipBias, body));
-
-        // === Parallax Mapping ===
-        this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Parallax Mapping"), body));
-
-        ResettableSliderWidget pomDepth = new ResettableSliderWidget(0, 0, 150, 20,
-            0, 200, Options.materialPomDepth[i], 0,
-            v -> getGenericValueText(Text.literal("POM Depth"), v == 0 ? Text.literal("Off") : Text.literal(String.format("%.2f", v / 100.0))),
-            v -> { Options.materialPomDepth[i] = v; onSliderChanged(i); rebuildSelf(); });
-        this.body.addEntry(new LegacyTwoColumnSliderEntry(pomDepth, null, body));
-
-        if (Options.materialPomDepth[i] > 0) {
-            // POM Mode + Refinement cycling buttons
-            String[] pomModeLabels = {"Standard", "Contact", "Shadow", "Full"};
-            ButtonWidget pomModeBtn = ButtonWidget.builder(
-                Text.literal("Mode: " + pomModeLabels[Options.materialPomMode[i]]),
-                btn -> {
-                    int next = (Options.materialPomMode[i] + 1) % pomModeLabels.length;
-                    Options.materialPomMode[i] = next;
-                    btn.setMessage(Text.literal("Mode: " + pomModeLabels[next]));
-                    onSliderChanged(i);
-                }).dimensions(0, 0, 150, 20).build();
-
-            String refinementLabel = Options.materialPomRefinement[i] == 0 ? "Off" : String.valueOf(Options.materialPomRefinement[i]);
-            ButtonWidget pomRefBtn = ButtonWidget.builder(
-                Text.literal("Refine: " + refinementLabel),
-                btn -> {
-                    int next = (Options.materialPomRefinement[i] + 1) % 9; // 0-8
-                    Options.materialPomRefinement[i] = next;
-                    btn.setMessage(Text.literal("Refine: " + (next == 0 ? "Off" : String.valueOf(next))));
-                    onSliderChanged(i);
-                }).dimensions(0, 0, 150, 20).build();
-            this.body.addEntry(new LegacyTwoColumnOptionEntry(pomModeBtn, pomRefBtn, body));
-
-            // POM Steps + AO Strength
-            ResettableSliderWidget pomSteps = new ResettableSliderWidget(0, 0, 100, 20,
-                4, 128, Options.materialPomSteps[i], 64,
-                v -> getGenericValueText(Text.literal("Steps"), Text.literal(String.valueOf(v))),
-                v -> { Options.materialPomSteps[i] = v; onSliderChanged(i); });
-            ResettableSliderWidget pomAO = new ResettableSliderWidget(0, 0, 100, 20,
-                0, 100, Options.materialPomAOStrength[i], 0,
-                v -> getGenericValueText(Text.literal("AO"), Text.literal(v + "%")),
-                v -> { Options.materialPomAOStrength[i] = v; onSliderChanged(i); });
-            this.body.addEntry(new LegacyTwoColumnSliderEntry(pomSteps, pomAO, body));
-
-            // Toggles: ClipSilhouette + AreaLightOffset
-            SimpleOption<Boolean> clipToggle = SimpleOption.ofBoolean(
-                "options.video.materials.pomClipSilhouette",
-                Options.materialPomClipSilhouette[i],
-                value -> { Options.materialPomClipSilhouette[i] = value; onSliderChanged(i); });
-            SimpleOption<Boolean> alOffsetToggle = SimpleOption.ofBoolean(
-                "options.video.materials.pomAreaLightOffset",
-                Options.materialPomAreaLightOffset[i],
-                value -> { Options.materialPomAreaLightOffset[i] = value; onSliderChanged(i); });
-            this.body.addAll(new SimpleOption[]{clipToggle, alOffsetToggle});
-
-            // MV correction toggle
-            SimpleOption<Boolean> mvToggle = SimpleOption.ofBoolean(
-                "options.video.materials.pomMotionVectors",
-                Options.materialPomMotionVectors[i],
-                value -> { Options.materialPomMotionVectors[i] = value; onSliderChanged(i); });
-            this.body.addAll(new SimpleOption[]{mvToggle});
-        }
-
         // Auto-PBR Global Parameters (shared across all blocks)
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Auto-PBR (Global)"), body));
 
@@ -1298,6 +1100,46 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 rebuildSelf();
             });
         this.body.addAll(new SimpleOption[]{autoPBRToggle});
+
+        boolean globalPBROn = Options.autoPBREnabled;
+        ResettableSliderWidget roughGamma = new ResettableSliderWidget(0, 0, 100, 20,
+            1, 2000, Options.autoPBRRoughnessGamma, 50,
+            v -> getGenericValueText(Text.literal("Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
+            v -> { Options.autoPBRRoughnessGamma = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget normStr = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.autoPBRNormalStrength, 25,
+            v -> getGenericValueText(Text.literal("Norm Str"), Text.literal(String.format("%.2f", v / 100.0))),
+            v -> { Options.autoPBRNormalStrength = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget globalRoughMin = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.autoPBRRoughnessMin, 30,
+            v -> getGenericValueText(Text.literal("Rough Min"), Text.literal(v + "%")),
+            v -> { Options.autoPBRRoughnessMin = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget globalRoughMax = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.autoPBRRoughnessMax, 95,
+            v -> getGenericValueText(Text.literal("Rough Max"), Text.literal(v + "%")),
+            v -> { Options.autoPBRRoughnessMax = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        roughGamma.active = globalPBROn;
+        normStr.active = globalPBROn;
+        globalRoughMin.active = globalPBROn;
+        globalRoughMax.active = globalPBROn;
+        this.body.addEntry(new LegacyFourColumnSliderEntry(roughGamma, normStr, globalRoughMin, globalRoughMax, body));
+
+        ResettableSliderWidget varianceWt = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.autoPBRVarianceWeight, 30,
+            v -> getGenericValueText(Text.literal("Variance"), Text.literal(v + "%")),
+            v -> { Options.autoPBRVarianceWeight = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget edgeWt = new ResettableSliderWidget(0, 0, 100, 20,
+            0, 100, Options.autoPBREdgeWeight, 15,
+            v -> getGenericValueText(Text.literal("Edge Wt"), Text.literal(v + "%")),
+            v -> { Options.autoPBREdgeWeight = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        ResettableSliderWidget heightGamma = new ResettableSliderWidget(0, 0, 100, 20,
+            10, 300, Options.autoPBRHeightGamma, 100,
+            v -> getGenericValueText(Text.literal("Ht Contrast"), Text.literal(String.format("%.2f", v / 100.0))),
+            v -> { Options.autoPBRHeightGamma = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+        varianceWt.active = globalPBROn;
+        edgeWt.active = globalPBROn;
+        heightGamma.active = globalPBROn;
+        this.body.addEntry(new LegacyFourColumnSliderEntry(varianceWt, edgeWt, heightGamma, null, body));
 
         // === Parent/Child ===
         if (!block.isParent()) {

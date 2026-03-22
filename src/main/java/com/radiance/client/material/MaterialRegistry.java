@@ -24,7 +24,6 @@ public class MaterialRegistry {
     // Per-block luminance histogram bounds (precomputed at texture load)
     private static final float[] blockLumMin = new float[Options.MAX_MATERIALS];
     private static final float[] blockLumMax = new float[Options.MAX_MATERIALS];
-    private static final boolean[] lumRangeSet = new boolean[Options.MAX_MATERIALS];
     static {
         java.util.Arrays.fill(blockLumMax, 1.0f); // safe default: avoid div-by-zero
     }
@@ -33,7 +32,6 @@ public class MaterialRegistry {
         if (ordinal < 0 || ordinal >= Options.MAX_MATERIALS) return;
         blockLumMin[ordinal] = min;
         blockLumMax[ordinal] = max;
-        lumRangeSet[ordinal] = true;
         dirtyFrames = 3;
     }
 
@@ -102,46 +100,23 @@ public class MaterialRegistry {
         int noisePacked = Options.materialNoiseOctaves[i]
                 | (Options.materialNoiseType[i] << 4)
                 | (Options.materialNoiseSeed[i] << 9)
-                | (Options.materialNoiseTarget[i] << 20);  // bits 20-23 = noiseTarget
+                | (Options.materialNoiseWrap[i] << 20);
         buf.putInt(noisePacked);
 
         // Pack 4: pomPacked0, pomPacked1, pomPacked2, pomDepth
-        int filterMode = Options.materialHeightFilter[i] & 0x7;
-        int pomMode = Options.materialPomMode[i] & 0x3;
-        int heightSource = Options.materialHeightSource[i] & 0x7;
-        int pomStepsVal = Options.materialPomSteps[i] & 0xFF;
-        int pomRefinementVal = Options.materialPomRefinement[i] & 0xF;
-        int filterRadiusVal = Options.materialFilterRadius[i] & 0xF;
-        int mipBiasVal = Options.materialMipBias[i] & 0xF;
-        int pack4flags = (Options.materialPomClipSilhouette[i] ? 1 : 0)
-            | (Options.materialPomAreaLightOffset[i] ? 2 : 0)
-            | (Options.materialPomMotionVectors[i] ? 4 : 0);
-        int pomPacked0 = filterMode | (pomMode << 3) | (heightSource << 5) | (pomStepsVal << 8)
-            | (pomRefinementVal << 16) | (filterRadiusVal << 20) | (mipBiasVal << 24) | (pack4flags << 28);
-        buf.putInt(pomPacked0);
-
-        int normalClampVal = Options.materialNormalClamp[i] & 0xFF;
-        int geometricBlendVal = Options.materialGeometricBlend[i] & 0xFF;
-        int pomAOStrengthVal = Options.materialPomAOStrength[i] & 0xFF;
-        int heightContrastVal = Options.materialHeightContrast[i] & 0xFF;
-        int pomPacked1 = normalClampVal | (geometricBlendVal << 8) | (pomAOStrengthVal << 16) | (heightContrastVal << 24);
-        buf.putInt(pomPacked1);
-
-        int heightRemapMinVal = Options.materialHeightRemapMin[i] & 0xFF;
-        int heightRemapMaxVal = Options.materialHeightRemapMax[i] & 0xFF;
-        int heightOffsetVal = Options.materialHeightOffset[i] & 0xFF;
-        int normalDistanceFadeVal = Options.materialNormalDistanceFade[i] & 0xFF;
-        int pomPacked2 = heightRemapMinVal | (heightRemapMaxVal << 8) | (heightOffsetVal << 16) | (normalDistanceFadeVal << 24);
-        buf.putInt(pomPacked2);
-
-        buf.putFloat(Options.materialPomDepth[i] / 100f);
+        // Per-block POM/tessellation height pipeline parameters (bit-packed uint32s + float depth)
+        // For now, pack zeros for the bit-packed fields (neutral defaults) — per-block arrays will be added later.
+        // pomDepth controls displacement depth and is the only actively-used field for tessellation.
+        buf.putInt(0);   // pomPacked0: filterMode=0, pomMode=0, heightSource=0, pomSteps=0, etc.
+        buf.putInt(0);   // pomPacked1: normalClamp=0, geometricBlend=0, pomAOStrength=0, heightContrast=0
+        buf.putInt(0);   // pomPacked2: heightRemapMin=0, heightRemapMax=0, heightOffset=0, normalDistanceFade=0
+        buf.putFloat(Options.materialPomDepth[i] / 100f);  // pomDepth: 0-200 → 0.00-2.00 blocks
 
         // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
         buf.putFloat(Options.materialGamutBoost[i] / 100f);
         buf.putFloat(Options.materialNoiseMaskThreshold[i] / 1000f);
-        int noiseMaskPacked = Options.materialNoiseMaskMode[i]         // bits 0-2
-                | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 3) // bit 3
-                | (Options.materialNoiseWrap[i] << 4);                 // bits 4-6
+        int noiseMaskPacked = Options.materialNoiseMaskMode[i]
+                | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 4);
         buf.putInt(noiseMaskPacked);
         buf.putFloat(Options.materialNormalStrength[i] / 100f);
 
@@ -157,7 +132,7 @@ public class MaterialRegistry {
         buf.putInt(MaterialBlock.getMaterialClassForOrdinal(i).ordinal());
         int flags = 0;
         boolean hasLumData = blockLumMax[i] > blockLumMin[i];
-        if (hasLumData && Options.autoPBREnabled && Options.materialAutoPBR[i]) flags |= 0x8; // bit 3: AutoPBR
+        if (hasLumData && (Options.autoPBREnabled || Options.materialAutoPBR[i])) flags |= 0x8; // bit 3: AutoPBR
         int apbFlags = Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
         flags |= (apbFlags & 0x7) << 4; // bits 4-6
         buf.putInt(flags);
@@ -170,8 +145,9 @@ public class MaterialRegistry {
         int center = Options.materialPercentileCenter[i] & 0xFF;
         int spread = Options.materialPercentileSpread[i] & 0xFF;
         buf.putInt(rMin | (rMax << 8) | (center << 16) | (spread << 24));
+        int normStr = Options.materialAutoPBRNormalStrength[i] & 0xFFFF;
         int htGamma = Options.materialAutoPBRHeightGamma[i] & 0xFFFF;
-        buf.putInt(htGamma); // normalStrength moved to pack5.w (mc.normalStrength)
+        buf.putInt(normStr | (htGamma << 16));
     }
 
     private static void packDefault(ByteBuffer buf) {
@@ -200,16 +176,10 @@ public class MaterialRegistry {
         buf.putInt(0);        // noisePacked
 
         // Pack 4: pomPacked0, pomPacked1, pomPacked2, pomDepth
-        // Default: forward filter, no POM, luminance height, 64 steps, no refinement, 0.5 texel radius
-        int defPomPacked0 = 0 | (0 << 3) | (0 << 5) | (64 << 8) | (4 << 16) | (0 << 20) | (0 << 24) | (0 << 28);
-        buf.putInt(defPomPacked0);
-        // Default: normalClamp=100 (1.0=unclamped), geometricBlend=0, pomAO=0, heightContrast=10 (1.0)
-        int defPomPacked1 = 100 | (0 << 8) | (0 << 16) | (10 << 24);
-        buf.putInt(defPomPacked1);
-        // Default: remapMin=0, remapMax=100, offset=100 (0.0), distanceFade=0 (disabled)
-        int defPomPacked2 = 0 | (100 << 8) | (100 << 16) | (0 << 24);
-        buf.putInt(defPomPacked2);
-        buf.putFloat(0f);     // pomDepth (disabled)
+        buf.putInt(0);        // pomPacked0 (neutral defaults)
+        buf.putInt(0);        // pomPacked1
+        buf.putInt(0);        // pomPacked2
+        buf.putFloat(0f);     // pomDepth (0 = disabled)
 
         // Pack 5
         buf.putFloat(1.0f);   // gamutBoost (neutral)
