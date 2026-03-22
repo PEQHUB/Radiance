@@ -80,23 +80,20 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     private static final int[] snapCoatWeight = new int[Options.MAX_MATERIALS], snapCoatRoughness = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseScale = new int[Options.MAX_MATERIALS], snapNoiseStrength = new int[Options.MAX_MATERIALS], snapNoiseOctaves = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseType = new int[Options.MAX_MATERIALS], snapNoiseSeed = new int[Options.MAX_MATERIALS];
-    private static final int[] snapChannelR = new int[Options.MAX_MATERIALS], snapChannelG = new int[Options.MAX_MATERIALS], snapChannelB = new int[Options.MAX_MATERIALS];
-    private static final int[] snapTextureBlend = new int[Options.MAX_MATERIALS];
     private static final int[] snapGamutBoost = new int[Options.MAX_MATERIALS];
     private static final int[] snapPomDepth = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMin = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMax = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPerBlockAutoPBRGamma = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPerBlockAutoPBRNormStr = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPerBlockAutoPBRVarWt = new int[Options.MAX_MATERIALS];
-    private static final int[] snapPerBlockAutoPBREdgeWt = new int[Options.MAX_MATERIALS];
     private static final int[] snapPerBlockAutoPBRHtGamma = new int[Options.MAX_MATERIALS];
     private static final int[] snapPerBlockAutoPBRFlags = new int[Options.MAX_MATERIALS];
+    private static final int[] snapPercentileCenter = new int[Options.MAX_MATERIALS];
+    private static final int[] snapPercentileSpread = new int[Options.MAX_MATERIALS];
+    private static final int[] snapNormalStrength = new int[Options.MAX_MATERIALS];
     private static final boolean[] snapAutoPBR = new boolean[Options.MAX_MATERIALS];
     private static final boolean[] snapChildOverride = new boolean[Options.MAX_MATERIALS];
     private static boolean snapAutoPBREnabled;
-    private static int snapAutoPBRRoughnessGamma, snapAutoPBRGlobalRoughnessMin, snapAutoPBRGlobalRoughnessMax;
-    private static int snapAutoPBRNormalStrength, snapAutoPBRVarianceWeight, snapAutoPBREdgeWeight;
+    private static int snapAutoPBRGlobalRoughnessMin, snapAutoPBRGlobalRoughnessMax;
+    private static int snapAutoPBRNormalStrength;
     private static int snapAutoPBRHeightGamma;
 
     public MaterialsSettingsScreen(Screen parent) {
@@ -127,29 +124,21 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         System.arraycopy(Options.materialNoiseOctaves, 0, snapNoiseOctaves, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseType, 0, snapNoiseType, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseSeed, 0, snapNoiseSeed, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialChannelR, 0, snapChannelR, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialChannelG, 0, snapChannelG, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialChannelB, 0, snapChannelB, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialTextureBlend, 0, snapTextureBlend, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGamutBoost, 0, snapGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPomDepth, 0, snapPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMin, 0, snapAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMax, 0, snapAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialAutoPBRGamma, 0, snapPerBlockAutoPBRGamma, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialAutoPBRNormalStrength, 0, snapPerBlockAutoPBRNormStr, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialAutoPBRVarianceWeight, 0, snapPerBlockAutoPBRVarWt, 0, Options.MAX_MATERIALS);
-        System.arraycopy(Options.materialAutoPBREdgeWeight, 0, snapPerBlockAutoPBREdgeWt, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRHeightGamma, 0, snapPerBlockAutoPBRHtGamma, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRFlags, 0, snapPerBlockAutoPBRFlags, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialPercentileCenter, 0, snapPercentileCenter, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialPercentileSpread, 0, snapPercentileSpread, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNormalStrength, 0, snapNormalStrength, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBR, 0, snapAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChildOverride, 0, snapChildOverride, 0, Options.MAX_MATERIALS);
         snapAutoPBREnabled = Options.autoPBREnabled;
-        snapAutoPBRRoughnessGamma = Options.autoPBRRoughnessGamma;
         snapAutoPBRGlobalRoughnessMin = Options.autoPBRRoughnessMin;
         snapAutoPBRGlobalRoughnessMax = Options.autoPBRRoughnessMax;
         snapAutoPBRNormalStrength = Options.autoPBRNormalStrength;
-        snapAutoPBRVarianceWeight = Options.autoPBRVarianceWeight;
-        snapAutoPBREdgeWeight = Options.autoPBREdgeWeight;
         snapAutoPBRHeightGamma = Options.autoPBRHeightGamma;
     }
 
@@ -172,29 +161,21 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         System.arraycopy(snapNoiseOctaves, 0, Options.materialNoiseOctaves, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseType, 0, Options.materialNoiseType, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseSeed, 0, Options.materialNoiseSeed, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapChannelR, 0, Options.materialChannelR, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapChannelG, 0, Options.materialChannelG, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapChannelB, 0, Options.materialChannelB, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapTextureBlend, 0, Options.materialTextureBlend, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGamutBoost, 0, Options.materialGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPomDepth, 0, Options.materialPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMin, 0, Options.materialAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMax, 0, Options.materialAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPerBlockAutoPBRGamma, 0, Options.materialAutoPBRGamma, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPerBlockAutoPBRNormStr, 0, Options.materialAutoPBRNormalStrength, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPerBlockAutoPBRVarWt, 0, Options.materialAutoPBRVarianceWeight, 0, Options.MAX_MATERIALS);
-        System.arraycopy(snapPerBlockAutoPBREdgeWt, 0, Options.materialAutoPBREdgeWeight, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPerBlockAutoPBRHtGamma, 0, Options.materialAutoPBRHeightGamma, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPerBlockAutoPBRFlags, 0, Options.materialAutoPBRFlags, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapPercentileCenter, 0, Options.materialPercentileCenter, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapPercentileSpread, 0, Options.materialPercentileSpread, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNormalStrength, 0, Options.materialNormalStrength, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBR, 0, Options.materialAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChildOverride, 0, Options.materialChildOverride, 0, Options.MAX_MATERIALS);
         Options.autoPBREnabled = snapAutoPBREnabled;
-        Options.autoPBRRoughnessGamma = snapAutoPBRRoughnessGamma;
         Options.autoPBRRoughnessMin = snapAutoPBRGlobalRoughnessMin;
         Options.autoPBRRoughnessMax = snapAutoPBRGlobalRoughnessMax;
         Options.autoPBRNormalStrength = snapAutoPBRNormalStrength;
-        Options.autoPBRVarianceWeight = snapAutoPBRVarianceWeight;
-        Options.autoPBREdgeWeight = snapAutoPBREdgeWeight;
         Options.autoPBRHeightGamma = snapAutoPBRHeightGamma;
         Options.markMaterialDirty();
         com.radiance.client.material.MaterialRegistry.markDirty();
@@ -202,23 +183,19 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
     private boolean autoPBRParamsChanged() {
         if (Options.autoPBREnabled != snapAutoPBREnabled
-            || Options.autoPBRRoughnessGamma != snapAutoPBRRoughnessGamma
             || Options.autoPBRRoughnessMin != snapAutoPBRGlobalRoughnessMin
             || Options.autoPBRRoughnessMax != snapAutoPBRGlobalRoughnessMax
             || Options.autoPBRNormalStrength != snapAutoPBRNormalStrength
-            || Options.autoPBRVarianceWeight != snapAutoPBRVarianceWeight
-            || Options.autoPBREdgeWeight != snapAutoPBREdgeWeight
             || Options.autoPBRHeightGamma != snapAutoPBRHeightGamma) return true;
         for (int j = 0; j < Options.MAX_MATERIALS; j++) {
             if (Options.materialAutoPBR[j] != snapAutoPBR[j]) return true;
             if (Options.materialAutoPBRRoughnessMin[j] != snapAutoPBRRoughnessMin[j]) return true;
             if (Options.materialAutoPBRRoughnessMax[j] != snapAutoPBRRoughnessMax[j]) return true;
-            if (Options.materialAutoPBRGamma[j] != snapPerBlockAutoPBRGamma[j]) return true;
-            if (Options.materialAutoPBRNormalStrength[j] != snapPerBlockAutoPBRNormStr[j]) return true;
-            if (Options.materialAutoPBRVarianceWeight[j] != snapPerBlockAutoPBRVarWt[j]) return true;
-            if (Options.materialAutoPBREdgeWeight[j] != snapPerBlockAutoPBREdgeWt[j]) return true;
             if (Options.materialAutoPBRHeightGamma[j] != snapPerBlockAutoPBRHtGamma[j]) return true;
             if (Options.materialAutoPBRFlags[j] != snapPerBlockAutoPBRFlags[j]) return true;
+            if (Options.materialPercentileCenter[j] != snapPercentileCenter[j]) return true;
+            if (Options.materialPercentileSpread[j] != snapPercentileSpread[j]) return true;
+            if (Options.materialNormalStrength[j] != snapNormalStrength[j]) return true;
         }
         return false;
     }
@@ -623,15 +600,14 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         boolean invertRough = (flags & 1) != 0;
         boolean invertNormal = (flags & 2) != 0;
         boolean invertHeight = (flags & 4) != 0;
-        int chR = Options.materialChannelR[ci], chG = Options.materialChannelG[ci], chB = Options.materialChannelB[ci];
         // Use cropped copy for AutoPBR generation (first frame only for animated textures)
         NativeImage normalImg = AutoPBRGenerator.generateNormal(albedoCopy,
-            Options.materialAutoPBRNormalStrength[ci], invertNormal,
-            Options.materialAutoPBRHeightGamma[ci], invertHeight, chR, chG, chB);
+            Options.materialNormalStrength[ci], invertNormal,
+            Options.materialAutoPBRHeightGamma[ci], invertHeight);
         NativeImage roughImg = AutoPBRGenerator.generateRoughnessPreviewPercentile(albedoCopy,
             Options.materialAutoPBRRoughnessMin[ci], Options.materialAutoPBRRoughnessMax[ci],
             Options.materialPercentileCenter[ci], Options.materialPercentileSpread[ci],
-            invertRough, chR, chG, chB);
+            invertRough);
         NativeImage heightImg = AutoPBRGenerator.generateHeightPreview(albedoCopy,
             Options.materialAutoPBRHeightGamma[ci], invertHeight);
 
@@ -831,12 +807,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             v -> getGenericValueText(Text.literal("Norm Str"),
                 Text.literal(String.format("\u00d7%.2f", v / 100.0))),
             v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget normalSmooth = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.materialNormalSmoothing[i], 0,
-            v -> getGenericValueText(Text.literal("Norm Smooth"),
-                Text.literal(v > 0 ? v + "%" : "Sharp")),
-            v -> { Options.materialNormalSmoothing[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new LegacyFourColumnSliderEntry(subsurface, anisotropic, normalStr, normalSmooth, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(subsurface, anisotropic, normalStr, null, body));
 
         // === Material validation warnings ===
         List<String> warnings = Options.validateMaterial(i);
@@ -879,30 +850,13 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 1000, Options.materialF0B[i], block.getDefaultF0B(),
             v -> getGenericValueText(Text.literal("F0 B"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialF0B[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget textureBlend = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.materialTextureBlend[i], 0,
-            v -> getGenericValueText(Text.literal("Tex Rough"),
-                Text.literal(v > 0 ? v + "%" : "off")),
-            v -> { Options.materialTextureBlend[i] = v; onSliderChanged(i); });
-        this.body.addEntry(new LegacyFourColumnSliderEntry(f0r, f0g, f0b, textureBlend, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(f0r, f0g, f0b, null, body));
 
         ResettableSliderWidget gamutBoost = new ResettableSliderWidget(0, 0, 100, 20,
             0, 200, Options.materialGamutBoost[i], 100,
             v -> getGenericValueText(Text.literal("Gamut"), Text.literal(String.format("\u00d7%.2f", v / 100.0))),
             v -> { Options.materialGamutBoost[i] = v; onSliderChanged(i); });
-        ResettableSliderWidget channelR = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 1000, Options.materialChannelR[i], 213,
-            v -> getGenericValueText(Text.literal("Chan R"), Text.literal(String.format("%.1f%%", v / 10.0))),
-            v -> { Options.materialChannelR[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        ResettableSliderWidget channelG = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 1000, Options.materialChannelG[i], 715,
-            v -> getGenericValueText(Text.literal("Chan G"), Text.literal(String.format("%.1f%%", v / 10.0))),
-            v -> { Options.materialChannelG[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        ResettableSliderWidget channelB = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 1000, Options.materialChannelB[i], 72,
-            v -> getGenericValueText(Text.literal("Chan B"), Text.literal(String.format("%.1f%%", v / 10.0))),
-            v -> { Options.materialChannelB[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        this.body.addEntry(new LegacyFourColumnSliderEntry(gamutBoost, channelR, channelG, channelB, body));
+        this.body.addEntry(new LegacyTwoColumnSliderEntry(gamutBoost, null, body));
 
         // Procedural Noise
         this.body.addEntry(new CategoryVideoOptionEntry(Text.literal("Procedural Noise"), body));
@@ -1017,9 +971,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             Options.materialAutoPBR[i],
             value -> {
                 Options.materialAutoPBR[i] = value;
-                if (value && Options.materialTextureBlend[i] == 0) {
-                    Options.materialTextureBlend[i] = 100;
-                }
                 onSliderChanged(i); LiveNormalReuploader.scheduleReupload();
                 rebuildSelf();
             });
@@ -1079,16 +1030,11 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         } else if (selectedPreviewMask == 1) {
             // === Normal mask controls ===
             ResettableSliderWidget perNormStr = new ResettableSliderWidget(0, 0, 150, 20,
-                0, 100, Options.materialAutoPBRNormalStrength[i], Options.autoPBRNormalStrength,
-                v -> getGenericValueText(Text.literal("Normal Strength"), Text.literal(String.format("%.2f", v / 100.0))),
-                v -> { Options.materialAutoPBRNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-            ResettableSliderWidget perEdgeWt = new ResettableSliderWidget(0, 0, 150, 20,
-                0, 100, Options.materialAutoPBREdgeWeight[i], Options.autoPBREdgeWeight,
-                v -> getGenericValueText(Text.literal("Edge Height"), Text.literal(v + "%")),
-                v -> { Options.materialAutoPBREdgeWeight[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+                0, 200, Options.materialNormalStrength[i], 100,
+                v -> getGenericValueText(Text.literal("Normal Strength"), Text.literal(String.format("\u00d7%.2f", v / 100.0))),
+                v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
             perNormStr.active = autoPBRActive;
-            perEdgeWt.active = autoPBRActive;
-            this.body.addEntry(new LegacyTwoColumnSliderEntry(perNormStr, perEdgeWt, body));
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(perNormStr, null, body));
 
             SimpleOption<Boolean> perInvertNormal = SimpleOption.ofBoolean(
                 "options.video.materials.autoPBRInvertNormal",
@@ -1128,10 +1074,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         this.body.addAll(new SimpleOption[]{autoPBRToggle});
 
         boolean globalPBROn = Options.autoPBREnabled;
-        ResettableSliderWidget roughGamma = new ResettableSliderWidget(0, 0, 100, 20,
-            1, 2000, Options.autoPBRRoughnessGamma, 50,
-            v -> getGenericValueText(Text.literal("Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
-            v -> { Options.autoPBRRoughnessGamma = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         ResettableSliderWidget normStr = new ResettableSliderWidget(0, 0, 100, 20,
             0, 100, Options.autoPBRNormalStrength, 25,
             v -> getGenericValueText(Text.literal("Norm Str"), Text.literal(String.format("%.2f", v / 100.0))),
@@ -1144,28 +1086,15 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
             0, 100, Options.autoPBRRoughnessMax, 95,
             v -> getGenericValueText(Text.literal("Rough Max"), Text.literal(v + "%")),
             v -> { Options.autoPBRRoughnessMax = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        roughGamma.active = globalPBROn;
-        normStr.active = globalPBROn;
-        globalRoughMin.active = globalPBROn;
-        globalRoughMax.active = globalPBROn;
-        this.body.addEntry(new LegacyFourColumnSliderEntry(roughGamma, normStr, globalRoughMin, globalRoughMax, body));
-
-        ResettableSliderWidget varianceWt = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.autoPBRVarianceWeight, 30,
-            v -> getGenericValueText(Text.literal("Variance"), Text.literal(v + "%")),
-            v -> { Options.autoPBRVarianceWeight = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        ResettableSliderWidget edgeWt = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 100, Options.autoPBREdgeWeight, 15,
-            v -> getGenericValueText(Text.literal("Edge Wt"), Text.literal(v + "%")),
-            v -> { Options.autoPBREdgeWeight = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
         ResettableSliderWidget heightGamma = new ResettableSliderWidget(0, 0, 100, 20,
             10, 300, Options.autoPBRHeightGamma, 100,
             v -> getGenericValueText(Text.literal("Ht Contrast"), Text.literal(String.format("%.2f", v / 100.0))),
             v -> { Options.autoPBRHeightGamma = v; regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
-        varianceWt.active = globalPBROn;
-        edgeWt.active = globalPBROn;
+        normStr.active = globalPBROn;
+        globalRoughMin.active = globalPBROn;
+        globalRoughMax.active = globalPBROn;
         heightGamma.active = globalPBROn;
-        this.body.addEntry(new LegacyFourColumnSliderEntry(varianceWt, edgeWt, heightGamma, null, body));
+        this.body.addEntry(new LegacyFourColumnSliderEntry(normStr, globalRoughMin, globalRoughMax, heightGamma, body));
 
         // === Parent/Child ===
         if (!block.isParent()) {

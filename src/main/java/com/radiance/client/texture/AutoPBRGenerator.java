@@ -113,24 +113,22 @@ public final class AutoPBRGenerator {
      * Generate LabPBR specular texture from albedo.
      * R = smoothness (1-sqrt(roughness)), G = F0 (~0.04), B = 0, A = 255 (no emission).
      */
+    /** BT.2020 luminance weights (hardcoded). */
+    private static final float BT2020_R = 0.2627f;
+    private static final float BT2020_G = 0.6780f;
+    private static final float BT2020_B = 0.0593f;
+
     public static NativeImage generateSpecular(NativeImage albedo) {
         return generateSpecular(albedo, Options.autoPBRRoughnessMin, Options.autoPBRRoughnessMax,
-            Options.autoPBRRoughnessGamma, Options.autoPBRVarianceWeight, Options.autoPBREdgeWeight,
-            false);
+            100, 0, 0, false);
     }
 
     public static NativeImage generateSpecular(NativeImage albedo, int roughnessMinPct, int roughnessMaxPct,
             int gammaPct, int varWeightPct, int edgeWeightPct, boolean invertRoughness) {
-        return generateSpecular(albedo, roughnessMinPct, roughnessMaxPct, gammaPct, varWeightPct, edgeWeightPct, invertRoughness, 213, 715, 72);
-    }
-
-    public static NativeImage generateSpecular(NativeImage albedo, int roughnessMinPct, int roughnessMaxPct,
-            int gammaPct, int varWeightPct, int edgeWeightPct, boolean invertRoughness,
-            int channelR, int channelG, int channelB) {
         int w = albedo.getWidth();
         int h = albedo.getHeight();
 
-        float[][] lum = computeLuminance(albedo, w, h, channelR / 1000.0f, channelG / 1000.0f, channelB / 1000.0f);
+        float[][] lum = computeLuminance(albedo, w, h, BT2020_R, BT2020_G, BT2020_B);
         float[] lumRange = computeLumRange(lum, albedo, w, h);
         float lumMin = lumRange[0];
         float lumSpan = lumRange[1] - lumRange[0];
@@ -175,12 +173,11 @@ public final class AutoPBRGenerator {
      */
     public static NativeImage generateSpecularPercentile(NativeImage albedo,
             int roughnessMinPct, int roughnessMaxPct,
-            int centerPct, int spreadPct, boolean invertRoughness,
-            int channelR, int channelG, int channelB) {
+            int centerPct, int spreadPct, boolean invertRoughness) {
         int w = albedo.getWidth();
         int h = albedo.getHeight();
 
-        float[][] lum = computeLuminance(albedo, w, h, channelR / 1000.0f, channelG / 1000.0f, channelB / 1000.0f);
+        float[][] lum = computeLuminance(albedo, w, h, BT2020_R, BT2020_G, BT2020_B);
         float[] lumRange = computeLumRange(lum, albedo, w, h);
         float lumMin = lumRange[0];
         float lumSpan = lumRange[1] - lumRange[0];
@@ -225,16 +222,10 @@ public final class AutoPBRGenerator {
 
     public static NativeImage generateNormal(NativeImage albedo, int normalStrengthPct,
             boolean invertNormal, int heightGammaPct, boolean invertHeight) {
-        return generateNormal(albedo, normalStrengthPct, invertNormal, heightGammaPct, invertHeight, 213, 715, 72);
-    }
-
-    public static NativeImage generateNormal(NativeImage albedo, int normalStrengthPct,
-            boolean invertNormal, int heightGammaPct, boolean invertHeight,
-            int channelR, int channelG, int channelB) {
         int w = albedo.getWidth();
         int h = albedo.getHeight();
 
-        float[][] lum = computeLuminance(albedo, w, h, channelR / 1000.0f, channelG / 1000.0f, channelB / 1000.0f);
+        float[][] lum = computeLuminance(albedo, w, h, BT2020_R, BT2020_G, BT2020_B);
         float[] lumRange = computeLumRange(lum, albedo, w, h);
         float lumMin = lumRange[0];
         float lumSpan = lumRange[1] - lumRange[0];
@@ -301,14 +292,12 @@ public final class AutoPBRGenerator {
      */
     public static NativeImage generateRoughnessPreview(NativeImage albedo) {
         return generateRoughnessPreview(albedo, Options.autoPBRRoughnessMin, Options.autoPBRRoughnessMax,
-            Options.autoPBRRoughnessGamma, Options.autoPBRVarianceWeight, Options.autoPBREdgeWeight,
-            false);
+            100, 0, 0, false);
     }
 
     public static NativeImage generateRoughnessPreview(NativeImage albedo, int roughnessMinPct, int roughnessMaxPct) {
         return generateRoughnessPreview(albedo, roughnessMinPct, roughnessMaxPct,
-            Options.autoPBRRoughnessGamma, Options.autoPBRVarianceWeight, Options.autoPBREdgeWeight,
-            false);
+            100, 0, 0, false);
     }
 
     public static NativeImage generateRoughnessPreview(NativeImage albedo, int roughnessMinPct, int roughnessMaxPct,
@@ -353,12 +342,11 @@ public final class AutoPBRGenerator {
      */
     public static NativeImage generateRoughnessPreviewPercentile(NativeImage albedo,
             int roughnessMinPct, int roughnessMaxPct,
-            int centerPct, int spreadPct, boolean invertRoughness,
-            int channelR, int channelG, int channelB) {
+            int centerPct, int spreadPct, boolean invertRoughness) {
         int w = albedo.getWidth();
         int h = albedo.getHeight();
 
-        float[][] lum = computeLuminance(albedo, w, h, channelR / 1000.0f, channelG / 1000.0f, channelB / 1000.0f);
+        float[][] lum = computeLuminance(albedo, w, h, BT2020_R, BT2020_G, BT2020_B);
         float[] lumRange = computeLumRange(lum, albedo, w, h);
         float lumMin = lumRange[0];
         float lumSpan = lumRange[1] - lumRange[0];
@@ -432,7 +420,7 @@ public final class AutoPBRGenerator {
     }
 
     private static float[][] computeLuminance(NativeImage img, int w, int h) {
-        return computeLuminance(img, w, h, 0.2126f, 0.7152f, 0.0722f);
+        return computeLuminance(img, w, h, BT2020_R, BT2020_G, BT2020_B);
     }
 
     private static float[][] computeLuminance(NativeImage img, int w, int h,

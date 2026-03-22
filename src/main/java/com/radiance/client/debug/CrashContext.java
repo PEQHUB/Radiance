@@ -145,8 +145,6 @@ public final class CrashContext {
                     sb.append(" transmission=").append(Options.materialTransmission[i]);
                     sb.append(" pomDepth=").append(Options.materialPomDepth[i]);
                     sb.append(" normalStr=").append(Options.materialNormalStrength[i]);
-                    sb.append(" normalSmooth=").append(Options.materialNormalSmoothing[i]);
-                    sb.append(" texBlend=").append(Options.materialTextureBlend[i]);
                     sb.append(" autoPBR=").append(hasAutoPBR);
                     sb.append(" flags=").append(Options.materialAutoPBRFlags[i]);
                     sb.append("\n");

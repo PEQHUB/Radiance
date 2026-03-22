@@ -39,16 +39,10 @@ public class MaterialData {
     public int noiseOctaves = 2;       // 1-8
     public int noiseType;              // 0-7 (noise algorithm)
     public int noiseSeed;              // 0-999
-    // Texture roughness channel routing
-    public int channelR = 213;         // 0-1000 permille (BT.709 luminance default)
-    public int channelG = 715;         // 0-1000 permille
-    public int channelB = 72;          // 0-1000 permille
-    public int textureBlend = 30;      // 0-100 percent
     // Gamut boost
     public int gamutBoost = 100;       // 0-200 (×0.01 = 0.00-2.00 multiplier)
     // POM & Normal
     public int pomDepth;               // 0-200 (×0.01, 0=off, per-block POM depth)
-    public int normalSmoothing;        // 0-100 (×0.01 = 0.0-1.0 LOD bias)
     public int normalStrength = 100;   // 0-200 (×0.01 = 0.00-2.00, 100=neutral)
     // Per-channel input types: 0=Auto, 1=Custom, 2=Flat
     public int normalInputType;
@@ -87,13 +81,8 @@ public class MaterialData {
         d.noiseOctaves = Options.materialNoiseOctaves[blockIndex];
         d.noiseType = Options.materialNoiseType[blockIndex];
         d.noiseSeed = Options.materialNoiseSeed[blockIndex];
-        d.channelR = Options.materialChannelR[blockIndex];
-        d.channelG = Options.materialChannelG[blockIndex];
-        d.channelB = Options.materialChannelB[blockIndex];
-        d.textureBlend = Options.materialTextureBlend[blockIndex];
         d.gamutBoost = Options.materialGamutBoost[blockIndex];
         d.pomDepth = Options.materialPomDepth[blockIndex];
-        d.normalSmoothing = Options.materialNormalSmoothing[blockIndex];
         d.normalStrength = Options.materialNormalStrength[blockIndex];
         d.normalInputType = Options.materialNormalInputType[blockIndex];
         d.specularInputType = Options.materialSpecularInputType[blockIndex];
@@ -145,13 +134,8 @@ public class MaterialData {
         Options.materialNoiseOctaves[blockIndex] = noiseOctaves;
         Options.materialNoiseType[blockIndex] = noiseType;
         Options.materialNoiseSeed[blockIndex] = noiseSeed;
-        Options.materialChannelR[blockIndex] = channelR;
-        Options.materialChannelG[blockIndex] = channelG;
-        Options.materialChannelB[blockIndex] = channelB;
-        Options.materialTextureBlend[blockIndex] = textureBlend;
         Options.materialGamutBoost[blockIndex] = gamutBoost;
         Options.materialPomDepth[blockIndex] = pomDepth;
-        Options.materialNormalSmoothing[blockIndex] = normalSmoothing;
         Options.materialNormalStrength[blockIndex] = normalStrength;
         Options.materialNormalInputType[blockIndex] = normalInputType;
         Options.materialSpecularInputType[blockIndex] = specularInputType;
@@ -232,20 +216,11 @@ public class MaterialData {
             sb.append(String.format("Noise Strength: %.1f%%\n", noiseStrength / 10.0));
             sb.append(String.format("Noise Octaves: %d\n", noiseOctaves));
         }
-        if (textureBlend > 0) {
-            sb.append(String.format("Channel R: %.1f%%\n", channelR / 10.0));
-            sb.append(String.format("Channel G: %.1f%%\n", channelG / 10.0));
-            sb.append(String.format("Channel B: %.1f%%\n", channelB / 10.0));
-            sb.append(String.format("Texture Blend: %d%%\n", textureBlend));
-        }
         if (gamutBoost != 100) {
             sb.append(String.format("Gamut Boost: %.2f\n", gamutBoost / 100.0));
         }
         if (pomDepth > 0) {
             sb.append(String.format("POM Depth: %.2f\n", pomDepth / 100.0));
-        }
-        if (normalSmoothing > 0) {
-            sb.append(String.format("Normal Smoothing: %d%%\n", normalSmoothing));
         }
         if (normalStrength != 100) {
             sb.append(String.format("Normal Strength: %.2f\n", normalStrength / 100.0));
@@ -291,13 +266,8 @@ public class MaterialData {
                         case "Noise Scale"   -> d.noiseScale = Math.round(Float.parseFloat(val) * 10);
                         case "Noise Strength"-> d.noiseStrength = Math.round(Float.parseFloat(val) * 10);
                         case "Noise Octaves" -> d.noiseOctaves = Integer.parseInt(val);
-                        case "Channel R"     -> d.channelR = Math.round(Float.parseFloat(val) * 10);
-                        case "Channel G"     -> d.channelG = Math.round(Float.parseFloat(val) * 10);
-                        case "Channel B"     -> d.channelB = Math.round(Float.parseFloat(val) * 10);
-                        case "Texture Blend" -> d.textureBlend = Integer.parseInt(val);
                         case "Gamut Boost"   -> d.gamutBoost = Math.round(Float.parseFloat(val) * 100);
                         case "POM Depth"     -> d.pomDepth = Math.round(Float.parseFloat(val) * 100);
-                        case "Normal Smoothing" -> d.normalSmoothing = Integer.parseInt(val);
                         case "Normal Strength"  -> d.normalStrength = Math.round(Float.parseFloat(val) * 100);
                         default -> {}
                     }
@@ -320,7 +290,6 @@ public class MaterialData {
         h = h * 31 + coatWeight;  h = h * 31 + coatRoughness;
         h = h * 31 + noiseScale; h = h * 31 + noiseStrength; h = h * 31 + noiseOctaves;
         h = h * 31 + noiseType; h = h * 31 + noiseSeed;
-        h = h * 31 + channelR; h = h * 31 + channelG; h = h * 31 + channelB; h = h * 31 + textureBlend;
         h = h * 31 + gamutBoost;
         return h;
     }

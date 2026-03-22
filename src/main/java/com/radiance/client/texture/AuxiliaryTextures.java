@@ -256,12 +256,9 @@ public enum AuxiliaryTextures {
                                 && (com.radiance.client.option.Options.autoPBREnabled || com.radiance.client.option.Options.materialAutoPBR[mbOrdinal]);
                             // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
                             if (autoPBR && level == 0) {
-                                float wR = com.radiance.client.option.Options.materialChannelR[mbOrdinal] / 1000f;
-                                float wG = com.radiance.client.option.Options.materialChannelG[mbOrdinal] / 1000f;
-                                float wB = com.radiance.client.option.Options.materialChannelB[mbOrdinal] / 1000f;
-                                float wSum = wR + wG + wB;
-                                if (wSum < 0.001f) { wR = 0.2126f; wG = 0.7152f; wB = 0.0722f; }
-                                else { wR /= wSum; wG /= wSum; wB /= wSum; }
+                                float wR = 0.2627f; // BT.2020 luminance weights
+                                float wG = 0.6780f;
+                                float wB = 0.0593f;
                                 int sw = source.getWidth(), sh = source.getHeight();
                                 float lMin = Float.MAX_VALUE, lMax = 0f;
                                 for (int py = 0; py < sh; py++) {
@@ -285,13 +282,10 @@ public enum AuxiliaryTextures {
                             if (autoPBR && auxiliaryTexture == NORMAL) {
                                 // Keep generating normal texture for POM height data (alpha channel)
                                 auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
-                                    com.radiance.client.option.Options.materialAutoPBRNormalStrength[mbOrdinal],
+                                    com.radiance.client.option.Options.materialNormalStrength[mbOrdinal],
                                     (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 2) != 0,
                                     com.radiance.client.option.Options.materialAutoPBRHeightGamma[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0,
-                                    com.radiance.client.option.Options.materialChannelR[mbOrdinal],
-                                    com.radiance.client.option.Options.materialChannelG[mbOrdinal],
-                                    com.radiance.client.option.Options.materialChannelB[mbOrdinal]);
+                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0);
                                 TextureTracker.hasHeightMap.add(targetId);
                             } else if (autoPBR && auxiliaryTexture == SPECULAR) {
                                 // GPU-side AutoPBR: roughness computed in shader, skip CPU bake

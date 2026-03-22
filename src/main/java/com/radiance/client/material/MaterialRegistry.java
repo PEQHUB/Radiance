@@ -103,11 +103,11 @@ public class MaterialRegistry {
                 | (Options.materialNoiseWrap[i] << 20);
         buf.putInt(noisePacked);
 
-        // Pack 4: channelR, channelG, channelB, textureBlend
-        buf.putFloat(Options.materialChannelR[i] / 1000f);
-        buf.putFloat(Options.materialChannelG[i] / 1000f);
-        buf.putFloat(Options.materialChannelB[i] / 1000f);
-        buf.putFloat(Options.materialTextureBlend[i] / 100f);
+        // Pack 4: reserved (was channelR/G/B/textureBlend — removed)
+        buf.putFloat(0f);
+        buf.putFloat(0f);
+        buf.putFloat(0f);
+        buf.putFloat(0f); // pomDepth (future)
 
         // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
         buf.putFloat(Options.materialGamutBoost[i] / 100f);
@@ -142,9 +142,8 @@ public class MaterialRegistry {
         int center = Options.materialPercentileCenter[i] & 0xFF;
         int spread = Options.materialPercentileSpread[i] & 0xFF;
         buf.putInt(rMin | (rMax << 8) | (center << 16) | (spread << 24));
-        int normStr = Options.materialAutoPBRNormalStrength[i] & 0xFFFF;
         int htGamma = Options.materialAutoPBRHeightGamma[i] & 0xFFFF;
-        buf.putInt(normStr | (htGamma << 16));
+        buf.putInt(htGamma); // normalStrength moved to pack5.w (mc.normalStrength)
     }
 
     private static void packDefault(ByteBuffer buf) {
@@ -173,10 +172,10 @@ public class MaterialRegistry {
         buf.putInt(0);        // noisePacked
 
         // Pack 4
-        buf.putFloat(0f);     // channelR
-        buf.putFloat(0f);     // channelG
-        buf.putFloat(0f);     // channelB
-        buf.putFloat(0f);     // textureBlend
+        buf.putFloat(0f);     // _reserved4a
+        buf.putFloat(0f);     // _reserved4b
+        buf.putFloat(0f);     // _reserved4c
+        buf.putFloat(0f);     // pomDepth
 
         // Pack 5
         buf.putFloat(1.0f);   // gamutBoost (neutral)

@@ -1022,23 +1022,13 @@ public class Options {
     public static final int[] materialNoiseAspect = new int[MAX_MATERIALS];       // 10-1000 (0.1x-10.0x)
     public static final int[] materialNoiseLacunarity = new int[MAX_MATERIALS];   // 10-40 (1.0-4.0)
     public static final int[] materialNoiseContrast = new int[MAX_MATERIALS];     // 0-200 (0.0-2.0)
-    // Texture roughness channel routing: per-material weights for deriving roughness from albedo
-    public static final int[] materialChannelR = new int[MAX_MATERIALS];       // 0-1000 permille
-    public static final int[] materialChannelG = new int[MAX_MATERIALS];       // 0-1000 permille
-    public static final int[] materialChannelB = new int[MAX_MATERIALS];       // 0-1000 permille
-    public static final int[] materialTextureBlend = new int[MAX_MATERIALS];   // 0-100 percent
     public static final int[] materialGamutBoost = new int[MAX_MATERIALS];    // 0-200 (×0.01 = 0.00-2.00 multiplier)
     public static final int[] materialPomDepth = new int[MAX_MATERIALS];     // 0-200 (×0.01 = 0.00-2.00, per-block POM depth, 0=off)
-    public static final int[] materialNormalSmoothing = new int[MAX_MATERIALS]; // 0-100 (×0.01 = 0.0-1.0 LOD bias)
     public static final int[] materialNormalStrength = new int[MAX_MATERIALS];  // 0-200 (×0.01 = 0.00-2.00 multiplier, 100=neutral)
     public static final int[] materialAutoPBRRoughnessMin = new int[MAX_MATERIALS]; // 0-100, per-block roughness min %
     public static final int[] materialAutoPBRRoughnessMax = new int[MAX_MATERIALS]; // 0-100, per-block roughness max %
-    public static final int[] materialAutoPBRGamma = new int[MAX_MATERIALS];          // 1-2000, /100 (legacy, kept for compat)
     public static final int[] materialPercentileCenter = new int[MAX_MATERIALS];      // 0-100, what brightness = mid-roughness
     public static final int[] materialPercentileSpread = new int[MAX_MATERIALS];      // 1-100, roughness contrast width
-    public static final int[] materialAutoPBRNormalStrength = new int[MAX_MATERIALS];  // 0-1000, /100
-    public static final int[] materialAutoPBRVarianceWeight = new int[MAX_MATERIALS];  // 0-100, /100 (legacy)
-    public static final int[] materialAutoPBREdgeWeight = new int[MAX_MATERIALS];      // 0-100, /100 (legacy)
     public static final int[] materialAutoPBRHeightGamma = new int[MAX_MATERIALS];     // 10-300, /100
     public static final int[] materialAutoPBRFlags = new int[MAX_MATERIALS];           // bit 0=invertRoughness, bit 1=invertNormal, bit 2=invertHeight
     static {
@@ -1057,19 +1047,12 @@ public class Options {
             materialNoiseAspect[i] = 100;
             materialNoiseLacunarity[i] = 20;
             materialNoiseContrast[i] = 100;
-            materialChannelR[i] = 213;
-            materialChannelG[i] = 715;
-            materialChannelB[i] = 72;
             materialGamutBoost[i] = 100;
             materialNormalStrength[i] = 100;
             materialAutoPBRRoughnessMin[i] = 30;
             materialAutoPBRRoughnessMax[i] = 95;
-            materialAutoPBRGamma[i] = 50;
             materialPercentileCenter[i] = 50;
             materialPercentileSpread[i] = 80;
-            materialAutoPBRNormalStrength[i] = 25;
-            materialAutoPBRVarianceWeight[i] = 30;
-            materialAutoPBREdgeWeight[i] = 15;
             materialAutoPBRHeightGamma[i] = 100;
         }
 
@@ -1102,25 +1085,13 @@ public class Options {
             materialNoiseAspect[i] = 100;   // 1.0x (uniform)
             materialNoiseLacunarity[i] = 20; // 2.0
             materialNoiseContrast[i] = 100;  // 1.0
-            // Channel weights default to BT.709 luminance
-            materialChannelR[i] = 213;      // 0.2126
-            materialChannelG[i] = 715;      // 0.7152
-            materialChannelB[i] = 72;       // 0.0722
-            // Texture blend default: 0 (off). Users opt in explicitly.
-            // Previously defaulted to 30-60% which silently overrode the roughness slider.
-            materialTextureBlend[i] = 0;
             materialGamutBoost[i] = 100;    // 1.0× (neutral)
             materialPomDepth[i] = 0;        // off by default (per-block POM disabled)
-            materialNormalSmoothing[i] = 0;  // sharp (no LOD bias)
             materialNormalStrength[i] = 100; // 1.0× (neutral)
             materialAutoPBRRoughnessMin[i] = 30;  // default roughness min 30%
             materialAutoPBRRoughnessMax[i] = 95;  // default roughness max 95%
-            materialAutoPBRGamma[i] = 50;          // legacy, kept for compat
             materialPercentileCenter[i] = 50;      // 50% = linear midpoint
             materialPercentileSpread[i] = 80;      // 80% = moderate contrast
-            materialAutoPBRNormalStrength[i] = 25;  // 0.25 normal strength
-            materialAutoPBRVarianceWeight[i] = 30;  // legacy
-            materialAutoPBREdgeWeight[i] = 15;      // legacy
             materialAutoPBRHeightGamma[i] = 100;    // matches autoPBRHeightGamma default
             materialAutoPBRFlags[i] = 0;            // no inversions (base convention is now correct)
         }
@@ -1135,8 +1106,6 @@ public class Options {
             int j = mb.ordinal();
             materialRoughness[j] = 0;
             materialNormalStrength[j] = 200;
-            materialTextureBlend[j] = 100;
-            materialAutoPBRNormalStrength[j] = 0;
         }
         // Iron door: higher F0 than enum default
         materialF0R[MaterialBlock.IRON_DOOR.ordinal()] = 560;
@@ -1152,23 +1121,19 @@ public class Options {
             materialNoiseScale[j] = 112;
             materialNoiseOctaves[j] = 4;
             materialNoiseType[j] = 2;
-            materialTextureBlend[j] = 25;
             materialSheenTint[j] = 0;
             materialCoatRoughness[j] = 0;
-            materialAutoPBRNormalStrength[j] = 0;
+            materialNormalStrength[j] = 0;
         }
 
         // Other metals
         materialRoughness[MaterialBlock.COPPER_BLOCK.ordinal()] = 5;
-        materialTextureBlend[MaterialBlock.COPPER_BLOCK.ordinal()] = 100;
         materialIOR[MaterialBlock.COPPER_BLOCK.ordinal()] = 1000;
 
         materialRoughness[MaterialBlock.LIGHTNING_ROD.ordinal()] = 0;
-        materialTextureBlend[MaterialBlock.LIGHTNING_ROD.ordinal()] = 100;
         materialIOR[MaterialBlock.LIGHTNING_ROD.ordinal()] = 1000;
 
         materialRoughness[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 0;
-        materialTextureBlend[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 100;
         materialIOR[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 1000;
 
         // Raw iron: dielectric treatment
@@ -1179,9 +1144,7 @@ public class Options {
         materialRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
         materialTransmission[MaterialBlock.EMERALD_BLOCK.ordinal()] = 1000;
         materialGamutBoost[MaterialBlock.EMERALD_BLOCK.ordinal()] = 142;
-        materialTextureBlend[MaterialBlock.EMERALD_BLOCK.ordinal()] = 1;
         materialCoatRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
-        materialAutoPBRNormalStrength[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
         materialAutoPBRRoughnessMin[MaterialBlock.EMERALD_BLOCK.ordinal()] = 10;
         materialAutoPBRRoughnessMax[MaterialBlock.EMERALD_BLOCK.ordinal()] = 18;
         materialAutoPBRFlags[MaterialBlock.EMERALD_BLOCK.ordinal()] = 2; // invertNormal
@@ -1197,8 +1160,7 @@ public class Options {
         // Transmissives
         materialRoughness[MaterialBlock.HONEY_MAT.ordinal()] = 0;
         materialTransmission[MaterialBlock.HONEY_MAT.ordinal()] = 1000;
-        materialTextureBlend[MaterialBlock.HONEY_MAT.ordinal()] = 8;
-        materialAutoPBRNormalStrength[MaterialBlock.HONEY_MAT.ordinal()] = 0;
+        materialNormalStrength[MaterialBlock.HONEY_MAT.ordinal()] = 0;
         materialAutoPBRRoughnessMin[MaterialBlock.HONEY_MAT.ordinal()] = 0;
         materialAutoPBRRoughnessMax[MaterialBlock.HONEY_MAT.ordinal()] = 100;
         materialPercentileCenter[MaterialBlock.HONEY_MAT.ordinal()] = 0;
@@ -1206,15 +1168,12 @@ public class Options {
 
         materialRoughness[MaterialBlock.ICE.ordinal()] = 0;
         materialCoatRoughness[MaterialBlock.ICE.ordinal()] = 28;
-        materialTextureBlend[MaterialBlock.ICE.ordinal()] = 50;
 
         materialRoughness[MaterialBlock.SLIME_MAT.ordinal()] = 2;
         materialTransmission[MaterialBlock.SLIME_MAT.ordinal()] = 1000;
-        materialTextureBlend[MaterialBlock.SLIME_MAT.ordinal()] = 29;
         materialAutoPBRRoughnessMin[MaterialBlock.SLIME_MAT.ordinal()] = 0;
         materialAutoPBRRoughnessMax[MaterialBlock.SLIME_MAT.ordinal()] = 0;
-        materialAutoPBRVarianceWeight[MaterialBlock.SLIME_MAT.ordinal()] = 0;
-        materialAutoPBRNormalStrength[MaterialBlock.SLIME_MAT.ordinal()] = 0;
+        materialNormalStrength[MaterialBlock.SLIME_MAT.ordinal()] = 0;
 
         materialRoughness[MaterialBlock.WATER_MAT.ordinal()] = 4;
         materialF0R[MaterialBlock.WATER_MAT.ordinal()] = 20;
@@ -1223,12 +1182,10 @@ public class Options {
         materialCoatWeight[MaterialBlock.WATER_MAT.ordinal()] = 1000;
         materialCoatRoughness[MaterialBlock.WATER_MAT.ordinal()] = 0;
         materialTransmission[MaterialBlock.WATER_MAT.ordinal()] = 1000;
-        materialTextureBlend[MaterialBlock.WATER_MAT.ordinal()] = 1;
         materialAutoPBRFlags[MaterialBlock.WATER_MAT.ordinal()] = 3; // invertRoughness + invertNormal
         materialAutoPBRRoughnessMin[MaterialBlock.WATER_MAT.ordinal()] = 0;
         materialAutoPBRRoughnessMax[MaterialBlock.WATER_MAT.ordinal()] = 100;
-        materialAutoPBRNormalStrength[MaterialBlock.WATER_MAT.ordinal()] = 1;
-        materialAutoPBREdgeWeight[MaterialBlock.WATER_MAT.ordinal()] = 100;
+        materialNormalStrength[MaterialBlock.WATER_MAT.ordinal()] = 1;
 
         // Stones: slight metallic sparkle
         for (MaterialBlock mb : new MaterialBlock[]{
@@ -1236,7 +1193,6 @@ public class Options {
                 MaterialBlock.STONE_BRICKS_MAT, MaterialBlock.MOSSY_STONE_BRICKS_MAT, MaterialBlock.SMOOTH_STONE}) {
             int j = mb.ordinal();
             materialMetallic[j] = 174;
-            materialTextureBlend[j] = 1;
         }
         // Stone family roughness overrides
         materialRoughness[MaterialBlock.COBBLESTONE_MAT.ordinal()] = 80;
@@ -1253,7 +1209,7 @@ public class Options {
         materialRoughness[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 49;
         materialIOR[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1127;
         materialGamutBoost[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 143;
-        materialAutoPBRNormalStrength[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
+        materialNormalStrength[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
         materialAutoPBRRoughnessMin[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 10;
         materialAutoPBRRoughnessMax[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 44;
         materialAutoPBRFlags[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1; // invertRoughness
@@ -1269,7 +1225,6 @@ public class Options {
 
         materialRoughness[MaterialBlock.PUMPKIN_MAT.ordinal()] = 0;
         materialCoatRoughness[MaterialBlock.PUMPKIN_MAT.ordinal()] = 0;
-        materialTextureBlend[MaterialBlock.PUMPKIN_MAT.ordinal()] = 100;
         materialGamutBoost[MaterialBlock.PUMPKIN_MAT.ordinal()] = 142;
 
         materialGamutBoost[MaterialBlock.SAND_MAT.ordinal()] = 142;
@@ -1286,9 +1241,6 @@ public class Options {
             materialAutoPBRFlags[j] = 2; // invertNormal
             materialAutoPBRRoughnessMin[j] = 0;
             materialAutoPBRRoughnessMax[j] = 5;
-            materialAutoPBRGamma[j] = 124;
-            materialAutoPBREdgeWeight[j] = 0;
-            materialAutoPBRVarianceWeight[j] = 0;
             materialPercentileCenter[j] = 93;
             materialPercentileSpread[j] = 1;
         }
@@ -1301,10 +1253,7 @@ public class Options {
             materialAutoPBRFlags[j] = 1; // invertRoughness
             materialAutoPBRRoughnessMin[j] = 0;
             materialAutoPBRRoughnessMax[j] = 10;
-            materialAutoPBRGamma[j] = 51;
             materialAutoPBRHeightGamma[j] = 293;
-            materialAutoPBREdgeWeight[j] = 0;
-            materialAutoPBRVarianceWeight[j] = 0;
             materialPercentileCenter[j] = 100;
             materialPercentileSpread[j] = 100;
         }
@@ -1314,7 +1263,7 @@ public class Options {
                 MaterialBlock.STONE, MaterialBlock.COBBLESTONE_MAT, MaterialBlock.MOSSY_COBBLESTONE_MAT,
                 MaterialBlock.STONE_BRICKS_MAT, MaterialBlock.MOSSY_STONE_BRICKS_MAT, MaterialBlock.SMOOTH_STONE}) {
             int j = mb.ordinal();
-            materialAutoPBRNormalStrength[j] = 0;
+            materialNormalStrength[j] = 0;
             materialAutoPBRRoughnessMin[j] = 85;
             materialAutoPBRRoughnessMax[j] = 100;
         }
@@ -1341,25 +1290,18 @@ public class Options {
             materialAutoPBRFlags[j] = 1; // invertRoughness
             materialAutoPBRRoughnessMin[j] = 0;
             materialAutoPBRRoughnessMax[j] = 14;
-            materialAutoPBRGamma[j] = 500;
-            materialAutoPBRNormalStrength[j] = 100;
-            materialAutoPBREdgeWeight[j] = 0;
-            materialAutoPBRVarianceWeight[j] = 0;
+            materialNormalStrength[j] = 100;
         }
 
         // Ancient debris: narrow low-roughness band, tight percentile
         materialAutoPBRRoughnessMin[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 9;
         materialAutoPBRRoughnessMax[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 40;
-        materialAutoPBRGamma[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 80;
-        materialAutoPBRNormalStrength[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
-        materialAutoPBREdgeWeight[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
-        materialAutoPBRVarianceWeight[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
+        materialNormalStrength[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
         materialPercentileCenter[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 32;
         materialPercentileSpread[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 1;
 
         // Diamond: inverted roughness, full range
         materialAutoPBRFlags[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 1; // invertRoughness
-        materialAutoPBRGamma[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 33;
         materialAutoPBRRoughnessMin[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 0;
         materialAutoPBRRoughnessMax[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 100;
 
@@ -1367,9 +1309,6 @@ public class Options {
         materialAutoPBRFlags[MaterialBlock.RAIL.ordinal()] = 3; // invertRoughness + invertNormal
         materialAutoPBRRoughnessMin[MaterialBlock.RAIL.ordinal()] = 0;
         materialAutoPBRRoughnessMax[MaterialBlock.RAIL.ordinal()] = 100;
-        materialAutoPBRGamma[MaterialBlock.RAIL.ordinal()] = 124;
-        materialAutoPBREdgeWeight[MaterialBlock.RAIL.ordinal()] = 0;
-        materialAutoPBRVarianceWeight[MaterialBlock.RAIL.ordinal()] = 0;
         materialPercentileCenter[MaterialBlock.RAIL.ordinal()] = 100;
         materialPercentileSpread[MaterialBlock.RAIL.ordinal()] = 73;
 
@@ -1386,11 +1325,7 @@ public class Options {
         // Dirt: fully rough, flat height, no normals
         materialAutoPBRRoughnessMin[MaterialBlock.DIRT_MAT.ordinal()] = 100;
         materialAutoPBRRoughnessMax[MaterialBlock.DIRT_MAT.ordinal()] = 99;
-        materialAutoPBRGamma[MaterialBlock.DIRT_MAT.ordinal()] = 220;
         materialAutoPBRHeightGamma[MaterialBlock.DIRT_MAT.ordinal()] = 10;
-        materialAutoPBRNormalStrength[MaterialBlock.DIRT_MAT.ordinal()] = 0;
-        materialAutoPBREdgeWeight[MaterialBlock.DIRT_MAT.ordinal()] = 0;
-        materialAutoPBRVarianceWeight[MaterialBlock.DIRT_MAT.ordinal()] = 0;
 
         // Sand: narrow high-roughness band
         materialAutoPBRRoughnessMin[MaterialBlock.SAND_MAT.ordinal()] = 76;
@@ -1405,9 +1340,7 @@ public class Options {
         materialAutoPBRFlags[MaterialBlock.WOOL_MAT.ordinal()] = 1; // invertRoughness
         materialAutoPBRRoughnessMin[MaterialBlock.WOOL_MAT.ordinal()] = 95;
         materialAutoPBRRoughnessMax[MaterialBlock.WOOL_MAT.ordinal()] = 100;
-        materialAutoPBRNormalStrength[MaterialBlock.WOOL_MAT.ordinal()] = 0;
-        materialAutoPBREdgeWeight[MaterialBlock.WOOL_MAT.ordinal()] = 0;
-        materialAutoPBRVarianceWeight[MaterialBlock.WOOL_MAT.ordinal()] = 0;
+        materialNormalStrength[MaterialBlock.WOOL_MAT.ordinal()] = 0;
         materialPercentileSpread[MaterialBlock.WOOL_MAT.ordinal()] = 100;
     }
 
@@ -1447,22 +1380,13 @@ public class Options {
                 materialNoiseAspect[ci] = materialNoiseAspect[parentOrdinal];
                 materialNoiseLacunarity[ci] = materialNoiseLacunarity[parentOrdinal];
                 materialNoiseContrast[ci] = materialNoiseContrast[parentOrdinal];
-                materialChannelR[ci] = materialChannelR[parentOrdinal];
-                materialChannelG[ci] = materialChannelG[parentOrdinal];
-                materialChannelB[ci] = materialChannelB[parentOrdinal];
-                materialTextureBlend[ci] = materialTextureBlend[parentOrdinal];
                 materialGamutBoost[ci] = materialGamutBoost[parentOrdinal];
                 materialPomDepth[ci] = materialPomDepth[parentOrdinal];
-                materialNormalSmoothing[ci] = materialNormalSmoothing[parentOrdinal];
                 materialNormalStrength[ci] = materialNormalStrength[parentOrdinal];
                 materialAutoPBRRoughnessMin[ci] = materialAutoPBRRoughnessMin[parentOrdinal];
                 materialAutoPBRRoughnessMax[ci] = materialAutoPBRRoughnessMax[parentOrdinal];
-                materialAutoPBRGamma[ci] = materialAutoPBRGamma[parentOrdinal];
                 materialPercentileCenter[ci] = materialPercentileCenter[parentOrdinal];
                 materialPercentileSpread[ci] = materialPercentileSpread[parentOrdinal];
-                materialAutoPBRNormalStrength[ci] = materialAutoPBRNormalStrength[parentOrdinal];
-                materialAutoPBRVarianceWeight[ci] = materialAutoPBRVarianceWeight[parentOrdinal];
-                materialAutoPBREdgeWeight[ci] = materialAutoPBREdgeWeight[parentOrdinal];
                 materialAutoPBRHeightGamma[ci] = materialAutoPBRHeightGamma[parentOrdinal];
                 materialAutoPBRFlags[ci] = materialAutoPBRFlags[parentOrdinal];
                 materialNormalInputType[ci] = materialNormalInputType[parentOrdinal];
@@ -1501,12 +1425,9 @@ public class Options {
     public static boolean autoPBREnabled = true; // Global kill switch (default on; disable to suppress all)
     public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // per-block toggle, default true
     static { java.util.Arrays.fill(materialAutoPBR, true); }
-    public static int autoPBRRoughnessGamma = 50;    // 10-200, /100 = 0.1-2.0
     public static int autoPBRRoughnessMin = 30;       // 0-100, /100 = 0.0-1.0
     public static int autoPBRRoughnessMax = 95;       // 0-100, /100 = 0.0-1.0
     public static int autoPBRNormalStrength = 25;      // 0-100, /100 = 0.00-1.00
-    public static int autoPBRVarianceWeight = 30;      // 0-100, /100 = 0.0-1.0
-    public static int autoPBREdgeWeight = 15;          // 0-100, /100 = 0.0-1.0
     // Global invert toggles removed — per-block materialAutoPBRFlags is the sole authority
     // (bit 0 = invertRoughness, bit 1 = invertNormal, bit 2 = invertHeight)
     public static int autoPBRHeightGamma = 100;          // 10-300, /100 = 0.1-3.0 (height contrast for POM)
@@ -1930,22 +1851,13 @@ public class Options {
                 materialNoiseAspect[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseAspect." + pid, "100")), 10, 1000);
                 materialNoiseLacunarity[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseLacunarity." + pid, "20")), 10, 40);
                 materialNoiseContrast[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseContrast." + pid, "100")), 0, 200);
-                materialChannelR[i] = clamp(Integer.parseInt(props.getProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]))), 0, 1000);
-                materialChannelG[i] = clamp(Integer.parseInt(props.getProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]))), 0, 1000);
-                materialChannelB[i] = clamp(Integer.parseInt(props.getProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]))), 0, 1000);
-                materialTextureBlend[i] = clamp(Integer.parseInt(props.getProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]))), 0, 100);
                 materialGamutBoost[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]))), 0, 200);
                 materialPomDepth[i] = clamp(Integer.parseInt(props.getProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]))), 0, 200);
-                materialNormalSmoothing[i] = clamp(Integer.parseInt(props.getProperty("materialNormalSmoothing." + pid, String.valueOf(materialNormalSmoothing[i]))), 0, 100);
                 materialNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]))), 0, 200);
                 materialAutoPBRRoughnessMin[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]))), 0, 100);
                 materialAutoPBRRoughnessMax[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]))), 0, 100);
-                materialAutoPBRGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRGamma." + pid, String.valueOf(materialAutoPBRGamma[i]))), 1, 2000);
                 materialPercentileCenter[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]))), 0, 100);
                 materialPercentileSpread[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]))), 1, 100);
-                materialAutoPBRNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRNormalStrength." + pid, String.valueOf(materialAutoPBRNormalStrength[i]))), 0, 100);
-                materialAutoPBRVarianceWeight[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRVarianceWeight." + pid, String.valueOf(materialAutoPBRVarianceWeight[i]))), 0, 100);
-                materialAutoPBREdgeWeight[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBREdgeWeight." + pid, String.valueOf(materialAutoPBREdgeWeight[i]))), 0, 100);
                 materialAutoPBRHeightGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]))), 10, 300);
                 materialAutoPBRFlags[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]))), 0, 7);
                 materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 2);
@@ -1982,12 +1894,9 @@ public class Options {
                 String pid = mb.getId();
                 materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "true"));
             }
-            autoPBRRoughnessGamma = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessGamma", String.valueOf(autoPBRRoughnessGamma))), 1, 2000);
             autoPBRRoughnessMin = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin))), 0, 100);
             autoPBRRoughnessMax = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax))), 0, 100);
             autoPBRNormalStrength = clamp(Integer.parseInt(props.getProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength))), 0, 100);
-            autoPBRVarianceWeight = clamp(Integer.parseInt(props.getProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight))), 0, 100);
-            autoPBREdgeWeight = clamp(Integer.parseInt(props.getProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight))), 0, 100);
             autoPBRHeightGamma = clamp(Integer.parseInt(props.getProperty("autoPBRHeightGamma", String.valueOf(autoPBRHeightGamma))), 10, 300);
 
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
@@ -2485,22 +2394,13 @@ public class Options {
             props.setProperty("materialNoiseAspect." + pid, String.valueOf(materialNoiseAspect[i]));
             props.setProperty("materialNoiseLacunarity." + pid, String.valueOf(materialNoiseLacunarity[i]));
             props.setProperty("materialNoiseContrast." + pid, String.valueOf(materialNoiseContrast[i]));
-            props.setProperty("materialChannelR." + pid, String.valueOf(materialChannelR[i]));
-            props.setProperty("materialChannelG." + pid, String.valueOf(materialChannelG[i]));
-            props.setProperty("materialChannelB." + pid, String.valueOf(materialChannelB[i]));
-            props.setProperty("materialTextureBlend." + pid, String.valueOf(materialTextureBlend[i]));
             props.setProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]));
             props.setProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]));
-            props.setProperty("materialNormalSmoothing." + pid, String.valueOf(materialNormalSmoothing[i]));
             props.setProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]));
             props.setProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]));
             props.setProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]));
-            props.setProperty("materialAutoPBRGamma." + pid, String.valueOf(materialAutoPBRGamma[i]));
             props.setProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]));
             props.setProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]));
-            props.setProperty("materialAutoPBRNormalStrength." + pid, String.valueOf(materialAutoPBRNormalStrength[i]));
-            props.setProperty("materialAutoPBRVarianceWeight." + pid, String.valueOf(materialAutoPBRVarianceWeight[i]));
-            props.setProperty("materialAutoPBREdgeWeight." + pid, String.valueOf(materialAutoPBREdgeWeight[i]));
             props.setProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]));
             props.setProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]));
             props.setProperty("materialNormalInputType." + pid, String.valueOf(materialNormalInputType[i]));
@@ -2539,12 +2439,9 @@ public class Options {
         for (MaterialBlock mb : MaterialBlock.values()) {
             props.setProperty("materialAutoPBR." + mb.getId(), String.valueOf(materialAutoPBR[mb.ordinal()]));
         }
-        props.setProperty("autoPBRRoughnessGamma", String.valueOf(autoPBRRoughnessGamma));
         props.setProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin));
         props.setProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax));
         props.setProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength));
-        props.setProperty("autoPBRVarianceWeight", String.valueOf(autoPBRVarianceWeight));
-        props.setProperty("autoPBREdgeWeight", String.valueOf(autoPBREdgeWeight));
         props.setProperty("autoPBRHeightGamma", String.valueOf(autoPBRHeightGamma));
 
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));

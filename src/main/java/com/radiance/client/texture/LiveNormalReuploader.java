@@ -78,13 +78,10 @@ public final class LiveNormalReuploader {
                     Integer ordN = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
                     if (ordN != null) {
                         newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo,
-                            Options.materialAutoPBRNormalStrength[ordN],
+                            Options.materialNormalStrength[ordN],
                             (Options.materialAutoPBRFlags[ordN] & 2) != 0,
                             Options.materialAutoPBRHeightGamma[ordN],
-                            (Options.materialAutoPBRFlags[ordN] & 4) != 0,
-                            Options.materialChannelR[ordN],
-                            Options.materialChannelG[ordN],
-                            Options.materialChannelB[ordN]);
+                            (Options.materialAutoPBRFlags[ordN] & 4) != 0);
                     } else {
                         newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo);
                     }
@@ -123,10 +120,7 @@ public final class LiveNormalReuploader {
                         Options.materialAutoPBRRoughnessMax[ordinal],
                         Options.materialPercentileCenter[ordinal],
                         Options.materialPercentileSpread[ordinal],
-                        (Options.materialAutoPBRFlags[ordinal] & 1) != 0,
-                        Options.materialChannelR[ordinal],
-                        Options.materialChannelG[ordinal],
-                        Options.materialChannelB[ordinal]);
+                        (Options.materialAutoPBRFlags[ordinal] & 1) != 0);
                 } else {
                     // Flat zero specular (no roughness/F0/emission data)
                     newSpec = cachedAlbedo.applyToCopy(i -> 0);
