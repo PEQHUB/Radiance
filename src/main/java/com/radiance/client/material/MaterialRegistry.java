@@ -131,8 +131,8 @@ public class MaterialRegistry {
         buf.putInt(255);
         buf.putInt(MaterialBlock.getMaterialClassForOrdinal(i).ordinal());
         int flags = 0;
-        boolean hasLumData = lumRangeSet[i] && blockLumMax[i] > blockLumMin[i];
-        if (hasLumData && (Options.autoPBREnabled || Options.materialAutoPBR[i])) flags |= 0x8; // bit 3: AutoPBR
+        boolean hasLumData = blockLumMax[i] > blockLumMin[i];
+        if (hasLumData && Options.autoPBREnabled && Options.materialAutoPBR[i]) flags |= 0x8; // bit 3: AutoPBR
         int apbFlags = Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
         flags |= (apbFlags & 0x7) << 4; // bits 4-6
         buf.putInt(flags);

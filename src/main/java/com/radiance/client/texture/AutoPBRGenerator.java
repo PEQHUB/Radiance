@@ -1,6 +1,6 @@
 package com.radiance.client.texture;
 
-import com.radiance.client.option.Options;
+
 import net.minecraft.client.texture.NativeImage;
 
 /**
@@ -119,7 +119,7 @@ public final class AutoPBRGenerator {
     private static final float BT2020_B = 0.0593f;
 
     public static NativeImage generateSpecular(NativeImage albedo) {
-        return generateSpecular(albedo, Options.autoPBRRoughnessMin, Options.autoPBRRoughnessMax,
+        return generateSpecular(albedo, 30, 95,
             100, 0, 0, false);
     }
 
@@ -216,8 +216,8 @@ public final class AutoPBRGenerator {
      * RG = tangent-space XY normal, B = AO (1.0), A = height (contrast-adjusted luminance).
      */
     public static NativeImage generateNormal(NativeImage albedo) {
-        return generateNormal(albedo, Options.autoPBRNormalStrength, false,
-            Options.autoPBRHeightGamma, false);
+        return generateNormal(albedo, 25, false,
+            100, false);
     }
 
     public static NativeImage generateNormal(NativeImage albedo, int normalStrengthPct,
@@ -291,7 +291,7 @@ public final class AutoPBRGenerator {
      * White = rough (1.0), Black = smooth (0.0).
      */
     public static NativeImage generateRoughnessPreview(NativeImage albedo) {
-        return generateRoughnessPreview(albedo, Options.autoPBRRoughnessMin, Options.autoPBRRoughnessMax,
+        return generateRoughnessPreview(albedo, 30, 95,
             100, 0, 0, false);
     }
 
@@ -381,7 +381,7 @@ public final class AutoPBRGenerator {
      * White = high, Black = low.
      */
     public static NativeImage generateHeightPreview(NativeImage albedo) {
-        return generateHeightPreview(albedo, Options.autoPBRHeightGamma, false);
+        return generateHeightPreview(albedo, 100, false);
     }
 
     public static NativeImage generateHeightPreview(NativeImage albedo, int heightGammaPct, boolean invertHeight) {

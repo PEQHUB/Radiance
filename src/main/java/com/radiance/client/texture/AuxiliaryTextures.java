@@ -253,7 +253,7 @@ public enum AuxiliaryTextures {
                         } else {
                             // Auto: existing LabPBR/auto-PBR path
                             boolean autoPBR = mbOrdinal >= 0
-                                && (com.radiance.client.option.Options.autoPBREnabled || com.radiance.client.option.Options.materialAutoPBR[mbOrdinal]);
+                                && com.radiance.client.option.Options.autoPBREnabled && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
                             // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
                             if (autoPBR && level == 0) {
                                 float wR = 0.2627f; // BT.2020 luminance weights

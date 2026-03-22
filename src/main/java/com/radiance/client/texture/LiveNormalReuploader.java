@@ -61,7 +61,7 @@ public final class LiveNormalReuploader {
     private static boolean isAutoPBRActive(int albedoGLID) {
         Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
         if (ordinal == null) return false;
-        return Options.autoPBREnabled || Options.materialAutoPBR[ordinal];
+        return Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
     }
 
     private static void reuploadNormals() {

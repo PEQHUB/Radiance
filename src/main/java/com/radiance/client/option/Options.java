@@ -1092,7 +1092,7 @@ public class Options {
             materialAutoPBRRoughnessMax[i] = 95;  // default roughness max 95%
             materialPercentileCenter[i] = 50;      // 50% = linear midpoint
             materialPercentileSpread[i] = 80;      // 80% = moderate contrast
-            materialAutoPBRHeightGamma[i] = 100;    // matches autoPBRHeightGamma default
+            materialAutoPBRHeightGamma[i] = 100;    // 1.0 = linear (no contrast adjustment)
             materialAutoPBRFlags[i] = 0;            // no inversions (base convention is now correct)
         }
 
@@ -1425,12 +1425,8 @@ public class Options {
     public static boolean autoPBREnabled = true; // Global kill switch (default on; disable to suppress all)
     public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // per-block toggle, default true
     static { java.util.Arrays.fill(materialAutoPBR, true); }
-    public static int autoPBRRoughnessMin = 30;       // 0-100, /100 = 0.0-1.0
-    public static int autoPBRRoughnessMax = 95;       // 0-100, /100 = 0.0-1.0
-    public static int autoPBRNormalStrength = 25;      // 0-100, /100 = 0.00-1.00
-    // Global invert toggles removed — per-block materialAutoPBRFlags is the sole authority
+    // Global override sliders removed — per-block arrays are the sole authority.
     // (bit 0 = invertRoughness, bit 1 = invertNormal, bit 2 = invertHeight)
-    public static int autoPBRHeightGamma = 100;          // 10-300, /100 = 0.1-3.0 (height contrast for POM)
 
     // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat
     public static final int[] materialNormalInputType = new int[MAX_MATERIALS];
@@ -1894,11 +1890,6 @@ public class Options {
                 String pid = mb.getId();
                 materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "true"));
             }
-            autoPBRRoughnessMin = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin))), 0, 100);
-            autoPBRRoughnessMax = clamp(Integer.parseInt(props.getProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax))), 0, 100);
-            autoPBRNormalStrength = clamp(Integer.parseInt(props.getProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength))), 0, 100);
-            autoPBRHeightGamma = clamp(Integer.parseInt(props.getProperty("autoPBRHeightGamma", String.valueOf(autoPBRHeightGamma))), 10, 300);
-
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 
@@ -2439,11 +2430,6 @@ public class Options {
         for (MaterialBlock mb : MaterialBlock.values()) {
             props.setProperty("materialAutoPBR." + mb.getId(), String.valueOf(materialAutoPBR[mb.ordinal()]));
         }
-        props.setProperty("autoPBRRoughnessMin", String.valueOf(autoPBRRoughnessMin));
-        props.setProperty("autoPBRRoughnessMax", String.valueOf(autoPBRRoughnessMax));
-        props.setProperty("autoPBRNormalStrength", String.valueOf(autoPBRNormalStrength));
-        props.setProperty("autoPBRHeightGamma", String.valueOf(autoPBRHeightGamma));
-
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
