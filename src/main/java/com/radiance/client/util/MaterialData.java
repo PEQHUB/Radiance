@@ -51,6 +51,25 @@ public class MaterialData {
     public String customSpecularPath = "";
     // Noise target channels: bit 0=roughness, bit 1=normal, bit 2=metallic
     public int noiseTarget = 1;
+    // Displacement / POM settings
+    public int heightFilter;               // 0=None, 1=Bilinear, 2=Trilinear
+    public int filterRadius;               // filter kernel radius
+    public int mipBias;                    // mip level bias
+    public int pomMode;                    // 0=Off, 1=Basic, 2=Steep, 3=POM, 4=Contact-refine
+    public int pomSteps;                   // max ray-march steps
+    public int pomRefinement;              // binary search refinement steps
+    public boolean pomClipSilhouette;      // clip at silhouette edges
+    public boolean pomAreaLightOffset;     // offset area light origins
+    public boolean pomMotionVectors;       // generate motion vectors for POM
+    public int heightSource;               // 0=Alpha, 1=Luminance, 2=Red
+    public int heightContrast;             // contrast adjustment
+    public int heightRemapMin;             // remap black point
+    public int heightRemapMax;             // remap white point
+    public int heightOffset;               // vertical offset
+    public int normalClamp;                // normal map clamping
+    public int geometricBlend;             // geometric normal blending
+    public int normalDistanceFade;         // fade normals with distance
+    public int pomAOStrength;              // POM ambient occlusion strength
 
     public MaterialData() {}
 
@@ -89,6 +108,24 @@ public class MaterialData {
         d.customNormalPath = Options.materialCustomNormalPath[blockIndex];
         d.customSpecularPath = Options.materialCustomSpecularPath[blockIndex];
         d.noiseTarget = Options.materialNoiseTarget[blockIndex];
+        d.heightFilter = Options.materialHeightFilter[blockIndex];
+        d.filterRadius = Options.materialFilterRadius[blockIndex];
+        d.mipBias = Options.materialMipBias[blockIndex];
+        d.pomMode = Options.materialPomMode[blockIndex];
+        d.pomSteps = Options.materialPomSteps[blockIndex];
+        d.pomRefinement = Options.materialPomRefinement[blockIndex];
+        d.pomClipSilhouette = Options.materialPomClipSilhouette[blockIndex];
+        d.pomAreaLightOffset = Options.materialPomAreaLightOffset[blockIndex];
+        d.pomMotionVectors = Options.materialPomMotionVectors[blockIndex];
+        d.heightSource = Options.materialHeightSource[blockIndex];
+        d.heightContrast = Options.materialHeightContrast[blockIndex];
+        d.heightRemapMin = Options.materialHeightRemapMin[blockIndex];
+        d.heightRemapMax = Options.materialHeightRemapMax[blockIndex];
+        d.heightOffset = Options.materialHeightOffset[blockIndex];
+        d.normalClamp = Options.materialNormalClamp[blockIndex];
+        d.geometricBlend = Options.materialGeometricBlend[blockIndex];
+        d.normalDistanceFade = Options.materialNormalDistanceFade[blockIndex];
+        d.pomAOStrength = Options.materialPomAOStrength[blockIndex];
         return d;
     }
 
@@ -142,6 +179,24 @@ public class MaterialData {
         Options.materialCustomNormalPath[blockIndex] = customNormalPath != null ? customNormalPath : "";
         Options.materialCustomSpecularPath[blockIndex] = customSpecularPath != null ? customSpecularPath : "";
         Options.materialNoiseTarget[blockIndex] = noiseTarget;
+        Options.materialHeightFilter[blockIndex] = heightFilter;
+        Options.materialFilterRadius[blockIndex] = filterRadius;
+        Options.materialMipBias[blockIndex] = mipBias;
+        Options.materialPomMode[blockIndex] = pomMode;
+        Options.materialPomSteps[blockIndex] = pomSteps;
+        Options.materialPomRefinement[blockIndex] = pomRefinement;
+        Options.materialPomClipSilhouette[blockIndex] = pomClipSilhouette;
+        Options.materialPomAreaLightOffset[blockIndex] = pomAreaLightOffset;
+        Options.materialPomMotionVectors[blockIndex] = pomMotionVectors;
+        Options.materialHeightSource[blockIndex] = heightSource;
+        Options.materialHeightContrast[blockIndex] = heightContrast;
+        Options.materialHeightRemapMin[blockIndex] = heightRemapMin;
+        Options.materialHeightRemapMax[blockIndex] = heightRemapMax;
+        Options.materialHeightOffset[blockIndex] = heightOffset;
+        Options.materialNormalClamp[blockIndex] = normalClamp;
+        Options.materialGeometricBlend[blockIndex] = geometricBlend;
+        Options.materialNormalDistanceFade[blockIndex] = normalDistanceFade;
+        Options.materialPomAOStrength[blockIndex] = pomAOStrength;
         Options.markMaterialDirty();
     }
 
@@ -225,6 +280,24 @@ public class MaterialData {
         if (normalStrength != 100) {
             sb.append(String.format("Normal Strength: %.2f\n", normalStrength / 100.0));
         }
+        if (heightFilter != 0) sb.append(String.format("Height Filter: %d\n", heightFilter));
+        if (filterRadius != 0) sb.append(String.format("Filter Radius: %d\n", filterRadius));
+        if (mipBias != 0) sb.append(String.format("Mip Bias: %d\n", mipBias));
+        if (pomMode != 0) sb.append(String.format("POM Mode: %d\n", pomMode));
+        if (pomSteps != 0) sb.append(String.format("POM Steps: %d\n", pomSteps));
+        if (pomRefinement != 0) sb.append(String.format("POM Refinement: %d\n", pomRefinement));
+        if (pomClipSilhouette) sb.append("POM Clip Silhouette: true\n");
+        if (pomAreaLightOffset) sb.append("POM Area Light Offset: true\n");
+        if (pomMotionVectors) sb.append("POM Motion Vectors: true\n");
+        if (heightSource != 0) sb.append(String.format("Height Source: %d\n", heightSource));
+        if (heightContrast != 0) sb.append(String.format("Height Contrast: %d\n", heightContrast));
+        if (heightRemapMin != 0) sb.append(String.format("Height Remap Min: %d\n", heightRemapMin));
+        if (heightRemapMax != 0) sb.append(String.format("Height Remap Max: %d\n", heightRemapMax));
+        if (heightOffset != 0) sb.append(String.format("Height Offset: %d\n", heightOffset));
+        if (normalClamp != 0) sb.append(String.format("Normal Clamp: %d\n", normalClamp));
+        if (geometricBlend != 0) sb.append(String.format("Geometric Blend: %d\n", geometricBlend));
+        if (normalDistanceFade != 0) sb.append(String.format("Normal Distance Fade: %d\n", normalDistanceFade));
+        if (pomAOStrength != 0) sb.append(String.format("POM AO Strength: %d\n", pomAOStrength));
         return sb.toString();
     }
 
@@ -269,6 +342,24 @@ public class MaterialData {
                         case "Gamut Boost"   -> d.gamutBoost = Math.round(Float.parseFloat(val) * 100);
                         case "POM Depth"     -> d.pomDepth = Math.round(Float.parseFloat(val) * 100);
                         case "Normal Strength"  -> d.normalStrength = Math.round(Float.parseFloat(val) * 100);
+                        case "Height Filter"    -> d.heightFilter = Integer.parseInt(val);
+                        case "Filter Radius"    -> d.filterRadius = Integer.parseInt(val);
+                        case "Mip Bias"         -> d.mipBias = Integer.parseInt(val);
+                        case "POM Mode"         -> d.pomMode = Integer.parseInt(val);
+                        case "POM Steps"        -> d.pomSteps = Integer.parseInt(val);
+                        case "POM Refinement"   -> d.pomRefinement = Integer.parseInt(val);
+                        case "POM Clip Silhouette"    -> d.pomClipSilhouette = Boolean.parseBoolean(val);
+                        case "POM Area Light Offset"  -> d.pomAreaLightOffset = Boolean.parseBoolean(val);
+                        case "POM Motion Vectors"     -> d.pomMotionVectors = Boolean.parseBoolean(val);
+                        case "Height Source"     -> d.heightSource = Integer.parseInt(val);
+                        case "Height Contrast"   -> d.heightContrast = Integer.parseInt(val);
+                        case "Height Remap Min"  -> d.heightRemapMin = Integer.parseInt(val);
+                        case "Height Remap Max"  -> d.heightRemapMax = Integer.parseInt(val);
+                        case "Height Offset"     -> d.heightOffset = Integer.parseInt(val);
+                        case "Normal Clamp"      -> d.normalClamp = Integer.parseInt(val);
+                        case "Geometric Blend"   -> d.geometricBlend = Integer.parseInt(val);
+                        case "Normal Distance Fade" -> d.normalDistanceFade = Integer.parseInt(val);
+                        case "POM AO Strength"   -> d.pomAOStrength = Integer.parseInt(val);
                         default -> {}
                     }
                 }
@@ -291,6 +382,13 @@ public class MaterialData {
         h = h * 31 + noiseScale; h = h * 31 + noiseStrength; h = h * 31 + noiseOctaves;
         h = h * 31 + noiseType; h = h * 31 + noiseSeed;
         h = h * 31 + gamutBoost;
+        h = h * 31 + heightFilter;  h = h * 31 + filterRadius;  h = h * 31 + mipBias;
+        h = h * 31 + pomMode;  h = h * 31 + pomSteps;  h = h * 31 + pomRefinement;
+        h = h * 31 + (pomClipSilhouette ? 1 : 0);  h = h * 31 + (pomAreaLightOffset ? 1 : 0);  h = h * 31 + (pomMotionVectors ? 1 : 0);
+        h = h * 31 + heightSource;  h = h * 31 + heightContrast;
+        h = h * 31 + heightRemapMin;  h = h * 31 + heightRemapMax;  h = h * 31 + heightOffset;
+        h = h * 31 + normalClamp;  h = h * 31 + geometricBlend;
+        h = h * 31 + normalDistanceFade;  h = h * 31 + pomAOStrength;
         return h;
     }
 }

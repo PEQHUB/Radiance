@@ -1031,6 +1031,35 @@ public class Options {
     public static final int[] materialPercentileSpread = new int[MAX_MATERIALS];      // 1-100, roughness contrast width
     public static final int[] materialAutoPBRHeightGamma = new int[MAX_MATERIALS];     // 10-300, /100
     public static final int[] materialAutoPBRFlags = new int[MAX_MATERIALS];           // bit 0=invertRoughness, bit 1=invertNormal, bit 2=invertHeight
+
+    // Height filtering
+    public static final int[] materialHeightFilter = new int[MAX_MATERIALS];      // 0=Forward,1=Central,2=Sobel,3=Bilinear,4=Bicubic
+    public static final int[] materialFilterRadius = new int[MAX_MATERIALS];      // 0-15 (= 0.5 + val*0.25 texels)
+    public static final int[] materialMipBias = new int[MAX_MATERIALS];           // 0-15 (= val*0.2)
+
+    // POM per-block
+    public static final int[] materialPomMode = new int[MAX_MATERIALS];           // 0=Standard,1=Contact,2=Shadow,3=Full
+    public static final int[] materialPomSteps = new int[MAX_MATERIALS];          // 4-128
+    public static final int[] materialPomRefinement = new int[MAX_MATERIALS];     // 0-8
+    public static final boolean[] materialPomClipSilhouette = new boolean[MAX_MATERIALS];
+    public static final boolean[] materialPomAreaLightOffset = new boolean[MAX_MATERIALS];
+    public static final boolean[] materialPomMotionVectors = new boolean[MAX_MATERIALS];
+
+    // Height field
+    public static final int[] materialHeightSource = new int[MAX_MATERIALS];      // 0=Lum,1=R,2=G,3=B,4=Alpha,5=MaxRGB,6=MinRGB,7=Custom
+    public static final int[] materialHeightContrast = new int[MAX_MATERIALS];    // 0-30 (= val*0.1, 10=1.0 linear)
+    public static final int[] materialHeightRemapMin = new int[MAX_MATERIALS];    // 0-100
+    public static final int[] materialHeightRemapMax = new int[MAX_MATERIALS];    // 0-100
+    public static final int[] materialHeightOffset = new int[MAX_MATERIALS];      // 0-200 (= (val-100)/100, 100=0.0)
+
+    // Normal enhancements
+    public static final int[] materialNormalClamp = new int[MAX_MATERIALS];       // 0-100 (= val/100, 100=unclamped)
+    public static final int[] materialGeometricBlend = new int[MAX_MATERIALS];    // 0-100 (= val/100, 0=no blend)
+    public static final int[] materialNormalDistanceFade = new int[MAX_MATERIALS]; // 0-255 blocks (0=disabled)
+
+    // POM interaction
+    public static final int[] materialPomAOStrength = new int[MAX_MATERIALS];     // 0-100 (= val/100, 0=disabled)
+
     static {
         // Pre-fill ALL slots with safe generic dielectric defaults (important for dynamic blocks
         // whose ordinals > enum COUNT that haven't been explicitly initialized yet)
@@ -1054,6 +1083,29 @@ public class Options {
             materialPercentileCenter[i] = 50;
             materialPercentileSpread[i] = 80;
             materialAutoPBRHeightGamma[i] = 100;
+            // Height filter defaults
+            materialHeightFilter[i] = 0;     // Forward (current behavior)
+            materialFilterRadius[i] = 0;     // 0.5 texels
+            materialMipBias[i] = 0;          // no mip bias
+            // POM defaults
+            materialPomMode[i] = 0;          // Standard
+            materialPomSteps[i] = 64;        // 64 steps
+            materialPomRefinement[i] = 4;    // 4 binary refinement iterations
+            // materialPomClipSilhouette defaults to false (Java boolean[] init)
+            // materialPomAreaLightOffset defaults to false
+            // materialPomMotionVectors defaults to false
+            // Height field defaults
+            materialHeightSource[i] = 0;     // Luminance
+            materialHeightContrast[i] = 10;  // 1.0 linear
+            materialHeightRemapMin[i] = 0;   // no remap
+            materialHeightRemapMax[i] = 100; // no remap
+            materialHeightOffset[i] = 100;   // 0.0 offset
+            // Normal defaults
+            materialNormalClamp[i] = 100;    // unclamped
+            materialGeometricBlend[i] = 0;   // no blend
+            materialNormalDistanceFade[i] = 0; // disabled
+            // POM interaction
+            materialPomAOStrength[i] = 0;    // disabled
         }
 
         // Override with enum-specific physically-measured defaults
@@ -1394,6 +1446,24 @@ public class Options {
                 materialCustomNormalPath[ci] = materialCustomNormalPath[parentOrdinal];
                 materialCustomSpecularPath[ci] = materialCustomSpecularPath[parentOrdinal];
                 materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
+                materialHeightFilter[ci] = materialHeightFilter[parentOrdinal];
+                materialFilterRadius[ci] = materialFilterRadius[parentOrdinal];
+                materialMipBias[ci] = materialMipBias[parentOrdinal];
+                materialPomMode[ci] = materialPomMode[parentOrdinal];
+                materialPomSteps[ci] = materialPomSteps[parentOrdinal];
+                materialPomRefinement[ci] = materialPomRefinement[parentOrdinal];
+                materialPomClipSilhouette[ci] = materialPomClipSilhouette[parentOrdinal];
+                materialPomAreaLightOffset[ci] = materialPomAreaLightOffset[parentOrdinal];
+                materialPomMotionVectors[ci] = materialPomMotionVectors[parentOrdinal];
+                materialHeightSource[ci] = materialHeightSource[parentOrdinal];
+                materialHeightContrast[ci] = materialHeightContrast[parentOrdinal];
+                materialHeightRemapMin[ci] = materialHeightRemapMin[parentOrdinal];
+                materialHeightRemapMax[ci] = materialHeightRemapMax[parentOrdinal];
+                materialHeightOffset[ci] = materialHeightOffset[parentOrdinal];
+                materialNormalClamp[ci] = materialNormalClamp[parentOrdinal];
+                materialGeometricBlend[ci] = materialGeometricBlend[parentOrdinal];
+                materialNormalDistanceFade[ci] = materialNormalDistanceFade[parentOrdinal];
+                materialPomAOStrength[ci] = materialPomAOStrength[parentOrdinal];
             }
         }
         markMaterialDirty();
@@ -1861,6 +1931,24 @@ public class Options {
                 materialCustomNormalPath[i] = props.getProperty("materialCustomNormalPath." + pid, "");
                 materialCustomSpecularPath[i] = props.getProperty("materialCustomSpecularPath." + pid, "");
                 materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 15);
+                materialHeightFilter[i] = clamp(Integer.parseInt(props.getProperty("materialHeightFilter." + pid, "0")), 0, 4);
+                materialFilterRadius[i] = clamp(Integer.parseInt(props.getProperty("materialFilterRadius." + pid, "0")), 0, 15);
+                materialMipBias[i] = clamp(Integer.parseInt(props.getProperty("materialMipBias." + pid, "0")), 0, 15);
+                materialPomMode[i] = clamp(Integer.parseInt(props.getProperty("materialPomMode." + pid, "0")), 0, 3);
+                materialPomSteps[i] = clamp(Integer.parseInt(props.getProperty("materialPomSteps." + pid, "64")), 4, 128);
+                materialPomRefinement[i] = clamp(Integer.parseInt(props.getProperty("materialPomRefinement." + pid, "4")), 0, 8);
+                materialPomClipSilhouette[i] = Boolean.parseBoolean(props.getProperty("materialPomClipSilhouette." + pid, "false"));
+                materialPomAreaLightOffset[i] = Boolean.parseBoolean(props.getProperty("materialPomAreaLightOffset." + pid, "false"));
+                materialPomMotionVectors[i] = Boolean.parseBoolean(props.getProperty("materialPomMotionVectors." + pid, "false"));
+                materialHeightSource[i] = clamp(Integer.parseInt(props.getProperty("materialHeightSource." + pid, "0")), 0, 7);
+                materialHeightContrast[i] = clamp(Integer.parseInt(props.getProperty("materialHeightContrast." + pid, "10")), 0, 30);
+                materialHeightRemapMin[i] = clamp(Integer.parseInt(props.getProperty("materialHeightRemapMin." + pid, "0")), 0, 100);
+                materialHeightRemapMax[i] = clamp(Integer.parseInt(props.getProperty("materialHeightRemapMax." + pid, "100")), 0, 100);
+                materialHeightOffset[i] = clamp(Integer.parseInt(props.getProperty("materialHeightOffset." + pid, "100")), 0, 200);
+                materialNormalClamp[i] = clamp(Integer.parseInt(props.getProperty("materialNormalClamp." + pid, "100")), 0, 100);
+                materialGeometricBlend[i] = clamp(Integer.parseInt(props.getProperty("materialGeometricBlend." + pid, "0")), 0, 100);
+                materialNormalDistanceFade[i] = clamp(Integer.parseInt(props.getProperty("materialNormalDistanceFade." + pid, "0")), 0, 255);
+                materialPomAOStrength[i] = clamp(Integer.parseInt(props.getProperty("materialPomAOStrength." + pid, "0")), 0, 100);
             }
 
             // Child override flags
@@ -2403,6 +2491,24 @@ public class Options {
                 props.setProperty("materialCustomSpecularPath." + pid, materialCustomSpecularPath[i]);
             }
             props.setProperty("materialNoiseTarget." + pid, String.valueOf(materialNoiseTarget[i]));
+            props.setProperty("materialHeightFilter." + pid, String.valueOf(materialHeightFilter[i]));
+            props.setProperty("materialFilterRadius." + pid, String.valueOf(materialFilterRadius[i]));
+            props.setProperty("materialMipBias." + pid, String.valueOf(materialMipBias[i]));
+            props.setProperty("materialPomMode." + pid, String.valueOf(materialPomMode[i]));
+            props.setProperty("materialPomSteps." + pid, String.valueOf(materialPomSteps[i]));
+            props.setProperty("materialPomRefinement." + pid, String.valueOf(materialPomRefinement[i]));
+            props.setProperty("materialPomClipSilhouette." + pid, String.valueOf(materialPomClipSilhouette[i]));
+            props.setProperty("materialPomAreaLightOffset." + pid, String.valueOf(materialPomAreaLightOffset[i]));
+            props.setProperty("materialPomMotionVectors." + pid, String.valueOf(materialPomMotionVectors[i]));
+            props.setProperty("materialHeightSource." + pid, String.valueOf(materialHeightSource[i]));
+            props.setProperty("materialHeightContrast." + pid, String.valueOf(materialHeightContrast[i]));
+            props.setProperty("materialHeightRemapMin." + pid, String.valueOf(materialHeightRemapMin[i]));
+            props.setProperty("materialHeightRemapMax." + pid, String.valueOf(materialHeightRemapMax[i]));
+            props.setProperty("materialHeightOffset." + pid, String.valueOf(materialHeightOffset[i]));
+            props.setProperty("materialNormalClamp." + pid, String.valueOf(materialNormalClamp[i]));
+            props.setProperty("materialGeometricBlend." + pid, String.valueOf(materialGeometricBlend[i]));
+            props.setProperty("materialNormalDistanceFade." + pid, String.valueOf(materialNormalDistanceFade[i]));
+            props.setProperty("materialPomAOStrength." + pid, String.valueOf(materialPomAOStrength[i]));
         }
 
         // Child override flags

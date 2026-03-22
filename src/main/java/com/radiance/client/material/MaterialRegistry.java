@@ -105,11 +105,36 @@ public class MaterialRegistry {
                 | (Options.materialNoiseTarget[i] << 20);  // bits 20-23 = noiseTarget
         buf.putInt(noisePacked);
 
-        // Pack 4: reserved (was channelR/G/B/textureBlend — removed)
-        buf.putFloat(0f);
-        buf.putFloat(0f);
-        buf.putFloat(0f);
-        buf.putFloat(0f); // pomDepth (future)
+        // Pack 4: pomPacked0, pomPacked1, pomPacked2, pomDepth
+        int filterMode = Options.materialHeightFilter[i] & 0x7;
+        int pomMode = Options.materialPomMode[i] & 0x3;
+        int heightSource = Options.materialHeightSource[i] & 0x7;
+        int pomStepsVal = Options.materialPomSteps[i] & 0xFF;
+        int pomRefinementVal = Options.materialPomRefinement[i] & 0xF;
+        int filterRadiusVal = Options.materialFilterRadius[i] & 0xF;
+        int mipBiasVal = Options.materialMipBias[i] & 0xF;
+        int pack4flags = (Options.materialPomClipSilhouette[i] ? 1 : 0)
+            | (Options.materialPomAreaLightOffset[i] ? 2 : 0)
+            | (Options.materialPomMotionVectors[i] ? 4 : 0);
+        int pomPacked0 = filterMode | (pomMode << 3) | (heightSource << 5) | (pomStepsVal << 8)
+            | (pomRefinementVal << 16) | (filterRadiusVal << 20) | (mipBiasVal << 24) | (pack4flags << 28);
+        buf.putInt(pomPacked0);
+
+        int normalClampVal = Options.materialNormalClamp[i] & 0xFF;
+        int geometricBlendVal = Options.materialGeometricBlend[i] & 0xFF;
+        int pomAOStrengthVal = Options.materialPomAOStrength[i] & 0xFF;
+        int heightContrastVal = Options.materialHeightContrast[i] & 0xFF;
+        int pomPacked1 = normalClampVal | (geometricBlendVal << 8) | (pomAOStrengthVal << 16) | (heightContrastVal << 24);
+        buf.putInt(pomPacked1);
+
+        int heightRemapMinVal = Options.materialHeightRemapMin[i] & 0xFF;
+        int heightRemapMaxVal = Options.materialHeightRemapMax[i] & 0xFF;
+        int heightOffsetVal = Options.materialHeightOffset[i] & 0xFF;
+        int normalDistanceFadeVal = Options.materialNormalDistanceFade[i] & 0xFF;
+        int pomPacked2 = heightRemapMinVal | (heightRemapMaxVal << 8) | (heightOffsetVal << 16) | (normalDistanceFadeVal << 24);
+        buf.putInt(pomPacked2);
+
+        buf.putFloat(Options.materialPomDepth[i] / 100f);
 
         // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
         buf.putFloat(Options.materialGamutBoost[i] / 100f);
@@ -174,11 +199,17 @@ public class MaterialRegistry {
         buf.putFloat(0f);     // noiseStrength
         buf.putInt(0);        // noisePacked
 
-        // Pack 4
-        buf.putFloat(0f);     // _reserved4a
-        buf.putFloat(0f);     // _reserved4b
-        buf.putFloat(0f);     // _reserved4c
-        buf.putFloat(0f);     // pomDepth
+        // Pack 4: pomPacked0, pomPacked1, pomPacked2, pomDepth
+        // Default: forward filter, no POM, luminance height, 64 steps, no refinement, 0.5 texel radius
+        int defPomPacked0 = 0 | (0 << 3) | (0 << 5) | (64 << 8) | (4 << 16) | (0 << 20) | (0 << 24) | (0 << 28);
+        buf.putInt(defPomPacked0);
+        // Default: normalClamp=100 (1.0=unclamped), geometricBlend=0, pomAO=0, heightContrast=10 (1.0)
+        int defPomPacked1 = 100 | (0 << 8) | (0 << 16) | (10 << 24);
+        buf.putInt(defPomPacked1);
+        // Default: remapMin=0, remapMax=100, offset=100 (0.0), distanceFade=0 (disabled)
+        int defPomPacked2 = 0 | (100 << 8) | (100 << 16) | (0 << 24);
+        buf.putInt(defPomPacked2);
+        buf.putFloat(0f);     // pomDepth (disabled)
 
         // Pack 5
         buf.putFloat(1.0f);   // gamutBoost (neutral)
