@@ -326,7 +326,6 @@
   ,"options.video.environment.vol_cloud_density": "Cloud Density"
   ,"options.video.environment.vol_cloud_detail": "Detail Erosion"
   ,"options.video.environment.vol_cloud_scatter": "Scatter Bounces"
-  ,"options.video.environment.vol_cloud_powder": "Dark Edge"
   ,"options.video.environment.vol_cloud_ambient": "Ambient AO"
   ,"options.video.environment.vol_cloud_temporal": "Temporal Blend"
   ,"options.video.environment.vol_cloud_noise_scale": "Noise Scale"

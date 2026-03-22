@@ -1347,7 +1347,6 @@ public class Options {
     public static int volCloudThickness = 64;         // 32-128 blocks
     public static int volCloudDetailStrengthPercent = 100; // 0-200 → 0.0-2.0
     public static int volCloudScatterOctaves = 3;    // 1-4
-    public static int volCloudPowderPercent = 100;    // 0-200 → 0.0-2.0 (beer-powder dark edge)
     public static int volCloudAmbientPercent = 100;   // 0-200 → 0.0-2.0 (ambient occlusion)
     public static int volCloudTemporalPercent = 0;    // 0=auto, 50-99 → 0.50-0.99
     public static int volCloudNoiseScale = 214;        // 64-2048 blocks (noise texture period)
@@ -2474,7 +2473,6 @@ public class Options {
         props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
         props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
         props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
-        props.setProperty("volCloudPowderPercent", String.valueOf(volCloudPowderPercent));
         props.setProperty("volCloudAmbientPercent", String.valueOf(volCloudAmbientPercent));
         props.setProperty("volCloudTemporalPercent", String.valueOf(volCloudTemporalPercent));
         props.setProperty("volCloudNoiseScale", String.valueOf(volCloudNoiseScale));
@@ -2622,8 +2620,6 @@ public class Options {
                 props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 300);
             volCloudScatterOctaves = clamp(Integer.parseInt(
                 props.getProperty("volCloudScatterOctaves", "3")), 1, 8);
-            volCloudPowderPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudPowderPercent", "100")), 0, 300);
             volCloudAmbientPercent = clamp(Integer.parseInt(
                 props.getProperty("volCloudAmbientPercent", "100")), 0, 300);
             volCloudTemporalPercent = clamp(Integer.parseInt(
@@ -2658,7 +2654,6 @@ public class Options {
             nativeSetCloudThicknessVol((float) volCloudThickness, false);
             nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
             nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
-            nativeSetCloudPowderStrength(volCloudPowderPercent / 100.0f, false);
             nativeSetCloudAmbientStrength(volCloudAmbientPercent / 100.0f, false);
             nativeSetCloudTemporalBlend(volCloudTemporalPercent == 0 ? -1.0f : volCloudTemporalPercent / 100.0f, false);
             nativeSetCloudNoiseScale((float) volCloudNoiseScale, false);
@@ -4697,7 +4692,6 @@ public class Options {
 
     public native static void nativeSetCloudDetailStrength(float strength, boolean write);
     public native static void nativeSetCloudScatterOctaves(int octaves, boolean write);
-    public native static void nativeSetCloudPowderStrength(float strength, boolean write);
     public native static void nativeSetCloudAmbientStrength(float strength, boolean write);
     public native static void nativeSetCloudTemporalBlend(float blend, boolean write);
     public native static void nativeSetCloudNoiseScale(float scale, boolean write);
@@ -4717,12 +4711,6 @@ public class Options {
     public static void setVolCloudScatterOctaves(int octaves, boolean write) {
         volCloudScatterOctaves = clamp(octaves, 1, 8);
         nativeSetCloudScatterOctaves(volCloudScatterOctaves, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudPowderPercent(int percent, boolean write) {
-        volCloudPowderPercent = clamp(percent, 0, 200);
-        nativeSetCloudPowderStrength(volCloudPowderPercent / 100.0f, write);
         if (write) overwriteConfig();
     }
 

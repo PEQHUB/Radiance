@@ -114,13 +114,9 @@ public class CloudPopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.literal("Thickness"), Text.literal(v + " blk")),
                 v -> Options.setVolCloudThickness(v, true)));
 
-        // Row 5: Powder Edge + Ambient AO
-        volModule.addTwoSliders(
-            new ResettableSliderWidget(0, 0, 150, 20,
-                0, 300, Options.volCloudPowderPercent, 100,
-                v -> getGenericValueText(Text.literal("Powder Edge"), Text.literal(v + "%")),
-                v -> Options.setVolCloudPowderPercent(v, true)),
-            new ResettableSliderWidget(0, 0, 150, 20,
+        // Row 5: Ambient AO
+        volModule.addSlider(
+            new ResettableSliderWidget(0, 0, 308, 20,
                 0, 300, Options.volCloudAmbientPercent, 100,
                 v -> getGenericValueText(Text.literal("Ambient AO"), Text.literal(v + "%")),
                 v -> Options.setVolCloudAmbientPercent(v, true)));
