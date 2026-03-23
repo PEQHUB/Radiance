@@ -170,8 +170,9 @@ public abstract class WorldRendererMixins {
     @Redirect(method = "getEntitiesToRender(Lnet/minecraft/client/render/Camera;Lnet/minecraft/client/render/Frustum;Ljava/util/List;)Z", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/render/entity/EntityRenderDispatcher;shouldRender(Lnet/minecraft/entity/Entity;Lnet/minecraft/client/render/Frustum;DDD)Z"))
     public <E extends Entity> boolean loosenEntityFiltering(EntityRenderDispatcher instance,
         E entity, Frustum frustum, double x, double y, double z) {
-        double dx = entity.getX() - x, dy = entity.getY() - y, dz = entity.getZ() - z;
-        if (dx * dx + dy * dy + dz * dz < 2304.0) { // 48^2
+        Vec3d vec3d = entity.getPos().subtract(new Vec3d(x, y, z));
+        double distance = vec3d.length();
+        if (distance < 16 * 3) {
             return true;
         }
         return this.entityRenderDispatcher.shouldRender(entity, frustum, x, y, z);

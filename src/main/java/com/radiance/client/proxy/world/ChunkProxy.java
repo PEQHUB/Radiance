@@ -55,8 +55,8 @@ public class ChunkProxy {
     };
     private static final Map<Integer, ChunkBuilder.BuiltChunk> rebuildQueue = new ConcurrentHashMap<>();
     private static final List<Future<?>> rebuildTasks = new ArrayList<>();
-    private static final int numNormalChunkRebuildThreads = 2;
-    private static final int numImportantChunkRebuildThreads = 2;
+    private static final int numNormalChunkRebuildThreads = 1;
+    private static final int numImportantChunkRebuildThreads = 1;
     private static final long worldLoadSmoothDurationNanos = TimeUnit.SECONDS.toNanos(4);
     private static final int maxImportantTasksPerFrameWarmup = 1;
     private static final int maxImportantTasksPerFrameNormal = 1;
@@ -139,27 +139,19 @@ public class ChunkProxy {
         double importantDistanceSq = smoothing ? importantDistanceSqWarmup : importantDistanceSqNormal;
         int importantTaskCount = 0;
 
-        // Sort chunks in spiral order: primary key = distance ring, secondary key = angle.
-        // This spreads visual popping evenly across the screen instead of entire rings
-        // appearing at once, which feels smoother even at the same throughput.
-        final double bx = blockPos.getX(), by = blockPos.getY(), bz = blockPos.getZ();
+        // Sort chunks by distance to player (spiral outward from player position)
         List<ChunkBuilder.BuiltChunk> sortedChunks = new ArrayList<>(rebuildQueue.values());
         sortedChunks.sort(Comparator.comparingDouble(chunk -> {
             if (chunk == null) return Double.MAX_VALUE;
-            double cx = chunk.getOrigin().getX() + 8 - bx;
-            double cy = chunk.getOrigin().getY() + 8 - by;
-            double cz = chunk.getOrigin().getZ() + 8 - bz;
-            double distSq = cx * cx + cy * cy + cz * cz;
-            // Quantize distance into 16-block rings, then spiral within each ring
-            double ring = Math.floor(Math.sqrt(distSq) / 16.0);
-            double angle = Math.atan2(cz, cx); // -PI to PI
-            return ring * 1000.0 + angle;
+            return chunk.getOrigin().add(8, 8, 8).getSquaredDistance(blockPos);
         }));
 
-        // Budget chunk submissions per frame to prevent CPU stalls.
-        // Excess chunks stay in the queue for next frame.
-        int maxTotalPerFrame = smoothing ? 4 : 8;
-        int totalSubmitted = 0;
+        if (sortedChunks.size() > 5) {
+            double nearDist = Math.sqrt(sortedChunks.get(0).getOrigin().add(8, 8, 8).getSquaredDistance(blockPos));
+            double farDist = Math.sqrt(sortedChunks.get(sortedChunks.size() - 1).getOrigin().add(8, 8, 8).getSquaredDistance(blockPos));
+            System.out.printf("[ChunkProxy] %d chunks: nearest=%.0f farthest=%.0f%n",
+                sortedChunks.size(), nearDist, farDist);
+        }
 
         for (ChunkBuilder.BuiltChunk builtChunk : sortedChunks) {
             if (builtChunk == null) {
@@ -167,8 +159,6 @@ public class ChunkProxy {
             }
 
             if (builtChunk.needsRebuild() && builtChunk.shouldBuild()) {
-                if (totalSubmitted >= maxTotalPerFrame) break; // defer rest to next frame
-
                 builtChunk.cancelRebuild();
 
                 BlockPos
@@ -193,19 +183,10 @@ public class ChunkProxy {
                         rebuildSingle(builtChunk, false);
                     });
                 }
-                totalSubmitted++;
             }
         }
 
-        // Only remove submitted chunks from the queue; unprocessed stay for next frame
-        if (totalSubmitted >= sortedChunks.size()) {
-            rebuildQueue.clear();
-        } else {
-            for (int i = 0; i < sortedChunks.size() && i < totalSubmitted; i++) {
-                ChunkBuilder.BuiltChunk c = sortedChunks.get(i);
-                if (c != null) rebuildQueue.values().remove(c);
-            }
-        }
+        rebuildQueue.clear();
     }
 
     public static void waitImportantChunkRebuild() {

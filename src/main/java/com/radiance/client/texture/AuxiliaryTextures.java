@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import net.minecraft.client.MinecraftClient;
@@ -98,12 +99,12 @@ public enum AuxiliaryTextures {
     private final IntGetter uploadedLevelsMaskGetter;
     private final IntSetter uploadedLevelsMaskSetter;
     private final String name;
-    private final int[] GLIDMapping;
+    private final Map<Integer, Integer> GLIDMapping;
 
     AuxiliaryTextures(String name, String suffix,
         IdentifierCandidateProvider identifierCandidateProvider, Getter getter, Setter setter,
         IntGetter uploadedLevelsMaskGetter, IntSetter uploadedLevelsMaskSetter,
-        int[] GLIDMapping) {
+        Map<Integer, Integer> GLIDMapping) {
         this.suffix = suffix;
         this.identifierCandidateProvider = identifierCandidateProvider;
         this.getter = getter;
@@ -150,8 +151,7 @@ public enum AuxiliaryTextures {
 
                 if (auxiliaryTemplateImage != null
                     && (uploadedLevelsMask & levelBit) != 0
-                    && targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES
-                    && auxiliaryTexture.GLIDMapping[targetId] != -1) {
+                    && auxiliaryTexture.GLIDMapping.containsKey(targetId)) {
                     continue;
                 }
 
@@ -160,8 +160,7 @@ public enum AuxiliaryTextures {
                 // ensure the texture exists
                 TextureTracker.Texture texture = TextureTracker.GLID2Texture.get(targetId);
                 VulkanConstants.VkFormat auxFormat = texture.format().toUnorm();
-                if (targetId < 0 || targetId >= TextureTracker.MAX_TEXTURES
-                        || auxiliaryTexture.GLIDMapping[targetId] == -1) {
+                if (!auxiliaryTexture.GLIDMapping.containsKey(targetId)) {
                     auxiliaryTargetId = TextureProxy.generateTextureId();
 
                     TextureProxy.prepareImage(auxiliaryTargetId, texture.maxLayer() + 1,
@@ -169,11 +168,9 @@ public enum AuxiliaryTextures {
                     TextureTracker.GLID2Texture.put(auxiliaryTargetId,
                         new TextureTracker.Texture(texture.width(), texture.height(),
                             texture.channel(), auxFormat, texture.maxLayer()));
-                    if (targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES) {
-                        auxiliaryTexture.GLIDMapping[targetId] = auxiliaryTargetId;
-                    }
+                    auxiliaryTexture.GLIDMapping.put(targetId, auxiliaryTargetId);
                 } else {
-                    auxiliaryTargetId = auxiliaryTexture.GLIDMapping[targetId];
+                    auxiliaryTargetId = auxiliaryTexture.GLIDMapping.get(targetId);
 
                     TextureTracker.Texture auxiliaryTrackerTexture = TextureTracker.GLID2Texture.get(
                         auxiliaryTargetId);
@@ -277,9 +274,7 @@ public enum AuxiliaryTextures {
                             if (customPath != null && !customPath.isEmpty()) {
                                 int customGlid = CustomTextureLoader.loadAndUpload(customPath, source);
                                 if (customGlid >= 0) {
-                                    if (targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES) {
-                                        auxiliaryTexture.GLIDMapping[targetId] = customGlid;
-                                    }
+                                    auxiliaryTexture.GLIDMapping.put(targetId, customGlid);
                                     auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
                                         uploadedLevelsMask | levelBit);
                                     // Track albedo GLID -> block ordinal so material editor works for custom textures
@@ -355,8 +350,7 @@ public enum AuxiliaryTextures {
 
             // Material class mask auto-generation (Phase B): create 1x1 R8_UNORM mask
             // for registered blocks so every texel maps to the correct MaterialClass.
-            if (level == 0
-                    && !(targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES && TextureTracker.GLID2MaskGLID[targetId] != -1)
+            if (level == 0 && !TextureTracker.GLID2MaskGLID.containsKey(targetId)
                     && !TextureTracker.pendingMaskGLID.containsKey(targetId)) {
                 int mbOrdinal = MaterialBlock.getOrdinalForTexture(identifier.getPath());
                 if (mbOrdinal >= 0 && mbOrdinal < 256) {

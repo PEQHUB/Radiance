@@ -19,6 +19,7 @@ import com.radiance.client.util.SpectralColor;
 import com.radiance.client.texture.TextureTracker;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
+import java.util.Map;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
@@ -542,19 +543,22 @@ public class BufferProxy {
                 texView.put(i * TEX_ENTRY_INTS + 3, 0);
             }
 
-            for (int id = 0; id < TEX_ENTRY_COUNT; id++) {
-                if (TextureTracker.GLID2SpecularGLID[id] != -1) {
-                    texView.put(id * TEX_ENTRY_INTS, TextureTracker.GLID2SpecularGLID[id]);
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2SpecularGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS, e.getValue());
                 }
             }
-            for (int id = 0; id < TEX_ENTRY_COUNT; id++) {
-                if (TextureTracker.GLID2NormalGLID[id] != -1) {
-                    texView.put(id * TEX_ENTRY_INTS + 1, TextureTracker.GLID2NormalGLID[id]);
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2NormalGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS + 1, e.getValue());
                 }
             }
-            for (int id = 0; id < TEX_ENTRY_COUNT; id++) {
-                if (TextureTracker.GLID2FlagGLID[id] != -1) {
-                    texView.put(id * TEX_ENTRY_INTS + 2, TextureTracker.GLID2FlagGLID[id]);
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2FlagGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS + 2, e.getValue());
                 }
             }
             for (int albedoGLID : TextureTracker.hasHeightMap) {
@@ -569,9 +573,10 @@ public class BufferProxy {
             TextureTracker.flushPendingMasks();
 
             // Material class mask textures (R8_UNORM, per-texel class index)
-            for (int id = 0; id < TEX_ENTRY_COUNT; id++) {
-                if (TextureTracker.GLID2MaskGLID[id] != -1) {
-                    texView.put(id * TEX_ENTRY_INTS + 4, TextureTracker.GLID2MaskGLID[id]);
+            for (Map.Entry<Integer, Integer> e : TextureTracker.GLID2MaskGLID.entrySet()) {
+                int id = e.getKey();
+                if (id >= 0 && id < TEX_ENTRY_COUNT) {
+                    texView.put(id * TEX_ENTRY_INTS + 4, e.getValue());
                 }
             }
 

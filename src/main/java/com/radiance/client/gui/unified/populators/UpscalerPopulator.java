@@ -29,7 +29,7 @@ public class UpscalerPopulator implements ContentPopulator {
                 .width(150).build());
         }
 
-        // Row 1: Upscaler mode dropdown + DLSS-D toggle (only when DLSS is selected)
+        // Row 1: Upscaler mode dropdown + DLSS-D toggle (two click controls paired)
         SelectionDropdownWidget upscalerModeDropdown = new SelectionDropdownWidget(
             0, 0, 150, 20, "Upscaler",
             new String[]{"DLSS-RR", "FSR3", "Off"},
@@ -38,18 +38,12 @@ public class UpscalerPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
 
-        if (Options.upscalerMode == 0) {
-            // DLSS-D only relevant when DLSS is the active upscaler
-            SimpleOption<Boolean> dlssDToggle = SimpleOption.ofBoolean(
-                "options.video.dlss_d_enabled", Options.dlssDEnabled,
-                value -> Options.setDlssDEnabled(value, true));
+        SimpleOption<Boolean> dlssDToggle = SimpleOption.ofBoolean(
+            "options.video.dlss_d_enabled", Options.dlssDEnabled,
+            value -> Options.setDlssDEnabled(value, true));
 
-            section.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions))
-                  .tooltip("DLSS-RR = NVIDIA ray reconstruction. FSR3 = AMD upscaler. DLSS-D denoises without upscaling.");
-        } else {
-            section.addTwoWidgets(upscalerModeDropdown, null)
-                  .tooltip("DLSS-RR = NVIDIA ray reconstruction. FSR3 = AMD upscaler.");
-        }
+        section.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions))
+              .tooltip("DLSS-RR = NVIDIA ray reconstruction. FSR3 = AMD upscaler. DLSS-D denoises without upscaling.");
 
         // Controls shown for DLSS-RR and FSR3
         if (Options.upscalerMode != 2) {
@@ -134,24 +128,17 @@ public class UpscalerPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
 
-            // DLSS-G requires Reflex — show locked label when FG is active
+            // DLSS-G requires Reflex — lock toggle on when FG is active
             boolean fgForced = Options.frameGenMode != 0;
-            if (fgForced) {
-                // Reflex is forced on by Frame Generation — show a non-interactive label
-                ButtonWidget reflexLocked = ButtonWidget.builder(
-                    Text.literal("Reflex: Locked (FG)"), btn -> {})
-                    .width(150).build();
-                reflexLocked.active = false;
-                section.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexLocked);
-            } else {
-                SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
-                    Options.REFLEX_ENABLED_KEY, Options.reflexEnabled,
-                    value -> {
-                        Options.setReflexEnabled(value, true);
-                        screen.refreshContent();
-                    });
-                section.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexEnabled.createWidget(gameOptions));
-            }
+            SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
+                Options.REFLEX_ENABLED_KEY, fgForced || Options.reflexEnabled,
+                value -> {
+                    if (fgForced) return; // prevent disable while FG active
+                    Options.setReflexEnabled(value, true);
+                    screen.refreshContent();
+                });
+
+            section.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexEnabled.createWidget(gameOptions));
 
             if (Options.reflexEnabled) {
                 // Row: FPS limit slider

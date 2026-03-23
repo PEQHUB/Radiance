@@ -208,7 +208,6 @@ public class NoiseTypeDropdownWidget extends ClickableWidget {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
-        if (!open) return false;
         if (this.isMouseOver(mouseX, mouseY) || (open && isInDropdownBounds(mouseX, mouseY))) {
             int dir = verticalAmount > 0 ? -1 : 1;
             selected = Math.floorMod(selected + dir, 24);
