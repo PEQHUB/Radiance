@@ -53,6 +53,7 @@ public class ContentPanelWidget extends ClickableWidget {
 
     public void clearContent() {
         sections.clear();
+        SelectionDropdownWidget.clearInstances();
         scrollTarget = 0;
         scrollDisplay = 0;
         scrollInitialized = false;

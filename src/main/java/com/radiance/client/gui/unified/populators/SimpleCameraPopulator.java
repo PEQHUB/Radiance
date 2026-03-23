@@ -23,12 +23,14 @@ public class SimpleCameraPopulator implements ContentPopulator {
         section.addToggle(fpvEnabled.createWidget(gameOptions))
               .tooltip("Show player body in first-person view.");
 
-        // DOF strength
-        section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 200, Options.dofStrengthPercent, 100,
-            v -> getGenericValueText(Text.literal("DOF Strength"), Text.literal(v + "%")),
-            v -> Options.setDofStrength(v, true)))
-              .tooltip("Depth of field blur intensity for offline/photo mode.");
+        // DOF strength — only visible in offline mode (DOF requires offline rendering)
+        if (Options.offlineState != 0) {
+            section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+                0, 200, Options.dofStrengthPercent, 100,
+                v -> getGenericValueText(Text.literal("DOF Strength"), Text.literal(v + "%")),
+                v -> Options.setDofStrength(v, true)))
+                  .tooltip("Depth of field blur intensity for offline/photo mode.");
+        }
     }
 
     @Override

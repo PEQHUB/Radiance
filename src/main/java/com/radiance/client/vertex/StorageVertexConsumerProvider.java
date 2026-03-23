@@ -60,6 +60,26 @@ public class StorageVertexConsumerProvider implements VertexConsumerProvider {
             entry.getValue()
                 .close();
         }
+        this.allocated.clear();
         this.pending.clear();
+    }
+
+    /**
+     * Resets this provider for reuse from a pool. Closes all allocated
+     * BufferAllocators and clears internal maps so getBuffer() starts fresh.
+     */
+    public void reset() {
+        for (BufferAllocator allocator : this.allocated.values()) {
+            allocator.close();
+        }
+        this.allocated.clear();
+        this.pending.clear();
+    }
+
+    /**
+     * Reconfigures the initial buffer size for reuse with a different capacity.
+     */
+    public void setSize(int size) {
+        this.size = size;
     }
 }

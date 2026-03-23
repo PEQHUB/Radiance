@@ -114,17 +114,18 @@ public class OfflinePopulator implements ContentPopulator {
             });
         quality.addToggle(noHand.createWidget(MinecraftClient.getInstance().options));
 
-        SimpleOption<Boolean> disableRR = SimpleOption.ofBoolean(
-            "Disable Russian Roulette",
-            Options.offlineDisableRR || Options.offlineDenoised == 1,
-            value -> {
-                // Raw Accurate forces RR off — don't allow toggle
-                if (Options.offlineDenoised == 1) return;
-                Options.offlineDisableRR = value;
-                Options.nativeSetOfflineDisableRR(value, true);
-                if (Options.offlineState == 2) Options.nativeResetAccumulation();
-            });
-        quality.addToggle(disableRR.createWidget(MinecraftClient.getInstance().options));
+        // Raw Accurate (preset 1) forces RR off — hide the toggle in that mode
+        if (Options.offlineDenoised != 1) {
+            SimpleOption<Boolean> disableRR = SimpleOption.ofBoolean(
+                "Disable Russian Roulette",
+                Options.offlineDisableRR,
+                value -> {
+                    Options.offlineDisableRR = value;
+                    Options.nativeSetOfflineDisableRR(value, true);
+                    if (Options.offlineState == 2) Options.nativeResetAccumulation();
+                });
+            quality.addToggle(disableRR.createWidget(MinecraftClient.getInstance().options));
+        }
 
         SimpleOption<Boolean> disableClamp = SimpleOption.ofBoolean(
             "Disable Throughput Clamp",
@@ -195,23 +196,26 @@ public class OfflinePopulator implements ContentPopulator {
                     // AF-S: close menu to pick in world
                     MinecraftClient.getInstance().setScreen(null);
                 }
+                screen.refreshContent();
             });
         focus.addTwoWidgets(focusModeDropdown, null)
               .tooltip("MF = manual focus. AF-S = single autofocus. AF-C = continuous autofocus tracking.");
 
-        // Focus distance slider (1-256 blocks, scroll wheel gives sub-block precision)
-        ResettableSliderWidget focusSlider = new ResettableSliderWidget(
-            0, 0, 150, 20,
-            1, 256, Math.round(Options.offlineFocalDistance), 10,
-            v -> getGenericValueText(
-                Text.literal("Focus Distance"),
-                Text.literal(v + " blocks")),
-            v -> {
-                Options.offlineFocalDistance = (float) v;
-                Options.nativeSetOfflineFocalDistance((float) v, true);
-                if (Options.offlineState == 2) Options.nativeResetAccumulation();
-            });
-        focus.addSlider(focusSlider);
+        // Focus distance slider — only visible in manual focus mode (MF)
+        if (Options.focusMode == 0) {
+            ResettableSliderWidget focusSlider = new ResettableSliderWidget(
+                0, 0, 150, 20,
+                1, 256, Math.round(Options.offlineFocalDistance), 10,
+                v -> getGenericValueText(
+                    Text.literal("Focus Distance"),
+                    Text.literal(v + " blocks")),
+                v -> {
+                    Options.offlineFocalDistance = (float) v;
+                    Options.nativeSetOfflineFocalDistance((float) v, true);
+                    if (Options.offlineState == 2) Options.nativeResetAccumulation();
+                });
+            focus.addSlider(focusSlider);
+        }
 
         // ── Freecam ──
         SettingsSection freecam = panel.addSection("Freecam");
