@@ -36,6 +36,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     private static int currentBlockIndex = 0;  // persists across screen rebuilds
     private static int currentPresetIndex = 0; // persists across screen rebuilds
     private static String searchQuery = "";    // persists across screen rebuilds
+    private static double savedScrollY = 0;    // scroll position preserved across rebuilds
     private static final List<Integer> searchMatches = new ArrayList<>();
     private static int searchMatchIndex = 0;
     private TextFieldWidget searchField;
@@ -229,6 +230,11 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         searchField.setFocused(true);
         setFocused(searchField);
         updateSearchMatches();
+
+        // Restore scroll position after rebuild
+        if (savedScrollY > 0 && body != null) {
+            body.setScrollY(savedScrollY);
+        }
     }
 
     @Override
@@ -472,6 +478,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
      * refreshes the overlay without calling setScreen(). Otherwise falls back to setScreen().
      */
     private void rebuildSelf() {
+        if (body != null) savedScrollY = body.getScrollY();
         if (parentScreen instanceof com.radiance.client.gui.unified.RadianceUnifiedScreen unified
                 && unified.isOverlayShowing()) {
             unified.showOverlay(new MaterialsSettingsScreen(parentScreen));
@@ -1067,10 +1074,8 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 onSliderChanged(i);
                 rebuildSelf();
             }).width(150).build();
-        this.body.addEntry(new LegacyTwoColumnOptionEntry(dispMethodBtn, null, body));
-
         ResettableSliderWidget dispDepth = new ResettableSliderWidget(0, 0, 100, 20,
-            0, 5, Options.materialPomDepth[i], 0,
+            0, 50, Options.materialPomDepth[i], 0,
             v -> getGenericValueText(Text.literal("Depth"),
                 v == 0 ? Text.literal("Off") : Text.literal(String.format("%.2f", v / 100.0) + " blk")),
             v -> { Options.materialPomDepth[i] = v; onSliderChanged(i); });
@@ -1081,8 +1086,9 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 btn.setMessage(Text.literal("Filter: " + new String[]{"Nearest", "Bilinear", "Bicubic"}[Options.materialHeightFilter[i]]));
                 onSliderChanged(i);
             }).width(100).build();
-        this.body.addEntry(new LegacyTwoColumnSliderEntry(dispDepth, heightFilterBtn, body));
-
+        // Row 1: Method + Filter (compact)
+        this.body.addEntry(new LegacyTwoColumnOptionEntry(dispMethodBtn, heightFilterBtn, body));
+        // Row 2: Depth + Source (compact)
         if (Options.materialPomDepth[i] > 0 || Options.materialPomMode[i] > 0) {
             String[] srcNames = {"Luminance", "Red", "Green", "Blue", "Alpha", "MaxRGB", "MinRGB"};
             ButtonWidget heightSourceBtn = ButtonWidget.builder(
@@ -1091,19 +1097,18 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                     Options.materialHeightSource[i] = (Options.materialHeightSource[i] + 1) % 7;
                     btn.setMessage(Text.literal("Source: " + srcNames[Options.materialHeightSource[i]]));
                     onSliderChanged(i);
-                }).width(150).build();
-            this.body.addEntry(new LegacyTwoColumnOptionEntry(heightSourceBtn, null, body));
+                }).width(100).build();
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(dispDepth, heightSourceBtn, body));
 
+            // Row 3: Steps + Refine + Contrast + Offset (all four columns used)
             ResettableSliderWidget ddaSteps = new ResettableSliderWidget(0, 0, 100, 20,
                 4, 127, Options.materialPomSteps[i], 64,
-                v -> getGenericValueText(Text.literal("DDA Steps"), Text.literal(Integer.toString(v))),
+                v -> getGenericValueText(Text.literal("Steps"), Text.literal(Integer.toString(v))),
                 v -> { Options.materialPomSteps[i] = v; onSliderChanged(i); });
             ResettableSliderWidget ddaRefine = new ResettableSliderWidget(0, 0, 100, 20,
                 0, 8, Options.materialPomRefinement[i], 4,
-                v -> getGenericValueText(Text.literal("Refinement"), Text.literal(Integer.toString(v))),
+                v -> getGenericValueText(Text.literal("Refine"), Text.literal(Integer.toString(v))),
                 v -> { Options.materialPomRefinement[i] = v; onSliderChanged(i); });
-            this.body.addEntry(new LegacyFourColumnSliderEntry(ddaSteps, ddaRefine, null, null, body));
-
             ResettableSliderWidget heightContrast = new ResettableSliderWidget(0, 0, 100, 20,
                 0, 30, Options.materialHeightContrast[i], 10,
                 v -> getGenericValueText(Text.literal("Contrast"), Text.literal(String.format("%.1f", v / 10.0))),
@@ -1112,8 +1117,9 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 0, 200, Options.materialHeightOffset[i], 100,
                 v -> getGenericValueText(Text.literal("Offset"), Text.literal(String.format("%.2f", (v - 100) / 100.0))),
                 v -> { Options.materialHeightOffset[i] = v; onSliderChanged(i); });
-            this.body.addEntry(new LegacyFourColumnSliderEntry(heightContrast, heightOffset, null, null, body));
+            this.body.addEntry(new LegacyFourColumnSliderEntry(ddaSteps, ddaRefine, heightContrast, heightOffset, body));
 
+            // Row 4: RemapMin + RemapMax + AO (three columns used)
             ResettableSliderWidget remapMin = new ResettableSliderWidget(0, 0, 100, 20,
                 0, 100, Options.materialHeightRemapMin[i], 0,
                 v -> getGenericValueText(Text.literal("Remap Min"), Text.literal(v + "%")),
@@ -1122,14 +1128,14 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 0, 100, Options.materialHeightRemapMax[i], 100,
                 v -> getGenericValueText(Text.literal("Remap Max"), Text.literal(v + "%")),
                 v -> { Options.materialHeightRemapMax[i] = v; onSliderChanged(i); });
-            this.body.addEntry(new LegacyFourColumnSliderEntry(remapMin, remapMax, null, null, body));
-
             ResettableSliderWidget pomAO = new ResettableSliderWidget(0, 0, 100, 20,
                 0, 100, Options.materialPomAOStrength[i], 0,
                 v -> getGenericValueText(Text.literal("AO"),
                     v == 0 ? Text.literal("Off") : Text.literal(v + "%")),
                 v -> { Options.materialPomAOStrength[i] = v; onSliderChanged(i); });
-            this.body.addEntry(new LegacyTwoColumnSliderEntry(pomAO, null, body));
+            this.body.addEntry(new LegacyFourColumnSliderEntry(remapMin, remapMax, pomAO, null, body));
+        } else {
+            this.body.addEntry(new LegacyTwoColumnSliderEntry(dispDepth, null, body));
         }
 
         // === Parent/Child ===
