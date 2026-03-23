@@ -384,7 +384,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
+        // Search cycling must be checked before peek mode, since both use Tab
         if (searchField != null) {
             if (keyCode == GLFW.GLFW_KEY_ENTER) {
                 commitSearch();
@@ -423,6 +423,8 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
                 if (searchField.keyPressed(keyCode, scanCode, modifiers)) return true;
             }
         }
+        // Peek mode uses Tab — only activate when search didn't consume it
+        if (RadianceTheme.handlePeekKeyPressed(keyCode)) return true;
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 

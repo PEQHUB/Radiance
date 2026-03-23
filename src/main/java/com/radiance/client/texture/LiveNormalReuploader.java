@@ -69,8 +69,9 @@ public final class LiveNormalReuploader {
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
             if (cachedAlbedo == null) continue;
 
-            Integer normalGLID = TextureTracker.GLID2NormalGLID.get(albedoGLID);
-            if (normalGLID == null) continue;
+            if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
+            int normalGLID = TextureTracker.GLID2NormalGLID[albedoGLID];
+            if (normalGLID == -1) continue;
 
             try {
                 NativeImage newNormal;
@@ -108,8 +109,9 @@ public final class LiveNormalReuploader {
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
             if (cachedAlbedo == null) continue;
 
-            Integer specularGLID = TextureTracker.GLID2SpecularGLID.get(albedoGLID);
-            if (specularGLID == null) continue;
+            if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
+            int specularGLID = TextureTracker.GLID2SpecularGLID[albedoGLID];
+            if (specularGLID == -1) continue;
 
             try {
                 NativeImage newSpec;

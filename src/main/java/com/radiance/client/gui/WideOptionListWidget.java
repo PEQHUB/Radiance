@@ -61,6 +61,29 @@ public class WideOptionListWidget extends OptionListWidget {
         setScrollY(originalScroll);
     }
 
+    // ── Smooth-scroll hit testing ──
+    // During scroll animation, displayScrollY lags behind getScrollY().
+    // Mouse events must use displayScrollY so clicks land on the visually
+    // rendered entry, not the snapped target position.
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        double originalScroll = getScrollY();
+        setScrollY(displayScrollY);
+        boolean result = super.mouseClicked(mouseX, mouseY, button);
+        setScrollY(originalScroll);
+        return result;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        double originalScroll = getScrollY();
+        setScrollY(displayScrollY);
+        boolean result = super.mouseReleased(mouseX, mouseY, button);
+        setScrollY(originalScroll);
+        return result;
+    }
+
     // ── Right-click precision drag propagation ──
     // Minecraft's default ParentElement.mouseDragged only propagates button 0.
     // Override to also propagate button 1 (right-click precision slider drag)

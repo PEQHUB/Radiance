@@ -97,6 +97,7 @@ public class RadianceUnifiedScreen extends Screen {
             Text.translatable("radiance.settings.reset_defaults"),
             btn -> {
                 Options.resetAllToDefaults();
+                Options.overwriteConfig();
                 refreshContent();
             })
             .dimensions(resetBtnX, resetBtnY, resetBtnW, resetBtnH)
@@ -504,6 +505,9 @@ public class RadianceUnifiedScreen extends Screen {
             RadianceTheme.peekActive = true;
             return true;
         }
+
+        // Don't toggle search when an overlay screen is showing
+        if (overlayScreen != null) return super.keyPressed(keyCode, scanCode, modifiers);
 
         // Search: Space opens search (when no overlay active)
         if (keyCode == GLFW.GLFW_KEY_SPACE) {

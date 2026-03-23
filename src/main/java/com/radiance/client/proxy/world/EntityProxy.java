@@ -19,6 +19,7 @@ import com.radiance.mixin_related.extensions.vulkan_render_integration.IHeldItem
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleManagerExt;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import java.nio.ByteBuffer;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +98,62 @@ public class EntityProxy {
     private static final int BLOCK_ENTITY_BUFFER_SIZE = 131072;
     private static final int BLOCK_CRUMBLING_BUFFER_SIZE = 65536;
     private static final double BLOCK_ENTITY_RENDER_DISTANCE_SQ = 96.0 * 96.0;
+
+    // --- SVCP pool (render-thread only, no synchronization needed) ---
+    private static final int SVCP_POOL_CAP = 32;
+    private static final ArrayDeque<StorageVertexConsumerProvider> SVCP_POOL = new ArrayDeque<>();
+
+    private static StorageVertexConsumerProvider acquireSVCP(int initialSize) {
+        StorageVertexConsumerProvider p = SVCP_POOL.poll();
+        if (p != null) {
+            p.reset();
+            p.setSize(initialSize);
+            return p;
+        }
+        return new StorageVertexConsumerProvider(initialSize);
+    }
+
+    private static void releaseSVCP(StorageVertexConsumerProvider p) {
+        if (SVCP_POOL.size() < SVCP_POOL_CAP) {
+            SVCP_POOL.offer(p);
+        }
+    }
+
+    // --- Native ByteBuffer pool for queueBuild (render-thread only) ---
+    private static final int BB_POOL_COUNT = 14;
+    private static final ByteBuffer[] bbPool = new ByteBuffer[BB_POOL_COUNT];
+
+    /**
+     * Returns a native ByteBuffer of at least {@code requiredSize} bytes from
+     * slot {@code index}. If the existing buffer is too small it is freed and a
+     * larger one allocated (with 50% headroom to avoid frequent realloc).
+     */
+    private static ByteBuffer acquireBB(int index, int requiredSize) {
+        if (requiredSize <= 0) requiredSize = 4; // guard against zero-size alloc
+        ByteBuffer existing = bbPool[index];
+        if (existing != null && existing.capacity() >= requiredSize) {
+            existing.clear().limit(requiredSize);
+            return existing;
+        }
+        if (existing != null) {
+            MemoryUtil.memFree(existing);
+        }
+        int allocSize = requiredSize + (requiredSize >> 1); // 1.5x headroom
+        ByteBuffer buf = MemoryUtil.memAlloc(allocSize);
+        buf.limit(requiredSize);
+        bbPool[index] = buf;
+        return buf;
+    }
+
+    /** Frees all pooled ByteBuffers — call on shutdown. */
+    public static void freeByteBufferPool() {
+        for (int i = 0; i < BB_POOL_COUNT; i++) {
+            if (bbPool[i] != null) {
+                MemoryUtil.memFree(bbPool[i]);
+                bbPool[i] = null;
+            }
+        }
+    }
 
     private static final Identifier SUN_TEXTURE = Identifier.ofVanilla(
         "textures/environment/sun.png");
@@ -224,7 +281,7 @@ public class EntityProxy {
                 entity.lastRenderZ = entity.getZ();
             }
 
-            StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
+            StorageVertexConsumerProvider entityStorageVertexConsumerProvider = acquireSVCP(
                 DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
             entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
 
@@ -303,7 +360,7 @@ public class EntityProxy {
                 // Create separate provider for held items — populated by the mixin's
                 // feature renderer redirect during the body pass. This completely
                 // isolates item vertices from body vertices (no ThreadLocal contamination).
-                StorageVertexConsumerProvider itemProvider = new StorageVertexConsumerProvider(8192);
+                StorageVertexConsumerProvider itemProvider = acquireSVCP(8192);
                 entityStorageVertexConsumerProviders.add(itemProvider);
                 FirstPersonView.fpvItemProvider = itemProvider;
 
@@ -326,7 +383,7 @@ public class EntityProxy {
                     true, entityRenderDataList);
 
                 // Pass 2: Head only (body hidden by PlayerEntityRendererMixins)
-                StorageVertexConsumerProvider headProvider = new StorageVertexConsumerProvider(
+                StorageVertexConsumerProvider headProvider = acquireSVCP(
                     DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
                 entityStorageVertexConsumerProviders.add(headProvider);
 
@@ -431,7 +488,7 @@ public class EntityProxy {
                         continue;
                     }
 
-                    StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
+                    StorageVertexConsumerProvider entityStorageVertexConsumerProvider = acquireSVCP(
                         BLOCK_ENTITY_BUFFER_SIZE);
                     entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
                     StorageVertexConsumerProvider crumblingStorageVertexConsumerProvider = null;
@@ -451,7 +508,7 @@ public class EntityProxy {
                             sortedSet.last()
                                 .getStage();
                         if (stage >= 0 && stage < ModelBaker.BLOCK_DESTRUCTION_RENDER_LAYERS.size()) {
-                            crumblingStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
+                            crumblingStorageVertexConsumerProvider = acquireSVCP(
                                 BLOCK_CRUMBLING_BUFFER_SIZE);
                             crumblingStorageVertexConsumerProviders.add(
                                 crumblingStorageVertexConsumerProvider);
@@ -507,7 +564,7 @@ public class EntityProxy {
                 continue;
             }
 
-            StorageVertexConsumerProvider entityStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
+            StorageVertexConsumerProvider entityStorageVertexConsumerProvider = acquireSVCP(
                 BLOCK_ENTITY_BUFFER_SIZE);
             entityStorageVertexConsumerProviders.add(entityStorageVertexConsumerProvider);
 
@@ -574,7 +631,7 @@ public class EntityProxy {
                         continue;
                     }
 
-                    StorageVertexConsumerProvider blockCrumblingStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
+                    StorageVertexConsumerProvider blockCrumblingStorageVertexConsumerProvider = acquireSVCP(
                         BLOCK_CRUMBLING_BUFFER_SIZE);
                     blockCrumblingStorageVertexConsumerProviders.add(
                         blockCrumblingStorageVertexConsumerProvider);
@@ -631,7 +688,7 @@ public class EntityProxy {
         List<StorageVertexConsumerProvider> storageVertexConsumerProviders = new ArrayList<>();
         EntityRenderDataList renderDataList = new EntityRenderDataList();
 
-        StorageVertexConsumerProvider storageVertexConsumerProvider = new StorageVertexConsumerProvider(
+        StorageVertexConsumerProvider storageVertexConsumerProvider = acquireSVCP(
             8192);
         storageVertexConsumerProviders.add(storageVertexConsumerProvider);
 
@@ -702,12 +759,11 @@ public class EntityProxy {
         List<StorageVertexConsumerProvider> storageVertexConsumerProviders = new ArrayList<>();
         EntityRenderDataList renderDataList = new EntityRenderDataList();
 
-        StorageVertexConsumerProvider postStorageVertexConsumerProvider = new StorageVertexConsumerProvider(
-            0);
+        StorageVertexConsumerProvider postStorageVertexConsumerProvider = acquireSVCP(0);
         storageVertexConsumerProviders.add(postStorageVertexConsumerProvider);
 
         // Separate provider for emissive firework particles (routed to RT pipeline)
-        StorageVertexConsumerProvider fireworkProvider = new StorageVertexConsumerProvider(0);
+        StorageVertexConsumerProvider fireworkProvider = acquireSVCP(0);
         storageVertexConsumerProviders.add(fireworkProvider);
 
         ParticleManager particleManager = MinecraftClient.getInstance().particleManager;
@@ -853,8 +909,7 @@ public class EntityProxy {
         processWorldEntityRenderData(fireworkProvider, 0, 0, 0, 0,
             Constants.RayTracingFlags.PARTICLE, true, renderDataList);
 
-        StorageVertexConsumerProvider storageVertexConsumerProvider = new StorageVertexConsumerProvider(
-            0);
+        StorageVertexConsumerProvider storageVertexConsumerProvider = acquireSVCP(0);
         storageVertexConsumerProviders.add(storageVertexConsumerProvider);
 
         Queue<Particle> customParticleQueue = particles.get(ParticleTextureSheet.CUSTOM);
@@ -891,8 +946,7 @@ public class EntityProxy {
         MinecraftClient client = MinecraftClient.getInstance();
         MatrixStack matrixStack = new MatrixStack();
 
-        StorageVertexConsumerProvider storageVertexConsumerProvider = new StorageVertexConsumerProvider(
-            0);
+        StorageVertexConsumerProvider storageVertexConsumerProvider = acquireSVCP(0);
         storageVertexConsumerProviders.add(storageVertexConsumerProvider);
 
         if (client.crosshairTarget instanceof BlockHitResult blockHitResult) {
@@ -958,8 +1012,7 @@ public class EntityProxy {
         List<StorageVertexConsumerProvider> storageVertexConsumerProviders = new ArrayList<>();
         EntityRenderDataList renderDataList = new EntityRenderDataList();
 
-        StorageVertexConsumerProvider storageVertexConsumerProvider = new StorageVertexConsumerProvider(
-            0);
+        StorageVertexConsumerProvider storageVertexConsumerProvider = acquireSVCP(0);
         storageVertexConsumerProviders.add(storageVertexConsumerProvider);
 
         weatherRendering.renderPrecipitation(world, storageVertexConsumerProvider, ticks, tickDelta,
@@ -993,6 +1046,7 @@ public class EntityProxy {
         if (entityRenderDataList.isEmpty()) {
             for (StorageVertexConsumerProvider storageVertexConsumerProvider : storageVertexConsumerProviders) {
                 storageVertexConsumerProvider.close();
+                releaseSVCP(storageVertexConsumerProvider);
             }
             return;
         }
@@ -1002,89 +1056,74 @@ public class EntityProxy {
             MinecraftClient.getInstance()
                 .getTextureManager();
 
-        ByteBuffer entityHashCodeBB = null;
-        ByteBuffer entityPosXBB = null;
-        ByteBuffer entityPosYBB = null;
-        ByteBuffer entityPosZBB = null;
-        ByteBuffer entityRTFlagBB = null;
-        ByteBuffer entityPrebuiltBLASBB = null;
-        ByteBuffer entityPostBB = null;
-        ByteBuffer entityLayerCountBB = null;
-        ByteBuffer geometryTypeBB = null;
-        ByteBuffer geometryTextureBB = null;
-        ByteBuffer vertexFormatBB = null;
-        ByteBuffer indexFormatBB = null;
-        ByteBuffer vertexCountBB = null;
-        ByteBuffer verticesBB = null;
-
         try {
             int entityHashCodeSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-            entityHashCodeBB = MemoryUtil.memAlloc(entityHashCodeSize);
+            ByteBuffer entityHashCodeBB = acquireBB(0, entityHashCodeSize);
             long entityHashCodeAddr = memAddress(entityHashCodeBB);
             int entityHashCodeBaseAddr = 0;
 
             int entityPosXSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
-            entityPosXBB = MemoryUtil.memAlloc(entityPosXSize);
+            ByteBuffer entityPosXBB = acquireBB(1, entityPosXSize);
             long entityPosXAddr = memAddress(entityPosXBB);
             int entityPosXBaseAddr = 0;
 
             int entityPosYSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
-            entityPosYBB = MemoryUtil.memAlloc(entityPosYSize);
+            ByteBuffer entityPosYBB = acquireBB(2, entityPosYSize);
             long entityPosYAddr = memAddress(entityPosYBB);
             int entityPosYBaseAddr = 0;
 
             int entityPosZSize = entityRenderDataList.getTotalEntityCount() * Double.BYTES;
-            entityPosZBB = MemoryUtil.memAlloc(entityPosZSize);
+            ByteBuffer entityPosZBB = acquireBB(3, entityPosZSize);
             long entityPosZAddr = memAddress(entityPosZBB);
             int entityPosZBaseAddr = 0;
 
             int entityRTFlagSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-            entityRTFlagBB = MemoryUtil.memAlloc(entityRTFlagSize);
+            ByteBuffer entityRTFlagBB = acquireBB(4, entityRTFlagSize);
             long entityRTFlagAddr = memAddress(entityRTFlagBB);
             int entityRTFlagBaseAddr = 0;
 
             int entityPrebuiltBLASSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-            entityPrebuiltBLASBB = MemoryUtil.memAlloc(entityPrebuiltBLASSize);
+            ByteBuffer entityPrebuiltBLASBB = acquireBB(5, entityPrebuiltBLASSize);
             long entityPrebuiltBLASAddr = memAddress(entityPrebuiltBLASBB);
             int entityPrebuiltBLASBaseAddr = 0;
 
             int entityPostSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-            entityPostBB = MemoryUtil.memAlloc(entityPostSize);
+            ByteBuffer entityPostBB = acquireBB(6, entityPostSize);
             long entityPostAddr = memAddress(entityPostBB);
             int entityPostBaseAddr = 0;
 
             int entityLayerCountSize = entityRenderDataList.getTotalEntityCount() * Integer.BYTES;
-            entityLayerCountBB = MemoryUtil.memAlloc(entityLayerCountSize);
+            ByteBuffer entityLayerCountBB = acquireBB(7, entityLayerCountSize);
             long entityLayerCountAddr = memAddress(entityLayerCountBB);
             int entityLayerCountBaseAddr = 0;
 
             int geometryTypeSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-            geometryTypeBB = MemoryUtil.memAlloc(geometryTypeSize);
+            ByteBuffer geometryTypeBB = acquireBB(8, geometryTypeSize);
             long geometryTypeAddr = memAddress(geometryTypeBB);
             int geometryTypeBaseAddr = 0;
 
             int geometryTextureSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-            geometryTextureBB = MemoryUtil.memAlloc(geometryTextureSize);
+            ByteBuffer geometryTextureBB = acquireBB(9, geometryTextureSize);
             long geometryTextureAddr = memAddress(geometryTextureBB);
             int geometryTextureBaseAddr = 0;
 
             int vertexFormatSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-            vertexFormatBB = MemoryUtil.memAlloc(vertexFormatSize);
+            ByteBuffer vertexFormatBB = acquireBB(10, vertexFormatSize);
             long vertexFormatAddr = memAddress(vertexFormatBB);
             int vertexFormatBaseAddr = 0;
 
             int indexFormatSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-            indexFormatBB = MemoryUtil.memAlloc(indexFormatSize);
+            ByteBuffer indexFormatBB = acquireBB(11, indexFormatSize);
             long indexFormatAddr = memAddress(indexFormatBB);
             int indexFormatBaseAddr = 0;
 
             int vertexCountSize = entityRenderDataList.getTotalLayersCount() * Integer.BYTES;
-            vertexCountBB = MemoryUtil.memAlloc(vertexCountSize);
+            ByteBuffer vertexCountBB = acquireBB(12, vertexCountSize);
             long vertexCountAddr = memAddress(vertexCountBB);
             int vertexCountBaseAddr = 0;
 
             int verticesSize = entityRenderDataList.getTotalLayersCount() * Long.BYTES;
-            verticesBB = MemoryUtil.memAlloc(verticesSize);
+            ByteBuffer verticesBB = acquireBB(13, verticesSize);
             long verticesAddr = memAddress(verticesBB);
             int verticesBaseAddr = 0;
 
@@ -1167,20 +1206,8 @@ public class EntityProxy {
                 vertexCountAddr,
                 verticesAddr);
         } finally {
-            if (entityHashCodeBB != null) MemoryUtil.memFree(entityHashCodeBB);
-            if (entityPosXBB != null) MemoryUtil.memFree(entityPosXBB);
-            if (entityPosYBB != null) MemoryUtil.memFree(entityPosYBB);
-            if (entityPosZBB != null) MemoryUtil.memFree(entityPosZBB);
-            if (entityRTFlagBB != null) MemoryUtil.memFree(entityRTFlagBB);
-            if (entityPrebuiltBLASBB != null) MemoryUtil.memFree(entityPrebuiltBLASBB);
-            if (entityPostBB != null) MemoryUtil.memFree(entityPostBB);
-            if (entityLayerCountBB != null) MemoryUtil.memFree(entityLayerCountBB);
-            if (geometryTypeBB != null) MemoryUtil.memFree(geometryTypeBB);
-            if (geometryTextureBB != null) MemoryUtil.memFree(geometryTextureBB);
-            if (vertexFormatBB != null) MemoryUtil.memFree(vertexFormatBB);
-            if (indexFormatBB != null) MemoryUtil.memFree(indexFormatBB);
-            if (vertexCountBB != null) MemoryUtil.memFree(vertexCountBB);
-            if (verticesBB != null) MemoryUtil.memFree(verticesBB);
+            // ByteBuffers are pooled in bbPool[] — no memFree needed here.
+            // They persist across frames and are freed via freeByteBufferPool() on shutdown.
 
             // Close built buffers and providers (original behavior), but don't let cleanup mask errors.
             try {
@@ -1196,6 +1223,7 @@ public class EntityProxy {
             try {
                 for (StorageVertexConsumerProvider storageVertexConsumerProvider : storageVertexConsumerProviders) {
                     storageVertexConsumerProvider.close();
+                    releaseSVCP(storageVertexConsumerProvider);
                 }
             } catch (Throwable ignored) {
             }

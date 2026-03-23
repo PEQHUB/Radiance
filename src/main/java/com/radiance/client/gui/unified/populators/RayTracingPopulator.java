@@ -29,21 +29,30 @@ public class RayTracingPopulator implements ContentPopulator {
 
         SimpleOption<Boolean> ommEnabled = SimpleOption.ofBoolean(
             Options.OMM_ENABLED_KEY, Options.ommEnabled,
-            value -> Options.setOMMEnabled(value, true));
+            value -> {
+                Options.setOMMEnabled(value, true);
+                screen.refreshContent();
+            });
         section.addTwoWidgets(rayBounces.createWidget(gameOptions), ommEnabled.createWidget(gameOptions))
               .tooltip("Ray Bounces = max light reflections per pixel. OMM = opacity micromaps for faster alpha-tested geometry.");
-
-        SelectionDropdownWidget ommBakerLevel = new SelectionDropdownWidget(
-            0, 0, 150, 20, "OMM Baker Level",
-            new String[]{"1", "2", "3", "4", "5", "6", "7", "8"},
-            Options.ommBakerLevel - 1,
-            value -> Options.setOMMBakerLevel(value + 1, true));
 
         SimpleOption<Boolean> simplifiedIndirect = SimpleOption.ofBoolean(
             Options.SIMPLIFIED_INDIRECT_KEY, Options.simplifiedIndirect,
             value -> Options.setSimplifiedIndirect(value, true));
-        section.addTwoWidgets(ommBakerLevel, simplifiedIndirect.createWidget(gameOptions))
-              .tooltip("Baker Level = OMM resolution (higher = more accurate transparency). Simplified Indirect uses Lambertian instead of Disney BRDF for bounced light.");
+
+        if (Options.ommEnabled) {
+            // OMM Baker Level only visible when OMM is enabled
+            SelectionDropdownWidget ommBakerLevel = new SelectionDropdownWidget(
+                0, 0, 150, 20, "OMM Baker Level",
+                new String[]{"1", "2", "3", "4", "5", "6", "7", "8"},
+                Options.ommBakerLevel - 1,
+                value -> Options.setOMMBakerLevel(value + 1, true));
+            section.addTwoWidgets(ommBakerLevel, simplifiedIndirect.createWidget(gameOptions))
+                  .tooltip("Baker Level = OMM resolution (higher = more accurate transparency). Simplified Indirect uses Lambertian instead of Disney BRDF for bounced light.");
+        } else {
+            section.addToggle(simplifiedIndirect.createWidget(gameOptions))
+                  .tooltip("Simplified Indirect uses Lambertian instead of Disney BRDF for bounced light.");
+        }
 
         SimpleOption<Boolean> multiScatterGGX = SimpleOption.ofBoolean(
             Options.MULTI_SCATTER_GGX_KEY, Options.multiScatterGGX,
@@ -64,12 +73,21 @@ public class RayTracingPopulator implements ContentPopulator {
         // SER (Shader Execution Reordering)
         SimpleOption<Boolean> serEnabled = SimpleOption.ofBoolean(
             "options.video.ser_enabled", Options.serEnabled,
-            value -> Options.setSEREnabled(value, true));
-        SimpleOption<Boolean> serHints = SimpleOption.ofBoolean(
-            "options.video.ser_hints", Options.serHintsEnabled,
-            value -> Options.setSERHintsEnabled(value, true));
-        section.addTwoWidgets(serEnabled.createWidget(gameOptions), serHints.createWidget(gameOptions))
-              .tooltip("SER reorders shader invocations for better GPU occupancy. Hints guide the reorder heuristic.");
+            value -> {
+                Options.setSEREnabled(value, true);
+                screen.refreshContent();
+            });
+        if (Options.serEnabled) {
+            // SER Hints only visible when SER is enabled
+            SimpleOption<Boolean> serHints = SimpleOption.ofBoolean(
+                "options.video.ser_hints", Options.serHintsEnabled,
+                value -> Options.setSERHintsEnabled(value, true));
+            section.addTwoWidgets(serEnabled.createWidget(gameOptions), serHints.createWidget(gameOptions))
+                  .tooltip("SER reorders shader invocations for better GPU occupancy. Hints guide the reorder heuristic.");
+        } else {
+            section.addToggle(serEnabled.createWidget(gameOptions))
+                  .tooltip("SER reorders shader invocations for better GPU occupancy.");
+        }
 
         // Displacement (global on/off + LOD)
         SettingsSection disp = panel.addSection(Text.literal("Displacement"));

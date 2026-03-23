@@ -1,6 +1,7 @@
 package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,15 +12,24 @@ public class TextureTracker {
 
     public static Map<Identifier, Integer> textureID2GLID = new ConcurrentHashMap<>();
     public static Map<Integer, Texture> GLID2Texture = new ConcurrentHashMap<>();
-    public static Map<Integer, Integer> GLID2SpecularGLID = new ConcurrentHashMap<>();
-    public static Map<Integer, Integer> GLID2NormalGLID = new ConcurrentHashMap<>();
-    public static Map<Integer, Integer> GLID2FlagGLID = new ConcurrentHashMap<>();
+
+    public static final int MAX_TEXTURES = 4096;
+    public static int[] GLID2SpecularGLID = new int[MAX_TEXTURES];
+    public static int[] GLID2NormalGLID = new int[MAX_TEXTURES];
+    public static int[] GLID2FlagGLID = new int[MAX_TEXTURES];
     // Material class mask: albedo GLID → R8_UNORM mask texture ID (per-texel class index)
-    public static Map<Integer, Integer> GLID2MaskGLID = new ConcurrentHashMap<>();
+    public static int[] GLID2MaskGLID = new int[MAX_TEXTURES];
     // Pending mask registrations: flushed after performQueuedUpload() to ensure texture data
     // is uploaded before the descriptor is referenced. Without this, the mask texture is in
     // UNDEFINED layout when the shader first reads it → garbage material index → flickering.
     public static Map<Integer, Integer> pendingMaskGLID = new ConcurrentHashMap<>();
+
+    static {
+        Arrays.fill(GLID2SpecularGLID, -1);
+        Arrays.fill(GLID2NormalGLID, -1);
+        Arrays.fill(GLID2FlagGLID, -1);
+        Arrays.fill(GLID2MaskGLID, -1);
+    }
 
     /**
      * Flush pending mask texture registrations into the active GLID2MaskGLID map.
@@ -28,7 +38,10 @@ public class TextureTracker {
      */
     public static void flushPendingMasks() {
         if (!pendingMaskGLID.isEmpty()) {
-            GLID2MaskGLID.putAll(pendingMaskGLID);
+            for (var entry : pendingMaskGLID.entrySet()) {
+                int key = entry.getKey();
+                if (key >= 0 && key < MAX_TEXTURES) GLID2MaskGLID[key] = entry.getValue();
+            }
             pendingMaskGLID.clear();
         }
     }
