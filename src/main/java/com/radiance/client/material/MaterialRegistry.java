@@ -104,12 +104,31 @@ public class MaterialRegistry {
         buf.putInt(noisePacked);
 
         // Pack 4: pomPacked0, pomPacked1, pomPacked2, pomDepth
-        // Per-block POM/tessellation height pipeline parameters (bit-packed uint32s + float depth)
-        // For now, pack zeros for the bit-packed fields (neutral defaults) — per-block arrays will be added later.
-        // pomDepth controls displacement depth and is the only actively-used field for tessellation.
-        buf.putInt(0);   // pomPacked0: filterMode=0, pomMode=0, heightSource=0, pomSteps=0, etc.
-        buf.putInt(0);   // pomPacked1: normalClamp=0, geometricBlend=0, pomAOStrength=0, heightContrast=0
-        buf.putInt(0);   // pomPacked2: heightRemapMin=0, heightRemapMax=0, heightOffset=0, normalDistanceFade=0
+        // Per-block displacement + height pipeline parameters (bit-packed uint32s + float depth)
+        int pp0 = (Options.materialHeightFilter[i] & 0x7)                                // bits 0-2:  heightFilter
+                | ((Options.materialPomMode[i] & 0x7) << 3)                              // bits 3-5:  displacementMethod
+                | ((Options.materialHeightSource[i] & 0x7) << 6)                         // bits 6-8:  heightSource
+                | ((Math.min(Options.materialPomSteps[i], 127) & 0x7F) << 9)             // bits 9-15: ddaSteps
+                | ((Options.materialPomRefinement[i] & 0xF) << 16)                       // bits 16-19: ddaRefinement
+                | ((Options.materialFilterRadius[i] & 0xF) << 20)                        // bits 20-23: filterRadius
+                | ((Options.materialMipBias[i] & 0xF) << 24)                             // bits 24-27: mipBias
+                | ((Options.materialPomClipSilhouette[i] ? 1 : 0) << 29)                 // bit 29: clipSilhouette
+                | ((Options.materialPomMotionVectors[i] ? 1 : 0) << 30)                  // bit 30: motionVectors
+                | ((Options.materialPomAreaLightOffset[i] ? 1 : 0) << 31);               // bit 31: areaLightOffset
+        buf.putInt(pp0);
+
+        int pp1 = (Options.materialNormalClamp[i] & 0xFF)                                // bits 0-7:  normalClamp
+                | ((Options.materialGeometricBlend[i] & 0xFF) << 8)                      // bits 8-15: geometricBlend
+                | ((Options.materialPomAOStrength[i] & 0xFF) << 16)                      // bits 16-23: pomAOStrength
+                | ((Options.materialHeightContrast[i] & 0xFF) << 24);                    // bits 24-31: heightContrast
+        buf.putInt(pp1);
+
+        int pp2 = (Options.materialHeightRemapMin[i] & 0xFF)                             // bits 0-7:  heightRemapMin
+                | ((Options.materialHeightRemapMax[i] & 0xFF) << 8)                      // bits 8-15: heightRemapMax
+                | ((Options.materialHeightOffset[i] & 0xFF) << 16)                       // bits 16-23: heightOffset
+                | ((Options.materialNormalDistanceFade[i] & 0xFF) << 24);                 // bits 24-31: normalDistanceFade
+        buf.putInt(pp2);
+
         buf.putFloat(Options.materialPomDepth[i] / 100f);  // pomDepth: 0-200 → 0.00-2.00 blocks
 
         // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
@@ -145,7 +164,7 @@ public class MaterialRegistry {
         int center = Options.materialPercentileCenter[i] & 0xFF;
         int spread = Options.materialPercentileSpread[i] & 0xFF;
         buf.putInt(rMin | (rMax << 8) | (center << 16) | (spread << 24));
-        int normStr = Options.materialAutoPBRNormalStrength[i] & 0xFFFF;
+        int normStr = 25 & 0xFFFF; // AutoPBR normal strength (per-block field removed, use default)
         int htGamma = Options.materialAutoPBRHeightGamma[i] & 0xFFFF;
         buf.putInt(normStr | (htGamma << 16));
     }

@@ -331,7 +331,11 @@ public class Options {
     public static int pomRefinement = 4;            // 0-8
     public static int pomFadeDistance = 64;          // 8-256 blocks
     // Displacement (proper RT displacement, replaces POM)
-    public static int displacementQuality = 0;      // 0=Off, 1=Intersection DDA, 2=Micro-Tessellation, 3=CLAS
+    public static int displacementQuality = 0;      // 0=Off, 1=DDA, 2=Tessellation, 3=Hybrid, 4=CLAS
+    public static int tessMaxLevel = 16;             // NxN grid max (2-32)
+    public static int tessNearDist = 32;             // Full tessellation distance (blocks)
+    public static int tessMidDist = 96;              // Half tessellation distance (blocks)
+    public static int tessFarDist = 192;             // Quarter tessellation distance (blocks)
     // SER: Shader Execution Reordering — groups threads by material for cache coherence
     // serEnabled: toggle hit-object reordering (requires VK_EXT_ray_tracing_invocation_reorder)
     // serHints: explicit geometry-based coherence hints (additional 10-20% on top of basic SER)
@@ -1733,8 +1737,16 @@ public class Options {
             pomFadeDistance = clamp(Integer.parseInt(props.getProperty("pomFadeDistance", String.valueOf(pomFadeDistance))), 8, 256);
             nativeSetPOMFadeDistance((float) pomFadeDistance, false);
 
-            displacementQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))), 0, 3);
+            displacementQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))), 0, 4);
             nativeSetDisplacementQuality(displacementQuality, false);
+            tessMaxLevel = clamp(Integer.parseInt(props.getProperty("tessMaxLevel", String.valueOf(tessMaxLevel))), 2, 32);
+            nativeSetTessMaxLevel(tessMaxLevel, false);
+            tessNearDist = clamp(Integer.parseInt(props.getProperty("tessNearDist", String.valueOf(tessNearDist))), 8, 256);
+            nativeSetTessNearDist(tessNearDist, false);
+            tessMidDist = clamp(Integer.parseInt(props.getProperty("tessMidDist", String.valueOf(tessMidDist))), 16, 384);
+            nativeSetTessMidDist(tessMidDist, false);
+            tessFarDist = clamp(Integer.parseInt(props.getProperty("tessFarDist", String.valueOf(tessFarDist))), 32, 512);
+            nativeSetTessFarDist(tessFarDist, false);
 
             serEnabled = Boolean.parseBoolean(props.getProperty("serEnabled", String.valueOf(serEnabled)));
             nativeSetSEREnabled(serEnabled, false);
@@ -2376,6 +2388,10 @@ public class Options {
         props.setProperty("pomRefinement", String.valueOf(pomRefinement));
         props.setProperty("pomFadeDistance", String.valueOf(pomFadeDistance));
         props.setProperty("displacementQuality", String.valueOf(displacementQuality));
+        props.setProperty("tessMaxLevel", String.valueOf(tessMaxLevel));
+        props.setProperty("tessNearDist", String.valueOf(tessNearDist));
+        props.setProperty("tessMidDist", String.valueOf(tessMidDist));
+        props.setProperty("tessFarDist", String.valueOf(tessFarDist));
         props.setProperty("serEnabled", String.valueOf(serEnabled));
         props.setProperty("serHintsEnabled", String.valueOf(serHintsEnabled));
         props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
@@ -3895,8 +3911,34 @@ public class Options {
 
     public static void setDisplacementQuality(int quality, boolean write) {
         com.radiance.client.debug.CrashContext.recordChange("displacementQuality=" + quality);
-        Options.displacementQuality = Math.max(0, Math.min(3, quality));
+        Options.displacementQuality = Math.max(0, Math.min(4, quality));
         nativeSetDisplacementQuality(Options.displacementQuality, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public native static void nativeSetTessMaxLevel(int v, boolean write);
+    public native static void nativeSetTessNearDist(int v, boolean write);
+    public native static void nativeSetTessMidDist(int v, boolean write);
+    public native static void nativeSetTessFarDist(int v, boolean write);
+
+    public static void setTessMaxLevel(int v, boolean write) {
+        tessMaxLevel = Math.max(2, Math.min(32, v));
+        nativeSetTessMaxLevel(tessMaxLevel, write);
+        if (write) { overwriteConfig(); }
+    }
+    public static void setTessNearDist(int v, boolean write) {
+        tessNearDist = Math.max(8, Math.min(256, v));
+        nativeSetTessNearDist(tessNearDist, write);
+        if (write) { overwriteConfig(); }
+    }
+    public static void setTessMidDist(int v, boolean write) {
+        tessMidDist = Math.max(16, Math.min(384, v));
+        nativeSetTessMidDist(tessMidDist, write);
+        if (write) { overwriteConfig(); }
+    }
+    public static void setTessFarDist(int v, boolean write) {
+        tessFarDist = Math.max(32, Math.min(512, v));
+        nativeSetTessFarDist(tessFarDist, write);
         if (write) { overwriteConfig(); }
     }
 

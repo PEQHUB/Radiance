@@ -71,52 +71,40 @@ public class RayTracingPopulator implements ContentPopulator {
         section.addTwoWidgets(serEnabled.createWidget(gameOptions), serHints.createWidget(gameOptions))
               .tooltip("SER reorders shader invocations for better GPU occupancy. Hints guide the reorder heuristic.");
 
-        // Displacement
+        // Displacement (global on/off + LOD)
         SettingsSection disp = panel.addSection(Text.literal("Displacement"));
-        SelectionDropdownWidget dispQuality = new SelectionDropdownWidget(
-            0, 0, 150, 20, "Quality",
-            new String[]{"Off", "Intersection DDA", "Micro-Tessellation", "CLAS (RTX 5090+)"},
-            Options.displacementQuality,
-            value -> Options.setDisplacementQuality(value, true));
-        disp.addTwoWidgets(dispQuality, null);
-        disp.tooltip("Real geometry displacement. Replaces POM with correct RT silhouettes, shadows, and reflections.");
-
-        // POM (Parallax Occlusion Mapping)
-        SettingsSection pom = panel.addSection(Text.literal("Parallax Mapping"));
-        SimpleOption<Boolean> pomToggle = SimpleOption.ofBoolean(
-            "options.video.pom_enabled", Options.pomEnabled,
+        SimpleOption<Boolean> dispToggle = SimpleOption.ofBoolean(
+            "options.video.displacement_enabled",
+            Options.displacementQuality >= 1,
             value -> {
-                Options.setPOMEnabled(value, true);
+                Options.setDisplacementQuality(value ? 2 : 0, true);
                 screen.refreshContent();
             });
-        pom.addToggle(pomToggle.createWidget(gameOptions))
-              .tooltip("Adds depth to textured surfaces using ray-marched height maps. Disabled by default (uses intersection shaders).");
+        disp.addToggle(dispToggle.createWidget(gameOptions))
+              .tooltip("Enable per-block geometric displacement. Set depth and method per block in the Materials screen.");
 
-        if (Options.pomEnabled) {
-            pom.addTwoSliders(
+        if (Options.displacementQuality >= 1) {
+            disp.addTwoSliders(
                 new ResettableSliderWidget(0, 0, 150, 20,
-                    1, 50, Options.pomHeightScalePercent, 5,
-                    v -> getGenericValueText(Text.literal("Height Scale"), Text.literal(v + "%")),
-                    v -> Options.setPOMHeightScalePercent(v, true)),
+                    2, 32, Options.tessMaxLevel, 16,
+                    v -> getGenericValueText(Text.literal("Tess Level"), Text.literal(Integer.toString(v))),
+                    v -> Options.setTessMaxLevel(v, true)),
                 new ResettableSliderWidget(0, 0, 150, 20,
-                    8, 512, Options.pomSteps, 64,
-                    v -> getGenericValueText(Text.literal("Steps"), Text.literal(Integer.toString(v))),
-                    v -> Options.setPOMSteps(v, true)))
-                  .tooltip("Height Scale = depth intensity. Steps = ray-march iterations (more = sharper but slower).");
+                    8, 256, Options.tessNearDist, 32,
+                    v -> getGenericValueText(Text.literal("Near Dist"), Text.literal(v + " blocks")),
+                    v -> Options.setTessNearDist(v, true)))
+                  .tooltip("Max tessellation grid NxN. Near distance = full-quality radius.");
 
-            SelectionDropdownWidget pomRefinement = new SelectionDropdownWidget(
-                0, 0, 150, 20, "Refinement",
-                new String[]{"0", "1", "2", "3", "4", "5", "6", "7", "8"},
-                Options.pomRefinement,
-                value -> Options.setPOMRefinement(value, true));
-            pom.addTwoWidgets(pomRefinement, null);
-            pom.tooltip("Binary search passes after ray march — more = sharper silhouettes but slower.");
-
-            pom.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                    8, 256, Options.pomFadeDistance, 64,
-                    v -> getGenericValueText(Text.literal("Fade Distance"), Text.literal(v + " blocks")),
-                    v -> Options.setPOMFadeDistance(v, true)));
-            pom.tooltip("Distance where POM fades to flat textures.");
+            disp.addTwoSliders(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    16, 384, Options.tessMidDist, 96,
+                    v -> getGenericValueText(Text.literal("Mid Dist"), Text.literal(v + " blocks")),
+                    v -> Options.setTessMidDist(v, true)),
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    32, 512, Options.tessFarDist, 192,
+                    v -> getGenericValueText(Text.literal("Far Dist"), Text.literal(v + " blocks")),
+                    v -> Options.setTessFarDist(v, true)))
+                  .tooltip("Mid = half quality. Far = quarter quality. Beyond = minimal.");
         }
     }
 
