@@ -3,21 +3,23 @@ package com.radiance.client.vertex;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALBEDO_EMISSION;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_EMISSIVE_BLOCK_TYPE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_COLOR_LAYER;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAGS;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_COORD_SHIFT;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_COLOR_LAYER;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_GLINT;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_LIGHT;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_NORM;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_OVERLAY;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_TEXTURE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_GLINT_TEXTURE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_GLINT_UV;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_LIGHT_UV;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_LIGHT_PACKED;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_NORM;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_OVERLAY_UV;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_OVERLAY_PACKED;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POS;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POST_BASE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_ID;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_UV;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_COLOR_LAYER;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_GLINT;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_LIGHT;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_NORM;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_OVERLAY;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_USE_TEXTURE;
 
 import java.nio.ByteOrder;
 import java.util.stream.Collectors;
@@ -92,9 +94,9 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.requiredMask = 0;
         this.offsetsByElementId = format.getOffsetsByElementId();
 
-        if (this.vertexSizeByte != 128) {
+        if (this.vertexSizeByte != 96) {
             throw new IllegalStateException(
-                "PBR vertex stride must be 128, got " + this.vertexSizeByte);
+                "PBR vertex stride must be 96, got " + this.vertexSizeByte);
         }
         if (!format.has(PBR_POS)) {
             throw new IllegalArgumentException("PBR format must contain POSITION element");
@@ -120,6 +122,15 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutShort(ptr, (short) (v & 0xFFFF));
             MemoryUtil.memPutShort(ptr + 2L, (short) ((v >>> 16) & 0xFFFF));
         }
+    }
+
+    /** OR a flag bit into the packed flags field of the current vertex. */
+    private void orFlag(int bit) {
+        int off = offsetsByElementId[PBR_FLAGS.id()];
+        if (off < 0) return;
+        long p = vertexPointer + off;
+        int cur = MemoryUtil.memGetInt(p);
+        MemoryUtil.memPutInt(p, cur | bit);
     }
 
     public VertexFormat getFormat() {
@@ -236,7 +247,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         return ptr;
     }
 
-    private long beginElement(VertexFormatElement element) {
+    long beginElement(VertexFormatElement element) {
         int mask = currentMask;
         int bit = element.getBit();
         if ((mask & bit) == 0) {
@@ -344,10 +355,7 @@ public class PBRVertexConsumer implements VertexConsumer {
 
     @Override
     public VertexConsumer color(int red, int green, int blue, int alpha) {
-        long f = beginElement(PBR_USE_COLOR_LAYER);
-        if (f != -1L) {
-            putInt(f, 1);
-        }
+        orFlag(PBR_FLAG_USE_COLOR_LAYER);
 
         long p = beginElement(PBR_COLOR_LAYER);
         if (p != -1L) {
@@ -361,10 +369,7 @@ public class PBRVertexConsumer implements VertexConsumer {
 
     @Override
     public VertexConsumer texture(float u, float v) {
-        long f = beginElement(PBR_USE_TEXTURE);
-        if (f != -1L) {
-            putInt(f, 1);
-        }
+        orFlag(PBR_FLAG_USE_TEXTURE);
 
         long p = beginElement(PBR_TEXTURE_UV);
         if (p != -1L) {
@@ -376,40 +381,29 @@ public class PBRVertexConsumer implements VertexConsumer {
 
     @Override
     public VertexConsumer overlay(int u, int v) {
-        long f = beginElement(PBR_USE_OVERLAY);
-        if (f != -1L) {
-            putInt(f, 1);
-        }
+        orFlag(PBR_FLAG_USE_OVERLAY);
 
-        long p = beginElement(PBR_OVERLAY_UV);
+        long p = beginElement(PBR_OVERLAY_PACKED);
         if (p != -1L) {
-            putInt(p, u);
-            putInt(p + 4L, v);
+            putInt(p, (u & 0xFFFF) | ((v & 0xFFFF) << 16));
         }
         return this;
     }
 
     @Override
     public VertexConsumer light(int u, int v) {
-        long f = beginElement(PBR_USE_LIGHT);
-        if (f != -1L) {
-            putInt(f, 1);
-        }
+        orFlag(PBR_FLAG_USE_LIGHT);
 
-        long p = beginElement(PBR_LIGHT_UV);
+        long p = beginElement(PBR_LIGHT_PACKED);
         if (p != -1L) {
-            putInt(p, u);
-            putInt(p + 4L, v);
+            putInt(p, (u & 0xFFFF) | ((v & 0xFFFF) << 16));
         }
         return this;
     }
 
     @Override
     public VertexConsumer normal(float x, float y, float z) {
-        long f = beginElement(PBR_USE_NORM);
-        if (f != -1L) {
-            putInt(f, 1);
-        }
+        orFlag(PBR_FLAG_USE_NORM);
 
         long p = beginElement(PBR_NORM);
         if (p != -1L) {
@@ -491,11 +485,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         @Override
         public VertexConsumer texture(float u, float v) {
             delegate.texture(u, v);
-
-            long f = delegate.beginElement(PBR_USE_GLINT);
-            if (f != -1L) {
-                putInt(f, 1);
-            }
+            delegate.orFlag(PBR_FLAG_USE_GLINT);
 
             long p = delegate.beginElement(PBR_GLINT_UV);
             if (p != -1L) {
@@ -601,10 +591,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             vector3f2.rotateX((float) (-Math.PI / 2));
             vector3f2.rotate(direction.getRotationQuaternion());
 
-            long f = delegate.beginElement(PBR_USE_GLINT);
-            if (f != -1L) {
-                putInt(f, 1);
-            }
+            delegate.orFlag(PBR_FLAG_USE_GLINT);
 
             long p = delegate.beginElement(PBR_GLINT_UV);
             if (p != -1L) {

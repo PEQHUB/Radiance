@@ -85,6 +85,12 @@ public class RadianceClient implements ClientModInitializer {
             } catch (RuntimeException e) {
                 LOGGER.info("nvngx_dlssg.dll not found in JAR (Frame Generation will be unavailable)");
             }
+            // NVIDIA Aftermath SDK — GPU crash dump collection
+            try {
+                copyFileFromResource(radianceDir.resolve("GFSDK_Aftermath_Lib.x64.dll"), Path.of("GFSDK_Aftermath_Lib.x64.dll"));
+            } catch (RuntimeException e) {
+                LOGGER.info("GFSDK_Aftermath_Lib.x64.dll not found in JAR (GPU crash dumps will be unavailable)");
+            }
 
             System.load(dllTargetPath.toAbsolutePath().toString());
 
