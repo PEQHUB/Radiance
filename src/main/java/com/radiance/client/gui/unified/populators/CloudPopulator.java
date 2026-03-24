@@ -164,6 +164,90 @@ public class CloudPopulator implements ContentPopulator {
                         Text.literal(v + " blocks")),
                     v -> Options.setVolCloudThickness(v, true)));
             volModule.tooltip("Altitude = cloud base height. Thickness = vertical depth of cloud layer.");
+
+            // Ambient AO
+            volModule.addSlider(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    0, 300, Options.volCloudAmbientPercent, 100,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_ambient"),
+                        Text.literal(v + "%")),
+                    v -> Options.setVolCloudAmbientPercent(v, true)));
+            volModule.tooltip("Ambient occlusion strength for volumetric clouds.");
+
+            // Noise Scale + Cell Frequency (paired sliders)
+            volModule.addTwoSliders(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    64, 2048, Options.volCloudNoiseScale, 214,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_noise_scale"),
+                        Text.literal(v + " blk")),
+                    v -> Options.setVolCloudNoiseScale(v, true)),
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    10, 320, Options.volCloudCellFrequencyTenths, 40,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_cell_freq"),
+                        Text.literal(String.format("%.1f", v / 10.0))),
+                    v -> Options.setVolCloudCellFrequencyTenths(v, true)));
+            volModule.tooltip("Noise Scale = noise texture period in blocks. Cell Freq = Worley cell frequency.");
+
+            // Wind Direction + Atmosphere Fade (paired sliders)
+            volModule.addTwoSliders(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    0, 360, Options.volCloudWindAngleDegrees, 0,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_wind_dir"),
+                        Text.literal(v + "\u00B0")),
+                    v -> Options.setVolCloudWindAngleDegrees(v, true)),
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    100, 4000, Options.volCloudAtmosphereFadeDist, 800,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_atmo_fade"),
+                        Text.literal(v + " blk")),
+                    v -> Options.setVolCloudAtmosphereFadeDist(v, true)));
+            volModule.tooltip("Wind Dir = wind heading in degrees. Atmo Fade = visual fade distance in blocks.");
+
+            // Temporal Blend (0 = Auto)
+            volModule.addSlider(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    0, 99, Options.volCloudTemporalPercent, 0,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_temporal"),
+                        Text.literal(v == 0 ? "Auto" : v + "%")),
+                    v -> Options.setVolCloudTemporalPercent(v, true)));
+            volModule.tooltip("Temporal reprojection blend. Auto = quality-based. Higher = smoother but more ghosting.");
+        }
+
+        // ── Section 4: Advanced Quality Overrides ──
+        if (Options.volCloudQuality > 0) {
+            SettingsSection advanced = panel.addSection("options.video.environment.clouds.advanced.category");
+
+            // March Steps + Light Steps
+            advanced.addTwoSliders(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    0, 256, Options.volCloudMarchSteps, 0,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_march_steps"),
+                        Text.literal(v == 0 ? "Auto" : String.valueOf(v))),
+                    v -> Options.setVolCloudMarchSteps(v, true)),
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    0, 16, Options.volCloudLightSteps, 0,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_light_steps"),
+                        Text.literal(v == 0 ? "Auto" : String.valueOf(v))),
+                    v -> Options.setVolCloudLightSteps(v, true)));
+            advanced.tooltip("March Steps = ray march iterations. Light Steps = light sampling iterations. Auto uses quality preset.");
+
+            // Resolution Divisor
+            advanced.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+                0, 4, Options.volCloudResDivisor, 0,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_res_divisor"),
+                    Text.literal(v == 0 ? "Auto" : v == 1 ? "Full" : v == 2 ? "Half" : v == 3 ? "Third" : "Quarter")),
+                v -> Options.setVolCloudResDivisor(v, true)));
+            advanced.tooltip("Render resolution divisor for cloud pass. Auto uses quality preset.");
+
+            // Debug View
+            String[] debugNames = {"Off", "Weather Cov", "Weather Type",
+                "Noise R (Perlin-Worley)", "Noise G (Worley 2x)", "Noise B (FBM Erosion)",
+                "Height Profile", "Raw Density", "Final Density"};
+            advanced.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+                0, 8, Options.volCloudDebugMode, 0,
+                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_debug"),
+                    Text.literal(debugNames[v])),
+                v -> Options.setVolCloudDebugMode(v, true)));
+            advanced.tooltip("Debug visualization for cloud noise channels and density evaluation.");
         }
     }
 
@@ -185,7 +269,17 @@ public class CloudPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Cloud Coverage", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Cloud Type", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Cloud Altitude", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Wind Speed", category, nodeId, false)
+            new UnifiedSearchOverlay.SearchEntry("Wind Speed", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Ambient AO", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Noise Scale", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Cell Frequency", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Wind Direction", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Atmosphere Fade", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Temporal Blend", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("March Steps", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Light Steps", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Resolution Divisor", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Debug View", category, nodeId, false)
         );
     }
 }

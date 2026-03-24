@@ -2,6 +2,7 @@ package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.UnsafeManager;
 import com.radiance.client.cloud.CloudTileManager;
+import com.radiance.client.option.Options;
 import com.radiance.client.proxy.world.EntityProxy;
 import com.radiance.client.vertex.StorageVertexConsumerProvider;
 import net.minecraft.client.gl.GlUsage;
@@ -49,7 +50,11 @@ public class CloudRendererMixins {
         float ticks,
         CallbackInfo ci) {
         if (this.cells != null) {
-            if (cloudRenderMode == CloudRenderMode.FANCY || cloudRenderMode == CloudRenderMode.FAST) {
+            // When the volumetric cloud module is active (quality > 0), skip vanilla cloud
+            // data updates entirely. The C++ CloudModule handles all rendering.
+            boolean volCloudsActive = Options.volCloudQuality > 0;
+
+            if (!volCloudsActive && (cloudRenderMode == CloudRenderMode.FANCY || cloudRenderMode == CloudRenderMode.FAST)) {
                 // Both Fast and Fancy use the volumetric slab path.
                 // Fast = analytic flat slab (detailStrength forced to 0 by WorldRendererMixins).
                 // Fancy = stepped volumetric with 3D FBM density (detailStrength from user setting).

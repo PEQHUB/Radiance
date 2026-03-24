@@ -21,12 +21,19 @@ public class SkyPopulator implements ContentPopulator {
                 Text.literal(v + "%")),
             v -> Options.setSkyBrightnessPercent(dim, v, true)));
 
-        section.addSlider(new ResettableSliderWidget(
-            0, 0, 150, 20,
-            0, 300, Options.rainBlendPercent[dim], Options.PERCENT_DEFAULT,
-            v -> getGenericValueText(Text.translatable("options.video.environment.rain_blend"),
-                Text.literal(v + "%")),
-            v -> Options.setRainBlendPercent(dim, v, true)));
+        section.addTwoSliders(
+            new ResettableSliderWidget(
+                0, 0, 150, 20,
+                0, 300, Options.rainBlendPercent[dim], Options.PERCENT_DEFAULT,
+                v -> getGenericValueText(Text.translatable("options.video.environment.rain_blend"),
+                    Text.literal(v + "%")),
+                v -> Options.setRainBlendPercent(dim, v, true)),
+            new ResettableSliderWidget(
+                0, 0, 150, 20,
+                0, 200, Options.wetSurfaceStrengthPercent, 100,
+                v -> getGenericValueText(Text.translatable("options.video.environment.wet_surface"),
+                    Text.literal(v + "%")),
+                v -> Options.setWetSurfaceStrengthPercent(v, true)));
     }
 
     @Override
