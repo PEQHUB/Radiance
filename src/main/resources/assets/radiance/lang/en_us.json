@@ -329,6 +329,8 @@
   ,"options.video.environment.vol_cloud_ambient": "Ambient AO"
   ,"options.video.environment.vol_cloud_temporal": "Temporal Blend"
   ,"options.video.environment.vol_cloud_noise_scale": "Noise Scale"
+  ,"options.video.environment.vol_cloud_weather_scale": "Weather Scale"
+  ,"options.video.environment.vol_cloud_noise_res": "Noise Res"
   ,"options.video.environment.water_tint_r": "Water Tint Red"
   ,"options.video.environment.water_tint_g": "Water Tint Green"
   ,"options.video.environment.water_tint_b": "Water Tint Blue"

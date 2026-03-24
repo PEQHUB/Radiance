@@ -1561,6 +1561,7 @@ public class Options {
     public static int volCloudMarchSteps = 0;          // 0=use preset, 32-256
     public static int volCloudLightSteps = 0;          // 0=use preset, 1-12
     public static int volCloudResDivisor = 0;          // 0=use preset, 1-4
+    public static int volCloudNoiseRes = 128;          // 128 (8MB), 256 (64MB), 512 (512MB)
     public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
     public static final String[] VOL_CLOUD_QUALITY_NAMES = {
@@ -2746,6 +2747,7 @@ public class Options {
         props.setProperty("volCloudMarchSteps", String.valueOf(volCloudMarchSteps));
         props.setProperty("volCloudLightSteps", String.valueOf(volCloudLightSteps));
         props.setProperty("volCloudResDivisor", String.valueOf(volCloudResDivisor));
+        props.setProperty("volCloudNoiseRes", String.valueOf(volCloudNoiseRes));
         props.setProperty("wetSurfaceStrengthPercent", String.valueOf(wetSurfaceStrengthPercent));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
@@ -2915,6 +2917,8 @@ public class Options {
                 props.getProperty("volCloudLightSteps", "0")), 0, 16);
             volCloudResDivisor = clamp(Integer.parseInt(
                 props.getProperty("volCloudResDivisor", "0")), 0, 4);
+            volCloudNoiseRes = clamp(Integer.parseInt(
+                props.getProperty("volCloudNoiseRes", "128")), 128, 512);
             wetSurfaceStrengthPercent = clamp(Integer.parseInt(
                 props.getProperty("wetSurfaceStrengthPercent", "100")), 0, 200);
         }
@@ -2939,6 +2943,7 @@ public class Options {
             nativeSetCloudMarchSteps(volCloudMarchSteps, false);
             nativeSetCloudLightSteps(volCloudLightSteps, false);
             nativeSetCloudResDivisor(volCloudResDivisor, false);
+            nativeSetCloudNoiseRes(volCloudNoiseRes, false);
             nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, false);
         } catch (UnsatisfiedLinkError ignored) {}
 
@@ -5101,6 +5106,7 @@ public class Options {
     public native static void nativeSetCloudMarchSteps(int steps, boolean write);
     public native static void nativeSetCloudLightSteps(int steps, boolean write);
     public native static void nativeSetCloudResDivisor(int div, boolean needRecreate);
+    public native static void nativeSetCloudNoiseRes(int res, boolean write);
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(8, mode));  // 0-7 = standard, 8 = PsychoVisual
@@ -5178,6 +5184,15 @@ public class Options {
     public static void setVolCloudResDivisor(int div, boolean write) {
         volCloudResDivisor = clamp(div, 0, 4);
         nativeSetCloudResDivisor(volCloudResDivisor, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setVolCloudNoiseRes(int res, boolean write) {
+        // Snap to nearest power of 2: 128, 256, 512
+        if (res <= 192) volCloudNoiseRes = 128;
+        else if (res <= 384) volCloudNoiseRes = 256;
+        else volCloudNoiseRes = 512;
+        nativeSetCloudNoiseRes(volCloudNoiseRes, write);
         if (write) overwriteConfig();
     }
 

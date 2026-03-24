@@ -97,18 +97,6 @@ public class CloudPopulator implements ContentPopulator {
         volModule.tooltip("Quality = overall cloud resolution (Off disables volumetric clouds).");
 
         if (Options.volCloudQuality > 0) {
-            // Scatter Bounces cycling (4 values)
-            CyclingButtonWidget<Integer> scatterBtn = CyclingButtonWidget.<Integer>builder(
-                value -> Text.literal(String.valueOf(value)))
-                .values(1, 2, 3, 4)
-                .initially(Options.volCloudScatterOctaves)
-                .build(0, 0, 150, 20,
-                    Text.translatable("options.video.environment.vol_cloud_scatter"),
-                    (button, value) -> Options.setVolCloudScatterOctaves(value, true));
-
-            volModule.addTwoWidgets(scatterBtn, null);
-            volModule.tooltip("Scatter = light bounce count (higher = more realistic).");
-
             // Density + Detail Erosion (paired sliders)
             volModule.addTwoSliders(
                 new ResettableSliderWidget(0, 0, 150, 20,
@@ -182,11 +170,11 @@ public class CloudPopulator implements ContentPopulator {
                         Text.literal(v + " blk")),
                     v -> Options.setVolCloudNoiseScale(v, true)),
                 new ResettableSliderWidget(0, 0, 150, 20,
-                    10, 320, Options.volCloudCellFrequencyTenths, 40,
-                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_cell_freq"),
+                    10, 160, Options.volCloudCellFrequencyTenths, 50,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_weather_scale"),
                         Text.literal(String.format("%.1f", v / 10.0))),
                     v -> Options.setVolCloudCellFrequencyTenths(v, true)));
-            volModule.tooltip("Noise Scale = noise texture period in blocks. Cell Freq = Worley cell frequency.");
+            volModule.tooltip("Noise Scale = 3D noise period in blocks. Weather Scale = cloud formation size (higher = smaller, more clouds).");
 
             // Wind Direction + Atmosphere Fade (paired sliders)
             volModule.addTwoSliders(
@@ -230,13 +218,24 @@ public class CloudPopulator implements ContentPopulator {
                     v -> Options.setVolCloudLightSteps(v, true)));
             advanced.tooltip("March Steps = ray march iterations. Light Steps = light sampling iterations. Auto uses quality preset.");
 
-            // Resolution Divisor
-            advanced.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                0, 4, Options.volCloudResDivisor, 0,
-                v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_res_divisor"),
-                    Text.literal(v == 0 ? "Auto" : v == 1 ? "Full" : v == 2 ? "Half" : v == 3 ? "Third" : "Quarter")),
-                v -> Options.setVolCloudResDivisor(v, true)));
-            advanced.tooltip("Render resolution divisor for cloud pass. Auto uses quality preset.");
+            // Resolution Divisor + Noise Resolution (paired)
+            advanced.addTwoSliders(
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    0, 4, Options.volCloudResDivisor, 0,
+                    v -> getGenericValueText(Text.translatable("options.video.environment.vol_cloud_res_divisor"),
+                        Text.literal(v == 0 ? "Auto" : v == 1 ? "Full" : v == 2 ? "Half" : v == 3 ? "Third" : "Quarter")),
+                    v -> Options.setVolCloudResDivisor(v, true)),
+                new ResettableSliderWidget(0, 0, 150, 20,
+                    128, 512, Options.volCloudNoiseRes, 128,
+                    v -> {
+                        int snapped = v <= 192 ? 128 : v <= 384 ? 256 : 512;
+                        String label = snapped + "\u00B3";
+                        String vram = snapped == 128 ? "8 MB" : snapped == 256 ? "64 MB" : "512 MB";
+                        return getGenericValueText(Text.translatable("options.video.environment.vol_cloud_noise_res"),
+                            Text.literal(label + " (" + vram + ")"));
+                    },
+                    v -> Options.setVolCloudNoiseRes(v, true)));
+            advanced.tooltip("Render Res = cloud pass resolution. Noise Res = 3D noise texture size (higher = less tiling, more VRAM).");
 
             // Debug View
             String[] debugNames = {"Off", "Weather Cov", "Weather Type",
@@ -265,20 +264,20 @@ public class CloudPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Cloud Density", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Noise Affects Shadows", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Cloud Quality", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Scatter Octaves", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Cloud Coverage", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Cloud Type", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Cloud Altitude", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Wind Speed", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Ambient AO", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Noise Scale", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Cell Frequency", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Weather Scale", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Wind Direction", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Atmosphere Fade", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Temporal Blend", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("March Steps", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Light Steps", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Resolution Divisor", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Noise Resolution", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Debug View", category, nodeId, false)
         );
     }
