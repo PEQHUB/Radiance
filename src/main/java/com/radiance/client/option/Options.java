@@ -1553,7 +1553,7 @@ public class Options {
     public static int volCloudScatterOctaves = 3;     // 1-4
     public static int volCloudAmbientPercent = 100;   // 0-200 → 0.0-2.0 (ambient occlusion)
     public static int volCloudTemporalPercent = 0;    // 0=auto, 50-99 → 0.50-0.99
-    public static int volCloudNoiseScale = 214;        // 64-2048 blocks (noise texture period)
+    public static int volCloudNoiseScale = 1000;       // 64-4096 blocks (noise texture period)
     public static int volCloudCellFrequencyTenths = 40; // 10-320 → 1.0-32.0 cells
     public static int volCloudAtmosphereFadeDist = 800; // 200-2000 blocks (visual fade only, not march clamp)
     public static int volCloudDebugMode = 0;           // 0=normal, 1-8=debug visualization modes
@@ -2902,7 +2902,7 @@ public class Options {
             volCloudTemporalPercent = clamp(Integer.parseInt(
                 props.getProperty("volCloudTemporalPercent", "0")), 0, 99);
             volCloudNoiseScale = clamp(Integer.parseInt(
-                props.getProperty("volCloudNoiseScale", "214")), 64, 2048);
+                props.getProperty("volCloudNoiseScale", "1000")), 64, 4096);
             volCloudCellFrequencyTenths = clamp(Integer.parseInt(
                 props.getProperty("volCloudCellFrequencyTenths", "80")), 10, 320);
             volCloudAtmosphereFadeDist = clamp(Integer.parseInt(
