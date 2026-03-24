@@ -66,6 +66,9 @@ public class RendererProxy {
     public static native String nativeGetGpuProfile();
     public static native void nativeSetGpuProfileEnabled(boolean enabled);
 
+    // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"
+    public static native String nativeGetVmaStats();
+
     // Overlay compositor diagnostics (CSV key=value pairs)
     public static native String nativeGetOverlayDiag();
 
