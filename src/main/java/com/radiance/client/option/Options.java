@@ -5091,6 +5091,16 @@ public class Options {
     public native static void nativeSetCloudThicknessVol(float thickness, boolean write);
     public native static void nativeSetCloudDetailStrength(float strength, boolean write);
     public native static void nativeSetCloudScatterOctaves(int octaves, boolean write);
+    public native static void nativeSetCloudAmbientStrength(float strength, boolean write);
+    public native static void nativeSetCloudTemporalBlend(float blend, boolean write);
+    public native static void nativeSetCloudNoiseScale(float scale, boolean write);
+    public native static void nativeSetCloudCellFrequency(float freq, boolean write);
+    public native static void nativeSetCloudAtmosphereFadeDist(float dist, boolean write);
+    public native static void nativeSetCloudDebugMode(int mode, boolean write);
+    public native static void nativeSetCloudWindAngle(float angle, boolean write);
+    public native static void nativeSetCloudMarchSteps(int steps, boolean write);
+    public native static void nativeSetCloudLightSteps(int steps, boolean write);
+    public native static void nativeSetCloudResDivisor(int div, boolean needRecreate);
 
     private static int clampTonemappingMode(int mode) {
         return Math.max(0, Math.min(8, mode));  // 0-7 = standard, 8 = PsychoVisual
@@ -5107,83 +5117,6 @@ public class Options {
     public static void setUiAdaptiveDimming(boolean enabled, boolean write) {
         uiAdaptiveDimming = enabled;
         com.radiance.client.gui.RadianceTheme.setAdaptiveDimmingEnabled(enabled);
-        if (write) overwriteConfig();
-    }
-
-    // --- Volumetric cloud module native setters ---
-
-    public native static void nativeSetCloudQuality(int quality, boolean write);
-    public native static void nativeSetCloudDensity(float density, boolean write);
-    public native static void nativeSetCloudCoverage(float coverage, boolean write);
-    public native static void nativeSetCloudType(float type, boolean write);
-    public native static void nativeSetCloudSpeed(float speed, boolean write);
-    public native static void nativeSetCloudAltitude(float altitude, boolean write);
-    public native static void nativeSetCloudThicknessVol(float thickness, boolean write);
-
-    public static void setVolCloudQuality(int quality, boolean write) {
-        volCloudQuality = clamp(quality, 0, 6);
-        nativeSetCloudQuality(volCloudQuality, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudDensityTenths(int tenths, boolean write) {
-        volCloudDensityTenths = clamp(tenths, 1, 50);
-        nativeSetCloudDensity(volCloudDensityTenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudCoveragePercent(int percent, boolean write) {
-        volCloudCoveragePercent = clamp(percent, 0, 100);
-        nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudTypePercent(int percent, boolean write) {
-        volCloudTypePercent = clamp(percent, 0, 100);
-        nativeSetCloudType(volCloudTypePercent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudSpeedTenths(int tenths, boolean write) {
-        volCloudSpeedTenths = clamp(tenths, 0, 300);
-        // Convert m/s to internal multiplier: 5 m/s = 1.0 multiplier
-        nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudAltitude(int altitude, boolean write) {
-        volCloudAltitude = clamp(altitude, 128, 320);
-        nativeSetCloudAltitude((float) volCloudAltitude, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudThickness(int thickness, boolean write) {
-        volCloudThickness = clamp(thickness, 16, 256);
-        nativeSetCloudThicknessVol((float) volCloudThickness, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetCloudDetailStrength(float strength, boolean write);
-    public native static void nativeSetCloudScatterOctaves(int octaves, boolean write);
-    public native static void nativeSetCloudAmbientStrength(float strength, boolean write);
-    public native static void nativeSetCloudTemporalBlend(float blend, boolean write);
-    public native static void nativeSetCloudNoiseScale(float scale, boolean write);
-    public native static void nativeSetCloudCellFrequency(float freq, boolean write);
-    public native static void nativeSetCloudAtmosphereFadeDist(float dist, boolean write);
-    public native static void nativeSetCloudDebugMode(int mode, boolean write);
-    public native static void nativeSetCloudWindAngle(float angle, boolean write);
-    public native static void nativeSetCloudMarchSteps(int steps, boolean write);
-    public native static void nativeSetCloudLightSteps(int steps, boolean write);
-    public native static void nativeSetCloudResDivisor(int div, boolean needRecreate);
-    public static void setVolCloudDetailStrengthPercent(int percent, boolean write) {
-        volCloudDetailStrengthPercent = clamp(percent, 0, 200);
-        nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setVolCloudScatterOctaves(int octaves, boolean write) {
-        volCloudScatterOctaves = clamp(octaves, 1, 8);
-        nativeSetCloudScatterOctaves(volCloudScatterOctaves, write);
         if (write) overwriteConfig();
     }
 
