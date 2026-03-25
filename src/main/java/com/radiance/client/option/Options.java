@@ -287,6 +287,7 @@ public class Options {
     // Terrain
     public static final String CHUNK_BUILDING_BATCH_SIZE_KEY = "options.video.chunk_building_batch_size";
     public static final String CHUNK_BUILDING_TOTAL_BATCHES_KEY = "options.video.chunk_building_total_batches";
+    public static final String CHUNK_CULL_DISTANCE_KEY = "options.video.chunk_cull_distance";
 
     // Pipeline
     public static final String PIPELINE_SETUP_KEY = "options.video.pipeline_setup";
@@ -650,8 +651,9 @@ public class Options {
     // Frame Generation (DLSS-G)
     public static int frameGenMode = 0;          // 0=Off, 1=On, 2=Auto (dynamic MFG)
     public static int frameGenMultiplier = 1;    // 1=2x, 2=3x, 3=4x
-    public static int chunkBuildingBatchSize = 32;
-    public static int chunkBuildingTotalBatches = 32;
+    public static int chunkBuildingBatchSize = 6;
+    public static int chunkBuildingTotalBatches = 6;
+    public static int chunkCullDistance = 384;  // 64-1024 blocks, chunks beyond excluded from TLAS
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
@@ -1660,6 +1662,9 @@ public class Options {
             setChunkBuildingTotalBatches(
                 Integer.parseInt(props.getProperty("chunkBuildingTotalBatches",
                     String.valueOf(chunkBuildingTotalBatches))), false);
+            setChunkCullDistance(
+                Integer.parseInt(props.getProperty("chunkCullDistance",
+                    String.valueOf(chunkCullDistance))), false);
             tonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
                 "tonemappingMode", String.valueOf(tonemappingMode))));
             sdrTonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
@@ -2573,6 +2578,7 @@ public class Options {
         props.setProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
+        props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
         // Save per-tonemapper params
@@ -3547,6 +3553,7 @@ public class Options {
         vrrMode = false;
         chunkBuildingBatchSize = 6;
         chunkBuildingTotalBatches = 6;
+        chunkCullDistance = 384;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
         colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;
@@ -3644,6 +3651,7 @@ public class Options {
         nativeSetVrrMode(vrrMode, false);
         nativeSetChunkBuildingBatchSize(chunkBuildingBatchSize, false);
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
+        nativeSetChunkCullDistance(chunkCullDistance, false);
         nativeSetSdrTransferFunction(sdrTransferFunction, false);
         nativeSetSaturation(saturationPercent / 100.0f, false);
         nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
@@ -3770,6 +3778,16 @@ public class Options {
     public static void setChunkBuildingTotalBatches(int chunkBuildingTotalBatches, boolean write) {
         Options.chunkBuildingTotalBatches = chunkBuildingTotalBatches;
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetChunkCullDistance(int distance, boolean write);
+
+    public static void setChunkCullDistance(int distance, boolean write) {
+        Options.chunkCullDistance = clamp(distance, 64, 1024);
+        nativeSetChunkCullDistance(Options.chunkCullDistance, write);
         if (write) {
             overwriteConfig();
         }

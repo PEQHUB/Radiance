@@ -32,6 +32,7 @@
   "options.video.ray_bounces": "光线反射次数",
   "options.video.chunk_building_batch_size": "单次提交构建的区块数",
   "options.video.chunk_building_total_batches": "总构建中的提交数",
+  "options.video.chunk_cull_distance": "区块剔除距离",
   "options.video.pipeline_setup": "设置管线...",
   "render_pipeline_screen.back": "返回",
   "render_pipeline_screen.save_and_build": "保存 & 构建",

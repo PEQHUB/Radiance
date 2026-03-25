@@ -35,6 +35,17 @@ public class TerrainPopulator implements ContentPopulator {
             value -> Options.setChunkBuildingTotalBatches(value, true));
 
         section.addTwoWidgets(chunkBatchSize.createWidget(gameOptions), chunkTotalBatches.createWidget(gameOptions));
+
+        SimpleOption<Integer> chunkCullDistance = new SimpleOption<>(
+            Options.CHUNK_CULL_DISTANCE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText, Text.literal(value + " blocks")),
+            new SimpleOption.ValidatingIntSliderCallbacks(64, 1024),
+            Codec.intRange(64, 1024),
+            Options.chunkCullDistance,
+            value -> Options.setChunkCullDistance(value, true));
+
+        section.addToggle(chunkCullDistance.createWidget(gameOptions));
     }
 
     @Override
