@@ -71,7 +71,7 @@ public abstract class WorldRendererMixins {
 
     // ── Java-side frame timing (logs every 120 frames to java_timing.log) ──
     private static long jtSetupTerrain, jtEntities, jtBlockEntities, jtParticles;
-    private static long jtWeather, jtChunkRebuild, jtTotal;
+    private static long jtWeather, jtChunkRebuild, jtTotal, jtQueueSize;
     private static int jtFrameCount;
     private static void jtLog() {
         if (++jtFrameCount < 120) return;
@@ -80,16 +80,16 @@ public abstract class WorldRendererMixins {
         double other = (jtTotal - jtSetupTerrain - jtEntities - jtBlockEntities
             - jtParticles - jtWeather - jtChunkRebuild) / n / ms;
         String line = String.format(
-            "[JAVA] setupTerrain=%.2f entities=%.2f blockEntities=%.2f particles=%.2f weather=%.2f chunkRebuild=%.2f other=%.2f TOTAL=%.2f",
+            "[JAVA] setupTerrain=%.2f entities=%.2f blockEntities=%.2f particles=%.2f weather=%.2f chunkRebuild=%.2f other=%.2f TOTAL=%.2f rebuildQueue=%d",
             jtSetupTerrain/n/ms, jtEntities/n/ms, jtBlockEntities/n/ms,
             jtParticles/n/ms, jtWeather/n/ms, jtChunkRebuild/n/ms,
-            other, jtTotal/n/ms);
+            other, jtTotal/n/ms, jtQueueSize / jtFrameCount);
         System.out.println(line);
         try (java.io.FileWriter fw = new java.io.FileWriter("C:/RadSER/results/java_timing.log", true)) {
             fw.write(line + "\n");
         } catch (Exception ignored) {}
         jtSetupTerrain = jtEntities = jtBlockEntities = jtParticles = 0;
-        jtWeather = jtChunkRebuild = jtTotal = 0;
+        jtWeather = jtChunkRebuild = jtTotal = jtQueueSize = 0;
         jtFrameCount = 0;
     }
 
@@ -545,6 +545,7 @@ public abstract class WorldRendererMixins {
         jtT0 = System.nanoTime();
         ChunkProxy.rebuild(camera);
         jtChunkRebuild += System.nanoTime() - jtT0;
+        jtQueueSize += ChunkProxy.getRebuildQueueSize();
 
         long jtTend = System.nanoTime();
         long jtThisFrame = jtTend - jtTframe;

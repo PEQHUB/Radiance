@@ -129,6 +129,10 @@ public class ChunkProxy {
         rebuildQueue.put(chunk.index, chunk);
     }
 
+    public static int getRebuildQueueSize() {
+        return rebuildQueue.size();
+    }
+
     public static void rebuild(Camera camera) {
 
         BlockPos blockPos = camera.getBlockPos();
@@ -157,9 +161,12 @@ public class ChunkProxy {
             maxTotalPerFrame + 1, (a, b) -> Double.compare(b[1], a[1])); // max-heap by distSq
         java.util.HashMap<Integer, ChunkBuilder.BuiltChunk> candidateMap = new java.util.HashMap<>();
 
-        for (ChunkBuilder.BuiltChunk builtChunk : rebuildQueue.values()) {
-            if (builtChunk == null || !builtChunk.needsRebuild() || !builtChunk.shouldBuild())
-                continue;
+        java.util.Iterator<ChunkBuilder.BuiltChunk> iter = rebuildQueue.values().iterator();
+        while (iter.hasNext()) {
+            ChunkBuilder.BuiltChunk builtChunk = iter.next();
+            if (builtChunk == null) { iter.remove(); continue; }
+            if (!builtChunk.needsRebuild()) { iter.remove(); continue; }
+            if (!builtChunk.shouldBuild()) continue; // keep — may become buildable later
             double cx = builtChunk.getOrigin().getX() + 8 - bx;
             double cy = builtChunk.getOrigin().getY() + 8 - by;
             double cz = builtChunk.getOrigin().getZ() + 8 - bz;
