@@ -156,9 +156,10 @@ public class ChunkProxy {
             return ring * 1000.0 + angle;
         }));
 
-        // Budget chunk submissions per frame to prevent CPU stalls.
-        // Excess chunks stay in the queue for next frame.
-        int maxTotalPerFrame = smoothing ? 4 : 8;
+        // All chunk building is now fully async on the BLAS thread — the render thread
+        // does zero chunk work. Safe to submit many chunks per frame since queueChunkBuild
+        // just pushes to a lock-free queue (microseconds, not milliseconds).
+        int maxTotalPerFrame = smoothing ? 32 : 64;
         int totalSubmitted = 0;
 
         for (ChunkBuilder.BuiltChunk builtChunk : sortedChunks) {
