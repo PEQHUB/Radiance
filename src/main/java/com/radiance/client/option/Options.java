@@ -194,6 +194,7 @@ public class Options {
     public static final String RAY_BOUNCES_KEY = "options.video.ray_bounces";
     public static final String OMM_ENABLED_KEY = "options.video.omm_enabled";
     public static final String OMM_BAKER_LEVEL_KEY = "options.video.omm_baker_level";
+    public static final String GREEDY_MESHING_KEY = "options.video.greedy_meshing";
     public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
     public static final String MULTI_SCATTER_GGX_KEY = "options.video.multi_scatter_ggx";
     public static final String EON_DIFFUSE_KEY = "options.video.eon_diffuse";
@@ -288,6 +289,7 @@ public class Options {
     public static final String CHUNK_BUILDING_BATCH_SIZE_KEY = "options.video.chunk_building_batch_size";
     public static final String CHUNK_BUILDING_TOTAL_BATCHES_KEY = "options.video.chunk_building_total_batches";
     public static final String CHUNK_CULL_DISTANCE_KEY = "options.video.chunk_cull_distance";
+    public static final String CHUNK_LOD_DISTANCE_KEY = "options.video.chunk_lod_distance";
     public static final String MEGA_MERGE_DISTANCE_KEY = "options.video.mega_merge_distance";
 
     // Pipeline
@@ -309,6 +311,7 @@ public class Options {
     public static int rayBounces = 12;
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
+    public static boolean greedyMeshingEnabled = true;
     public static boolean simplifiedIndirect = false;
     public static boolean noiseLOD = true;  // Noise quality LOD (default ON for performance)
     public static boolean multiScatterGGX = true;  // Kulla-Conty multi-scatter GGX energy compensation
@@ -655,6 +658,7 @@ public class Options {
     public static int chunkBuildingBatchSize = 6;
     public static int chunkBuildingTotalBatches = 6;
     public static int chunkCullDistance = 384;  // 64-1024 blocks, chunks beyond excluded from TLAS
+    public static int chunkLodDistance = 160;  // 64-512 blocks, ≤ = lossless 64B vertex, > = compact 32B
     public static int megaMergeDistance = 0;  // 0-512 blocks, 0=disabled, chunks beyond merged into mega-BLASes
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
@@ -1667,6 +1671,9 @@ public class Options {
             setChunkCullDistance(
                 Integer.parseInt(props.getProperty("chunkCullDistance",
                     String.valueOf(chunkCullDistance))), false);
+            setChunkLodDistance(
+                Integer.parseInt(props.getProperty("chunkLodDistance",
+                    String.valueOf(chunkLodDistance))), false);
             setMegaMergeDistance(
                 Integer.parseInt(props.getProperty("megaMergeDistance",
                     String.valueOf(megaMergeDistance))), false);
@@ -1731,6 +1738,9 @@ public class Options {
 
             ommBakerLevel = clamp(Integer.parseInt(props.getProperty("ommBakerLevel", String.valueOf(ommBakerLevel))), 1, 8);
             nativeSetOMMBakerLevel(ommBakerLevel, false);
+
+            greedyMeshingEnabled = Boolean.parseBoolean(props.getProperty("greedyMeshingEnabled", String.valueOf(greedyMeshingEnabled)));
+            nativeSetGreedyMeshingEnabled(greedyMeshingEnabled, false);
 
             simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
@@ -2380,6 +2390,7 @@ public class Options {
         props.setProperty("rayBounces", String.valueOf(rayBounces));
         props.setProperty("ommEnabled", String.valueOf(ommEnabled));
         props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
+        props.setProperty("greedyMeshingEnabled", String.valueOf(greedyMeshingEnabled));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
         props.setProperty("noiseLOD", String.valueOf(noiseLOD));
         props.setProperty("multiScatterGGX", String.valueOf(multiScatterGGX));
@@ -2584,6 +2595,7 @@ public class Options {
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
+        props.setProperty("chunkLodDistance", String.valueOf(chunkLodDistance));
         props.setProperty("megaMergeDistance", String.valueOf(megaMergeDistance));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
@@ -3468,6 +3480,7 @@ public class Options {
         rayBounces = 16;
         ommEnabled = false;
         ommBakerLevel = 4;
+        greedyMeshingEnabled = true;
         simplifiedIndirect = false;
         sharcEnabled = true;
         sharcSceneScaleTenths = 40;
@@ -3560,6 +3573,7 @@ public class Options {
         chunkBuildingBatchSize = 6;
         chunkBuildingTotalBatches = 6;
         chunkCullDistance = 384;
+        chunkLodDistance = 160;
         megaMergeDistance = 0;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
@@ -3610,6 +3624,7 @@ public class Options {
         nativeSetRayBounces(rayBounces, false);
         nativeSetOMMEnabled(ommEnabled, false);
         nativeSetOMMBakerLevel(ommBakerLevel, false);
+        nativeSetGreedyMeshingEnabled(greedyMeshingEnabled, false);
         nativeSetSimplifiedIndirect(simplifiedIndirect, false);
         try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
         try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
@@ -3659,6 +3674,7 @@ public class Options {
         nativeSetChunkBuildingBatchSize(chunkBuildingBatchSize, false);
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
         nativeSetChunkCullDistance(chunkCullDistance, false);
+        nativeSetChunkLodDistance(chunkLodDistance, false);
         nativeSetMegaMergeDistance(megaMergeDistance, false);
         nativeSetSdrTransferFunction(sdrTransferFunction, false);
         nativeSetSaturation(saturationPercent / 100.0f, false);
@@ -3796,6 +3812,16 @@ public class Options {
     public static void setChunkCullDistance(int distance, boolean write) {
         Options.chunkCullDistance = clamp(distance, 64, 1024);
         nativeSetChunkCullDistance(Options.chunkCullDistance, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetChunkLodDistance(int distance, boolean write);
+
+    public static void setChunkLodDistance(int distance, boolean write) {
+        Options.chunkLodDistance = clamp(distance, 64, 512);
+        nativeSetChunkLodDistance(Options.chunkLodDistance, write);
         if (write) {
             overwriteConfig();
         }
@@ -3952,6 +3978,17 @@ public class Options {
     public static void setOMMEnabled(boolean enabled, boolean write) {
         Options.ommEnabled = enabled;
         nativeSetOMMEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    // --- Greedy Meshing ---
+    public native static void nativeSetGreedyMeshingEnabled(boolean enabled, boolean write);
+
+    public static void setGreedyMeshingEnabled(boolean enabled, boolean write) {
+        Options.greedyMeshingEnabled = enabled;
+        nativeSetGreedyMeshingEnabled(enabled, write);
         if (write) {
             overwriteConfig();
         }

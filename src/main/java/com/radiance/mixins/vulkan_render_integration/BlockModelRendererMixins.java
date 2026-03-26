@@ -133,6 +133,10 @@ public class BlockModelRendererMixins {
                 pbrVertexConsumer.setPendingMaterialBlockType(materialOrdinal);
             }
 
+            // Unique block type ID for greedy mesher merge prevention (bits 17-31 of emissiveBlockType)
+            pbrVertexConsumer.setPendingBlockTypeId(
+                com.radiance.client.material.BlockTypeIdRegistry.getBlockTypeId(state.getBlock()));
+
             // Tag vivid color blocks for chroma expansion (bit 16 of emissiveBlockType)
             pbrVertexConsumer.setPendingVividColor(VividColorBlock.isVivid(state.getBlock()));
 
@@ -180,6 +184,7 @@ public class BlockModelRendererMixins {
                 pbrVertexConsumer.setPendingEmissiveBlockType(255);
                 pbrVertexConsumer.setPendingMaterialBlockType(255);
                 pbrVertexConsumer.setPendingVividColor(false);
+                pbrVertexConsumer.setPendingBlockTypeId(0);
             }
         }
 

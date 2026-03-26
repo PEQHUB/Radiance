@@ -524,8 +524,9 @@ public class BufferProxy {
     public static native void updateMapping(long ptr);
     public static native void updateMaterialClassMapping(long ptr);
 
-    // TextureMapEntry: 5 ints (20 bytes) — hot path, read by every ray hit
-    private static final int TEX_ENTRY_INTS = 5;
+    // TextureMapEntry: 5 ints + 4 reserved floats = 9 uint32s (36 bytes)
+    // Sprite bounds fields (indices 5-8) unused — greedy mesher stores bounds per-vertex instead.
+    private static final int TEX_ENTRY_INTS = 9;
     private static final int TEX_ENTRY_COUNT = 4096;
     private static final int TEX_PROP_HAS_HEIGHT_MAP = 1;
 
