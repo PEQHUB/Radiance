@@ -45,17 +45,16 @@ public class TerrainPopulator implements ContentPopulator {
             Options.chunkCullDistance,
             value -> Options.setChunkCullDistance(value, true));
 
-        SimpleOption<Integer> megaMergeDistance = new SimpleOption<>(
-            Options.MEGA_MERGE_DISTANCE_KEY,
+        SimpleOption<Integer> chunkLodDistance = new SimpleOption<>(
+            Options.CHUNK_LOD_DISTANCE_KEY,
             SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(value == 0 ? "Off" : value + " blocks")),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 512),
-            Codec.intRange(0, 512),
-            Options.megaMergeDistance,
-            value -> Options.setMegaMergeDistance(value, true));
+            (optionText, value) -> getGenericValueText(optionText, Text.literal(value + " blocks")),
+            new SimpleOption.ValidatingIntSliderCallbacks(64, 512),
+            Codec.intRange(64, 512),
+            Options.chunkLodDistance,
+            value -> Options.setChunkLodDistance(value, true));
 
-        section.addTwoWidgets(chunkCullDistance.createWidget(gameOptions), megaMergeDistance.createWidget(gameOptions));
+        section.addTwoWidgets(chunkCullDistance.createWidget(gameOptions), chunkLodDistance.createWidget(gameOptions));
     }
 
     @Override
