@@ -466,13 +466,20 @@ public class EntityProxy {
         double cameraX = cameraPos.getX();
         double cameraY = cameraPos.getY();
         double cameraZ = cameraPos.getZ();
+        int camBX = cameraBlockPos.getX();
+        int camBY = cameraBlockPos.getY();
+        int camBZ = cameraBlockPos.getZ();
         for (ChunkBuilder.BuiltChunk builtChunk : chunks.chunks) {
             if (builtChunk == null) {
                 continue;
             }
 
-            BlockPos chunkCenterPos = builtChunk.getOrigin().add(8, 8, 8);
-            if (chunkCenterPos.getSquaredDistance(cameraBlockPos) > BLOCK_ENTITY_RENDER_DISTANCE_SQ) {
+            // Raw int distance check — avoids BlockPos.add() allocation per chunk
+            BlockPos origin = builtChunk.getOrigin();
+            int dx = origin.getX() + 8 - camBX;
+            int dy = origin.getY() + 8 - camBY;
+            int dz = origin.getZ() + 8 - camBZ;
+            if ((long)dx * dx + (long)dy * dy + (long)dz * dz > BLOCK_ENTITY_RENDER_DISTANCE_SQ) {
                 continue;
             }
 

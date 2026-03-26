@@ -139,73 +139,78 @@ public class ChunkProxy {
         double importantDistanceSq = smoothing ? importantDistanceSqWarmup : importantDistanceSqNormal;
         int importantTaskCount = 0;
 
-        // Sort chunks in spiral order: primary key = distance ring, secondary key = angle.
-        // This spreads visual popping evenly across the screen instead of entire rings
-        // appearing at once, which feels smoother even at the same throughput.
-        final double bx = blockPos.getX(), by = blockPos.getY(), bz = blockPos.getZ();
-        List<ChunkBuilder.BuiltChunk> sortedChunks = new ArrayList<>(rebuildQueue.values());
-        sortedChunks.sort(Comparator.comparingDouble(chunk -> {
-            if (chunk == null) return Double.MAX_VALUE;
-            double cx = chunk.getOrigin().getX() + 8 - bx;
-            double cy = chunk.getOrigin().getY() + 8 - by;
-            double cz = chunk.getOrigin().getZ() + 8 - bz;
-            double distSq = cx * cx + cy * cy + cz * cz;
-            // Quantize distance into 16-block rings, then spiral within each ring
-            double ring = Math.floor(Math.sqrt(distSq) / 16.0);
-            double angle = Math.atan2(cz, cx); // -PI to PI
-            return ring * 1000.0 + angle;
-        }));
-
-        // All chunk building is now fully async on the BLAS thread — the render thread
-        // does zero chunk work. Safe to submit many chunks per frame since queueChunkBuild
-        // just pushes to a lock-free queue (microseconds, not milliseconds).
         int maxTotalPerFrame = smoothing ? 32 : 64;
         int totalSubmitted = 0;
 
-        for (ChunkBuilder.BuiltChunk builtChunk : sortedChunks) {
-            if (builtChunk == null) {
+        final double bx = blockPos.getX(), by = blockPos.getY(), bz = blockPos.getZ();
+
+        // O(n) partial selection: pick the nearest maxTotalPerFrame chunks by squared
+        // distance, avoiding the O(n log n) full sort + sqrt/atan2 that was costing 30-40ms.
+        // Use a bounded max-heap: maintain the K nearest candidates seen so far.
+        // For each chunk, compute distSq (cheap). If heap is not full or distSq < heap max,
+        // insert and evict the farthest. Result: K nearest chunks in O(n log K) with no
+        // transcendental math. K=64, log(64)=6, so this is effectively O(n).
+        // Bounded max-heap: track K nearest chunks by squared distance.
+        // O(n log K) where K=64 — effectively O(n) vs the old O(n log n) full sort.
+        // No sqrt/atan2 — just distSq comparisons.
+        java.util.PriorityQueue<double[]> nearest = new java.util.PriorityQueue<>(
+            maxTotalPerFrame + 1, (a, b) -> Double.compare(b[1], a[1])); // max-heap by distSq
+        java.util.HashMap<Integer, ChunkBuilder.BuiltChunk> candidateMap = new java.util.HashMap<>();
+
+        for (ChunkBuilder.BuiltChunk builtChunk : rebuildQueue.values()) {
+            if (builtChunk == null || !builtChunk.needsRebuild() || !builtChunk.shouldBuild())
                 continue;
-            }
-
-            if (builtChunk.needsRebuild() && builtChunk.shouldBuild()) {
-                if (totalSubmitted >= maxTotalPerFrame) break; // defer rest to next frame
-
-                builtChunk.cancelRebuild();
-
-                BlockPos
-                    chunkCenterPos =
-                    builtChunk.getOrigin()
-                        .add(8, 8, 8);
-                boolean forceImportant = builtChunk.needsImportantRebuild();
-                boolean shouldPrioritize = forceImportant ||
-                    chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
-
-                boolean isImportant = shouldPrioritize &&
-                    (forceImportant || importantTaskCount < maxImportantTasksPerFrame);
-
-                if (isImportant) {
-                    Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
-                        rebuildSingle(builtChunk, true);
-                    });
-                    rebuildTasks.add(rebuildTask);
-                    importantTaskCount++;
-                } else {
-                    backgroundChunkRebuildExecutor.execute(() -> {
-                        rebuildSingle(builtChunk, false);
-                    });
+            double cx = builtChunk.getOrigin().getX() + 8 - bx;
+            double cy = builtChunk.getOrigin().getY() + 8 - by;
+            double cz = builtChunk.getOrigin().getZ() + 8 - bz;
+            double distSq = cx * cx + cy * cy + cz * cz;
+            int key = builtChunk.index;
+            if (nearest.size() < maxTotalPerFrame) {
+                nearest.add(new double[]{key, distSq});
+                candidateMap.put(key, builtChunk);
+            } else {
+                double worstDistSq = nearest.peek()[1];
+                if (distSq < worstDistSq) {
+                    double[] evicted = nearest.poll();
+                    candidateMap.remove((int) evicted[0]);
+                    nearest.add(new double[]{key, distSq});
+                    candidateMap.put(key, builtChunk);
                 }
-                totalSubmitted++;
             }
         }
 
-        // Only remove submitted chunks from the queue; unprocessed stay for next frame
-        if (totalSubmitted >= sortedChunks.size()) {
-            rebuildQueue.clear();
-        } else {
-            for (int i = 0; i < sortedChunks.size() && i < totalSubmitted; i++) {
-                ChunkBuilder.BuiltChunk c = sortedChunks.get(i);
-                if (c != null) rebuildQueue.values().remove(c);
+        // Drain heap in nearest-first order (smallest distSq first)
+        java.util.ArrayList<double[]> selected = new java.util.ArrayList<>(nearest);
+        selected.sort((a, b) -> Double.compare(a[1], b[1]));
+
+        for (double[] entry : selected) {
+            ChunkBuilder.BuiltChunk builtChunk = candidateMap.get((int) entry[0]);
+            if (builtChunk == null) continue;
+
+            builtChunk.cancelRebuild();
+
+            BlockPos chunkCenterPos = builtChunk.getOrigin().add(8, 8, 8);
+            boolean forceImportant = builtChunk.needsImportantRebuild();
+            boolean shouldPrioritize = forceImportant ||
+                chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
+
+            boolean isImportant = shouldPrioritize &&
+                (forceImportant || importantTaskCount < maxImportantTasksPerFrame);
+
+            if (isImportant) {
+                Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
+                    rebuildSingle(builtChunk, true);
+                });
+                rebuildTasks.add(rebuildTask);
+                importantTaskCount++;
+            } else {
+                backgroundChunkRebuildExecutor.execute(() -> {
+                    rebuildSingle(builtChunk, false);
+                });
             }
+
+            rebuildQueue.remove(builtChunk.index);
+            totalSubmitted++;
         }
     }
 

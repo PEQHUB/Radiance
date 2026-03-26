@@ -69,6 +69,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(WorldRenderer.class)
 public abstract class WorldRendererMixins {
 
+    // ── Java-side frame timing (logs every 120 frames to java_timing.log) ──
+    private static long jtSetupTerrain, jtEntities, jtBlockEntities, jtParticles;
+    private static long jtWeather, jtChunkRebuild, jtTotal;
+    private static int jtFrameCount;
+    private static void jtLog() {
+        if (++jtFrameCount < 120) return;
+        double n = jtFrameCount;
+        double ms = 1_000_000.0; // ns to ms
+        double other = (jtTotal - jtSetupTerrain - jtEntities - jtBlockEntities
+            - jtParticles - jtWeather - jtChunkRebuild) / n / ms;
+        String line = String.format(
+            "[JAVA] setupTerrain=%.2f entities=%.2f blockEntities=%.2f particles=%.2f weather=%.2f chunkRebuild=%.2f other=%.2f TOTAL=%.2f",
+            jtSetupTerrain/n/ms, jtEntities/n/ms, jtBlockEntities/n/ms,
+            jtParticles/n/ms, jtWeather/n/ms, jtChunkRebuild/n/ms,
+            other, jtTotal/n/ms);
+        System.out.println(line);
+        try (java.io.FileWriter fw = new java.io.FileWriter("C:/RadSER/results/java_timing.log", true)) {
+            fw.write(line + "\n");
+        } catch (Exception ignored) {}
+        jtSetupTerrain = jtEntities = jtBlockEntities = jtParticles = 0;
+        jtWeather = jtChunkRebuild = jtTotal = 0;
+        jtFrameCount = 0;
+    }
+
     @Shadow
     private ClientWorld world;
 
@@ -245,10 +269,12 @@ public abstract class WorldRendererMixins {
         double y = vec3d.getY();
         double z = vec3d.getZ();
 
+        long jtT0 = System.nanoTime(), jtTframe = jtT0;
         this.setupTerrain(camera, frustum, false, false);
 
         boolean renderEntityOutline = this.getEntitiesToRender(camera, frustum,
             this.renderedEntities);
+        jtSetupTerrain += System.nanoTime() - jtT0;
 
         Matrix4f viewMatrix;
         Matrix4f effectedViewMatrix;
@@ -449,24 +475,32 @@ public abstract class WorldRendererMixins {
             lightMapManagerExt.neoVoxelRT$getBrightnessFactor());
 
         // Entities
+        jtT0 = System.nanoTime();
         EntityProxy.queueEntitiesBuild(camera, renderedEntities, this.entityRenderDispatcher,
             tickCounter, canDrawEntityOutlines());
+        jtEntities += System.nanoTime() - jtT0;
 
+        jtT0 = System.nanoTime();
         Pair<List<StorageVertexConsumerProvider>, EntityProxy.EntityRenderDataList> crumblingRenderData = EntityProxy.queueBlockEntitiesRebuild(
             camera, chunks, this.noCullingBlockEntities, blockBreakingProgressions,
             blockEntityRenderDispatcher, tickDelta);
         EntityProxy.queueCrumblingRebuild(camera, blockBreakingProgressions,
             this.client.getBlockRenderManager(), this.world, crumblingRenderData.getLeft(),
             crumblingRenderData.getRight());
+        jtBlockEntities += System.nanoTime() - jtT0;
 
+        jtT0 = System.nanoTime();
         EntityProxy.queueParticleRebuild(camera, tickDelta, frustum);
+        jtParticles += System.nanoTime() - jtT0;
 
         if (renderBlockOutline) {
             EntityProxy.queueTargetBlockOutlineRebuild(camera, world);
         }
 
+        jtT0 = System.nanoTime();
         EntityProxy.queueWeatherBuild(this.weatherRendering, this.worldBorderRendering, this.world,
             camera, this.ticks, tickDelta);
+        jtWeather += System.nanoTime() - jtT0;
 
         // clouds
         if (cloudRenderMode != CloudRenderMode.OFF) {
@@ -508,7 +542,14 @@ public abstract class WorldRendererMixins {
             cloudNoiseAffectsShadows);
 
         // Chunks
+        jtT0 = System.nanoTime();
         ChunkProxy.rebuild(camera);
+        jtChunkRebuild += System.nanoTime() - jtT0;
+
+        long jtTend = System.nanoTime();
+        long jtThisFrame = jtTend - jtTframe;
+        jtTotal += jtThisFrame;
+        jtLog();
 
         this.renderedEntities.clear();
 
