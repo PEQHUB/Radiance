@@ -8,6 +8,8 @@ import com.mojang.blaze3d.systems.VertexSorter;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.util.ChunkLightCollector;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderBuiltChunkExt;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderExt;
 import java.nio.ByteBuffer;
@@ -35,8 +37,11 @@ import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.TextureManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.biome.Biome;
 import org.lwjgl.system.MemoryStack;
 
 public class ChunkProxy {
@@ -87,6 +92,12 @@ public class ChunkProxy {
         clear();
         resetWorldLoadSmoothing();
         initNative(numChunks);
+
+        // Serialize block model data to C++ for future C++ meshing.
+        // Must run after BakedModels are loaded (guaranteed by this point in world init).
+        if (!BlockModelBridge.isUploaded()) {
+            BlockModelBridge.serializeAndUpload();
+        }
     }
 
     private static void resetWorldLoadSmoothing() {
@@ -254,11 +265,204 @@ public class ChunkProxy {
                 return;
             }
 
+            // Try C++ meshing path if model table is loaded
+            if (BlockModelBridge.isUploaded()) {
+                rebuildSingleCpp(chunkRendererRegion, builtChunk, important);
+                return;
+            }
+
+            // Fallback: Java meshing path
             BlockBufferAllocatorStorage storage = blockBufferAllocatorStorageThreadLocal.get();
             rebuildSingle(chunkRendererRegion, chunkBuilder, chunkBuilderExt, builtChunk, storage,
                 important);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * C++ meshing path: extract block states from ChunkRendererRegion, send to C++ for meshing.
+     * Sends ~12KB of block state data instead of ~200-500KB of pre-meshed vertices.
+     */
+    private static void rebuildSingleCpp(ChunkRendererRegion region,
+                                          ChunkBuilder.BuiltChunk builtChunk,
+                                          boolean important) {
+        BlockPos origin = builtChunk.getOrigin();
+        int ox = origin.getX(), oy = origin.getY(), oz = origin.getZ();
+
+        try (MemoryStack stack = stackPush()) {
+            // Extract block states: 4096 x uint16 palette indices + palette array
+            // For simplicity, we send pre-decoded global state IDs as uint16 (state IDs fit in 16 bits)
+            ByteBuffer statesBuf = stack.malloc(4096 * Short.BYTES);
+            long statesAddr = memAddress(statesBuf);
+
+            // Build palette on-the-fly: map unique states to indices
+            java.util.ArrayList<Integer> palette = new java.util.ArrayList<>();
+            java.util.HashMap<Integer, Integer> paletteMap = new java.util.HashMap<>();
+            boolean hasFluid = false;
+            boolean hasBlockEntity = false;
+
+            // Also build occlusion data for vanilla compat
+            net.minecraft.client.render.chunk.ChunkOcclusionDataBuilder occlusionBuilder =
+                new net.minecraft.client.render.chunk.ChunkOcclusionDataBuilder();
+            java.util.List<net.minecraft.block.entity.BlockEntity> blockEntities = new java.util.ArrayList<>();
+            java.util.List<net.minecraft.block.entity.BlockEntity> noCullingBlockEntities = new java.util.ArrayList<>();
+
+            BlockPos.Mutable mutablePos = new BlockPos.Mutable();
+            for (int y = 0; y < 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    for (int x = 0; x < 16; x++) {
+                        mutablePos.set(ox + x, oy + y, oz + z);
+                        BlockState state = region.getBlockState(mutablePos);
+                        int rawId = Block.getRawIdFromState(state);
+
+                        // Palette encode
+                        Integer paletteIdx = paletteMap.get(rawId);
+                        if (paletteIdx == null) {
+                            paletteIdx = palette.size();
+                            palette.add(rawId);
+                            paletteMap.put(rawId, paletteIdx);
+                        }
+                        statesBuf.putShort((y * 256 + z * 16 + x) * Short.BYTES, paletteIdx.shortValue());
+
+                        // Track occlusion
+                        if (state.isOpaqueFullCube()) {
+                            occlusionBuilder.markClosed(mutablePos);
+                        }
+
+                        // Track block entities
+                        if (state.hasBlockEntity()) {
+                            net.minecraft.block.entity.BlockEntity be = region.getBlockEntity(mutablePos);
+                            if (be != null) {
+                                blockEntities.add(be);
+                            }
+                        }
+
+                        // Track fluids (C++ mesher doesn't handle these yet)
+                        if (!state.getFluidState().isEmpty()) {
+                            hasFluid = true;
+                        }
+                    }
+                }
+            }
+
+            // If section has fluids, fall back to Java path for now
+            // (C++ fluid meshing is Phase 3C)
+            if (hasFluid) {
+                BlockBufferAllocatorStorage storage = blockBufferAllocatorStorageThreadLocal.get();
+                IChunkBuilderBuiltChunkExt builtChunkExt = (IChunkBuilderBuiltChunkExt) builtChunk;
+                ChunkBuilder chunkBuilder = builtChunkExt.neoVoxelRT$getChunkBuilder();
+                IChunkBuilderExt chunkBuilderExt = (IChunkBuilderExt) chunkBuilder;
+                rebuildSingle(region, chunkBuilder, chunkBuilderExt, builtChunk, storage, important);
+                return;
+            }
+
+            // Palette array: uint32 per entry
+            ByteBuffer paletteBuf = stack.malloc(palette.size() * Integer.BYTES);
+            long paletteAddr = memAddress(paletteBuf);
+            for (int i = 0; i < palette.size(); i++) {
+                paletteBuf.putInt(i * Integer.BYTES, palette.get(i));
+            }
+
+            // Upload biome tint table on first use (needs world reference)
+            if (!BlockModelBridge.areBiomeTintsUploaded()) {
+                BlockModelBridge.serializeBiomeTints();
+            }
+
+            // Biome data: 64 x uint16 (4x4x4 grid within section)
+            ByteBuffer biomeBuf = stack.malloc(64 * Short.BYTES);
+            long biomeAddr = memAddress(biomeBuf);
+            var world = MinecraftClient.getInstance().world;
+            var biomeRegistry = world.getRegistryManager()
+                .getOrThrow(RegistryKeys.BIOME);
+            for (int by = 0; by < 4; by++) {
+                for (int bz = 0; bz < 4; bz++) {
+                    for (int bx = 0; bx < 4; bx++) {
+                        // Sample biome at center of each 4x4x4 cell
+                        mutablePos.set(ox + bx * 4 + 2, oy + by * 4 + 2, oz + bz * 4 + 2);
+                        RegistryEntry<Biome> biomeEntry = world.getBiome(mutablePos);
+                        int biomeRawId = biomeRegistry.getRawId(biomeEntry.value());
+                        biomeBuf.putShort((by * 16 + bz * 4 + bx) * Short.BYTES, (short) biomeRawId);
+                    }
+                }
+            }
+
+            // Neighbor face states: 6 directions x 256 x uint32
+            // Each face stores the 16x16 block states of the adjacent section face
+            ByteBuffer neighborBuf = stack.malloc(6 * 256 * Integer.BYTES);
+            long neighborAddr = memAddress(neighborBuf);
+            for (int dir = 0; dir < 6; dir++) {
+                for (int i = 0; i < 256; i++) {
+                    int nx, ny, nz;
+                    switch (dir) {
+                        case 0: // DOWN: z*16+x at y=-1
+                            nx = ox + (i % 16); ny = oy - 1; nz = oz + (i / 16); break;
+                        case 1: // UP: z*16+x at y=16
+                            nx = ox + (i % 16); ny = oy + 16; nz = oz + (i / 16); break;
+                        case 2: // NORTH: y*16+x at z=-1
+                            nx = ox + (i % 16); ny = oy + (i / 16); nz = oz - 1; break;
+                        case 3: // SOUTH: y*16+x at z=16
+                            nx = ox + (i % 16); ny = oy + (i / 16); nz = oz + 16; break;
+                        case 4: // WEST: y*16+z at x=-1
+                            nx = ox - 1; ny = oy + (i / 16); nz = oz + (i % 16); break;
+                        default: // EAST: y*16+z at x=16
+                            nx = ox + 16; ny = oy + (i / 16); nz = oz + (i % 16); break;
+                    }
+                    mutablePos.set(nx, ny, nz);
+                    try {
+                        BlockState neighborState = region.getBlockState(mutablePos);
+                        neighborBuf.putInt((dir * 256 + i) * Integer.BYTES,
+                            Block.getRawIdFromState(neighborState));
+                    } catch (Exception e) {
+                        neighborBuf.putInt((dir * 256 + i) * Integer.BYTES, 0); // air
+                    }
+                }
+            }
+
+            // Get block atlas texture ID
+            int blockAtlasTextureId = MinecraftClient.getInstance()
+                .getTextureManager()
+                .getTexture(net.minecraft.client.texture.SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE)
+                .getGlId();
+
+            // Resolve dominant biome colors for shader-side tinting (sample center of section)
+            mutablePos.set(ox + 8, oy + 8, oz + 8);
+            RegistryEntry<Biome> centerBiome = world.getBiome(mutablePos);
+            Biome biome = centerBiome.value();
+            int grassColor, foliageColor, waterColor;
+            try { grassColor = biome.getGrassColorAt(ox + 8, oz + 8); }
+            catch (Exception e) { grassColor = 0x91BD59; }
+            try { foliageColor = biome.getFoliageColor(); }
+            catch (Exception e) { foliageColor = 0x77AB2F; }
+            waterColor = biome.getWaterColor();
+
+            // Call C++ meshing path
+            rebuildSingleBlockStates(ox, oy, oz, builtChunk.index,
+                statesAddr, paletteAddr, palette.size(),
+                biomeAddr, neighborAddr, blockAtlasTextureId, important,
+                grassColor, foliageColor, waterColor);
+
+            // Set vanilla chunk data (occlusion, block entities)
+            final var occlusionData = occlusionBuilder.build();
+            final var finalBlockEntities = blockEntities;
+            ChunkBuilder.ChunkData chunkData = new ChunkBuilder.ChunkData() {
+                @Override
+                public List<BlockEntity> getBlockEntities() {
+                    return finalBlockEntities;
+                }
+
+                @Override
+                public boolean isVisibleThrough(Direction from, Direction to) {
+                    return occlusionData.isVisibleThrough(from, to);
+                }
+
+                @Override
+                public boolean isEmpty(RenderLayer layer) {
+                    return false;
+                }
+            };
+            builtChunk.data.set(chunkData);
+            builtChunkNum++;
         }
     }
 
@@ -465,6 +669,12 @@ public class ChunkProxy {
         long vertexCounts,
         long vertices,
         boolean important);
+
+    // Phase 2: C++ meshing path — sends block states instead of pre-meshed vertices
+    private static native void rebuildSingleBlockStates(int originX, int originY, int originZ,
+        long index, long blockStateArrayPtr, long palettePtr, int paletteSize,
+        long biomeDataPtr, long neighborFacesPtr, int blockAtlasTextureId, boolean important,
+        int biomeGrassColor, int biomeFoliageColor, int biomeWaterColor);
 
     public static native boolean isChunkReady(long index);
 

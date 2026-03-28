@@ -6,6 +6,7 @@ import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteCon
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.SpriteContents;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -13,6 +14,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(SpriteContents.class)
 public class SpriteContentsMixins implements ISpriteContentsExt {
+
+    @Shadow
+    private NativeImage image;
 
     @Unique
     private int targetID;
@@ -25,6 +29,11 @@ public class SpriteContentsMixins implements ISpriteContentsExt {
     @Override
     public void neoVoxelRT$setTargetID(int targetID) {
         this.targetID = targetID;
+    }
+
+    @Override
+    public NativeImage neoVoxelRT$getImage() {
+        return image;
     }
 
     @Inject(method = "upload(IIII[Lnet/minecraft/client/texture/NativeImage;)V",

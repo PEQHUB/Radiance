@@ -32,6 +32,9 @@ import org.lwjgl.system.MemoryStack;
 
 public class BufferProxy {
 
+    // Animation tick counter — incremented per frame for texture array sprite animation
+    public static int animTick = 0;
+
     public static native int allocateBuffer();
 
     public static native void initializeBuffer(int id, int size, int usageFlags);
@@ -211,6 +214,9 @@ public class BufferProxy {
     public static void updateWorldUniform(Camera camera, Matrix4f viewMatrix,
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
+        animTick++;
+        // Update animated sprite textures (water, lava, etc.) — re-uploads current frame pixels
+        com.radiance.client.proxy.world.BlockModelBridge.updateAnimatedSprites(animTick);
         try (MemoryStack stack = stackPush()) {
             int size = 560 + 50 * 16 + 13 * 16; // base + emissionData[50] + emissiveGamut[13] (materialData moved to SSBO)
             ByteBuffer bb = stack.malloc(size);
@@ -288,8 +294,9 @@ public class BufferProxy {
             baseAddr += Integer.BYTES;
             bb.putInt(baseAddr, endPortalTextureID);
             baseAddr += Integer.BYTES;
+            bb.putInt(baseAddr, animTick); // animation tick counter for texture array sprites
             baseAddr += Integer.BYTES;
-            baseAddr += Integer.BYTES;
+            baseAddr += Integer.BYTES; // pad5
 
             // Emission data: vec4[40], one per EmissiveBlock ordinal
             // .rgb = BT.2020 flame color override (0,0,0 = use texture tint)
