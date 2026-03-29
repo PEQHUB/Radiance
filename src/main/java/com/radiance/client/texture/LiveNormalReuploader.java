@@ -2,8 +2,10 @@ package com.radiance.client.texture;
 
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureProxy;
+import com.radiance.client.proxy.world.BlockModelBridge;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -49,8 +51,12 @@ public final class LiveNormalReuploader {
      * Must be called from the render thread (or via scheduleReupload which posts to it).
      */
     public static void reuploadAllAutoPBR() {
+        specUpdateCount = 0;
+        normUpdateCount = 0;
         reuploadNormals();
         reuploadSpeculars();
+        System.err.println("[LiveReuploader] Reupload complete: " + specUpdateCount
+            + " spec layers, " + normUpdateCount + " norm layers");
         // Don't call performQueuedUpload() here — the queued uploads will be
         // flushed by the regular submitCommand() path on the next frame.
         // Calling it here risks double-processing (upload queue isn't cleared
@@ -95,6 +101,24 @@ public final class LiveNormalReuploader {
 
                 directUpload(aligned, normalGLID);
 
+                // Update texture array layers with neutral-strength normals
+                // (shader applies runtime normal strength from pack5.w)
+                Integer ordN2 = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+                if (ordN2 != null && isAutoPBRActive(albedoGLID)) {
+                    NativeImage neutralNormal = AutoPBRGenerator.generateNormal(cachedAlbedo,
+                        100, // neutral strength — shader applies pack5.w
+                        (Options.materialAutoPBRFlags[ordN2] & 2) != 0,
+                        Options.materialAutoPBRHeightGamma[ordN2],
+                        (Options.materialAutoPBRFlags[ordN2] & 4) != 0);
+                    NativeImage neutralAligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                        (Object) neutralNormal).neoVoxelRT$alignTo(cachedAlbedo);
+                    updateTextureArrayLayers(albedoGLID, neutralAligned, false);
+                    if (neutralAligned != neutralNormal) neutralNormal.close();
+                    neutralAligned.close();
+                } else {
+                    updateTextureArrayLayers(albedoGLID, aligned, false);
+                }
+
                 if (aligned != newNormal) newNormal.close();
                 aligned.close();
             } catch (Exception e) {
@@ -132,11 +156,47 @@ public final class LiveNormalReuploader {
 
                 directUpload(aligned, specularGLID);
 
+                // Also update texture array layers for block rendering path
+                updateTextureArrayLayers(albedoGLID, aligned, true);
+
                 if (aligned != newSpec) newSpec.close();
                 aligned.close();
             } catch (Exception e) {
                 System.err.println("[LiveReuploader] Specular re-upload failed for GLID "
                     + albedoGLID + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Push a NativeImage to all texture array layers for sprites belonging to the same material block.
+     * @param isSpecular true for specular array, false for normal array
+     */
+    private static int specUpdateCount = 0;
+    private static int normUpdateCount = 0;
+
+    private static void updateTextureArrayLayers(int albedoGLID, NativeImage image, boolean isSpecular) {
+        // Guard: skip during texture system reset/reload
+        if (BlockModelBridge.sortedSpriteIds.isEmpty()) return;
+
+        Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+        if (ordinal == null) return;
+        Set<Integer> spriteIds = BlockModelBridge.materialOrdinal2SpriteIds.get(ordinal);
+        if (spriteIds == null || spriteIds.isEmpty()) return;
+
+        if (isSpecular) specUpdateCount += spriteIds.size();
+        else normUpdateCount += spriteIds.size();
+
+        long ptr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+            (Object) image).neoVoxelRT$getPointer();
+        int sizeBytes = image.getWidth() * image.getHeight() * 4;
+        int maxSpriteId = BlockModelBridge.sortedSpriteIds.size();
+        for (int sid : spriteIds) {
+            if (sid < 0 || sid >= maxSpriteId) continue; // bounds guard
+            if (isSpecular) {
+                BlockModelBridge.nativeUpdateSpecularLayer(sid, ptr, sizeBytes);
+            } else {
+                BlockModelBridge.nativeUpdateNormalLayer(sid, ptr, sizeBytes);
             }
         }
     }

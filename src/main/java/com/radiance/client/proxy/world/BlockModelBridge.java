@@ -9,9 +9,7 @@ import com.radiance.client.util.VividColorBlock;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
@@ -45,15 +43,16 @@ public class BlockModelBridge {
     private static final Logger LOGGER = LoggerFactory.getLogger("BlockModelBridge");
     private static boolean uploaded = false;
     private static boolean biomeTintsUploaded = false;
-    private static int spriteIdHits = 0;
-    private static int spriteIdMisses = 0;
-    private static int spriteIdFallbacks = 0;
 
-    // Texture array system: sequential spriteId → Identifier mapping.
-    // Populated during atlas stitching (SpriteAtlasTextureMixins), consumed during
-    // block model serialization to write sequential IDs into BlockModelQuad.spriteId.
-    public static java.util.Map<net.minecraft.util.Identifier, Integer> spriteIdMap = new java.util.HashMap<>();
-    public static int spriteArraySize = 0;  // total layers including animation frames
+    // Texture system: sorted sprite identifier list, populated during atlas stitching
+    // (SpriteAtlasTextureMixins). spriteId = index in this sorted list.
+    // Used during block model serialization to write deterministic spriteIds.
+    public static java.util.List<net.minecraft.util.Identifier> sortedSpriteIds = new java.util.ArrayList<>();
+    // Reverse lookup: Identifier → spriteId (built from sortedSpriteIds)
+    private static java.util.Map<net.minecraft.util.Identifier, Integer> spriteIdLookup = new java.util.HashMap<>();
+    // Material mapping: spriteId ↔ MaterialBlock ordinal (for CPU Auto-PBR bake + live re-upload)
+    public static java.util.Map<Integer, Integer> spriteId2MaterialOrdinal = new java.util.HashMap<>();
+    public static java.util.Map<Integer, java.util.Set<Integer>> materialOrdinal2SpriteIds = new java.util.HashMap<>();
 
     // Must match C++ BlockModelEntry (32 bytes, packed)
     private static final int ENTRY_SIZE = 32;
@@ -89,6 +88,13 @@ public class BlockModelBridge {
 
         long startTime = System.nanoTime();
         Random random = Random.create(42);
+
+        // Build reverse lookup from sorted sprite list (populated during atlas load)
+        spriteIdLookup.clear();
+        for (int i = 0; i < sortedSpriteIds.size(); i++) {
+            spriteIdLookup.put(sortedSpriteIds.get(i), i);
+        }
+        LOGGER.info("[TextureSystem] Built spriteId lookup: {} entries", spriteIdLookup.size());
 
         // Collect all block states
         List<BlockState> allStates = new ArrayList<>();
@@ -185,16 +191,6 @@ public class BlockModelBridge {
 
                         for (BakedQuad quad : quads) {
                             if (quad.getTintIndex() >= 0) hasTintedQuad = true;
-                            // One-time diagnostic: log grass block side quad UVs
-                            if (block == Blocks.GRASS_BLOCK && d == 2 && !loggedGrass) {
-                                int[] vd = quad.getVertexData();
-                                float u0 = Float.intBitsToFloat(vd[4]), v0 = Float.intBitsToFloat(vd[5]);
-                                float u2 = Float.intBitsToFloat(vd[20]), v2 = Float.intBitsToFloat(vd[21]);
-                                LOGGER.info("GRASS NORTH d={} tintIdx={} sprite={} u0={} v0={} u2={} v2={}",
-                                    d, quad.getTintIndex(),
-                                    quad.getSprite() != null ? quad.getSprite().getContents().getId() : "null",
-                                    u0, v0, u2, v2);
-                            }
                             serializeQuad(quadBuf, quadOffset, quad, (byte) d, renderLayer,
                                           quad.getTintIndex());
                             quadOffset += QUAD_SIZE;
@@ -250,19 +246,6 @@ public class BlockModelBridge {
         double elapsed = (System.nanoTime() - startTime) / 1e6;
         LOGGER.info("Block model table uploaded: {} states, {} quads, {:.1f}ms",
             entryCount, quadCount, elapsed);
-        LOGGER.info("[spriteId] hits={}, misses={}, fallbacks={}, mapSize={}",
-            spriteIdHits, spriteIdMisses, spriteIdFallbacks, spriteIdMap.size());
-        // Log spriteIds for key blocks to cross-reference with texture array layers
-        for (String key : new String[]{"minecraft:block/oak_log", "minecraft:block/oak_log_top",
-                "minecraft:block/oak_leaves", "minecraft:block/stone", "minecraft:block/dirt",
-                "minecraft:block/grass_block_top", "minecraft:block/grass_block_side",
-                "minecraft:block/sand"}) {
-            Integer id = spriteIdMap.get(net.minecraft.util.Identifier.of(key));
-            LOGGER.info("[spriteId] {} -> {}", key, id != null ? id : "NOT FOUND");
-        }
-        spriteIdHits = 0;
-        spriteIdMisses = 0;
-        spriteIdFallbacks = 0;
     }
 
     private static void serializeQuad(ByteBuffer buf, int offset, BakedQuad quad,
@@ -297,28 +280,14 @@ public class BlockModelBridge {
         buf.put(offset + 82, renderLayer);
         // shade (uint8) at +83
         buf.put(offset + 83, (byte) (quad.hasShade() ? 1 : 0));
-        // spriteId (uint16) at +84 — sequential ID from texture array system if available
+        // spriteId (uint16) at +84 — deterministic sorted index from TextureSystem
         Sprite sprite = quad.getSprite();
-        int spriteId;
-        if (sprite != null && !spriteIdMap.isEmpty()) {
-            Integer seqId = spriteIdMap.get(sprite.getContents().getId());
-            if (seqId != null) {
-                spriteId = seqId;
-                spriteIdHits++;
-                if (spriteIdHits <= 3) {
-                    LOGGER.info("[spriteId] HIT: {} -> spriteId={}", sprite.getContents().getId(), spriteId);
-                }
-            } else {
-                spriteId = 0;
-                spriteIdMisses++;
-                if (spriteIdMisses <= 5) {
-                    LOGGER.warn("[spriteId] MISS for sprite: {} (key type: {})",
-                        sprite.getContents().getId(), sprite.getContents().getId().getClass().getName());
-                }
+        int spriteId = 0;
+        if (sprite != null && !spriteIdLookup.isEmpty()) {
+            Integer id = spriteIdLookup.get(sprite.getContents().getId());
+            if (id != null) {
+                spriteId = id;
             }
-        } else {
-            spriteId = sprite != null ? sprite.getContents().getId().hashCode() & 0xFFFF : 0;
-            spriteIdFallbacks++;
         }
         buf.putShort(offset + 84, (short) spriteId);
         // padding (uint16) at +86
@@ -468,93 +437,43 @@ public class BlockModelBridge {
         return biomeTintsUploaded;
     }
 
+    public static void markForReupload() {
+        uploaded = false;
+    }
+
     public static void reset() {
         uploaded = false;
         biomeTintsUploaded = false;
-        clearAnimatedFrameCache();
+        // Don't clear sortedSpriteIds or spriteIdLookup — they stay valid
+        // until atomically replaced by the next extractSpritesForTextureArrays().
+        // Clearing them creates a race with chunk building threads.
+        spriteId2MaterialOrdinal = new java.util.HashMap<>();
+        materialOrdinal2SpriteIds = new java.util.HashMap<>();
     }
 
-    // --- Animated sprite per-tick update system ---
-    // Maps spriteId (=baseLayer) → array of RGBA byte[] for each animation frame
-    private static final Map<Integer, byte[][]> animatedFrameCache = new HashMap<>();
-    // Maps spriteId → sprite width (=height, square)
-    private static final Map<Integer, Integer> animatedSpriteSize = new HashMap<>();
-    // Maps spriteId → last uploaded frame index (to skip redundant uploads)
-    private static final Map<Integer, Integer> lastUploadedFrame = new HashMap<>();
-    // Reusable direct ByteBuffer for animation uploads (max 128x128x4)
-    private static ByteBuffer animUploadBuf = null;
+    // ---- JNI native methods ----
 
-    public static void registerAnimatedSprite(int spriteId, byte[][] frames, int size) {
-        animatedFrameCache.put(spriteId, frames);
-        animatedSpriteSize.put(spriteId, size);
-        lastUploadedFrame.put(spriteId, 0); // frame 0 uploaded during extraction
-    }
-
-    public static void clearAnimatedFrameCache() {
-        animatedFrameCache.clear();
-        animatedSpriteSize.clear();
-        lastUploadedFrame.clear();
-    }
-
-    /**
-     * Called each render frame from BufferProxy. For each animated sprite,
-     * computes the current animation frame and re-uploads pixel data if it changed.
-     * Animation rate: ~3 render frames per animation advance (matching Minecraft's 20 ticks/sec at 60fps).
-     */
-    public static void updateAnimatedSprites(int animTick) {
-        if (animatedFrameCache.isEmpty()) return;
-
-        // Animation advance rate: every 3 render frames ≈ 20 fps animation at 60 fps
-        int tickRate = 3;
-
-        for (Map.Entry<Integer, byte[][]> entry : animatedFrameCache.entrySet()) {
-            int spriteId = entry.getKey();
-            byte[][] frames = entry.getValue();
-            int frameCount = frames.length;
-
-            int currentFrame = (animTick / tickRate) % frameCount;
-            Integer last = lastUploadedFrame.get(spriteId);
-            if (last != null && last == currentFrame) continue;
-
-            // Frame changed — upload new frame pixels to this sprite's single layer
-            int size = animatedSpriteSize.get(spriteId);
-            int frameBytes = size * size * 4;
-
-            if (animUploadBuf == null || animUploadBuf.capacity() < frameBytes) {
-                animUploadBuf = ByteBuffer.allocateDirect(frameBytes).order(ByteOrder.nativeOrder());
-            }
-            animUploadBuf.clear();
-            animUploadBuf.put(frames[currentFrame]);
-            animUploadBuf.flip();
-
-            updateSpriteLayer(memAddress(animUploadBuf), spriteId, size, size);
-            lastUploadedFrame.put(spriteId, currentFrame);
-        }
-    }
-
-    // JNI native methods
+    // Block model table (unchanged)
     private static native void uploadBlockModelTable(long entryPtr, int entryCount,
         long quadPtr, int quadCount);
     private static native void uploadBiomeTintTable(long tintPtr, int tintCount);
-    private static native void uploadSpriteBounds(long boundsPtr, int boundsCount);
 
-    // Texture array system JNI
-    private static native void uploadSpritePixels(long pixelPtr, int spriteId,
-        int width, int height, int mipLevel, int frameIndex);
-    private static native void finalizeTextureArrays(int totalBlockLayers,
-        int specularLayers, int normalLayers, int spriteSize, int albedoFormat);
-    private static native void updateSpriteLayer(long pixelPtr, int spriteId,
-        int width, int height);
+    // TextureSystem: C++-owned texture pipeline
+    public static native void nativeReceiveSpriteTable(long metaPtr, int count,
+        int atlasWidth, int atlasHeight);
+    public static native void nativeReceiveSpritePixels(long dataPtr, int totalBytes);
+    public static native void nativeReceiveAnimationFrames(long dataPtr, int totalBytes);
+    public static native void nativeTextureFinalize();
+    public static native void nativeTickAnimation(int gameTick);
+    public static native void nativeReceiveSpriteAuxPixels(
+        long specularDataPtr, long normalDataPtr, int totalBytesPerType);
+    public static native void nativeUpdateSpecularLayer(int spriteId, long pixelPtr, int sizeBytes);
+    public static native void nativeUpdateNormalLayer(int spriteId, long pixelPtr, int sizeBytes);
 
-    // Public wrappers called from SpriteAtlasTextureMixins
-    public static void nativeUploadSpritePixels(long pixelPtr, int spriteId,
-        int width, int height, int mipLevel, int frameIndex) {
-        uploadSpritePixels(pixelPtr, spriteId, width, height, mipLevel, frameIndex);
-    }
-    public static void nativeFinalize(int totalBlockLayers, int spriteSize) {
-        finalizeTextureArrays(totalBlockLayers, 0, 0, spriteSize, 43 /* VK_FORMAT_R8G8B8A8_SRGB */);
-    }
-    public static void nativeUploadSpriteBounds(long boundsPtr, int boundsCount) {
-        uploadSpriteBounds(boundsPtr, boundsCount);
+    /**
+     * Called per game tick from BufferProxy. C++ owns animation — just forward the tick.
+     */
+    public static void updateAnimatedSprites(int animTick) {
+        nativeTickAnimation(animTick);
     }
 }

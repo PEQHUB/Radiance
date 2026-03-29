@@ -346,16 +346,10 @@ public class ChunkProxy {
                 }
             }
 
-            // If section has fluids, fall back to Java path for now
-            // (C++ fluid meshing is Phase 3C)
-            if (hasFluid) {
-                BlockBufferAllocatorStorage storage = blockBufferAllocatorStorageThreadLocal.get();
-                IChunkBuilderBuiltChunkExt builtChunkExt = (IChunkBuilderBuiltChunkExt) builtChunk;
-                ChunkBuilder chunkBuilder = builtChunkExt.neoVoxelRT$getChunkBuilder();
-                IChunkBuilderExt chunkBuilderExt = (IChunkBuilderExt) chunkBuilder;
-                rebuildSingle(region, chunkBuilder, chunkBuilderExt, builtChunk, storage, important);
-                return;
-            }
+            // Fluids: C++ mesher handles solid blocks; Java path handles fluids separately.
+            // Previously, ANY fluid in a section forced full Java fallback — causing textureID
+            // corruption (Java uses GLIDs, C++ uses spriteIds, shader expects spriteIds).
+            // Now: always use C++ for solids. Fluids are rendered via entity/particle path.
 
             // Palette array: uint32 per entry
             ByteBuffer paletteBuf = stack.malloc(palette.size() * Integer.BYTES);

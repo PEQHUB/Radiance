@@ -184,16 +184,10 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     }
 
     private void applyChanges() {
-        boolean needsTextureReload = autoPBRParamsChanged();
+        // Save settings to disk only — LiveNormalReuploader already applies
+        // all Auto-PBR changes visually in real-time. No resource reload needed.
         snapshotTaken = false;
         Options.overwriteConfig();
-        if (needsTextureReload) {
-            // Full resource reload to regenerate auto-PBR textures with new parameters
-            MinecraftClient.getInstance().reloadResources();
-        } else {
-            // No texture changes — just rebuild chunks for material constant updates
-            MinecraftClient.getInstance().worldRenderer.reload();
-        }
         this.client.setScreen(this.parentScreen);
     }
 
@@ -246,14 +240,6 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
         }
         RadianceTheme.drawBreadcrumb(context, this.textRenderer, "Radiance > Lighting > Texture Editor", parentScreen);
 
-        // Auto-PBR pending changes warning
-        if (autoPBRParamsChanged()) {
-            String warning = "Auto-PBR changes pending - press Apply to update textures";
-            int ww = this.textRenderer.getWidth(warning);
-            int wx = (this.width - ww) / 2;
-            int wy = this.body.getY() - 10;
-            context.drawText(this.textRenderer, Text.literal(warning), wx, wy, 0xFFFFAA00, false);
-        }
 
         // Search match preview (to the right of the search field)
         if (searchField != null && !searchQuery.isEmpty()) {
@@ -453,7 +439,7 @@ public class MaterialsSettingsScreen extends GameOptionsScreen {
     protected void initFooter() {
         DirectionalLayoutWidget footer = DirectionalLayoutWidget.horizontal().spacing(8);
         footer.add(ButtonWidget.builder(
-            Text.translatable("radiance.settings.materials.apply"), btn -> applyChanges())
+            Text.literal("Save"), btn -> applyChanges())
             .width(100).build());
         footer.add(ButtonWidget.builder(
             Text.translatable("radiance.settings.materials.cancel"), btn -> cancelChanges())
