@@ -32,6 +32,8 @@ public class FireworksPopulator implements ContentPopulator {
             String name = Options.FIREWORK_COLOR_NAMES[idx];
 
             SettingsSection color = panel.addSection(Text.literal(name));
+            color.setCollapsible(true);
+            color.setCollapsed(true);
 
             // Temperature (800K - 15000K)
             color.addSlider(new ResettableSliderWidget(0, 0, 150, 20,

@@ -1,6 +1,5 @@
 package com.radiance.client.gui.unified.populators;
 
-import com.radiance.client.gui.MaterialBrowserScreen;
 import com.radiance.client.gui.MaterialsSettingsScreen;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
@@ -32,8 +31,6 @@ public class MaterialsPopulator implements ContentPopulator {
 
         section.addLauncher("options.video.materials_settings",
             new MaterialsSettingsScreen(screen), screen);
-        section.addLauncher("radiance.materials.browser",
-            new MaterialBrowserScreen(screen), screen);
     }
 
     @Override
@@ -41,8 +38,7 @@ public class MaterialsPopulator implements ContentPopulator {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("Material Overrides", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("AutoPBR", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Materials Editor", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Material Browser", category, nodeId, false)
+            new UnifiedSearchOverlay.SearchEntry("Materials Editor", category, nodeId, false)
         );
     }
 }

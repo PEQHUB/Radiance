@@ -135,7 +135,8 @@ public class MaterialRegistry {
         buf.putFloat(Options.materialGamutBoost[i] / 100f);
         buf.putFloat(Options.materialNoiseMaskThreshold[i] / 1000f);
         int noiseMaskPacked = Options.materialNoiseMaskMode[i]
-                | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 4);
+                | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 4)
+                | ((Options.materialGamutBoostMode[i] & 0x1) << 7); // bit 7: gamut boost mode (0=uniform, 1=saturation)
         buf.putInt(noiseMaskPacked);
         buf.putFloat(Options.materialNormalStrength[i] / 100f);
 
@@ -164,9 +165,8 @@ public class MaterialRegistry {
         int center = Options.materialPercentileCenter[i] & 0xFF;
         int spread = Options.materialPercentileSpread[i] & 0xFF;
         buf.putInt(rMin | (rMax << 8) | (center << 16) | (spread << 24));
-        int normStr = 25 & 0xFFFF; // AutoPBR normal strength (per-block field removed, use default)
         int htGamma = Options.materialAutoPBRHeightGamma[i] & 0xFFFF;
-        buf.putInt(normStr | (htGamma << 16));
+        buf.putInt(htGamma);  // bits 0-15 = heightGamma, bits 16-31 = reserved (0)
     }
 
     private static void packDefault(ByteBuffer buf) {

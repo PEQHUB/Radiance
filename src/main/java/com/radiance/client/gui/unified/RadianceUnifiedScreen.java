@@ -7,7 +7,6 @@ import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.populators.*;
 import com.radiance.client.option.Options;
 import com.radiance.client.option.PresetManager;
-import com.radiance.client.util.EmissiveBlock;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
@@ -42,6 +41,14 @@ public class RadianceUnifiedScreen extends Screen {
     // ── Persisted menu state (survives close/reopen within same game session) ──
     private static String rememberedNodeId = null;
     private static double rememberedScrollY = 0;
+
+    // ── Deferred navigation (set by inspect keybind before opening screen) ──
+    private static String deferredNavigationTarget = null;
+
+    /** Set a deferred navigation target — consumed on next init(). */
+    public static void setDeferredNavigation(String nodeId) {
+        deferredNavigationTarget = nodeId;
+    }
 
     private final Screen parent;
     private TreeNavigationWidget tree;
@@ -161,8 +168,17 @@ public class RadianceUnifiedScreen extends Screen {
             overlayScreen.init(mc, this.width, this.height);
         }
 
-        // Restore remembered position, or select first category
-        if (rememberedNodeId != null) {
+        // Deferred navigation (from inspect keybind) takes priority
+        if (deferredNavigationTarget != null) {
+            String target = deferredNavigationTarget;
+            deferredNavigationTarget = null;
+            TreeNode found = findNodeById(target);
+            if (found != null) {
+                tree.selectById(target);
+            } else {
+                tree.selectFirst();
+            }
+        } else if (rememberedNodeId != null) {
             TreeNode found = findNodeById(rememberedNodeId);
             if (found != null) {
                 tree.selectById(rememberedNodeId);
@@ -170,7 +186,6 @@ public class RadianceUnifiedScreen extends Screen {
                     content.setScrollTarget(rememberedScrollY);
                 }
             } else {
-                // Node from other mode — select first
                 rememberedNodeId = null;
                 tree.selectFirst();
             }
@@ -253,90 +268,60 @@ public class RadianceUnifiedScreen extends Screen {
 
     /**
      * Advanced mode: full tree with all sub-categories — every setting exposed.
+     * 6 roots, 19 leaves, max depth 2.
      */
     private void populateAdvancedTree() {
-        // ▼ Offline Rendering (top of tree)
-        TreeNode offline = new TreeNode("offline", "Offline Rendering");
-        offline.populator = new OfflinePopulator();
-        tree.addRoot(offline);
+        // ▼ Scene
+        TreeNode scene = new TreeNode("scene", "Scene");
+        scene.addChild(new TreeNode("sky_atmosphere", "Sky & Atmosphere", new SkyPopulator()));
+        scene.addChild(new TreeNode("clouds", "Clouds", new CloudPopulator()));
+        scene.addChild(new TreeNode("water", "Water", new WaterPopulator()));
+        scene.addChild(new TreeNode("sun_moon", "Sun & Moon",
+            compositeOf(new SunPopulator(), new MoonPopulator())));
+        scene.populator = compositePopulator(scene.children);
+        tree.addRoot(scene);
+
+        // ▼ Surfaces
+        TreeNode surfaces = new TreeNode("surfaces", "Surfaces");
+        surfaces.addChild(new TreeNode("materials", "Materials", new MaterialsPopulator()));
+        surfaces.addChild(new TreeNode("entity_materials", "Entity Materials", new EntityMaterialPopulator()));
+        surfaces.addChild(new TreeNode("emission", "Emission", new UnifiedEmissionPopulator()));
+        surfaces.populator = compositePopulator(surfaces.children);
+        tree.addRoot(surfaces);
 
         // ▼ Lighting
         TreeNode lighting = new TreeNode("lighting", "Lighting");
         lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
-        TreeNode emission = new TreeNode("emission", "Emission");
-        emission.addChild(new TreeNode("emission_flames", "Flames",
-            new BlockEmissionPopulator("Flames",
-                EmissiveBlock.LAVA, EmissiveBlock.FIRE, EmissiveBlock.SOUL_FIRE,
-                EmissiveBlock.TORCH, EmissiveBlock.SOUL_TORCH,
-                EmissiveBlock.CAMPFIRE, EmissiveBlock.SOUL_CAMPFIRE,
-                EmissiveBlock.LANTERN, EmissiveBlock.SOUL_LANTERN)));
-        emission.addChild(new TreeNode("emission_heat", "Heat Sources",
-            new BlockEmissionPopulator("Heat Sources",
-                EmissiveBlock.MAGMA_BLOCK, EmissiveBlock.FURNACE, EmissiveBlock.BLAST_FURNACE,
-                EmissiveBlock.SMOKER, EmissiveBlock.BREWING_STAND,
-                EmissiveBlock.CANDLE, EmissiveBlock.JACK_O_LANTERN, EmissiveBlock.COPPER_BULB)));
-        emission.addChild(new TreeNode("emission_luminous", "Luminous",
-            new BlockEmissionPopulator("Luminous",
-                EmissiveBlock.GLOWSTONE, EmissiveBlock.SHROOMLIGHT, EmissiveBlock.SEA_LANTERN,
-                EmissiveBlock.FROGLIGHT, EmissiveBlock.BEACON, EmissiveBlock.END_ROD,
-                EmissiveBlock.REDSTONE_TORCH, EmissiveBlock.REDSTONE_LAMP,
-                EmissiveBlock.CAVE_VINES, EmissiveBlock.GLOW_LICHEN,
-                EmissiveBlock.AMETHYST_CLUSTER, EmissiveBlock.SEA_PICKLE,
-                EmissiveBlock.ENCHANTING_TABLE, EmissiveBlock.ENDER_CHEST)));
-        emission.addChild(new TreeNode("emission_portals", "Portals & Sculk",
-            new BlockEmissionPopulator("Portals & Sculk",
-                EmissiveBlock.NETHER_PORTAL, EmissiveBlock.END_PORTAL, EmissiveBlock.END_GATEWAY,
-                EmissiveBlock.CRYING_OBSIDIAN, EmissiveBlock.RESPAWN_ANCHOR, EmissiveBlock.CONDUIT,
-                EmissiveBlock.SCULK, EmissiveBlock.SCULK_VEIN, EmissiveBlock.SCULK_SENSOR,
-                EmissiveBlock.SCULK_CATALYST, EmissiveBlock.SCULK_SHRIEKER,
-                EmissiveBlock.CALIBRATED_SCULK_SENSOR,
-                EmissiveBlock.TRIAL_SPAWNER, EmissiveBlock.VAULT)));
-        emission.addChild(new TreeNode("emission_particles", "Particles",
-            new ParticlesEmissionPopulator()));
-        emission.populator = compositePopulator(emission.children);
-        lighting.addChild(emission);
-        lighting.addChild(new TreeNode("fireworks", "Fireworks", new FireworksPopulator()));
-        lighting.addChild(new TreeNode("materials", "Materials", new MaterialsPopulator()));
-        lighting.addChild(new TreeNode("entity_materials", "Entity Materials", new EntityMaterialPopulator()));
+        lighting.addChild(new TreeNode("exposure", "Exposure", new ExposurePopulator()));
+        lighting.addChild(new TreeNode("tone_mapping", "Tone Mapping",
+            compositeOf(new PsychoVPopulator(), new HdrSaturationPopulator())));
         lighting.populator = compositePopulator(lighting.children);
         tree.addRoot(lighting);
 
-        // ▼ Light & Color
-        TreeNode lightColor = new TreeNode("light_color", "Light & Color");
-        lightColor.addChild(new TreeNode("exposure", "Exposure", new ExposurePopulator()));
-        lightColor.addChild(new TreeNode("psychov", "PsychoV", new PsychoVPopulator()));
-        lightColor.addChild(new TreeNode("post_processing", "Post Processing", new PostProcessingPopulator()));
-        lightColor.addChild(new TreeNode("hdr_saturation", "HDR / Saturation", new HdrSaturationPopulator()));
-        lightColor.populator = compositePopulator(lightColor.children);
-        tree.addRoot(lightColor);
+        // ▼ Rendering
+        TreeNode rendering = new TreeNode("rendering", "Rendering");
+        rendering.addChild(new TreeNode("upscaler", "Upscaler", new UpscalerPopulator()));
+        rendering.addChild(new TreeNode("ray_tracing", "Ray Tracing",
+            compositeOf(new RayTracingPopulator(), new SharcPopulator())));
+        rendering.addChild(new TreeNode("post_processing", "Post Processing", new PostProcessingPopulator()));
+        rendering.addChild(new TreeNode("performance", "Performance", new PerformancePopulator()));
+        rendering.populator = compositePopulator(rendering.children);
+        tree.addRoot(rendering);
 
-        // ▼ Image Quality
-        TreeNode imageQuality = new TreeNode("image_quality", "Image Quality");
-        imageQuality.addChild(new TreeNode("upscaler", "Upscaler", new UpscalerPopulator()));
-        imageQuality.addChild(new TreeNode("ray_tracing", "Ray Tracing", new RayTracingPopulator()));
-        imageQuality.addChild(new TreeNode("sharc", "SHARC", new SharcPopulator()));
-        imageQuality.populator = compositePopulator(imageQuality.children);
-        tree.addRoot(imageQuality);
+        // ▼ Camera
+        TreeNode camera = new TreeNode("camera", "Camera");
+        camera.addChild(new TreeNode("offline", "Offline Rendering", new OfflinePopulator()));
+        camera.addChild(new TreeNode("fpv", "First-Person View", new FpvPopulator()));
+        camera.populator = compositePopulator(camera.children);
+        tree.addRoot(camera);
 
-        // ▼ Environment
-        TreeNode environment = new TreeNode("environment", "Environment");
-        environment.addChild(new TreeNode("sky", "Sky", new SkyPopulator()));
-        environment.addChild(new TreeNode("clouds", "Clouds", new CloudPopulator()));
-        environment.addChild(new TreeNode("water", "Water", new WaterPopulator()));
-        environment.addChild(new TreeNode("sun", "Sun", new SunPopulator()));
-        environment.addChild(new TreeNode("moon", "Moon", new MoonPopulator()));
-        environment.populator = compositePopulator(environment.children);
-        tree.addRoot(environment);
-
-        // ▼ Display
-        TreeNode display = new TreeNode("display", "Display");
-        display.addChild(new TreeNode("window", "Window", new WindowPopulator()));
-        display.addChild(new TreeNode("terrain", "Terrain", new TerrainPopulator()));
-        display.addChild(new TreeNode("pipeline", "Pipeline", new PipelinePopulator()));
-        display.addChild(new TreeNode("ui_settings", "UI Settings", new UiSettingsPopulator()));
-        display.addChild(new TreeNode("fpv", "First-Person View", new FpvPopulator()));
-        display.populator = compositePopulator(display.children);
-        tree.addRoot(display);
+        // ▼ System
+        TreeNode system = new TreeNode("system", "System");
+        system.addChild(new TreeNode("window", "Window", new WindowPopulator()));
+        system.addChild(new TreeNode("pipeline", "Pipeline", new PipelinePopulator()));
+        system.addChild(new TreeNode("ui_settings", "UI Settings", new UiSettingsPopulator()));
+        system.populator = compositePopulator(system.children);
+        tree.addRoot(system);
     }
 
     /**
@@ -349,6 +334,27 @@ public class RadianceUnifiedScreen extends Screen {
                 if (child.populator != null) {
                     child.populator.populate(panel, screen);
                 }
+            }
+        };
+    }
+
+    /** Inline composite for leaf nodes that combine multiple populators (e.g. Sun & Moon). */
+    private ContentPopulator compositeOf(ContentPopulator... populators) {
+        return new ContentPopulator() {
+            @Override
+            public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
+                for (ContentPopulator p : populators) {
+                    p.populate(panel, screen);
+                }
+            }
+
+            @Override
+            public List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+                List<UnifiedSearchOverlay.SearchEntry> all = new java.util.ArrayList<>();
+                for (ContentPopulator p : populators) {
+                    all.addAll(p.getSearchEntries(nodeId, category));
+                }
+                return all;
             }
         };
     }

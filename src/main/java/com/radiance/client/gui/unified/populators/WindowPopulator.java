@@ -2,7 +2,6 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.mojang.serialization.Codec;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
@@ -19,24 +18,7 @@ public class WindowPopulator implements ContentPopulator {
 
         SettingsSection section = panel.addSection(Options.CATEGORY_WINDOW);
 
-        SimpleOption<Integer> maxFps = new SimpleOption<>(
-            "options.framerateLimit",
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> value == 260
-                ? getGenericValueText(optionText, Text.translatable("options.framerateLimit.max"))
-                : getGenericValueText(optionText, Text.translatable("options.framerate", value)),
-            new SimpleOption.ValidatingIntSliderCallbacks(1, 26).withModifier(
-                value -> value * 10, value -> value / 10),
-            Codec.intRange(10, 260),
-            Options.maxFps,
-            value -> {
-                mc.getInactivityFpsLimiter().setMaxFps(value);
-                Options.setMaxFps(value, true);
-            });
-
-        SimpleOption<Boolean> enableVsync = SimpleOption.ofBoolean("options.vsync", Options.vsync,
-            value -> Options.setVsync(value, true));
-        section.addTwoWidgets(maxFps.createWidget(gameOptions), enableVsync.createWidget(gameOptions));
+        // FPS Limit, VSync → moved to PerformancePopulator
 
         // Window dimensions — width and height sliders
         var window = mc.getWindow();
@@ -102,8 +84,6 @@ public class WindowPopulator implements ContentPopulator {
     @Override
     public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
         return java.util.List.of(
-            new UnifiedSearchOverlay.SearchEntry("FPS Limit", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("VSync", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Window Size", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Fullscreen", category, nodeId, false)
         );

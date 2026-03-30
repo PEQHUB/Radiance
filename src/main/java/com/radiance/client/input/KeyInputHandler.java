@@ -3,7 +3,11 @@ package com.radiance.client.input;
 import com.radiance.client.RadianceClient;
 import com.radiance.client.gui.MaterialsSettingsScreen;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
+import com.radiance.client.gui.unified.populators.UnifiedEmissionPopulator;
+import com.radiance.client.material.EntityMaterial;
 import com.radiance.client.option.Options;
+import com.radiance.client.util.EmissiveBlock;
+import com.radiance.client.util.LightSourceRegistry;
 import com.radiance.client.util.MaterialBlock;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -12,6 +16,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import org.lwjgl.glfw.GLFW;
 
@@ -26,6 +31,7 @@ public class KeyInputHandler {
     public static KeyBinding offlineNativeResKey;
 
     public static KeyBinding focusKey;
+    public static KeyBinding inspectKey;
 
     // Debounce for AF-S click (prevent re-triggering on same press)
     private static boolean afClickConsumed = false;
@@ -84,6 +90,13 @@ public class KeyInputHandler {
             "key.radiance.focus",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_F,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        inspectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.inspect",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_I,
             Options.KEY_CATEGORY_RADIANCE
         ));
 
@@ -288,6 +301,21 @@ public class KeyInputHandler {
                     }
                 }
             }
+
+            // I: inspect block/entity at crosshair → open settings to matching node
+            while (inspectKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    String target = resolveInspectTarget(client);
+                    if (target != null) {
+                        if (!Options.advancedMode) {
+                            Options.advancedMode = true;
+                            Options.overwriteConfig();
+                        }
+                        RadianceUnifiedScreen.setDeferredNavigation(target);
+                        client.setScreen(new RadianceUnifiedScreen(null));
+                    }
+                }
+            }
         });
     }
 
@@ -385,6 +413,63 @@ public class KeyInputHandler {
             BlockState state = client.world.getBlockState(fluidBlockHit.getBlockPos());
             MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
             if (mb != null) return mb;
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve what the player is looking at into a settings tree node ID.
+     * Priority: emissive block → area light → material block → entity → fluid fallback.
+     */
+    private static String resolveInspectTarget(MinecraftClient client) {
+        if (client.world == null || client.player == null) return null;
+
+        // Block at crosshair
+        if (client.crosshairTarget instanceof BlockHitResult blockHit
+                && blockHit.getType() != HitResult.Type.MISS) {
+            BlockState state = client.world.getBlockState(blockHit.getBlockPos());
+
+            EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
+            if (eb != null) {
+                UnifiedEmissionPopulator.navigateToBlock(eb);
+                return "emission";
+            }
+
+            if (LightSourceRegistry.getLightSource(state) != null) {
+                return "area_lights";
+            }
+
+            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
+            if (mb != null) {
+                return "materials";
+            }
+        }
+
+        // Entity at crosshair
+        if (client.crosshairTarget instanceof EntityHitResult entityHit) {
+            if (EntityMaterial.getOrdinalForEntity(entityHit.getEntity()) >= 0) {
+                return "entity_materials";
+            }
+        }
+
+        // Fluid fallback — retry with fluid-inclusive raycast
+        double reach = client.player.getBlockInteractionRange();
+        HitResult fluidHit = client.player.raycast(reach, 1.0f, true);
+        if (fluidHit instanceof BlockHitResult fluidBlockHit
+                && fluidBlockHit.getType() != HitResult.Type.MISS) {
+            BlockState state = client.world.getBlockState(fluidBlockHit.getBlockPos());
+
+            EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
+            if (eb != null) {
+                UnifiedEmissionPopulator.navigateToBlock(eb);
+                return "emission";
+            }
+
+            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
+            if (mb != null) {
+                return "materials";
+            }
         }
 
         return null;

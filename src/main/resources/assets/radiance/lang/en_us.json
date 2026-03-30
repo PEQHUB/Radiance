@@ -150,6 +150,7 @@
   "key.radiance.offline_denoised": "Cycle Denoised Mode (Offline)",
   "key.radiance.offline_ground_truth": "Toggle Ground Truth (Offline)",
   "key.radiance.focus": "Focus Mode",
+  "key.radiance.inspect": "Inspect Block/Entity",
   "key.category.radiance": "Radiance",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode": "Tonemapping Mode",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode.pbr_neutral": "PBR Neutral",

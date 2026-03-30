@@ -88,7 +88,9 @@ public final class LiveNormalReuploader {
                             Options.materialNormalStrength[ordN],
                             (Options.materialAutoPBRFlags[ordN] & 2) != 0,
                             Options.materialAutoPBRHeightGamma[ordN],
-                            (Options.materialAutoPBRFlags[ordN] & 4) != 0);
+                            (Options.materialAutoPBRFlags[ordN] & 4) != 0,
+                            AutoPBRGenerator.HeightParams.fromOptions(ordN),
+                            Options.materialPomAOStrength[ordN]);
                     } else {
                         newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo);
                     }
@@ -109,7 +111,9 @@ public final class LiveNormalReuploader {
                         100, // neutral strength — shader applies pack5.w
                         (Options.materialAutoPBRFlags[ordN2] & 2) != 0,
                         Options.materialAutoPBRHeightGamma[ordN2],
-                        (Options.materialAutoPBRFlags[ordN2] & 4) != 0);
+                        (Options.materialAutoPBRFlags[ordN2] & 4) != 0,
+                        AutoPBRGenerator.HeightParams.fromOptions(ordN2),
+                        Options.materialPomAOStrength[ordN2]);
                     NativeImage neutralAligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                         (Object) neutralNormal).neoVoxelRT$alignTo(cachedAlbedo);
                     updateTextureArrayLayers(albedoGLID, neutralAligned, false);

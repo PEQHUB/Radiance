@@ -124,87 +124,7 @@ public class UpscalerPopulator implements ContentPopulator {
                 v -> Options.setCasSharpnessPercent(v, true)));
         }
 
-        // VSync + Reflex + FPS Limit
-        if (Options.isReflexSupported()) {
-            // Row: VSync + Reflex
-            SimpleOption<Boolean> vsyncToggle = SimpleOption.ofBoolean(
-                Options.VSYNC_KEY, Options.vsync,
-                value -> {
-                    Options.setVsync(value, true);
-                    screen.refreshContent();
-                });
-
-            // DLSS-G requires Reflex — show locked label when FG is active
-            boolean fgForced = Options.frameGenMode != 0;
-            if (fgForced) {
-                // Reflex is forced on by Frame Generation — show a non-interactive label
-                ButtonWidget reflexLocked = ButtonWidget.builder(
-                    Text.literal("Reflex: Locked (FG)"), btn -> {})
-                    .width(150).build();
-                reflexLocked.active = false;
-                section.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexLocked);
-            } else {
-                SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
-                    Options.REFLEX_ENABLED_KEY, Options.reflexEnabled,
-                    value -> {
-                        Options.setReflexEnabled(value, true);
-                        screen.refreshContent();
-                    });
-                section.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexEnabled.createWidget(gameOptions));
-            }
-
-            if (Options.reflexEnabled) {
-                // Row: FPS limit slider
-                section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                    0, 999, Options.maxFps, 0,
-                    v -> getGenericValueText(Text.translatable(Options.MAX_FPS_KEY),
-                        Text.literal(v == 0 ? "Unlimited" : v + " fps")),
-                    v -> Options.setMaxFps(v, true)));
-
-                // Row: Auto VRR Cap button — computes target from display Hz, writes to maxFps
-                ButtonWidget vrrButton = ButtonWidget.builder(
-                    Text.literal("Auto VRR Cap"),
-                    btn -> {
-                        int hz = Options.nativeGetDisplayRefreshRate();
-                        if (hz > 0) {
-                            int target = (3600 * hz) / (hz + 3600);
-                            Options.setMaxFps(target, true);
-                            screen.refreshContent();
-                        }
-                    }).width(150).build();
-                section.addButton(vrrButton);
-            }
-        }
-
-        // Frame Generation (DLSS-G) — requires Reflex
-        if (Options.isFrameGenSupported()) {
-            String[] fgModeNames = {"Off", "On", "Auto"};
-            SelectionDropdownWidget fgModeDropdown = new SelectionDropdownWidget(
-                0, 0, 150, 20, "Frame Generation",
-                fgModeNames, Options.frameGenMode, value -> {
-                    Options.setFrameGenMode(value, true);
-                    screen.refreshContent();
-                });
-
-            int maxMulti = Options.getFrameGenMaxMultiplier();
-            // Show multiplier selector for "On" mode (manual); Auto mode handles it dynamically
-            if (Options.frameGenMode == 1 && maxMulti > 1) {
-                String[] multiNames = new String[maxMulti];
-                for (int i = 0; i < maxMulti; i++) multiNames[i] = (i + 2) + "x";
-                SelectionDropdownWidget fgMultiDropdown = new SelectionDropdownWidget(
-                    0, 0, 150, 20, "FG Multiplier",
-                    multiNames, Options.frameGenMultiplier - 1, value -> {
-                        Options.setFrameGenMultiplier(value + 1, true);
-                    });
-                section.addTwoWidgets(fgModeDropdown, fgMultiDropdown)
-                      .tooltip("Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
-            } else {
-                section.addTwoWidgets(fgModeDropdown, null)
-                      .tooltip(Options.frameGenMode == 2
-                          ? "Auto: dynamically varies frame generation multiplier based on scene load."
-                          : "Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
-            }
-        }
+        // VSync, Reflex, FPS Limit, Frame Generation → moved to PerformancePopulator
     }
 
     @Override
@@ -216,10 +136,8 @@ public class UpscalerPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("RR Model", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("4x SSAA", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("Resolution Override", category, nodeId, true),
-            new UnifiedSearchOverlay.SearchEntry("VSync", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Reflex", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("FPS Limit", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Frame Generation", category, nodeId, true)
+            new UnifiedSearchOverlay.SearchEntry("Sharpener", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Sharpness", category, nodeId, false)
         );
     }
 }

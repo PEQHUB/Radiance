@@ -221,7 +221,7 @@ public enum AuxiliaryTextures {
                         int lumOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
                         if (lumOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled
                                 && com.radiance.client.option.Options.materialAutoPBR[lumOrdinal]) {
-                            float wR = 0.2627f, wG = 0.6780f, wB = 0.0593f;
+                            float wR = 0.2126f, wG = 0.7152f, wB = 0.0722f; // BT.709 (sRGB primaries)
                             // Use block's sprite region, not the full atlas
                             int rx = offsetX + unpackSkipPixels;
                             int ry = offsetY + unpackSkipRows;
@@ -304,7 +304,9 @@ public enum AuxiliaryTextures {
                                     com.radiance.client.option.Options.materialNormalStrength[mbOrdinal],
                                     (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 2) != 0,
                                     com.radiance.client.option.Options.materialAutoPBRHeightGamma[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0);
+                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0,
+                                    AutoPBRGenerator.HeightParams.fromOptions(mbOrdinal),
+                                    com.radiance.client.option.Options.materialPomAOStrength[mbOrdinal]);
                                 TextureTracker.hasHeightMap.add(targetId);
                             } else if (autoPBR && auxiliaryTexture == SPECULAR) {
                                 // GPU-side AutoPBR: roughness computed in shader, skip CPU bake
