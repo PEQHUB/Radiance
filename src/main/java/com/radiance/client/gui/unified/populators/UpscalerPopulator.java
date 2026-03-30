@@ -178,7 +178,7 @@ public class UpscalerPopulator implements ContentPopulator {
 
         // Frame Generation (DLSS-G) — requires Reflex
         if (Options.isFrameGenSupported()) {
-            String[] fgModeNames = {"Off", "On"};
+            String[] fgModeNames = {"Off", "On", "Auto"};
             SelectionDropdownWidget fgModeDropdown = new SelectionDropdownWidget(
                 0, 0, 150, 20, "Frame Generation",
                 fgModeNames, Options.frameGenMode, value -> {
@@ -187,7 +187,8 @@ public class UpscalerPopulator implements ContentPopulator {
                 });
 
             int maxMulti = Options.getFrameGenMaxMultiplier();
-            if (Options.frameGenMode != 0 && maxMulti > 1) {
+            // Show multiplier selector for "On" mode (manual); Auto mode handles it dynamically
+            if (Options.frameGenMode == 1 && maxMulti > 1) {
                 String[] multiNames = new String[maxMulti];
                 for (int i = 0; i < maxMulti; i++) multiNames[i] = (i + 2) + "x";
                 SelectionDropdownWidget fgMultiDropdown = new SelectionDropdownWidget(
@@ -199,7 +200,9 @@ public class UpscalerPopulator implements ContentPopulator {
                       .tooltip("Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
             } else {
                 section.addTwoWidgets(fgModeDropdown, null)
-                      .tooltip("Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
+                      .tooltip(Options.frameGenMode == 2
+                          ? "Auto: dynamically varies frame generation multiplier based on scene load."
+                          : "Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
             }
         }
     }

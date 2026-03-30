@@ -60,7 +60,8 @@ public class ChunkProxy {
     };
     private static final Map<Integer, ChunkBuilder.BuiltChunk> rebuildQueue = new ConcurrentHashMap<>();
     private static final List<Future<?>> rebuildTasks = new ArrayList<>();
-    private static final int numNormalChunkRebuildThreads = 2;
+    private static final int numNormalChunkRebuildThreads =
+        Math.max(2, Math.min(Runtime.getRuntime().availableProcessors() - 4, 6));
     private static final int numImportantChunkRebuildThreads = 2;
     private static final long worldLoadSmoothDurationNanos = TimeUnit.SECONDS.toNanos(4);
     private static final int maxImportantTasksPerFrameWarmup = 1;
@@ -154,7 +155,17 @@ public class ChunkProxy {
         double importantDistanceSq = smoothing ? importantDistanceSqWarmup : importantDistanceSqNormal;
         int importantTaskCount = 0;
 
-        int maxTotalPerFrame = smoothing ? 32 : 64;
+        int maxTotalPerFrame;
+        if (smoothing) {
+            maxTotalPerFrame = 32;
+        } else {
+            int queueDepth = 0;
+            try { queueDepth = nativeGetInputQueueSize(); } catch (Exception ignored) {}
+            maxTotalPerFrame = queueDepth < 12 ? 128
+                             : queueDepth < 36 ? 64
+                             : queueDepth < 72 ? 32
+                             : 16;
+        }
         int totalSubmitted = 0;
 
         final double bx = blockPos.getX(), by = blockPos.getY(), bz = blockPos.getZ();
@@ -679,4 +690,6 @@ public class ChunkProxy {
     public static native void invalidateSingle(long index);
 
     private static native void setChunkLights(long chunkIndex, int lightCount, long lightDataPtr);
+
+    public static native int nativeGetInputQueueSize();
 }
