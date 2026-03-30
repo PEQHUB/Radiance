@@ -716,9 +716,10 @@ public class Options {
         tonemapParams[1][0] = 4.0f;    // Lwhite
         // Mode 2: ACES
         tonemapParams[2][0] = 1.0f;    // pre-exposure (1.0 = neutral)
-        // Mode 3: AgX (Blender Base look)
-        tonemapParams[3][0] = 1.0f;    // contrast (look) — 1.0 = Base, ~1.4 = Punchy
-        tonemapParams[3][1] = 1.0f;    // saturation (look) — 1.0 = neutral
+        // Mode 3: AgX Eary Chroma (P0 = look preset, P1 = extra contrast, P2 = extra saturation)
+        tonemapParams[3][0] = 0.0f;    // look: 0 = Base, 1 = Punchy, 2 = Golden
+        tonemapParams[3][1] = 1.0f;    // extra contrast (1.0 = neutral)
+        tonemapParams[3][2] = 1.0f;    // extra saturation (1.0 = neutral)
         // Mode 4: Lottes (GDC 2016 canonical — AMD GPUOpen)
         tonemapParams[4][0] = 2.0f;    // contrast (a)
         tonemapParams[4][1] = 1.0f;    // shoulder (d)
@@ -764,6 +765,7 @@ public class Options {
 
     // HDR10 output (default: disabled, pure SDR)
     public static boolean hdrEnabled = false;
+    public static boolean hdrScrgbMode = false;    // false = HDR10 (default, DLSS-FG compat), true = scRGB
     public static int hdrPeakNits = 1070;          // 100–10000 nits
     public static int hdrPaperWhiteNits = 203;     // 80–500 nits, ITU-R BT.2408 reference white
     public static int hdrUiBrightnessNits = 100;   // 50–300 nits, UI brightness in HDR mode
@@ -1050,6 +1052,7 @@ public class Options {
     public static final int[] materialNoiseLacunarity = new int[MAX_MATERIALS];   // 10-40 (1.0-4.0)
     public static final int[] materialNoiseContrast = new int[MAX_MATERIALS];     // 0-200 (0.0-2.0)
     public static final int[] materialGamutBoost = new int[MAX_MATERIALS];    // 0-200 (×0.01 = 0.00-2.00 multiplier)
+    public static final int[] materialGamutBoostMode = new int[MAX_MATERIALS]; // 0=uniform, 1=saturation-based
     public static final int[] materialPomDepth = new int[MAX_MATERIALS];     // 0-200 (×0.01 = 0.00-2.00, per-block POM depth, 0=off)
     public static final int[] materialNormalStrength = new int[MAX_MATERIALS];  // 0-200 (×0.01 = 0.00-2.00 multiplier, 100=neutral)
     public static final int[] materialAutoPBRRoughnessMin = new int[MAX_MATERIALS]; // 0-100, per-block roughness min %
@@ -1104,6 +1107,7 @@ public class Options {
             materialNoiseLacunarity[i] = 20;
             materialNoiseContrast[i] = 100;
             materialGamutBoost[i] = 100;
+            materialGamutBoostMode[i] = 1; // default: saturation-based (existing behavior)
             materialNormalStrength[i] = 100;
             materialAutoPBRRoughnessMin[i] = 30;
             materialAutoPBRRoughnessMax[i] = 95;
@@ -1165,6 +1169,7 @@ public class Options {
             materialNoiseLacunarity[i] = 20; // 2.0
             materialNoiseContrast[i] = 100;  // 1.0
             materialGamutBoost[i] = 100;    // 1.0× (neutral)
+            materialGamutBoostMode[i] = 1;  // saturation-based
             materialPomDepth[i] = 0;        // off by default (per-block POM disabled)
             materialNormalStrength[i] = 100; // 1.0× (neutral)
             materialAutoPBRRoughnessMin[i] = 30;  // default roughness min 30%
@@ -1460,6 +1465,7 @@ public class Options {
                 materialNoiseLacunarity[ci] = materialNoiseLacunarity[parentOrdinal];
                 materialNoiseContrast[ci] = materialNoiseContrast[parentOrdinal];
                 materialGamutBoost[ci] = materialGamutBoost[parentOrdinal];
+                materialGamutBoostMode[ci] = materialGamutBoostMode[parentOrdinal];
                 materialPomDepth[ci] = materialPomDepth[parentOrdinal];
                 materialNormalStrength[ci] = materialNormalStrength[parentOrdinal];
                 materialAutoPBRRoughnessMin[ci] = materialAutoPBRRoughnessMin[parentOrdinal];
@@ -1979,6 +1985,7 @@ public class Options {
                 materialNoiseLacunarity[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseLacunarity." + pid, "20")), 10, 40);
                 materialNoiseContrast[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseContrast." + pid, "100")), 0, 200);
                 materialGamutBoost[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]))), 0, 200);
+                materialGamutBoostMode[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoostMode." + pid, String.valueOf(materialGamutBoostMode[i]))), 0, 1);
                 materialPomDepth[i] = clamp(Integer.parseInt(props.getProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]))), 0, 200);
                 materialNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]))), 0, 200);
                 materialAutoPBRRoughnessMin[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]))), 0, 100);
@@ -2156,11 +2163,13 @@ public class Options {
             nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
             nativeSetExposureLog2MaxImproved((float) exposureLog2Max, false);
 
-            // HDR10
+            // HDR
             hdrEnabled = Boolean.parseBoolean(props.getProperty("hdrEnabled", String.valueOf(hdrEnabled)));
+            hdrScrgbMode = Boolean.parseBoolean(props.getProperty("hdrScrgbMode", String.valueOf(hdrScrgbMode)));
             hdrPeakNits = Integer.parseInt(props.getProperty("hdrPeakNits", String.valueOf(hdrPeakNits)));
             hdrPaperWhiteNits = Integer.parseInt(props.getProperty("hdrPaperWhiteNits", String.valueOf(hdrPaperWhiteNits)));
             nativeSetHdrEnabled(hdrEnabled, false);
+            nativeSetHdrScrgbMode(hdrScrgbMode, false);
             nativeSetHdrPeakNits(hdrPeakNits, false);
             nativeSetHdrPaperWhiteNits(hdrPaperWhiteNits, false);
 
@@ -2541,6 +2550,7 @@ public class Options {
             props.setProperty("materialNoiseLacunarity." + pid, String.valueOf(materialNoiseLacunarity[i]));
             props.setProperty("materialNoiseContrast." + pid, String.valueOf(materialNoiseContrast[i]));
             props.setProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]));
+            props.setProperty("materialGamutBoostMode." + pid, String.valueOf(materialGamutBoostMode[i]));
             props.setProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]));
             props.setProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]));
             props.setProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]));
@@ -2658,6 +2668,7 @@ public class Options {
         props.setProperty("psychoConeExponentPercent", String.valueOf(psychoConeExponentPercent));
         props.setProperty("upscalerPreset", String.valueOf(upscalerPreset));
         props.setProperty("hdrEnabled", String.valueOf(hdrEnabled));
+        props.setProperty("hdrScrgbMode", String.valueOf(hdrScrgbMode));
         props.setProperty("hdrPeakNits", String.valueOf(hdrPeakNits));
         props.setProperty("hdrPaperWhiteNits", String.valueOf(hdrPaperWhiteNits));
         props.setProperty("hdrUiBrightnessNits", String.valueOf(hdrUiBrightnessNits));
@@ -5065,6 +5076,22 @@ public class Options {
 
     // --- HDR10 Output ---
     public native static void nativeSetHdrEnabled(boolean enabled, boolean write);
+    public native static void nativeSetHdrScrgbMode(boolean scrgb, boolean write);
+
+    public static void setHdrScrgbMode(boolean scrgb, boolean write) {
+        Options.hdrScrgbMode = scrgb;
+        nativeSetHdrScrgbMode(scrgb, write);
+        if (write) {
+            try {
+                Pipeline.loadPipeline();
+                Pipeline.build();
+            } catch (Exception e) {
+                RadianceClient.LOGGER.error("Failed to rebuild pipeline after scRGB toggle.", e);
+            }
+            nativeSetHdrScrgbMode(scrgb, true);
+            overwriteConfig();
+        }
+    }
 
     public static void setHdrEnabled(boolean enabled, boolean write) {
         if (enabled) {

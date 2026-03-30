@@ -23,9 +23,9 @@ public class HdrSaturationPopulator implements ContentPopulator {
         { new TmParam("White Point", 1.0f, 20.0f, 4.0f) },
         // Mode 2: ACES
         { new TmParam("Pre-Exposure", 0.5f, 2.0f, 1.0f) },
-        // Mode 3: AgX (Blender Base look)
-        { new TmParam("Contrast (Look)", 0.5f, 2.0f, 1.0f),
-          new TmParam("Saturation (Look)", 0.5f, 2.0f, 1.0f) },
+        // Mode 3: AgX Eary Chroma — P0 = Look Preset (handled as dropdown below), P1/P2 = fine-tune
+        { new TmParam("Extra Contrast", 0.5f, 2.0f, 1.0f),
+          new TmParam("Extra Saturation", 0.5f, 2.0f, 1.0f) },
         // Mode 4: Lottes (GDC 2016 canonical)
         { new TmParam("Contrast", 0.5f, 3.0f, 2.0f),
           new TmParam("Shoulder", 0.5f, 1.5f, 1.0f),
@@ -83,15 +83,36 @@ public class HdrSaturationPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable(Options.SATURATION_KEY),
                 Text.literal(String.format("%.2f", v / 100.0))),
             v -> Options.setSaturation(v, true)))
-              .tooltip("Global color saturation multiplier. 1.0 = neutral. Applied after tonemapping.");
+              .tooltip("Global color saturation. Applied before tonemapping in Oklab perceptual space.");
 
-        // Per-tonemapper parameter sliders
+        // AgX look preset (mode 3 only) — displayed as dropdown for tonemapParam0
         int mode = Options.tonemappingMode;
+        if (mode == 3) {
+            // AgX Eary Chroma look preset selector
+            int currentLook = Math.round(Options.tonemapParams[3][0]);
+            SelectionDropdownWidget agxLook = new SelectionDropdownWidget(
+                0, 0, 150, 20, "AgX Look",
+                new String[]{"Base", "Punchy", "Golden"},
+                currentLook, value -> {
+                    Options.setTonemapParam(3, 0, (float) value, true);
+                    screen.refreshContent();
+                });
+            tonemap.addTwoWidgets(agxLook, null)
+                  .tooltip("AgX look preset. Base = neutral. Punchy = vivid contrast. Golden = warm cinematic.");
+        }
+
+        // Per-tonemapper parameter sliders (skip param 0 for AgX since it's a dropdown above)
         if (mode >= 0 && mode < TM_PARAMS.length) {
             TmParam[] params = TM_PARAMS[mode];
-            for (int i = 0; i < params.length; i++) {
+            int startIdx = (mode == 3) ? 0 : 0;  // AgX params are Extra Contrast/Saturation (P1/P2 in shader)
+            for (int i = startIdx; i < params.length; i++) {
                 TmParam p = params[i];
-                final int paramIdx = i;
+                final int paramIdx;
+                if (mode == 3) {
+                    paramIdx = i + 1;  // AgX: TM_PARAMS[0] -> tonemapParam1, [1] -> tonemapParam2
+                } else {
+                    paramIdx = i;
+                }
                 final int currentMode = mode;
                 int sliderMin = Math.round(p.min * 1000);
                 int sliderMax = Math.round(p.max * 1000);
@@ -118,7 +139,7 @@ public class HdrSaturationPopulator implements ContentPopulator {
         color.addTwoWidgets(msGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions))
               .tooltip("BRDF energy conservation models. Multi-Scatter prevents energy loss at high roughness. EON improves diffuse accuracy.");
 
-        // HDR10 Output (conditional)
+        // HDR Output (conditional)
         if (Options.isHdrSupported()) {
             SettingsSection hdr = panel.addSection(Options.CATEGORY_HDR);
 
@@ -129,9 +150,18 @@ public class HdrSaturationPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
             hdr.addToggle(hdrEnabled.createWidget(gameOptions))
-                  .tooltip("Outputs HDR10 signal via BT.2020 color space with PQ transfer function.");
+                  .tooltip("Enable HDR output. Default: HDR10 (BT.2020 + PQ). Compatible with DLSS Frame Generation.");
 
             if (Options.hdrEnabled) {
+                // HDR output mode: HDR10 (default) or scRGB (optional)
+                SelectionDropdownWidget hdrOutputMode = new SelectionDropdownWidget(
+                    0, 0, 150, 20, "HDR Format",
+                    new String[]{"HDR10 (PQ)", "scRGB (Linear)"},
+                    Options.hdrScrgbMode ? 1 : 0, value -> {
+                        Options.setHdrScrgbMode(value == 1, true);
+                        screen.refreshContent();
+                    });
+
                 // HDR tonemapper selector: 0 = PsychoVisual, 1 = ITU EETF (Hermite)
                 SelectionDropdownWidget hdrTmMode = new SelectionDropdownWidget(
                     0, 0, 150, 20, "HDR Tonemapper",
@@ -140,7 +170,8 @@ public class HdrSaturationPopulator implements ContentPopulator {
                         Options.setHdrTonemapMode(value, true);
                         screen.refreshContent();
                     });
-                hdr.addTwoWidgets(hdrTmMode, null);
+                hdr.addTwoWidgets(hdrOutputMode, hdrTmMode)
+                      .tooltip("HDR10 = BT.2020/PQ (DLSS-FG compatible). scRGB = linear FP16 (breaks DLSS-FG, better driver compat on some setups).");
 
                 hdr.addTwoSliders(
                     new ResettableSliderWidget(0, 0, 150, 20,
@@ -170,6 +201,7 @@ public class HdrSaturationPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Multi-Scatter GGX", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("EON Diffuse", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("HDR Enabled", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("HDR Format", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("HDR Peak Nits", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("HDR Paper White Nits", category, nodeId, false)
         );
