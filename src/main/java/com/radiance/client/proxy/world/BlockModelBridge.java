@@ -170,7 +170,20 @@ public class BlockModelBridge {
             entryBuf.put(entryPos + 11, fluidType);
 
             // quadOffset (uint32) — byte offset into quad array
-            entryBuf.putInt(entryPos + 12, quadOffset);
+            // For fluid blocks: repurposed as packed sprite IDs (low16=still, high16=flowing)
+            if (fluidType != 0) {
+                net.minecraft.util.Identifier stillId = fluidType == 1
+                    ? net.minecraft.util.Identifier.ofVanilla("block/water_still")
+                    : net.minecraft.util.Identifier.ofVanilla("block/lava_still");
+                net.minecraft.util.Identifier flowId = fluidType == 1
+                    ? net.minecraft.util.Identifier.ofVanilla("block/water_flow")
+                    : net.minecraft.util.Identifier.ofVanilla("block/lava_flow");
+                int stillSprite = spriteIdLookup.getOrDefault(stillId, 0);
+                int flowSprite = spriteIdLookup.getOrDefault(flowId, 0);
+                entryBuf.putInt(entryPos + 12, (stillSprite & 0xFFFF) | ((flowSprite & 0xFFFF) << 16));
+            } else {
+                entryBuf.putInt(entryPos + 12, quadOffset);
+            }
 
             // Serialize face quads per direction + detect tinted quads
             int totalQuadCount = 0;
@@ -206,14 +219,30 @@ public class BlockModelBridge {
             }
 
             // totalQuadCount (uint8)
-            entryBuf.put(entryPos + 23, (byte) Math.min(totalQuadCount, 255));
+            // For fluid blocks: repurposed as fluidLevel (0=falling, 1-7=flowing, 8=source)
+            if (fluidType != 0) {
+                entryBuf.put(entryPos + 23, (byte) state.getFluidState().getLevel());
+            } else {
+                entryBuf.put(entryPos + 23, (byte) Math.min(totalQuadCount, 255));
+            }
 
             // emissionNits (float)
             float emissionNits = eb != null ? eb.getDefaultSurfaceNits() : 0.0f;
             entryBuf.putFloat(entryPos + 24, emissionNits);
 
             // tintColorType + fixedTintRGB (4 bytes at offset 28-31)
-            if (hasTintedQuad) {
+            // For water fluids: force tintColorType=2 (TINT_WATER) since fluids have no quads with tintIndex
+            if (fluidType == 1) {
+                entryBuf.put(entryPos + 28, TINT_WATER);
+                entryBuf.put(entryPos + 29, (byte) 0);
+                entryBuf.put(entryPos + 30, (byte) 0);
+                entryBuf.put(entryPos + 31, (byte) 0);
+            } else if (fluidType == 2) {
+                entryBuf.put(entryPos + 28, TINT_NONE);
+                entryBuf.put(entryPos + 29, (byte) 0);
+                entryBuf.put(entryPos + 30, (byte) 0);
+                entryBuf.put(entryPos + 31, (byte) 0);
+            } else if (hasTintedQuad) {
                 byte tintType = classifyTintType(block, state);
                 entryBuf.put(entryPos + 28, tintType);
                 if (tintType == TINT_FIXED) {
