@@ -133,9 +133,11 @@ public class BlockModelBridge {
             // globalStateId (uint32)
             entryBuf.putInt(entryPos, stateId);
 
-            // renderType (uint8)
+            // renderType (uint8): 0=invisible, 1=model, 2=fluid
             byte renderType = 0;
-            if (state.getRenderType() == net.minecraft.block.BlockRenderType.MODEL) {
+            if (block instanceof FluidBlock) {
+                renderType = 2;
+            } else if (state.getRenderType() == net.minecraft.block.BlockRenderType.MODEL) {
                 renderType = 1;
             }
             entryBuf.put(entryPos + 4, renderType);
@@ -260,6 +262,15 @@ public class BlockModelBridge {
                 entryBuf.put(entryPos + 29, (byte) 0);
                 entryBuf.put(entryPos + 30, (byte) 0);
                 entryBuf.put(entryPos + 31, (byte) 0);
+            }
+
+            // Waterlogged detection: non-FluidBlock with non-empty fluid state.
+            // Set fluidType AFTER model serialization so quadOffset/totalQuadCount/tint keep model values.
+            // C++ mesher uses table-stored water sprite IDs and source level for these.
+            if (fluidType == 0 && !state.getFluidState().isEmpty()) {
+                if (state.getFluidState().isOf(Fluids.WATER) || state.getFluidState().isOf(Fluids.FLOWING_WATER)) {
+                    entryBuf.put(entryPos + 11, (byte) 1);
+                }
             }
 
             entryCount++;
