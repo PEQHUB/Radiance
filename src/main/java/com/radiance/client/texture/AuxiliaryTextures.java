@@ -289,7 +289,10 @@ public enum AuxiliaryTextures {
                                     continue;
                                 }
                             }
-                            auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+                            // Neutral LabPBR fill for normals (R=128 X=0, G=128 Y=0, B=255 AO=1, A=0 height=0).
+                            // Zero fill causes NaN normals in shader: sqrt(1 - dot((-1,-1),(-1,-1))) = sqrt(-1).
+                            int customFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
+                            auxiliaryTemplateImage = source.applyToCopy(i -> customFallback);
                         } else {
                             // Auto: existing LabPBR/auto-PBR path
                             boolean autoPBR = mbOrdinal >= 0
@@ -307,7 +310,9 @@ public enum AuxiliaryTextures {
                                 // GPU-side AutoPBR: roughness computed in shader, skip CPU bake
                                 auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                             } else {
-                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
+                                // Neutral LabPBR fill for normals; zero for specular
+                                int autoFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
+                                auxiliaryTemplateImage = source.applyToCopy(i -> autoFallback);
                             }
                             // Always cache albedo and track GLIDs for block textures at mip 0,
                             // so LiveNormalReuploader can generate Auto-PBR on demand later

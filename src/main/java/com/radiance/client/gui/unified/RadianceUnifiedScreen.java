@@ -6,6 +6,7 @@ import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.populators.*;
 import com.radiance.client.option.Options;
+import com.radiance.client.option.PresetManager;
 import com.radiance.client.util.EmissiveBlock;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
@@ -57,6 +58,7 @@ public class RadianceUnifiedScreen extends Screen {
     private ResettableSliderWidget opacitySlider;
     private ButtonWidget resetDefaultsButton;
     private ButtonWidget advancedToggleButton;
+    private ButtonWidget[] presetButtons;
 
     // ── Search ──
     private UnifiedSearchOverlay searchOverlay;
@@ -132,6 +134,24 @@ public class RadianceUnifiedScreen extends Screen {
         opacitySlider.settingKey = "uiGlobalAlphaPercent";
         this.addDrawableChild(opacitySlider);
 
+        // Preset buttons (between title and opacity slider)
+        int presetBtnW = 24;
+        int presetBtnH = 18;
+        int presetBtnY = (HEADER_HEIGHT - presetBtnH) / 2;
+        int presetStartX = 8 + this.textRenderer.getWidth(
+            Text.translatable("radiance.settings.title")) + 12;
+        presetButtons = new ButtonWidget[3];
+        for (int slot = 1; slot <= 3; slot++) {
+            final int s = slot;
+            int btnX = presetStartX + (slot - 1) * (presetBtnW + 4);
+            presetButtons[slot - 1] = ButtonWidget.builder(
+                Text.literal(String.valueOf(slot)),
+                btn -> handlePresetClick(s))
+                .dimensions(btnX, presetBtnY, presetBtnW, presetBtnH)
+                .build();
+            this.addDrawableChild(presetButtons[slot - 1]);
+        }
+
         // Search overlay
         searchOverlay = new UnifiedSearchOverlay(this);
 
@@ -178,6 +198,33 @@ public class RadianceUnifiedScreen extends Screen {
         // Full reinit — re-set screen to trigger init()
         MinecraftClient mc = MinecraftClient.getInstance();
         mc.setScreen(new RadianceUnifiedScreen(parent));
+    }
+
+    // ── Preset handling ──
+
+    private void handlePresetClick(int slot) {
+        long handle = MinecraftClient.getInstance().getWindow().getHandle();
+        boolean shift = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS
+                     || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS;
+        boolean ctrl = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+
+        if (ctrl && shift) {
+            PresetManager.clear(slot);
+            Options.setFocusToast("Preset " + slot + " cleared", 0xB0B0B0, 1500);
+        } else if (shift) {
+            Options.overwriteConfig();
+            PresetManager.save(slot);
+            Options.setFocusToast("Saved to Preset " + slot, 0x55FF55, 1500);
+        } else {
+            if (PresetManager.isOccupied(slot)) {
+                PresetManager.load(slot);
+                Options.setFocusToast("Loaded Preset " + slot, 0x55FF55, 1500);
+                MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(parent));
+            } else {
+                Options.setFocusToast("Empty — Shift+Click to save", 0xFF5555, 2000);
+            }
+        }
     }
 
     // ── Tree structure ──
@@ -399,6 +446,42 @@ public class RadianceUnifiedScreen extends Screen {
             RadianceTheme.drawOutlinedText(context, this.textRenderer,
                 Text.translatable("radiance.settings.title"),
                 8, (HEADER_HEIGHT - 8) / 2, RadianceTheme.textAccent, fade);
+
+            // Preset buttons (custom rendering with state-aware colors)
+            if (presetButtons != null) {
+                for (int i = 0; i < presetButtons.length; i++) {
+                    ButtonWidget btn = presetButtons[i];
+                    int bx = btn.getX(), by = btn.getY(), bw = btn.getWidth(), bh = btn.getHeight();
+                    boolean hovered = mouseX >= bx && mouseX < bx + bw
+                        && mouseY >= by && mouseY < by + bh;
+                    int slot = i + 1;
+                    boolean occupied = PresetManager.isOccupied(slot);
+                    boolean active = PresetManager.getActiveSlot() == slot;
+
+                    int bg;
+                    if (active) {
+                        bg = RadianceTheme.withAlpha(0x2AB5A0, fade * 0.8f);
+                    } else if (occupied) {
+                        bg = hovered ? RadianceTheme.buttonHover : RadianceTheme.buttonBg;
+                    } else {
+                        bg = RadianceTheme.withAlpha(0x1A1A1A, fade * 0.5f);
+                    }
+                    context.fill(bx, by, bx + bw, by + bh, bg);
+
+                    int border = active ? RadianceTheme.withAlpha(0x2AB5A0, fade)
+                               : occupied ? RadianceTheme.buttonBorder
+                               : RadianceTheme.withAlpha(0x303030, fade * 0.5f);
+                    context.drawBorder(bx, by, bw, bh, border);
+
+                    int textColor = active ? 0xFFFFFF
+                                  : occupied ? (hovered ? 0xFFFFFF : 0xB0B0B0)
+                                  : 0x606060;
+                    Text label = btn.getMessage();
+                    RadianceTheme.drawOutlinedText(context, this.textRenderer, label,
+                        bx + (bw - this.textRenderer.getWidth(label)) / 2,
+                        by + (bh - 8) / 2, textColor, fade);
+                }
+            }
 
             // Re-render the header widgets on top of the background
             // (super.render drew them but the bg was painted over them)

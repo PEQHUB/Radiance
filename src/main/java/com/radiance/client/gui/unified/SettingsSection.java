@@ -34,6 +34,7 @@ public class SettingsSection {
     private final List<SettingsRow> rows = new ArrayList<>();
 
     private boolean collapsed = false;
+    private boolean collapsible = false;
     private long collapseAnimStartMs = 0;
     private boolean animating = false;
     private boolean animTargetCollapsed = false;
@@ -64,6 +65,12 @@ public class SettingsSection {
     /** Set a brief description shown below the section header in dim text. */
     public SettingsSection setDescription(String desc) {
         this.description = Text.literal(desc);
+        return this;
+    }
+
+    /** Make this section collapsible (header click toggles expand/collapse). Default: false. */
+    public SettingsSection setCollapsible(boolean collapsible) {
+        this.collapsible = collapsible;
         return this;
     }
 
@@ -243,23 +250,26 @@ public class SettingsSection {
 
     private void renderHeader(DrawContext context, int x, int y, int width,
                               int mouseX, int mouseY, float alphaMult) {
-        // Collapse indicator
-        String indicator = (collapsed && !animating) || (animating && animTargetCollapsed && getAnimatedContentHeight() < expandedContentHeight * 0.5f)
-            ? "\u25B6" : "\u25BC"; // ▶ or ▼
-
-        // Modern left-aligned header: indicator + label + thin underline
         var textRenderer = MinecraftClient.getInstance().textRenderer;
         int textY = y + (HEADER_HEIGHT - 8) / 2;
 
-        // Draw indicator
-        RadianceTheme.drawOutlinedText(context, textRenderer,
-            Text.literal(indicator), x + 2, textY,
-            RadianceTheme.textSecondary, alphaMult);
-
-        // Draw title in accent color, offset past indicator
-        RadianceTheme.drawOutlinedText(context, textRenderer,
-            title, x + 14, textY,
-            RadianceTheme.textAccent & 0x00FFFFFF | 0xFF000000, alphaMult);
+        if (collapsible) {
+            // Collapse indicator: ▶ (collapsed) or ▼ (expanded)
+            String indicator = (collapsed && !animating) || (animating && animTargetCollapsed && getAnimatedContentHeight() < expandedContentHeight * 0.5f)
+                ? "\u25B6" : "\u25BC";
+            RadianceTheme.drawOutlinedText(context, textRenderer,
+                Text.literal(indicator), x + 2, textY,
+                RadianceTheme.textSecondary, alphaMult);
+            // Title offset past indicator
+            RadianceTheme.drawOutlinedText(context, textRenderer,
+                title, x + 14, textY,
+                RadianceTheme.textAccent & 0x00FFFFFF | 0xFF000000, alphaMult);
+        } else {
+            // No arrow — title flush left
+            RadianceTheme.drawOutlinedText(context, textRenderer,
+                title, x + 2, textY,
+                RadianceTheme.textAccent & 0x00FFFFFF | 0xFF000000, alphaMult);
+        }
 
         // Thin horizontal rule below
         int lineY = y + HEADER_HEIGHT - 2;
@@ -278,8 +288,8 @@ public class SettingsSection {
                                 int sectionX, int sectionY, int width) {
         clickedRow = null;
 
-        // Header click toggles collapse
-        if (button == 0 && mouseY >= sectionY && mouseY < sectionY + HEADER_HEIGHT
+        // Header click toggles collapse (only if collapsible)
+        if (collapsible && button == 0 && mouseY >= sectionY && mouseY < sectionY + HEADER_HEIGHT
                 && mouseX >= sectionX && mouseX < sectionX + width) {
             toggleCollapse();
             return true;
@@ -336,6 +346,7 @@ public class SettingsSection {
     // ── Collapse ──
 
     public void toggleCollapse() {
+        if (!collapsible) return;
         animTargetCollapsed = !collapsed;
         collapseAnimStartMs = System.currentTimeMillis();
         animating = true;
@@ -346,6 +357,7 @@ public class SettingsSection {
     }
 
     public void setCollapsed(boolean collapsed) {
+        if (!collapsible) return;
         this.collapsed = collapsed;
         this.animating = false;
     }

@@ -361,11 +361,9 @@ public class KeyInputHandler {
         Options.nativeSetOfflineDisableClamp(savedDisableClamp, false);
     }
 
-    /** Show a temporary toast message on the HUD. */
+    /** Show a temporary toast message on the HUD. Delegates to Options.setFocusToast(). */
     private static void setFocusToast(String message, int color, long durationMs) {
-        Options.focusToastMessage = message;
-        Options.focusToastColor = color;
-        Options.focusToastExpireMs = System.currentTimeMillis() + durationMs;
+        Options.setFocusToast(message, color, (int) durationMs);
     }
 
     private static MaterialBlock getTargetMaterialBlock(MinecraftClient client) {

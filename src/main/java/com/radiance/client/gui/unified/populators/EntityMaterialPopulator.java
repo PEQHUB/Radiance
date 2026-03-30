@@ -8,6 +8,7 @@ import com.radiance.client.material.EntityMaterial;
 import com.radiance.client.material.MaterialRegistry;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
 import java.util.ArrayList;
@@ -40,6 +41,18 @@ public class EntityMaterialPopulator implements ContentPopulator {
 
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
+        // Global entity normals toggle
+        SettingsSection globalSection = panel.addSection("Entity Normals");
+        ButtonWidget normalsToggle = ButtonWidget.builder(
+            Text.literal("Entity Normal Maps: " + (Options.entityNormalsEnabled ? "ON" : "OFF")),
+            btn -> {
+                Options.setEntityNormalsEnabled(!Options.entityNormalsEnabled, true);
+                screen.refreshContent();
+            })
+            .width(150).build();
+        globalSection.addButton(normalsToggle);
+
+        // Per-group sections
         for (int g = 0; g < GROUPS.length; g++) {
             SettingsSection section = panel.addSection(GROUP_NAMES[g]);
 
@@ -47,7 +60,19 @@ public class EntityMaterialPopulator implements ContentPopulator {
                 int ord = cat.getOrdinal();
                 String label = formatCategoryName(cat);
 
-                // Roughness + Metallic pair (defaults: generic dielectric from Options static init)
+                // Normal Strength slider (only when entity normals enabled)
+                if (Options.entityNormalsEnabled) {
+                    section.addSlider(
+                        new ResettableSliderWidget(0, 0, 150, 20,
+                            0, 200, Options.materialNormalStrength[ord], 100,
+                            v -> getGenericValueText(Text.literal(label + " Normal"),
+                                Text.literal(v + "%")),
+                            v -> { Options.materialNormalStrength[ord] = v;
+                                   MaterialRegistry.markDirty(); })
+                    );
+                }
+
+                // Roughness + Metallic pair
                 section.addTwoSliders(
                     new ResettableSliderWidget(0, 0, 150, 20,
                         0, 100, Options.materialRoughness[ord], 80,
@@ -78,10 +103,12 @@ public class EntityMaterialPopulator implements ContentPopulator {
     public List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
         List<UnifiedSearchOverlay.SearchEntry> entries = new ArrayList<>();
         entries.add(new UnifiedSearchOverlay.SearchEntry("Entity Materials", category, nodeId, false));
+        entries.add(new UnifiedSearchOverlay.SearchEntry("Entity Normal Maps", category, nodeId, false));
         for (EntityMaterial.Category cat : EntityMaterial.Category.values()) {
             String name = formatCategoryName(cat);
             entries.add(new UnifiedSearchOverlay.SearchEntry(name + " Roughness", category, nodeId, false));
             entries.add(new UnifiedSearchOverlay.SearchEntry(name + " Metallic", category, nodeId, false));
+            entries.add(new UnifiedSearchOverlay.SearchEntry(name + " Normal Strength", category, nodeId, false));
         }
         return entries;
     }

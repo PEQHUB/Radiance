@@ -30,6 +30,33 @@ public class InGameHudMixins {
 
     @Inject(method = "render", at = @At("TAIL"))
     private void renderOfflineOverlay(DrawContext context, RenderTickCounter tickCounter, CallbackInfo ci) {
+        // Toast notification (visible in ALL game states, not just offline)
+        if (Options.focusToastMessage != null) {
+            long now = System.currentTimeMillis();
+            if (now < Options.focusToastExpireMs) {
+                MinecraftClient mc = MinecraftClient.getInstance();
+                int w = mc.getWindow().getScaledWidth();
+                int h = mc.getWindow().getScaledHeight();
+                var tr = mc.textRenderer;
+                long remaining = Options.focusToastExpireMs - now;
+                float alpha = remaining < 300 ? remaining / 300f : 1.0f;
+                int a = (int)(alpha * 255) & 0xFF;
+                int argb = (a << 24) | (Options.focusToastColor & 0x00FFFFFF);
+                int outline = (a << 24);
+                String msg = Options.focusToastMessage;
+                int tw = tr.getWidth(msg);
+                int tx = (w - tw) / 2;
+                int ty = (int)(h * 0.3);
+                context.drawText(tr, msg, tx - 1, ty, outline, false);
+                context.drawText(tr, msg, tx + 1, ty, outline, false);
+                context.drawText(tr, msg, tx, ty - 1, outline, false);
+                context.drawText(tr, msg, tx, ty + 1, outline, false);
+                context.drawText(tr, msg, tx, ty, argb, false);
+            } else {
+                Options.focusToastMessage = null;
+            }
+        }
+
         if (Options.offlineState == 0) return;
 
         MinecraftClient client = MinecraftClient.getInstance();
@@ -207,17 +234,7 @@ public class InGameHudMixins {
             y += lineHeight;
             context.drawTextWithShadow(renderer, "Scroll: Focus | Shift+Scroll: Time", x, y, 0x666666);
 
-            // Focus toast (centered, 30% from top)
-            if (Options.focusToastMessage != null) {
-                if (System.currentTimeMillis() < Options.focusToastExpireMs) {
-                    int toastWidth = renderer.getWidth(Options.focusToastMessage);
-                    int toastY = (int)(height * 0.3);
-                    context.drawTextWithShadow(renderer, Options.focusToastMessage,
-                        (width - toastWidth) / 2, toastY, Options.focusToastColor);
-                } else {
-                    Options.focusToastMessage = null;
-                }
-            }
+            // Toast rendering moved to top of method (renders in all game states)
         }
     }
 

@@ -478,6 +478,12 @@ public class Options {
     public static boolean noEmissionClamp = false;
     public static boolean physicalSunDisk = true;
     public static boolean noHandAmbient = false;
+    public static boolean entityNormalsEnabled = true;
+    public static void setEntityNormalsEnabled(boolean enabled, boolean write) {
+        entityNormalsEnabled = enabled;
+        nativeSetEntityNormalsEnabled(enabled, false);
+        if (write) overwriteConfig();
+    }
     public static int offlineBounces = 16;           // 1-128
     public static boolean offlineDisableRR = false;
     public static boolean offlineDisableClamp = false;
@@ -510,6 +516,14 @@ public class Options {
     public static String focusToastMessage = null;       // transient toast text (null = hidden)
     public static long focusToastExpireMs = 0;           // System.currentTimeMillis() when toast expires
     public static int focusToastColor = 0xFFFFFF;        // toast text color
+
+    /** Show a temporary toast notification on the HUD. Visible in all game states. */
+    public static void setFocusToast(String message, int color, int durationMs) {
+        focusToastMessage = message;
+        focusToastColor = color;
+        focusToastExpireMs = System.currentTimeMillis() + durationMs;
+    }
+
     // Freecam instance (transient)
     public static com.radiance.client.input.FreecamState freecam = new com.radiance.client.input.FreecamState();
 
@@ -1858,6 +1872,7 @@ public class Options {
             noEmissionClamp = Boolean.parseBoolean(props.getProperty("noEmissionClamp", String.valueOf(noEmissionClamp)));
             physicalSunDisk = Boolean.parseBoolean(props.getProperty("physicalSunDisk", String.valueOf(physicalSunDisk)));
             noHandAmbient = Boolean.parseBoolean(props.getProperty("noHandAmbient", String.valueOf(noHandAmbient)));
+            entityNormalsEnabled = Boolean.parseBoolean(props.getProperty("entityNormalsEnabled", String.valueOf(entityNormalsEnabled)));
 
             // Offline accumulation preferences (ground truth is session-only, not persisted)
             offlineBounces = Integer.parseInt(props.getProperty("offlineBounces", String.valueOf(offlineBounces)));
@@ -1904,6 +1919,7 @@ public class Options {
             nativeSetNoEmissionClamp(noEmissionClamp, false);
             nativeSetPhysicalSunDisk(physicalSunDisk, false);
             nativeSetNoHandAmbient(noHandAmbient, false);
+            nativeSetEntityNormalsEnabled(entityNormalsEnabled, false);
 
             for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
                 areaLightBlockIntensity[i] = clamp(Integer.parseInt(props.getProperty("areaLightBlock." + i, "100")), 0, 500);
@@ -2455,6 +2471,7 @@ public class Options {
         props.setProperty("noEmissionClamp", String.valueOf(noEmissionClamp));
         props.setProperty("physicalSunDisk", String.valueOf(physicalSunDisk));
         props.setProperty("noHandAmbient", String.valueOf(noHandAmbient));
+        props.setProperty("entityNormalsEnabled", String.valueOf(entityNormalsEnabled));
         // Offline accumulation preferences (ground truth is session-only, not persisted)
         props.setProperty("offlineBounces", String.valueOf(offlineBounces));
         props.setProperty("offlineDisableRR", String.valueOf(offlineDisableRR));
@@ -5140,6 +5157,7 @@ public class Options {
     public native static void nativeSetNoEmissionClamp(boolean enabled, boolean write);
     public native static void nativeSetPhysicalSunDisk(boolean enabled, boolean write);
     public native static void nativeSetNoHandAmbient(boolean enabled, boolean write);
+    public native static void nativeSetEntityNormalsEnabled(boolean enabled, boolean write);
     public native static void nativeSetOfflineState(int state, boolean write);
     public native static void nativeSetOfflineBounces(int bounces, boolean write);
     public native static void nativeSetOfflineDisableRR(boolean disable, boolean write);
