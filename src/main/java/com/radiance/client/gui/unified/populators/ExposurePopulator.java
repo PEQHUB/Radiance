@@ -40,81 +40,50 @@ public class ExposurePopulator implements ContentPopulator {
             return;
         }
 
-        // Legacy Exposure toggle
-        SimpleOption<Boolean> legacyExposure = SimpleOption.ofBoolean(
-            Options.LEGACY_EXPOSURE_KEY,
-            Options.legacyExposure,
-            value -> {
-                Options.setLegacyExposure(value, true);
-                screen.refreshContent();
-            });
-        section.addToggle(legacyExposure.createWidget(MinecraftClient.getInstance().options));
-        section.tooltip("Uses simplified histogram-based exposure. More stable but less accurate.");
+        // Eye Adaptation section
+        SettingsSection adapt = panel.addSection(Text.literal("Eye Adaptation"));
 
-        // Speed controls
-        SettingsSection speeds = panel.addSection(Text.literal("Adaptation Speed"));
-        speeds.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 200, Options.exposureUpSpeedTenths, 8,
-            v -> getGenericValueText(Text.translatable(Options.EXPOSURE_UP_SPEED_KEY), Text.literal(String.format("%.1f", v / 10.0))),
-            v -> Options.setExposureUpSpeedTenths(v, true)));
-        speeds.tooltip("How fast exposure adapts to brightness changes, in EV per second.");
-        speeds.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 200, Options.exposureDownSpeedTenths, 15,
-            v -> getGenericValueText(Text.translatable(Options.EXPOSURE_DOWN_SPEED_KEY), Text.literal(String.format("%.1f", v / 10.0))),
-            v -> Options.setExposureDownSpeedTenths(v, true)));
-        speeds.tooltip("How fast exposure adapts to brightness changes, in EV per second.");
-        speeds.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            10, 80, Options.exposureBrightAdaptBoostTenths, 10,
-            v -> getGenericValueText(Text.translatable(Options.EXPOSURE_BRIGHT_ADAPT_BOOST_KEY), Text.literal(String.format("x%.1f", v / 10.0))),
-            v -> Options.setExposureBrightAdaptBoostTenths(v, true)));
-        speeds.tooltip("Multiplier for adaptation speed when scene brightens quickly.");
+        // Row 1: Bright Adapt | Dark Adapt
+        adapt.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                1, 50, Options.brightAdaptSpeedTenths, 5,
+                v -> getGenericValueText(Text.translatable(Options.BRIGHT_ADAPT_SPEED_KEY),
+                    Text.literal(String.format("%.1fs", v / 10.0))),
+                v -> Options.setBrightAdaptSpeedTenths(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                5, 100, Options.darkAdaptSpeedTenths, 20,
+                v -> getGenericValueText(Text.translatable(Options.DARK_ADAPT_SPEED_KEY),
+                    Text.literal(String.format("%.1fs", v / 10.0))),
+                v -> Options.setDarkAdaptSpeedTenths(v, true)));
+        adapt.tooltip("How quickly exposure adapts. Bright adapt = entering sunlight. Dark adapt = entering caves.");
 
-        if (!Options.legacyExposure) {
-            SettingsSection highlight = panel.addSection(Text.literal("Highlight Protection"));
-            highlight.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                8, 24, Options.exposureLog2Max, 18,
-                v -> getGenericValueText(Text.translatable(Options.EXPOSURE_LOG2_MAX_KEY), Text.literal(Integer.toString(v))),
-                v -> Options.setExposureLog2Max(v, true)));
-            highlight.tooltip("Log2 of maximum scene luminance before clipping. Higher preserves more highlights.");
-            highlight.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                0, 100, Options.exposureHighlightProtectionPercent, 30,
-                v -> getGenericValueText(Text.translatable(Options.EXPOSURE_HIGHLIGHT_PROTECTION_KEY), Text.literal(v + "%")),
-                v -> Options.setExposureHighlightProtectionPercent(v, true)));
-            highlight.tooltip("Percentage of histogram weight given to highlights. Prevents blown-out bright areas.");
-            highlight.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                0, 300, Options.exposureHighlightSmoothSpeedTenths, 20,
-                v -> getGenericValueText(Text.translatable(Options.EXPOSURE_HIGHLIGHT_SMOOTH_SPEED_KEY), Text.literal(String.format("%.1f", v / 10.0))),
-                v -> Options.setExposureHighlightSmoothSpeedTenths(v, true)));
-            highlight.tooltip("How quickly highlight protection adjusts. Higher = more responsive.");
-            highlight.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                9000, 9999, Options.exposureHighlightPercentileTenK, 9800,
-                v -> getGenericValueText(Text.translatable(Options.EXPOSURE_HIGHLIGHT_PERCENTILE_KEY), Text.literal(String.format("%.2f%%", v / 100.0))),
-                v -> Options.setExposureHighlightPercentileTenK(v, true)));
-            highlight.tooltip("Histogram percentile used for highlight detection. Higher = only extreme highlights.");
-        }
+        // Row 2: Scene Cut | Center Weight
+        adapt.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                20, 100, Options.sceneChangeThresholdTenths, 50,
+                v -> getGenericValueText(Text.translatable(Options.SCENE_CHANGE_THRESHOLD_KEY),
+                    Text.literal(String.format("%.1f EV", v / 10.0))),
+                v -> Options.setSceneChangeThresholdTenths(v, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 100, Options.centerWeightPercent, 0,
+                v -> getGenericValueText(Text.translatable(Options.CENTER_WEIGHT_STRENGTH_KEY),
+                    Text.literal(v + "%")),
+                v -> Options.setCenterWeightPercent(v, true)));
+        adapt.tooltip("Scene Cut: EV jump for instant snap. Center Weight: how much center of screen influences metering.");
 
-        // Range & Compensation
-        SettingsSection range = panel.addSection(Text.literal("Range & Compensation"));
-        range.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 10000, Options.minExposureTenK, 1,
-            v -> getGenericValueText(Text.translatable(Options.MIN_EXPOSURE_KEY), Text.literal(String.format("%.1e", v * 1e-7))),
-            v -> Options.setMinExposure(v, true)));
-        range.tooltip("Clamps the auto-exposure range. Prevents over/under-exposure in extreme scenes.");
-        range.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 100, Options.maxExposure, 20,
-            v -> getGenericValueText(Text.translatable(Options.MAX_EXPOSURE_KEY), Text.literal(String.format("%.1f", v / 10.0))),
-            v -> Options.setMaxExposure(v, true)));
-        range.tooltip("Clamps the auto-exposure range. Prevents over/under-exposure in extreme scenes.");
-        range.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            0, 60, Options.exposureCompensation + 30, 0 + 30,
-            v -> getGenericValueText(Text.translatable(Options.EXPOSURE_COMPENSATION_KEY), Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
-            v -> Options.setExposureCompensation(v - 30, true)));
-        range.tooltip("Manual offset added to auto-exposure. Use to brighten or darken the scene.");
-        range.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-            1, 50, Options.middleGreyPercent, 18,
-            v -> getGenericValueText(Text.translatable(Options.MIDDLE_GREY_KEY), Text.literal(String.format("%.2f", v / 100.0))),
-            v -> Options.setMiddleGrey(v, true)));
-        range.tooltip("The luminance value mapped to 18% grey. Lower = brighter overall image.");
+        // Row 3: Compensation | Middle Grey
+        adapt.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 60, Options.exposureCompensation + 30, 0 + 30,
+                v -> getGenericValueText(Text.translatable(Options.EXPOSURE_COMPENSATION_KEY),
+                    Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
+                v -> Options.setExposureCompensation(v - 30, true)),
+            new ResettableSliderWidget(0, 0, 150, 20,
+                1, 50, Options.middleGreyPercent, 18,
+                v -> getGenericValueText(Text.translatable(Options.MIDDLE_GREY_KEY),
+                    Text.literal(String.format("%.2f", v / 100.0))),
+                v -> Options.setMiddleGrey(v, true)));
+        adapt.tooltip("Compensation: manual EV offset. Middle Grey: target luminance for 18% grey.");
     }
 
     @Override
@@ -122,12 +91,10 @@ public class ExposurePopulator implements ContentPopulator {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("Manual Exposure", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Exposure EV", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Legacy Exposure", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Adaptation Speed Up", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Adaptation Speed Down", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Highlight Protection", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Min Exposure", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Max Exposure", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Bright Adapt Speed", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Dark Adapt Speed", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Scene Cut Threshold", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Center Weight", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Exposure Compensation", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Middle Grey", category, nodeId, false)
         );

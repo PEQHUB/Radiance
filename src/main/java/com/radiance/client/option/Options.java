@@ -22,7 +22,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 20;
+    public static final int CURRENT_OPTIONS_VERSION = 22;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 0;
     public static final int SATURATION_DEFAULT_PERCENT = 100;
     public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
@@ -114,14 +114,10 @@ public class Options {
     public static final String EXPOSURE_COMPENSATION_KEY = "options.video.exposure_compensation";
     public static final String MANUAL_EXPOSURE_ENABLED_KEY = "options.video.manual_exposure_enabled";
     public static final String MANUAL_EXPOSURE_KEY = "options.video.manual_exposure";
-    public static final String LEGACY_EXPOSURE_KEY = "options.video.legacy_exposure";
-    public static final String EXPOSURE_UP_SPEED_KEY = "options.video.exposure_up_speed";
-    public static final String EXPOSURE_DOWN_SPEED_KEY = "options.video.exposure_down_speed";
-    public static final String EXPOSURE_BRIGHT_ADAPT_BOOST_KEY = "options.video.exposure_bright_adapt_boost";
-    public static final String EXPOSURE_HIGHLIGHT_PROTECTION_KEY = "options.video.exposure_highlight_protection";
-    public static final String EXPOSURE_HIGHLIGHT_PERCENTILE_KEY = "options.video.exposure_highlight_percentile";
-    public static final String EXPOSURE_HIGHLIGHT_SMOOTH_SPEED_KEY = "options.video.exposure_highlight_smooth_speed";
-    public static final String EXPOSURE_LOG2_MAX_KEY = "options.video.exposure_log2_max";
+    public static final String BRIGHT_ADAPT_SPEED_KEY = "options.video.bright_adapt_speed";
+    public static final String DARK_ADAPT_SPEED_KEY = "options.video.dark_adapt_speed";
+    public static final String SCENE_CHANGE_THRESHOLD_KEY = "options.video.scene_change_threshold";
+    public static final String CENTER_WEIGHT_STRENGTH_KEY = "options.video.center_weight_strength";
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
@@ -432,9 +428,10 @@ public class Options {
         if (psychoBleachingPercent != 0) count++;
         if (psychoHueRestorePercent != 0) count++;
         // Exposure tuning
-        if (exposureUpSpeedTenths != 8) count++;
-        if (exposureDownSpeedTenths != 10) count++;
-        if (exposureBrightAdaptBoostTenths != 10) count++;
+        if (brightAdaptSpeedTenths != 5) count++;
+        if (darkAdaptSpeedTenths != 20) count++;
+        if (sceneChangeThresholdTenths != 50) count++;
+        if (centerWeightPercent != 0) count++;
         // OMM baker level
         if (ommBakerLevel != 4) count++;
         // Multi-scatter / EON (default is true)
@@ -682,18 +679,13 @@ public class Options {
     public static int exposureCompensation = 0; // tenths of EV: -30 to +30 → -3.0 to +3.0
     public static boolean manualExposureEnabled = false;  // auto exposure on by default (required for physical luminance range)
     public static int manualExposureEV100Tenths = 150; // EV100 in tenths: -40 to 200 -> EV -4.0 to EV 20.0 (default EV 15 = sunny day)
-    public static boolean legacyExposure = false;
     public static int sharpenerMode = 0; // 0=None, 1=CAS, 2=RCAS
     public static int casSharpnessPercent = 50;
-    // Treat speeds as max EV change per second (rate-limited adaptation).
-    // Defaults are tuned to avoid sun-induced pulsing while still reacting to bright terrain.
-    public static int exposureUpSpeedTenths = 8;               // 1-200 → 0.1 to 20.0 (0.8 EV/s dark adapt)
-    public static int exposureDownSpeedTenths = 10;           // 1-200 → 0.1 to 20.0 (1.0 EV/s bright adapt)
-    public static int exposureBrightAdaptBoostTenths = 10;    // 10-80 → 1.0 to 8.0 (1.0× no boost, eliminates asymmetry)
-    public static int exposureHighlightProtectionPercent = 30; // 0-100 → 0.0 to 1.0 (soft nudge, tonemapper clips)
-    public static int exposureHighlightPercentileTenK = 9800; // 9000-9999 → 0.9000 to 0.9999 (98th percentile, less sensitive to outliers)
-    public static int exposureHighlightSmoothSpeedTenths = 20; // 0-300 → 0.0 to 30.0 (~0.35s half-life)
-    public static int exposureLog2Max = 18;                   // 8-24, improved mode only (physical sun ~100k lux needs ~17)
+    // Exponential-decay auto-exposure parameters (v21)
+    public static int brightAdaptSpeedTenths = 5;              // 1-50 → 0.1 to 5.0 seconds (tau for bright adapt)
+    public static int darkAdaptSpeedTenths = 20;               // 5-100 → 0.5 to 10.0 seconds (tau for dark adapt)
+    public static int sceneChangeThresholdTenths = 50;         // 20-100 → 2.0 to 10.0 EV (instant snap threshold)
+    public static int centerWeightPercent = 0;                 // 0-100 → 0.0 to 1.0 (center-weighted metering strength, 0=uniform)
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
@@ -2118,31 +2110,19 @@ public class Options {
             psychoConeExponentPercent = Integer.parseInt(props.getProperty("psychoConeExponentPercent", "100"));
             nativeSetPsychoConeExponent(psychoConeExponentPercent / 100.0f, false);
 
-            legacyExposure = Boolean.parseBoolean(props.getProperty(
-                "legacyExposure", String.valueOf(legacyExposure)));
+            brightAdaptSpeedTenths = Integer.parseInt(props.getProperty(
+                "brightAdaptSpeedTenths", String.valueOf(brightAdaptSpeedTenths)));
+            darkAdaptSpeedTenths = Integer.parseInt(props.getProperty(
+                "darkAdaptSpeedTenths", String.valueOf(darkAdaptSpeedTenths)));
+            sceneChangeThresholdTenths = Integer.parseInt(props.getProperty(
+                "sceneChangeThresholdTenths", String.valueOf(sceneChangeThresholdTenths)));
+            centerWeightPercent = Integer.parseInt(props.getProperty(
+                "centerWeightPercent", String.valueOf(centerWeightPercent)));
 
-            exposureUpSpeedTenths = Integer.parseInt(props.getProperty(
-                "exposureUpSpeedTenths", String.valueOf(exposureUpSpeedTenths)));
-            exposureDownSpeedTenths = Integer.parseInt(props.getProperty(
-                "exposureDownSpeedTenths", String.valueOf(exposureDownSpeedTenths)));
-            exposureBrightAdaptBoostTenths = Integer.parseInt(props.getProperty(
-                "exposureBrightAdaptBoostTenths", String.valueOf(exposureBrightAdaptBoostTenths)));
-            exposureHighlightProtectionPercent = Integer.parseInt(props.getProperty(
-                "exposureHighlightProtectionPercent", String.valueOf(exposureHighlightProtectionPercent)));
-            exposureHighlightPercentileTenK = Integer.parseInt(props.getProperty(
-                "exposureHighlightPercentileTenK", String.valueOf(exposureHighlightPercentileTenK)));
-            exposureHighlightSmoothSpeedTenths = Integer.parseInt(props.getProperty(
-                "exposureHighlightSmoothSpeedTenths", String.valueOf(exposureHighlightSmoothSpeedTenths)));
-            exposureLog2Max = Integer.parseInt(props.getProperty(
-                "exposureLog2Max", String.valueOf(exposureLog2Max)));
-
-            exposureUpSpeedTenths = clamp(exposureUpSpeedTenths, 1, 200);
-            exposureDownSpeedTenths = clamp(exposureDownSpeedTenths, 1, 200);
-            exposureBrightAdaptBoostTenths = clamp(exposureBrightAdaptBoostTenths, 10, 80);
-            exposureHighlightProtectionPercent = clamp(exposureHighlightProtectionPercent, 0, 100);
-            exposureHighlightPercentileTenK = clamp(exposureHighlightPercentileTenK, 9000, 9999);
-            exposureHighlightSmoothSpeedTenths = clamp(exposureHighlightSmoothSpeedTenths, 0, 300);
-            exposureLog2Max = clamp(exposureLog2Max, 8, 24);
+            brightAdaptSpeedTenths = clamp(brightAdaptSpeedTenths, 1, 50);
+            darkAdaptSpeedTenths = clamp(darkAdaptSpeedTenths, 5, 100);
+            sceneChangeThresholdTenths = clamp(sceneChangeThresholdTenths, 20, 100);
+            centerWeightPercent = clamp(centerWeightPercent, 0, 100);
 
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             nativeSetManualExposureEnabled(manualExposureEnabled, false);
@@ -2154,14 +2134,10 @@ public class Options {
             nativeSetSaturation(saturationPercent / 100.0f, false);
             try { nativeSetSaturationAdaptive(saturationAdaptive, false); } catch (UnsatisfiedLinkError ignored) {}
             nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
-            nativeSetLegacyExposure(legacyExposure, false);
-            nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
-            nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
-            nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
-            nativeSetExposureHighlightProtection(exposureHighlightProtectionPercent / 100.0f, false);
-            nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
-            nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
-            nativeSetExposureLog2MaxImproved((float) exposureLog2Max, false);
+            nativeSetBrightAdaptSpeed(brightAdaptSpeedTenths / 10.0f, false);
+            nativeSetDarkAdaptSpeed(darkAdaptSpeedTenths / 10.0f, false);
+            nativeSetSceneChangeThreshold(sceneChangeThresholdTenths / 10.0f, false);
+            nativeSetCenterWeightStrength(centerWeightPercent / 100.0f, false);
 
             // HDR
             hdrEnabled = Boolean.parseBoolean(props.getProperty("hdrEnabled", String.valueOf(hdrEnabled)));
@@ -2191,79 +2167,41 @@ public class Options {
                 pushActiveTonemapParams();
             }
 
-            if (loadedOptionsVersion < 13) {
-                // Reset auto-exposure parameters to industry-standard defaults.
-                // Histogram trim changed to 10%/90% (was ~0.5%/99.9%) and highlight
-                // cap moved to 95th percentile (was 98.5th) to prevent blown highlights.
-                // maxExposure raised to 8 (was 2) for proper dark-scene brightening.
-                maxExposure = 8;
-                nativeSetMaxExposure(maxExposure, false);
-                exposureHighlightPercentileTenK = 9500;
-                nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
-            }
-
-            if (loadedOptionsVersion < 14) {
-                // Physical lighting auto-exposure overhaul:
-                // - maxExposure 8→256 (covers EV -8 for deep caves/starlight)
-                // - Asymmetric adaptation: fast bright (3.0 EV/s), gradual dark (1.5 EV/s)
-                // - brightAdaptBoost 1.0→2.0 (stacks with downSpeed for 6 EV/s entering sunlight)
-                // - Highlight protection 100%→30% (soft nudge, removed hard cap — tonemapper handles clipping)
-                // - Percentile 95%→98% (less sensitive to emissive outliers)
-                maxExposure = 256;
-                nativeSetMaxExposure(maxExposure, false);
-                exposureUpSpeedTenths = 15;
-                nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
-                exposureDownSpeedTenths = 30;
-                nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
-                exposureBrightAdaptBoostTenths = 20;
-                nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
-                exposureHighlightProtectionPercent = 30;
-                nativeSetExposureHighlightProtection(exposureHighlightProtectionPercent / 100.0f, false);
-                exposureHighlightPercentileTenK = 9800;
-                nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
-            }
-
-            if (loadedOptionsVersion < 15) {
-                // v15: Lower maxExposure from 256 to 32 (human scotopic limit).
-                // 256 gave superhuman night vision; 32 keeps moonlit scenes visible but caves dark.
-                maxExposure = 32;
-                nativeSetMaxExposure(maxExposure, false);
-            }
-
-            if (loadedOptionsVersion < 16) {
-                // v16: Scene-referred emission normalization + PsychoV SDR fix.
-                // maxExposure 32→2: caves stay dark, shadow detail via moderate adaptation.
-                maxExposure = 2;
-                nativeSetMaxExposure(maxExposure, false);
-            }
-
             if (loadedOptionsVersion < 17) {
                 // v17: Motion-aware ReSTIR + light intensity 20× increase.
-                // Lower W-clamp (shader now motion-scales M+W dynamically).
-                // Extend light range for better coverage with brighter lights.
                 restirWClamp = 30;
                 nativeSetRestirWClamp(restirWClamp, false);
                 areaLightRange = 128;
                 nativeSetAreaLightRange(areaLightRange, false);
             }
 
-            if (loadedOptionsVersion < 18) {
-                // v18: Stabilize auto exposure — reduce adaptation speeds, remove bright boost,
-                // slow highlight cap smoothing. Dead zone + rate scaling added in shader.
-                exposureUpSpeedTenths = 8;
-                nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
-                exposureDownSpeedTenths = 15;
-                nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
-                exposureBrightAdaptBoostTenths = 10;
-                nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
-                exposureHighlightSmoothSpeedTenths = 20;
-                nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
+            if (loadedOptionsVersion < 21) {
+                // v21: Auto-exposure system rebuild — exponential decay + scene-cut detection.
+                // Reset all exposure parameters to new defaults (old fields no longer exist).
+                brightAdaptSpeedTenths = 5;
+                darkAdaptSpeedTenths = 20;
+                sceneChangeThresholdTenths = 50;
+                centerWeightPercent = 0;
+                middleGreyPercent = 18;
+                exposureCompensation = 0;
+                nativeSetBrightAdaptSpeed(brightAdaptSpeedTenths / 10.0f, false);
+                nativeSetDarkAdaptSpeed(darkAdaptSpeedTenths / 10.0f, false);
+                nativeSetSceneChangeThreshold(sceneChangeThresholdTenths / 10.0f, false);
+                nativeSetCenterWeightStrength(centerWeightPercent / 100.0f, false);
+                nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
+                nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             }
 
-            if (loadedOptionsVersion < 19) {
-                // v19: Moderate exposure down speed — less pulsing than 1.5, better low-light than 0.7.
-                exposureDownSpeedTenths = 10;
-                nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
+            if (loadedOptionsVersion < 22) {
+                // v22: Fix stale exposure defaults from v21 intermediate builds.
+                centerWeightPercent = 0;
+                nativeSetCenterWeightStrength(0.0f, false);
+                brightAdaptSpeedTenths = 5;
+                nativeSetBrightAdaptSpeed(0.5f, false);
+                darkAdaptSpeedTenths = 20;
+                nativeSetDarkAdaptSpeed(2.0f, false);
+                sceneChangeThresholdTenths = 50;
+                nativeSetSceneChangeThreshold(5.0f, false);
             }
 
             optionsVersion = CURRENT_OPTIONS_VERSION;
@@ -2640,14 +2578,10 @@ public class Options {
         props.setProperty("manualExposureEV100Tenths", String.valueOf(manualExposureEV100Tenths));
         props.setProperty("sharpenerMode", String.valueOf(sharpenerMode));
         props.setProperty("casSharpnessPercent", String.valueOf(casSharpnessPercent));
-        props.setProperty("legacyExposure", String.valueOf(legacyExposure));
-        props.setProperty("exposureUpSpeedTenths", String.valueOf(exposureUpSpeedTenths));
-        props.setProperty("exposureDownSpeedTenths", String.valueOf(exposureDownSpeedTenths));
-        props.setProperty("exposureBrightAdaptBoostTenths", String.valueOf(exposureBrightAdaptBoostTenths));
-        props.setProperty("exposureHighlightProtectionPercent", String.valueOf(exposureHighlightProtectionPercent));
-        props.setProperty("exposureHighlightPercentileTenK", String.valueOf(exposureHighlightPercentileTenK));
-        props.setProperty("exposureHighlightSmoothSpeedTenths", String.valueOf(exposureHighlightSmoothSpeedTenths));
-        props.setProperty("exposureLog2Max", String.valueOf(exposureLog2Max));
+        props.setProperty("brightAdaptSpeedTenths", String.valueOf(brightAdaptSpeedTenths));
+        props.setProperty("darkAdaptSpeedTenths", String.valueOf(darkAdaptSpeedTenths));
+        props.setProperty("sceneChangeThresholdTenths", String.valueOf(sceneChangeThresholdTenths));
+        props.setProperty("centerWeightPercent", String.valueOf(centerWeightPercent));
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
@@ -3614,20 +3548,16 @@ public class Options {
         hdrPaperWhiteNits = 203;
         hdrUiBrightnessNits = 100;
         minExposureTenK = 1;
-        maxExposure = 2;
+        maxExposure = 20;
         exposureCompensation = 0;
         manualExposureEnabled = false;
         manualExposureEV100Tenths = 150;
-        legacyExposure = false;
         sharpenerMode = 0;
         casSharpnessPercent = 50;
-        exposureUpSpeedTenths = 8;
-        exposureDownSpeedTenths = 10;
-        exposureBrightAdaptBoostTenths = 10;
-        exposureHighlightProtectionPercent = 30;
-        exposureHighlightPercentileTenK = 9800;
-        exposureHighlightSmoothSpeedTenths = 20;
-        exposureLog2Max = 18;
+        brightAdaptSpeedTenths = 5;
+        darkAdaptSpeedTenths = 20;
+        sceneChangeThresholdTenths = 50;
+        centerWeightPercent = 0;
         middleGreyPercent = 18;
         LwhiteTenths = 40;
         // HDR tonemapper + PsychoV defaults
@@ -3719,16 +3649,12 @@ public class Options {
         nativeSetExposureCompensation(exposureCompensation, false);
         nativeSetManualExposureEnabled(manualExposureEnabled, false);
         nativeSetManualExposure(ev100ToLinearExposure(manualExposureEV100Tenths), false);
-        nativeSetLegacyExposure(legacyExposure, false);
         nativeSetSharpenerMode(sharpenerMode, false);
         nativeSetCasSharpness(casSharpnessPercent / 100.0f, false);
-        nativeSetExposureUpSpeed(exposureUpSpeedTenths / 10.0f, false);
-        nativeSetExposureDownSpeed(exposureDownSpeedTenths / 10.0f, false);
-        nativeSetExposureBrightAdaptBoost(exposureBrightAdaptBoostTenths / 10.0f, false);
-        nativeSetExposureHighlightProtection(exposureHighlightProtectionPercent / 100.0f, false);
-        nativeSetExposureHighlightPercentile(exposureHighlightPercentileTenK / 10000.0f, false);
-        nativeSetExposureHighlightSmoothingSpeed(exposureHighlightSmoothSpeedTenths / 10.0f, false);
-        nativeSetExposureLog2MaxImproved(exposureLog2Max, false);
+        nativeSetBrightAdaptSpeed(brightAdaptSpeedTenths / 10.0f, false);
+        nativeSetDarkAdaptSpeed(darkAdaptSpeedTenths / 10.0f, false);
+        nativeSetSceneChangeThreshold(sceneChangeThresholdTenths / 10.0f, false);
+        nativeSetCenterWeightStrength(centerWeightPercent / 100.0f, false);
         nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
         nativeSetLwhite(LwhiteTenths / 10.0f, false);
         // HDR tonemapper + PsychoV
@@ -4852,72 +4778,37 @@ public class Options {
         }
     }
 
-    // --- Legacy Exposure ---
-    public native static void nativeSetLegacyExposure(boolean legacyExposure, boolean write);
+    // --- Exposure Adaptation (v21: exponential decay) ---
+    public native static void nativeSetBrightAdaptSpeed(float speed, boolean write);
+    public native static void nativeSetDarkAdaptSpeed(float speed, boolean write);
+    public native static void nativeSetSceneChangeThreshold(float threshold, boolean write);
+    public native static void nativeSetCenterWeightStrength(float strength, boolean write);
 
-    public static void setLegacyExposure(boolean legacyExposure, boolean write) {
-        Options.legacyExposure = legacyExposure;
-        nativeSetLegacyExposure(legacyExposure, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Exposure Speeds ---
-    public native static void nativeSetExposureUpSpeed(float speed, boolean write);
-    public native static void nativeSetExposureDownSpeed(float speed, boolean write);
-    public native static void nativeSetExposureBrightAdaptBoost(float boost, boolean write);
-    public native static void nativeSetExposureHighlightProtection(float protection, boolean write);
-    public native static void nativeSetExposureHighlightPercentile(float percentile, boolean write);
-    public native static void nativeSetExposureHighlightSmoothingSpeed(float speed, boolean write);
-    public native static void nativeSetExposureLog2MaxImproved(float log2Max, boolean write);
-
-    public static void setExposureUpSpeedTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 1, 200);
-        Options.exposureUpSpeedTenths = tenths;
-        nativeSetExposureUpSpeed(tenths / 10.0f, write);
+    public static void setBrightAdaptSpeedTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 1, 50);
+        Options.brightAdaptSpeedTenths = tenths;
+        nativeSetBrightAdaptSpeed(tenths / 10.0f, write);
         if (write) overwriteConfig();
     }
 
-    public static void setExposureDownSpeedTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 1, 200);
-        Options.exposureDownSpeedTenths = tenths;
-        nativeSetExposureDownSpeed(tenths / 10.0f, write);
+    public static void setDarkAdaptSpeedTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 5, 100);
+        Options.darkAdaptSpeedTenths = tenths;
+        nativeSetDarkAdaptSpeed(tenths / 10.0f, write);
         if (write) overwriteConfig();
     }
 
-    public static void setExposureBrightAdaptBoostTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 10, 80);
-        Options.exposureBrightAdaptBoostTenths = tenths;
-        nativeSetExposureBrightAdaptBoost(tenths / 10.0f, write);
+    public static void setSceneChangeThresholdTenths(int tenths, boolean write) {
+        tenths = clamp(tenths, 20, 100);
+        Options.sceneChangeThresholdTenths = tenths;
+        nativeSetSceneChangeThreshold(tenths / 10.0f, write);
         if (write) overwriteConfig();
     }
 
-    public static void setExposureHighlightProtectionPercent(int percent, boolean write) {
+    public static void setCenterWeightPercent(int percent, boolean write) {
         percent = clamp(percent, 0, 100);
-        Options.exposureHighlightProtectionPercent = percent;
-        nativeSetExposureHighlightProtection(percent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setExposureHighlightPercentileTenK(int tenK, boolean write) {
-        tenK = clamp(tenK, 9000, 9999);
-        Options.exposureHighlightPercentileTenK = tenK;
-        nativeSetExposureHighlightPercentile(tenK / 10000.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setExposureHighlightSmoothSpeedTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 0, 300);
-        Options.exposureHighlightSmoothSpeedTenths = tenths;
-        nativeSetExposureHighlightSmoothingSpeed(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setExposureLog2Max(int ev, boolean write) {
-        ev = clamp(ev, 8, 16);
-        Options.exposureLog2Max = ev;
-        nativeSetExposureLog2MaxImproved((float) ev, write);
+        Options.centerWeightPercent = percent;
+        nativeSetCenterWeightStrength(percent / 100.0f, write);
         if (write) overwriteConfig();
     }
 

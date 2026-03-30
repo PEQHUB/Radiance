@@ -22,7 +22,10 @@ import java.nio.IntBuffer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.render.Fog;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.client.render.RenderPhase;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.world.ClientWorld;
@@ -282,8 +285,28 @@ public class BufferProxy {
             bb.putInt(baseAddr, world.getDimensionEffects().getSkyType().ordinal());
             baseAddr += Integer.BYTES;
 
-            baseAddr += Float.BYTES; // rayBounces
-            baseAddr += Float.BYTES; // pad
+            baseAddr += Float.BYTES; // rayBounces (C++ fills)
+
+            // Camera-inside-block tmin: skip enclosing non-solid block geometry on primary rays.
+            // When camera is inside a non-full block (grass, vines, water, flowers), rays at tmin=0
+            // hit interior faces producing black pixels. Compute the max exit distance so all
+            // primary rays start outside the enclosing block.
+            float cameraTmin = 0.0f;
+            BlockPos camBlockPos = camera.getBlockPos();
+            BlockState camBlockState = world.getBlockState(camBlockPos);
+            if (!camBlockState.isAir() && !camBlockState.isOpaqueFullCube()
+                    && camBlockState.getFluidState().isEmpty()) {
+                Vec3d camPos = camera.getPos();
+                double fx = camPos.x - camBlockPos.getX();
+                double fy = camPos.y - camBlockPos.getY();
+                double fz = camPos.z - camBlockPos.getZ();
+                double dx = Math.max(fx, 1.0 - fx);
+                double dy = Math.max(fy, 1.0 - fy);
+                double dz = Math.max(fz, 1.0 - fz);
+                cameraTmin = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+            }
+            bb.putFloat(baseAddr, cameraTmin);
+            baseAddr += Float.BYTES;
 
             baseAddr += Double.BYTES; // cameraPos
             baseAddr += Double.BYTES; // cameraPos
