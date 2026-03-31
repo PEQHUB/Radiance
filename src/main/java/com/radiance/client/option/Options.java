@@ -497,7 +497,7 @@ public class Options {
     public static int dofStrengthPercent = 100;      // 100-2000 (1.0x-20.0x artistic DOF multiplier)
     // First-person view (renders third-person body model in first person)
     public static boolean fpvEnabled = true;          // show body in first person
-    public static int fpvOffsetForward = 20;          // forward offset in centimetres (0-50)
+    public static int fpvOffsetForward = -20;          // forward offset in centimetres (-30 to 30)
     public static int fpvOffsetVertical = 0;          // vertical offset in centimetres (-30 to 30, positive = down)
     public static int fpvOffsetLateral = 0;           // lateral offset in centimetres (-20 to 20, positive = right)
     // Freecam (persisted preferences)
@@ -1891,7 +1891,7 @@ public class Options {
             // First-person view
             fpvEnabled = Boolean.parseBoolean(props.getProperty("fpvEnabled", String.valueOf(fpvEnabled)));
             fpvOffsetForward = clamp(Integer.parseInt(props.getProperty("fpvOffsetForward",
-                props.getProperty("fpvCameraOffset", String.valueOf(fpvOffsetForward)))), 0, 50);
+                props.getProperty("fpvCameraOffset", String.valueOf(fpvOffsetForward)))), -30, 30);
             fpvOffsetVertical = clamp(Integer.parseInt(props.getProperty("fpvOffsetVertical", String.valueOf(fpvOffsetVertical))), -30, 30);
             fpvOffsetLateral = clamp(Integer.parseInt(props.getProperty("fpvOffsetLateral", String.valueOf(fpvOffsetLateral))), -20, 20);
             syncFpvSettings();
@@ -3068,7 +3068,7 @@ public class Options {
     }
 
     public static void setFpvOffsetForward(int cm, boolean write) {
-        fpvOffsetForward = clamp(cm, 0, 50);
+        fpvOffsetForward = clamp(cm, -30, 30);
         syncFpvSettings();
         if (write) overwriteConfig();
     }

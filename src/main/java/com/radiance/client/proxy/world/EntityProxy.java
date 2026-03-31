@@ -383,6 +383,7 @@ public class EntityProxy {
                     true, entityRenderDataList);
 
                 // Pass 2: Head only (body hidden by PlayerEntityRendererMixins)
+                // Head uses same offset as body — one forward slider controls both.
                 StorageVertexConsumerProvider headProvider = acquireSVCP(
                     DEFAULT_WORLD_ENTITY_BUFFER_SIZE);
                 entityStorageVertexConsumerProviders.add(headProvider);
@@ -410,7 +411,7 @@ public class EntityProxy {
                     Constants.RayTracingFlags.HAND,
                     true, entityRenderDataList);
 
-                // Restore entity position
+                // Restore original entity position
                 entity.setPosition(savedX, savedY, savedZ);
                 entity.lastRenderX = savedLastX;
                 entity.lastRenderY = savedLastY;

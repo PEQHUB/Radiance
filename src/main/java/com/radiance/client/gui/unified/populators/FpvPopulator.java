@@ -32,21 +32,21 @@ public class FpvPopulator implements ContentPopulator {
             // Forward + Vertical offset (paired)
             section.addTwoSliders(
                 new ResettableSliderWidget(0, 0, 150, 20,
-                    0, 50, Options.fpvOffsetForward, 20,
+                    -30, 30, Options.fpvOffsetForward, -20,
                     v -> getGenericValueText(Text.translatable(Options.FPV_OFFSET_FORWARD_KEY), Text.literal(v + " cm")),
                     v -> Options.setFpvOffsetForward(v, true)),
                 new ResettableSliderWidget(0, 0, 150, 20,
                     -30, 30, Options.fpvOffsetVertical, 0,
                     v -> getGenericValueText(Text.translatable(Options.FPV_OFFSET_VERTICAL_KEY), Text.literal(v + " cm")),
                     v -> Options.setFpvOffsetVertical(v, true)))
-                  .tooltip("Forward = camera distance from body center. Vertical = up/down offset.");
+                  .tooltip("Forward = body+head distance from camera (negative = closer). Vertical = up/down.");
 
             // Lateral offset (solo)
             section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                 -20, 20, Options.fpvOffsetLateral, 0,
                 v -> getGenericValueText(Text.translatable(Options.FPV_OFFSET_LATERAL_KEY), Text.literal(v + " cm")),
                 v -> Options.setFpvOffsetLateral(v, true)))
-                  .tooltip("Left/right camera offset from body center.");
+                  .tooltip("Left/right offset from body center.");
         }
     }
 
