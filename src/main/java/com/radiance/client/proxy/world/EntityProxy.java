@@ -334,23 +334,16 @@ public class EntityProxy {
                 FirstPersonView.updateCrouchProgress(tickDelta, camera);
             }
 
-            // FPV: apply small forward offset to prevent body clipping into camera
-            double savedX = 0, savedLastX = 0, savedY = 0, savedLastY = 0, savedZ = 0, savedLastZ = 0;
-            if (fpvActive) {
-                double[] offset = FirstPersonView.computeOffset(entity, tickDelta, camera);
-                savedX = entity.getX(); savedLastX = entity.lastRenderX;
-                savedY = entity.getY(); savedLastY = entity.lastRenderY;
-                savedZ = entity.getZ(); savedLastZ = entity.lastRenderZ;
-                entity.setPosition(savedX + offset[0], savedY + offset[1], savedZ + offset[2]);
-                entity.lastRenderX = savedLastX + offset[0];
-                entity.lastRenderY = savedLastY + offset[1];
-                entity.lastRenderZ = savedLastZ + offset[2];
-            }
-
             if (fpvActive) {
                 // Two-pass FPV render: body (head hidden) + head (body hidden)
                 // Items rendered into separate fpvItemProvider during body pass via
                 // PlayerEntityRendererMixins redirect — no Pass 3 needed.
+                //
+                // The offset is applied ONLY to BLAS positioning, never to entity state.
+                // EntityRenderDispatcher.render(entity, 0,0,0, ...) captures model
+                // vertices in model-local space; processWorldEntityRenderData places
+                // the BLAS at the offset world position. Entity fields (pos, lastRenderX/Y/Z)
+                // stay untouched so other mods see the real entity position.
                 double[] fpvOffset = FirstPersonView.computeOffset(entity, tickDelta, camera);
                 double fpvPosX = entityPosX + fpvOffset[0];
                 double fpvPosY = entityPosY + fpvOffset[1];
@@ -410,12 +403,6 @@ public class EntityProxy {
                     fpvPosX, fpvPosY, fpvPosZ,
                     Constants.RayTracingFlags.HAND,
                     true, entityRenderDataList);
-
-                // Restore original entity position
-                entity.setPosition(savedX, savedY, savedZ);
-                entity.lastRenderX = savedLastX;
-                entity.lastRenderY = savedLastY;
-                entity.lastRenderZ = savedLastZ;
             } else {
                 // Normal render (non-player entities or third-person)
                 try {

@@ -5,6 +5,7 @@ import net.minecraft.client.option.Perspective;
 import net.minecraft.client.render.Camera;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.math.MathHelper;
 import com.radiance.client.vertex.StorageVertexConsumerProvider;
 
 public class FirstPersonView {
@@ -69,44 +70,86 @@ public class FirstPersonView {
 
     public static double[] computeOffset(Entity entity, float tickDelta, Camera camera) {
         double[] offset = new double[3];
-        if (!(entity instanceof PlayerEntity)) return offset;
+        if (!(entity instanceof PlayerEntity player)) return offset;
 
-        // Camera yaw in radians (Minecraft yaw: 0=south, 90=west, 180=north, 270=east)
-        float yawRad = (float) Math.toRadians(-camera.getYaw());
-
-        // Forward vector (horizontal plane)
-        double forwardX = Math.sin(yawRad);
-        double forwardZ = Math.cos(yawRad);
-
-        // Right vector (horizontal plane, perpendicular to forward)
+        // Use BODY yaw (not camera yaw) for offset projection.
+        // The body rotation (R_y in setupTransforms) uses bodyYaw, so the head's
+        // world position depends on bodyYaw. Camera yaw can differ significantly
+        // during elytra banking, quick turns, etc.
+        float bodyYawDeg = MathHelper.lerpAngleDegrees(tickDelta, player.prevBodyYaw, player.bodyYaw);
+        float yawRad = (float) Math.toRadians(-bodyYawDeg);
+        double fwdX = Math.sin(yawRad);
+        double fwdZ = Math.cos(yawRad);
         double rightX = Math.cos(yawRad);
         double rightZ = -Math.sin(yawRad);
 
-        // Apply offsets
-        offset[0] = forwardX * offsetForward + rightX * offsetLateral;
-        offset[1] = -offsetVertical; // positive offsetVertical = down in Options, but Y is up
-        offset[2] = forwardZ * offsetForward + rightZ * offsetLateral;
+        // MC places the camera at entity.feet + (0, eyeHeight, 0).
+        // MC's model transforms place the head at entity.feet + R(headModelPos).
+        // These two disagree when the body is rotated (swimming/elytra/crawling).
+        // Fix: offset entity so the model head lands on the camera position.
+        //
+        // offset = (0, eyeHeight, 0) - headRelative(angle)
+        //
+        // For upright (angle=0): headRelative = (0, 1.62, 0), offset = (0, eyeHeight-1.62, 0) ≈ 0
+        // For prone: headRelative follows MC's rotation, offset compensates exactly.
 
-        // Uncrouch vertical compensation: push model DOWN and slightly FORWARD
-        // during uncrouch transitions to prevent head clipping through camera
-        float eyeY;
-        try {
-            var accessor = (com.radiance.mixins.vulkan_render_integration.CameraAccessorMixin) camera;
-            float cY = accessor.radiance$getCameraY();
-            float pY = accessor.radiance$getLastCameraY();
-            eyeY = pY + (cY - pY) * tickDelta;
-        } catch (ClassCastException e) {
-            eyeY = STAND_EYE;
+        // Use interpolated entity Y to match camera.getPos() interpolation.
+        // entity.getY() is tick-quantized (jumps at tick boundaries), while
+        // camera.getPos().y is smoothly interpolated — the difference judders.
+        double interpEntityY = MathHelper.lerp(tickDelta, entity.lastRenderY, entity.getY());
+        float eyeHeight = (float) (camera.getPos().y - interpEntityY);
+
+        // Compute MC's rotation angle and head position after transforms
+        boolean isGliding = player.isGliding();
+        float leaningPitch = player.getLeaningPitch(tickDelta);
+
+        float headY, headZ;
+
+        if (isGliding) {
+            float gt = player.getGlidingTicks() + tickDelta;
+            float gp = Math.min(gt * gt / 100.0f, 1.0f);
+            float angleDeg = gp * (-90.0f - camera.getPitch());
+            float a = (float) Math.toRadians(angleDeg);
+            float cosA = (float) Math.cos(a);
+            float sinA = (float) Math.sin(a);
+            // Elytra: no swim translate. Head base (0, 1.62, 0) after Rx.
+            headY = STAND_EYE * cosA;
+            headZ = STAND_EYE * sinA;
+        } else if (leaningPitch > 0f) {
+            float angleDeg;
+            boolean swimTranslate;
+            if (player.isTouchingWater()) {
+                angleDeg = leaningPitch * (-90.0f - camera.getPitch());
+                swimTranslate = player.isSwimming();
+            } else {
+                angleDeg = leaningPitch * -90.0f;
+                swimTranslate = false;
+            }
+            float a = (float) Math.toRadians(angleDeg);
+            float cosA = (float) Math.cos(a);
+            float sinA = (float) Math.sin(a);
+            if (swimTranslate) {
+                // Swimming: head base (0, 0.62, 0.3) after swim translate + Rx
+                headY = 0.62f * cosA - 0.3f * sinA;
+                headZ = 0.62f * sinA + 0.3f * cosA;
+            } else {
+                // Crawling: head base (0, 1.62, 0) after Rx
+                headY = STAND_EYE * cosA;
+                headZ = STAND_EYE * sinA;
+            }
+        } else {
+            // Upright: head at (0, 1.62, 0), no rotation
+            headY = STAND_EYE;
+            headZ = 0f;
         }
 
-        float signedDelta = eyeY - lastCameraY;
-        if (signedDelta < -0.02f) {
-            // Uncrouching: camera rising, push model down and forward
-            float compensation = Math.min(0.15f, Math.abs(signedDelta) * 0.5f);
-            offset[1] -= compensation;
-            offset[0] += forwardX * compensation * 0.3;
-            offset[2] += forwardZ * compensation * 0.3;
-        }
+        // Head-to-camera alignment offset
+        float alignY = eyeHeight - headY;
+        float alignFwd = headZ; // body-local -Z = forward; headZ negative = head forward
+
+        offset[0] = fwdX * (alignFwd + offsetForward) + rightX * offsetLateral;
+        offset[1] = alignY - offsetVertical;
+        offset[2] = fwdZ * (alignFwd + offsetForward) + rightZ * offsetLateral;
 
         return offset;
     }
