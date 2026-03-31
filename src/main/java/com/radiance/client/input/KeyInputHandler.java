@@ -291,28 +291,42 @@ public class KeyInputHandler {
                 }
             }
 
-            // M: material picker
+            // M: universal inspect — routes to materials, emission, or entity editor
             while (materialPickerKey.wasPressed()) {
                 if (client.currentScreen == null && client.world != null) {
-                    MaterialBlock mb = getTargetMaterialBlock(client);
-                    if (mb != null) {
-                        MaterialsSettingsScreen.setCurrentBlockIndex(mb.ordinal());
-                        client.setScreen(new MaterialsSettingsScreen(null));
+                    String target = resolveInspectTarget(client);
+                    if (target != null) {
+                        if ("materials".equals(target)) {
+                            // Direct to material editor (ordinal already set by resolveInspectTarget)
+                            client.setScreen(new MaterialsSettingsScreen(null));
+                        } else {
+                            // Emission, area lights, entity materials → unified screen
+                            if (!Options.advancedMode) {
+                                Options.advancedMode = true;
+                                Options.overwriteConfig();
+                            }
+                            RadianceUnifiedScreen.setDeferredNavigation(target);
+                            client.setScreen(new RadianceUnifiedScreen(null));
+                        }
                     }
                 }
             }
 
-            // I: inspect block/entity at crosshair → open settings to matching node
+            // I: same as M (kept for backwards compatibility)
             while (inspectKey.wasPressed()) {
                 if (client.currentScreen == null && client.world != null) {
                     String target = resolveInspectTarget(client);
                     if (target != null) {
-                        if (!Options.advancedMode) {
-                            Options.advancedMode = true;
-                            Options.overwriteConfig();
+                        if ("materials".equals(target)) {
+                            client.setScreen(new MaterialsSettingsScreen(null));
+                        } else {
+                            if (!Options.advancedMode) {
+                                Options.advancedMode = true;
+                                Options.overwriteConfig();
+                            }
+                            RadianceUnifiedScreen.setDeferredNavigation(target);
+                            client.setScreen(new RadianceUnifiedScreen(null));
                         }
-                        RadianceUnifiedScreen.setDeferredNavigation(target);
-                        client.setScreen(new RadianceUnifiedScreen(null));
                     }
                 }
             }
@@ -394,15 +408,15 @@ public class KeyInputHandler {
         Options.setFocusToast(message, color, (int) durationMs);
     }
 
-    private static MaterialBlock getTargetMaterialBlock(MinecraftClient client) {
-        if (client.world == null || client.player == null) return null;
+    private static int getTargetMaterialOrdinal(MinecraftClient client) {
+        if (client.world == null || client.player == null) return -1;
 
         // 1. Try the normal crosshair target (solid blocks)
         if (client.crosshairTarget instanceof BlockHitResult blockHit
                 && blockHit.getType() != HitResult.Type.MISS) {
-            BlockState state = client.world.getBlockState(blockHit.getBlockPos());
-            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
-            if (mb != null) return mb;
+            int ord = MaterialBlock.getOrdinalForBlock(
+                client.world.getBlockState(blockHit.getBlockPos()).getBlock());
+            if (ord >= 0) return ord;
         }
 
         // 2. Fallback: raycast with fluid handling for water/lava
@@ -410,12 +424,12 @@ public class KeyInputHandler {
         HitResult fluidHit = client.player.raycast(reach, 1.0f, true);
         if (fluidHit instanceof BlockHitResult fluidBlockHit
                 && fluidBlockHit.getType() != HitResult.Type.MISS) {
-            BlockState state = client.world.getBlockState(fluidBlockHit.getBlockPos());
-            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
-            if (mb != null) return mb;
+            int ord = MaterialBlock.getOrdinalForBlock(
+                client.world.getBlockState(fluidBlockHit.getBlockPos()).getBlock());
+            if (ord >= 0) return ord;
         }
 
-        return null;
+        return -1;
     }
 
     /**
@@ -440,8 +454,9 @@ public class KeyInputHandler {
                 return "area_lights";
             }
 
-            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
-            if (mb != null) {
+            int mbOrd = MaterialBlock.getOrdinalForBlock(state.getBlock());
+            if (mbOrd >= 0) {
+                MaterialsSettingsScreen.setCurrentOrdinal(mbOrd);
                 return "materials";
             }
         }
@@ -466,8 +481,9 @@ public class KeyInputHandler {
                 return "emission";
             }
 
-            MaterialBlock mb = MaterialBlock.fromBlock(state.getBlock());
-            if (mb != null) {
+            int mbOrd = MaterialBlock.getOrdinalForBlock(state.getBlock());
+            if (mbOrd >= 0) {
+                MaterialsSettingsScreen.setCurrentOrdinal(mbOrd);
                 return "materials";
             }
         }

@@ -88,40 +88,6 @@ public final class AutoPBRGenerator {
     }
 
     /**
-     * Bicubic (Catmull-Rom) upscale of height field with configurable source mode.
-     */
-    private static float[][] bicubicUpscaleHeightField(NativeImage albedo, int srcW, int srcH,
-            int dstW, int dstH, int heightSource) {
-        float[][] src = computeHeightField(albedo, srcW, srcH, heightSource);
-        float[][] dst = new float[dstH][dstW];
-
-        for (int dy = 0; dy < dstH; dy++) {
-            float sy = (dy + 0.5f) * srcH / dstH - 0.5f;
-            int iy = (int) Math.floor(sy);
-            float fy = sy - iy;
-
-            for (int dx = 0; dx < dstW; dx++) {
-                float sx = (dx + 0.5f) * srcW / dstW - 0.5f;
-                int ix = (int) Math.floor(sx);
-                float fx = sx - ix;
-
-                float value = 0;
-                for (int j = -1; j <= 2; j++) {
-                    float wy = catmullRom(fy - j);
-                    for (int k = -1; k <= 2; k++) {
-                        float wx = catmullRom(fx - k);
-                        int px = ((ix + k) % srcW + srcW) % srcW;
-                        int py = ((iy + j) % srcH + srcH) % srcH;
-                        value += src[py][px] * wx * wy;
-                    }
-                }
-                dst[dy][dx] = clamp(value, 0, 1);
-            }
-        }
-        return dst;
-    }
-
-    /**
      * Process a raw height value through the full pipeline: remap → gamma → contrast → offset.
      * Matches GPU processHeight() in world_solid_transparent.rchit.
      */
@@ -295,33 +261,14 @@ public final class AutoPBRGenerator {
     public static NativeImage generateNormal(NativeImage albedo, int normalStrengthPct,
             boolean invertNormal, int heightGammaPct, boolean invertHeight,
             HeightParams hp, int aoStrengthPct) {
-        int srcW = albedo.getWidth();
-        int srcH = albedo.getHeight();
+        int w = albedo.getWidth();
+        int h = albedo.getHeight();
 
-        // Bicubic upscale to at least 128px before differentiation.
-        // 16px Minecraft textures produce staircase normals at native res because
-        // the filter kernel spans too much of the image per sample.
-        int minRes = 128;
-        int scale = Math.max(1, minRes / Math.max(srcW, srcH));
-        int w, h;
-        float[][] lum;
-        NativeImage alphaSource;
-        if (scale > 1) {
-            w = srcW * scale;
-            h = srcH * scale;
-            lum = bicubicUpscaleHeightField(albedo, srcW, srcH, w, h, hp.heightSource());
-            alphaSource = null;
-        } else {
-            w = srcW;
-            h = srcH;
-            lum = computeHeightField(albedo, w, h, hp.heightSource());
-            alphaSource = albedo;
-        }
+        // Work at native resolution — no upscale/downsample.
+        // Height field from albedo using selected source channel.
+        float[][] lum = computeHeightField(albedo, w, h, hp.heightSource());
 
-        // High-pass filter: extract local detail, reject global brightness
-        lum = highPass(lum, w, h);
-
-        float[] lumRange = computeLumRangeFromArray(lum, w, h);
+        float[] lumRange = computeLumRange(lum, albedo, w, h);
         float lumMin = lumRange[0];
         float lumSpan = lumRange[1] - lumRange[0];
         float strength = normalStrengthPct / 100.0f;
@@ -332,12 +279,10 @@ public final class AutoPBRGenerator {
 
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                if (alphaSource != null) {
-                    int alpha = (alphaSource.getColorArgb(x, y) >> 24) & 0xFF;
-                    if (alpha == 0) {
-                        normalHR.setColorArgb(x, y, (128 << 24) | (128 << 16) | (128 << 8) | 255);
-                        continue;
-                    }
+                int alpha = (albedo.getColorArgb(x, y) >> 24) & 0xFF;
+                if (alpha == 0) {
+                    normalHR.setColorArgb(x, y, (128 << 24) | (128 << 16) | (128 << 8) | 255);
+                    continue;
                 }
 
                 // Compute gradients using selected filter mode
@@ -416,28 +361,6 @@ public final class AutoPBRGenerator {
             }
         }
 
-        // Downsample back to original resolution if upscaled
-        if (scale > 1) {
-            NativeImage normal = new NativeImage(srcW, srcH, false);
-            for (int y = 0; y < srcH; y++) {
-                for (int x = 0; x < srcW; x++) {
-                    int rSum = 0, gSum = 0, bSum = 0, aSum = 0;
-                    for (int dy = 0; dy < scale; dy++) {
-                        for (int dx = 0; dx < scale; dx++) {
-                            int p = normalHR.getColorArgb(x * scale + dx, y * scale + dy);
-                            aSum += (p >> 24) & 0xFF;
-                            rSum += (p >> 16) & 0xFF;
-                            gSum += (p >> 8) & 0xFF;
-                            bSum += p & 0xFF;
-                        }
-                    }
-                    int n = scale * scale;
-                    normal.setColorArgb(x, y, ((aSum / n) << 24) | ((rSum / n) << 16) | ((gSum / n) << 8) | (bSum / n));
-                }
-            }
-            normalHR.close();
-            return normal;
-        }
         return normalHR;
     }
 
@@ -548,61 +471,6 @@ public final class AutoPBRGenerator {
     }
 
     // ── Internal utilities ──────────────────────────────────────────────────────
-
-    private static float[][] highPass(float[][] lum, int w, int h) {
-        float[] kernel = {0.0625f, 0.25f, 0.375f, 0.25f, 0.0625f};
-        int r = 2;
-
-        float[][] blurH = new float[h][w];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                float sum = 0;
-                for (int k = -r; k <= r; k++) {
-                    int sx = ((x + k) % w + w) % w;
-                    sum += lum[y][sx] * kernel[k + r];
-                }
-                blurH[y][x] = sum;
-            }
-        }
-
-        float[][] blurred = new float[h][w];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                float sum = 0;
-                for (int k = -r; k <= r; k++) {
-                    int sy = ((y + k) % h + h) % h;
-                    sum += blurH[sy][x] * kernel[k + r];
-                }
-                blurred[y][x] = sum;
-            }
-        }
-
-        float[][] detail = new float[h][w];
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                detail[y][x] = 0.5f + (lum[y][x] - blurred[y][x]);
-            }
-        }
-        return detail;
-    }
-
-    private static float[] computeLumRangeFromArray(float[][] lum, int w, int h) {
-        float lumMin = 1.0f, lumMax = 0.0f;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                lumMin = Math.min(lumMin, lum[y][x]);
-                lumMax = Math.max(lumMax, lum[y][x]);
-            }
-        }
-        return new float[]{lumMin, lumMax};
-    }
-
-    private static float catmullRom(float x) {
-        float ax = Math.abs(x);
-        if (ax <= 1.0f) return 1.5f * ax * ax * ax - 2.5f * ax * ax + 1.0f;
-        if (ax <= 2.0f) return -0.5f * ax * ax * ax + 2.5f * ax * ax - 4.0f * ax + 2.0f;
-        return 0;
-    }
 
     private static float[][] computeLuminance(NativeImage img, int w, int h) {
         return computeLuminance(img, w, h, BT709_R, BT709_G, BT709_B);

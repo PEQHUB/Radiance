@@ -491,12 +491,89 @@ public class BlockModelBridge {
         materialOrdinal2SpriteIds = new java.util.HashMap<>();
     }
 
+    /**
+     * Serialize the complete BlockState → string registry for C++ region file loading.
+     * Maps every globalStateId to its canonical string form (e.g., "minecraft:stone"
+     * or "minecraft:oak_stairs[facing=north,half=top,shape=straight]").
+     *
+     * Called once alongside serializeAndUpload(). C++ uses this to decode Anvil region
+     * file palettes into globalStateIds for the BlockModelTable / BlockMesher.
+     */
+    public static void serializeBlockStateRegistry() {
+        long startTime = System.nanoTime();
+
+        List<BlockState> allStates = new ArrayList<>();
+        for (Block block : Registries.BLOCK) {
+            allStates.addAll(block.getStateManager().getStates());
+        }
+
+        // First pass: compute total buffer size
+        // Format: [uint32 count][entries...] where entry = [uint32 stateId][uint16 strLen][utf8 string]
+        int totalSize = 4; // count header
+        List<String> stateStrings = new ArrayList<>(allStates.size());
+        for (BlockState state : allStates) {
+            String canonical = getCanonicalString(state);
+            stateStrings.add(canonical);
+            totalSize += 4 + 2 + canonical.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+        }
+
+        ByteBuffer buf = ByteBuffer.allocateDirect(totalSize).order(ByteOrder.nativeOrder());
+        buf.putInt(allStates.size());
+
+        for (int i = 0; i < allStates.size(); i++) {
+            BlockState state = allStates.get(i);
+            int stateId = Block.getRawIdFromState(state);
+            byte[] strBytes = stateStrings.get(i).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            buf.putInt(stateId);
+            buf.putShort((short) strBytes.length);
+            buf.put(strBytes);
+        }
+
+        nativeUploadBlockStateRegistry(memAddress(buf), totalSize);
+
+        double elapsed = (System.nanoTime() - startTime) / 1e6;
+        LOGGER.info("Block state registry uploaded: {} states, {:.1f}ms", allStates.size(), elapsed);
+    }
+
+    /**
+     * Build canonical string for a block state, matching Minecraft's NBT palette format.
+     * Default state: "minecraft:stone"
+     * With properties: "minecraft:oak_stairs[facing=north,half=top,shape=straight]"
+     * Properties are sorted alphabetically by key.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static String getCanonicalString(BlockState state) {
+        net.minecraft.util.Identifier blockId = Registries.BLOCK.getId(state.getBlock());
+        String name = blockId.toString();
+
+        var entries = state.getEntries();
+        if (entries.isEmpty()) return name;
+
+        StringBuilder sb = new StringBuilder(name);
+        sb.append('[');
+        boolean first = true;
+        // state.getEntries() returns an ImmutableSortedMap — already sorted by property name
+        for (var entry : entries.entrySet()) {
+            if (!first) sb.append(',');
+            first = false;
+            sb.append(entry.getKey().getName());
+            sb.append('=');
+            // Use raw Property to avoid generic type bound issues
+            net.minecraft.state.property.Property prop =
+                (net.minecraft.state.property.Property) entry.getKey();
+            sb.append(prop.name(entry.getValue()));
+        }
+        sb.append(']');
+        return sb.toString();
+    }
+
     // ---- JNI native methods ----
 
     // Block model table (unchanged)
     private static native void uploadBlockModelTable(long entryPtr, int entryCount,
         long quadPtr, int quadCount);
     private static native void uploadBiomeTintTable(long tintPtr, int tintCount);
+    private static native void nativeUploadBlockStateRegistry(long dataPtr, int dataSize);
 
     // TextureSystem: C++-owned texture pipeline
     public static native void nativeReceiveSpriteTable(long metaPtr, int count,

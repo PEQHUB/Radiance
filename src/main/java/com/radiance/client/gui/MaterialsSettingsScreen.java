@@ -81,13 +81,20 @@ public class MaterialsSettingsScreen extends Screen {
     /** Set the block index to show when this screen opens (used by Texture Editor child clicks). */
     public static void setCurrentBlockIndex(int index) { currentBlockIndex = index; }
 
+    /** Set the current block by material ordinal (finds the index in the combined list). */
+    public static void setCurrentOrdinal(int ordinal) {
+        currentBlockIndex = MaterialBlock.indexOfOrdinal(ordinal);
+    }
+
     /** Called after any slider changes to handle parent->child propagation or child override marking. */
     private static void onSliderChanged(int blockOrdinal) {
-        MaterialBlock block = MaterialBlock.values()[blockOrdinal];
-        if (block.isParent() && !block.getChildren().isEmpty()) {
-            Options.propagateParentMaterial(blockOrdinal);
-        } else if (!block.isParent()) {
-            Options.materialChildOverride[blockOrdinal] = true;
+        if (blockOrdinal >= 0 && blockOrdinal < MaterialBlock.COUNT) {
+            MaterialBlock block = MaterialBlock.values()[blockOrdinal];
+            if (block.isParent() && !block.getChildren().isEmpty()) {
+                Options.propagateParentMaterial(blockOrdinal);
+            } else if (!block.isParent()) {
+                Options.materialChildOverride[blockOrdinal] = true;
+            }
         }
         Options.markMaterialDirty();
         com.radiance.client.material.MaterialRegistry.markDirty();
@@ -300,14 +307,18 @@ public class MaterialsSettingsScreen extends Screen {
         bodyTop = HEADER_H;
         bodyBot = height - FOOTER_H;
 
-        MaterialBlock[] blocks = MaterialBlock.values();
-        if (currentBlockIndex >= blocks.length) currentBlockIndex = 0;
-        MaterialBlock block = blocks[currentBlockIndex];
-        int i = block.ordinal();
+        java.util.List<Integer> allOrdinals = MaterialBlock.getUniqueOrdinals();
+        if (currentBlockIndex >= allOrdinals.size()) currentBlockIndex = 0;
+        int i = allOrdinals.get(currentBlockIndex);
         final int idx = i;
+        // Nullable — only set for hand-tuned enum entries (ordinal < COUNT)
+        MaterialBlock block = (i < MaterialBlock.COUNT) ? MaterialBlock.values()[i] : null;
+        // Helper: get enum default or fallback for dynamic blocks
+        java.util.function.Function<java.util.function.ToIntFunction<MaterialBlock>, Integer> def =
+            getter -> block != null ? getter.applyAsInt(block) : 0;
 
         // Load source albedo for Auto-PBR preview
-        loadSourceAlbedo(block);
+        loadSourceAlbedo(MaterialBlock.getIdForOrdinal(i));
         regeneratePreview();
 
         boolean autoPBRActive = Options.autoPBREnabled || Options.materialAutoPBR[i];
@@ -318,12 +329,13 @@ public class MaterialsSettingsScreen extends Screen {
 
         // Row 1 (y=2): Block selector (left ~60%) + search field (right ~35%)
         int selectorW = (int)(width * 0.58) - MARGIN;
+        final int totalBlocks = allOrdinals.size();
         ResettableSliderWidget blockSelector = new ResettableSliderWidget(leftX, 2, selectorW, WIDGET_H,
-            0, blocks.length - 1, currentBlockIndex, 0,
+            0, totalBlocks - 1, currentBlockIndex, 0,
             v -> {
-                MaterialBlock b = MaterialBlock.values()[v];
-                String name = Text.translatable("options.video.materials." + b.getId()).getString();
-                return Text.literal(name + " (" + (v + 1) + "/" + blocks.length + ")");
+                int ord = MaterialBlock.getUniqueOrdinals().get(v);
+                String name = MaterialBlock.getDisplayNameForOrdinal(ord);
+                return Text.literal(name + " (" + (v + 1) + "/" + totalBlocks + ")");
             },
             v -> { currentBlockIndex = v; });
         blockSelector.setOnRelease(() -> rebuildSelf());
@@ -363,7 +375,7 @@ public class MaterialsSettingsScreen extends Screen {
         bx += 72 + btnGap;
 
         for (var entry : new Object[][]{
-            {"Reset", (Runnable) () -> { MaterialData defaults = MaterialData.fromBlock(block); if (defaults != null) { defaults.applyToOptions(idx); rebuildSelf(); } }},
+            {"Reset", (Runnable) () -> { if (block != null) { MaterialData defaults = MaterialData.fromBlock(block); if (defaults != null) { defaults.applyToOptions(idx); rebuildSelf(); } } }},
             {"Copy",  (Runnable) () -> MaterialClipboard.copy(idx)},
             {"Paste", (Runnable) () -> { if (MaterialClipboard.paste(idx)) rebuildSelf(); }}
         }) {
@@ -422,7 +434,7 @@ public class MaterialsSettingsScreen extends Screen {
         ly = addHeader(leftX, ly, colW, "Surface");
 
         ResettableSliderWidget metallic = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
-            0, 1000, Options.materialMetallic[i], block.getDefaultMetallic(),
+            0, 1000, Options.materialMetallic[i], def.apply(MaterialBlock::getDefaultMetallic),
             v -> getGenericValueText(Text.literal("Metallic"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> {
                 Options.materialMetallic[i] = v;
@@ -432,13 +444,13 @@ public class MaterialsSettingsScreen extends Screen {
                 onSliderChanged(i);
             });
         ResettableSliderWidget roughness = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
-            0, 100, Options.materialRoughness[i], block.getDefaultRoughness(),
+            0, 100, Options.materialRoughness[i], def.apply(MaterialBlock::getDefaultRoughness),
             v -> getGenericValueText(Text.literal("Roughness"), Text.literal(v + "%")),
             v -> { Options.materialRoughness[i] = v; onSliderChanged(i); });
         ly = addPair(leftX, ly, colW, metallic, roughness);
 
         ResettableSliderWidget ior = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            1000, 3000, Math.max(Options.materialIOR[i], 1000), Math.max(block.getDefaultIOR(), 1000),
+            1000, 3000, Math.max(Options.materialIOR[i], 1000), Math.max(def.apply(MaterialBlock::getDefaultIOR), 1000),
             v -> getGenericValueText(Text.literal("IOR"), Text.literal(String.format("%.3f", v / 1000.0))),
             v -> {
                 Options.materialIOR[i] = v;
@@ -449,17 +461,17 @@ public class MaterialsSettingsScreen extends Screen {
                 onSliderChanged(i);
             });
         ResettableSliderWidget transmission = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialTransmission[i], block.getDefaultTransmission(),
+            0, 1000, Options.materialTransmission[i], def.apply(MaterialBlock::getDefaultTransmission),
             v -> getGenericValueText(Text.literal("Transmission"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialTransmission[i] = v; onSliderChanged(i); });
         ly = addPair(leftX, ly, colW, ior, transmission);
 
         ResettableSliderWidget subsurface = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialSubsurface[i], block.getDefaultSubsurface(),
+            0, 1000, Options.materialSubsurface[i], def.apply(MaterialBlock::getDefaultSubsurface),
             v -> getGenericValueText(Text.literal("Subsurface"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialSubsurface[i] = v; onSliderChanged(i); });
         ResettableSliderWidget anisotropic = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialAnisotropic[i], block.getDefaultAnisotropic(),
+            0, 1000, Options.materialAnisotropic[i], def.apply(MaterialBlock::getDefaultAnisotropic),
             v -> getGenericValueText(Text.literal("Anisotropic"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialAnisotropic[i] = v; onSliderChanged(i); });
         ly = addPair(leftX, ly, colW, subsurface, anisotropic);
@@ -474,21 +486,21 @@ public class MaterialsSettingsScreen extends Screen {
         ly = addHeader(leftX, ly, colW, "Coating");
 
         ResettableSliderWidget coatWeight = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
-            0, 1000, Options.materialCoatWeight[i], block.getDefaultCoatWeight(),
+            0, 1000, Options.materialCoatWeight[i], def.apply(MaterialBlock::getDefaultCoatWeight),
             v -> getGenericValueText(Text.literal("Clear Coat"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialCoatWeight[i] = v; onSliderChanged(i); });
         ResettableSliderWidget coatRoughness = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
-            0, 100, Options.materialCoatRoughness[i], block.getDefaultCoatRoughness(),
+            0, 100, Options.materialCoatRoughness[i], def.apply(MaterialBlock::getDefaultCoatRoughness),
             v -> getGenericValueText(Text.literal("Coat Roughness"), Text.literal(v + "%")),
             v -> { Options.materialCoatRoughness[i] = v; onSliderChanged(i); });
         ly = addPair(leftX, ly, colW, coatWeight, coatRoughness);
 
         ResettableSliderWidget sheenWeight = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialSheenWeight[i], block.getDefaultSheenWeight(),
+            0, 1000, Options.materialSheenWeight[i], def.apply(MaterialBlock::getDefaultSheenWeight),
             v -> getGenericValueText(Text.literal("Sheen"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialSheenWeight[i] = v; onSliderChanged(i); });
         ResettableSliderWidget sheenTint = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialSheenTint[i], block.getDefaultSheenTint(),
+            0, 1000, Options.materialSheenTint[i], def.apply(MaterialBlock::getDefaultSheenTint),
             v -> getGenericValueText(Text.literal("Sheen Tint"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialSheenTint[i] = v; onSliderChanged(i); });
         ly = addPair(leftX, ly, colW, sheenWeight, sheenTint);
@@ -497,17 +509,17 @@ public class MaterialsSettingsScreen extends Screen {
         ly = addHeader(leftX, ly, colW, "Advanced");
 
         ResettableSliderWidget f0r = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialF0R[i], block.getDefaultF0R(),
+            0, 1000, Options.materialF0R[i], def.apply(MaterialBlock::getDefaultF0R),
             v -> getGenericValueText(Text.literal("F0 R"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialF0R[i] = v; onSliderChanged(i); });
         ResettableSliderWidget f0g = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialF0G[i], block.getDefaultF0G(),
+            0, 1000, Options.materialF0G[i], def.apply(MaterialBlock::getDefaultF0G),
             v -> getGenericValueText(Text.literal("F0 G"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialF0G[i] = v; onSliderChanged(i); });
         ly = addPair(leftX, ly, colW, f0r, f0g);
 
         ResettableSliderWidget f0b = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            0, 1000, Options.materialF0B[i], block.getDefaultF0B(),
+            0, 1000, Options.materialF0B[i], def.apply(MaterialBlock::getDefaultF0B),
             v -> getGenericValueText(Text.literal("F0 B"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialF0B[i] = v; onSliderChanged(i); });
         ResettableSliderWidget gamutBoost = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
@@ -592,7 +604,7 @@ public class MaterialsSettingsScreen extends Screen {
             v -> getGenericValueText(Text.literal("Str"), Text.literal(String.format("%.0f%%", v / 10.0))),
             v -> { Options.materialNoiseStrength[i] = v; onSliderChanged(i); regenerateNoisePreview(); });
         ResettableSliderWidget noiseScale = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-            1, 500, Math.min(Options.materialNoiseScale[i], 500), 30,
+            1, 5000, Math.min(Options.materialNoiseScale[i], 5000), 50,
             v -> getGenericValueText(Text.literal("Scale"), Text.literal(String.format("%.1fx", v / 10.0))),
             v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); regenerateNoisePreview(); });
         cy = addPair(centerX, cy, colW, noiseStrength, noiseScale);
@@ -728,8 +740,8 @@ public class MaterialsSettingsScreen extends Screen {
             cy = addPair(centerX, cy, colW, dispDepth, null);
         }
 
-        // -- Parent/Child --
-        if (!block.isParent()) {
+        // -- Parent/Child (enum blocks only) --
+        if (block != null && !block.isParent()) {
             cy = addHeader(centerX, cy, colW, "Parent / Child");
 
             MaterialBlock parentBlock = block.getParentMaterial();
@@ -755,12 +767,12 @@ public class MaterialsSettingsScreen extends Screen {
         // Auto-PBR toggles (paired)
         ButtonWidget perBlockAutoPBRBtn = makeToggle("This Block", Options.materialAutoPBR[i], value -> {
             Options.materialAutoPBR[i] = value;
-            onSliderChanged(i); LiveNormalReuploader.scheduleReupload();
+            onSliderChanged(i); LiveNormalReuploader.scheduleReupload(i);
             rebuildSelf();
         });
         ButtonWidget globalAutoPBRBtn = makeToggle("Global", Options.autoPBREnabled, value -> {
             Options.autoPBREnabled = value;
-            LiveNormalReuploader.scheduleReupload();
+            LiveNormalReuploader.scheduleReupload(); // -1 = all
             rebuildSelf();
         });
         ry = addPair(rightX, ry, colW, perBlockAutoPBRBtn, globalAutoPBRBtn);
@@ -783,7 +795,7 @@ public class MaterialsSettingsScreen extends Screen {
                 Options.materialPercentileSpread[i] = nextP.spread;
                 Options.materialAutoPBRRoughnessMin[i] = nextP.roughMin;
                 Options.materialAutoPBRRoughnessMax[i] = nextP.roughMax;
-                onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload();
+                onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
                 rebuildSelf();
             }).dimensions(0, 0, colW, WIDGET_H).build();
         presetBtn.active = autoPBRActive;
@@ -792,11 +804,11 @@ public class MaterialsSettingsScreen extends Screen {
         ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 100, Options.materialAutoPBRRoughnessMin[i], 30,
             v -> getGenericValueText(Text.literal("R. Min"), Text.literal(v + "%")),
-            v -> { Options.materialAutoPBRRoughnessMin[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            v -> { Options.materialAutoPBRRoughnessMin[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
         ResettableSliderWidget roughMax = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 100, Options.materialAutoPBRRoughnessMax[i], 95,
             v -> getGenericValueText(Text.literal("R. Max"), Text.literal(v + "%")),
-            v -> { Options.materialAutoPBRRoughnessMax[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            v -> { Options.materialAutoPBRRoughnessMax[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
         roughMin.active = autoPBRActive;
         roughMax.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, roughMin, roughMax);
@@ -804,18 +816,18 @@ public class MaterialsSettingsScreen extends Screen {
         ResettableSliderWidget perCenter = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 100, Options.materialPercentileCenter[i], 50,
             v -> getGenericValueText(Text.literal("Center"), Text.literal(v + "%")),
-            v -> { Options.materialPercentileCenter[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            v -> { Options.materialPercentileCenter[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
         ResettableSliderWidget perSpread = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             1, 100, Options.materialPercentileSpread[i], 80,
             v -> getGenericValueText(Text.literal("Spread"), Text.literal(v + "%")),
-            v -> { Options.materialPercentileSpread[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            v -> { Options.materialPercentileSpread[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
         perCenter.active = autoPBRActive;
         perSpread.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, perCenter, perSpread);
 
         ButtonWidget invertRoughBtn = makeToggle("Invert", (Options.materialAutoPBRFlags[i] & 1) != 0, value -> {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~1) | (value ? 1 : 0);
-            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload();
+            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
         });
         ry = addPair(rightX, ry, colW, invertRoughBtn, null);
 
@@ -826,11 +838,11 @@ public class MaterialsSettingsScreen extends Screen {
             0, 200, Options.materialNormalStrength[i], 100,
             v -> getGenericValueText(Text.literal("Strength"),
                 Text.literal(String.format("\u00d7%.2f", v / 100.0))),
-            v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
         normalStrength.active = autoPBRActive;
         ButtonWidget invertNormalBtn = makeToggle("Invert", (Options.materialAutoPBRFlags[i] & 2) != 0, value -> {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~2) | (value ? 2 : 0);
-            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload();
+            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
         });
         ry = addPair(rightX, ry, colW, normalStrength, invertNormalBtn);
 
@@ -840,11 +852,11 @@ public class MaterialsSettingsScreen extends Screen {
         ResettableSliderWidget perHeightGamma = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
             10, 300, Options.materialAutoPBRHeightGamma[i], 100,
             v -> getGenericValueText(Text.literal("Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
-            v -> { Options.materialAutoPBRHeightGamma[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(); });
+            v -> { Options.materialAutoPBRHeightGamma[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
         perHeightGamma.active = autoPBRActive;
         ButtonWidget invertHeightBtn = makeToggle("Invert", (Options.materialAutoPBRFlags[i] & 4) != 0, value -> {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~4) | (value ? 4 : 0);
-            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload();
+            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
         });
         ry = addPair(rightX, ry, colW, perHeightGamma, invertHeightBtn);
 
@@ -1174,12 +1186,11 @@ public class MaterialsSettingsScreen extends Screen {
     //  Auto-PBR preview
     // ──────────────────────────────────────────────────────────────
 
-    private void loadSourceAlbedo(MaterialBlock block) {
+    private void loadSourceAlbedo(String id) {
         if (sourceAlbedo != null) {
             sourceAlbedo.close();
             sourceAlbedo = null;
         }
-        String id = block.getId();
         String[] candidates = {
             id, id + "_top", id + "_side", id + "_front", id + "_still",
             id + "_block", id + "_block_top", id + "_block_side",
@@ -1364,10 +1375,11 @@ public class MaterialsSettingsScreen extends Screen {
         searchMatches.clear();
         if (searchQuery == null || searchQuery.isEmpty()) return;
         String lower = searchQuery.toLowerCase();
-        MaterialBlock[] blocks = MaterialBlock.values();
-        for (int j = 0; j < blocks.length; j++) {
-            String name = Text.translatable("options.video.materials." + blocks[j].getId()).getString().toLowerCase();
-            String id = blocks[j].getId().toLowerCase();
+        java.util.List<Integer> ordinals = MaterialBlock.getUniqueOrdinals();
+        for (int j = 0; j < ordinals.size(); j++) {
+            int ord = ordinals.get(j);
+            String name = MaterialBlock.getDisplayNameForOrdinal(ord).toLowerCase();
+            String id = MaterialBlock.getIdForOrdinal(ord).toLowerCase();
             if (name.contains(lower) || id.contains(lower)) {
                 searchMatches.add(j);
             }

@@ -1030,7 +1030,7 @@ public class Options {
     public static final int[] materialSheenTint = new int[MAX_MATERIALS];      // 0-1000 permille
     public static final int[] materialCoatWeight = new int[MAX_MATERIALS];     // 0-1000 permille
     public static final int[] materialCoatRoughness = new int[MAX_MATERIALS];  // 0-100 percent
-    public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-1000 (/10 = 0.1-100.0 world units)
+    public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-5000 (/10 = 0.1-500.0 world units)
     public static final int[] materialNoiseStrength = new int[MAX_MATERIALS];  // 0-1000 permille (0.0-100.0%)
     public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-8
     public static final int[] materialNoiseType = new int[MAX_MATERIALS];     // 0-15 (noise algorithm)
@@ -1963,7 +1963,7 @@ public class Options {
                 materialSheenTint[i] = clamp(Integer.parseInt(props.getProperty("materialSheenTint." + pid, String.valueOf(mb.getDefaultSheenTint()))), 0, 1000);
                 materialCoatWeight[i] = clamp(Integer.parseInt(props.getProperty("materialCoatWeight." + pid, String.valueOf(mb.getDefaultCoatWeight()))), 0, 1000);
                 materialCoatRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialCoatRoughness." + pid, String.valueOf(mb.getDefaultCoatRoughness()))), 0, 100);
-                materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 1000);
+                materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 5000);
                 materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 1000);
                 materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 12);
                 materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 23);

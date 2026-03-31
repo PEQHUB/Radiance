@@ -34,7 +34,7 @@ public class MaterialData {
     public int coatWeight;             // 0-1000 permille
     public int coatRoughness;          // 0-100 percent
     // Procedural noise
-    public int noiseScale = 50;        // 1-1000 (/10 = 0.1-100.0 world units)
+    public int noiseScale = 50;        // 1-5000 (/10 = 0.1-500.0 world units)
     public int noiseStrength;          // 0-1000 permille (0.0-100.0%)
     public int noiseOctaves = 2;       // 1-8
     public int noiseType;              // 0-7 (noise algorithm)

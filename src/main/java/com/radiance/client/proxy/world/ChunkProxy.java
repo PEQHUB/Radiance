@@ -88,6 +88,7 @@ public class ChunkProxy {
         });
 
     public static native void initNative(int numChunks);
+    public static native void nativeSetWorldRegionPath(String path);
 
     public static void init(int numChunks) {
         clear();
@@ -98,6 +99,19 @@ public class ChunkProxy {
         // Must run after BakedModels are loaded (guaranteed by this point in world init).
         if (!BlockModelBridge.isUploaded()) {
             BlockModelBridge.serializeAndUpload();
+            BlockModelBridge.serializeBlockStateRegistry();
+        }
+
+        // Pass world save path to C++ for extended render distance (Anvil region reader).
+        try {
+            var server = net.minecraft.client.MinecraftClient.getInstance().getServer();
+            if (server != null) {
+                java.nio.file.Path regionDir = server.getSavePath(net.minecraft.util.WorldSavePath.ROOT)
+                    .resolve("region");
+                nativeSetWorldRegionPath(regionDir.toAbsolutePath().toString());
+            }
+        } catch (Exception e) {
+            // Multiplayer or save not available — extended RD won't work
         }
     }
 

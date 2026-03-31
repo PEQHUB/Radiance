@@ -34,40 +34,66 @@ public final class LiveNormalReuploader {
         });
 
     private static ScheduledFuture<?> pendingReupload;
+    private static volatile int pendingOrdinal = -1; // -1 = all
 
     private LiveNormalReuploader() {}
 
     /**
-     * Schedule a debounced re-upload of all auto-PBR maps.
+     * Schedule a debounced re-upload for a single material ordinal's auto-PBR maps.
      * Coalesces calls within 100ms into a single re-upload on the render thread.
+     * Pass -1 to re-upload all materials (e.g. global toggle).
      */
-    public static synchronized void scheduleReupload() {
+    public static synchronized void scheduleReupload(int ordinal) {
+        // If already pending for all, keep all; otherwise widen to all if different ordinal
         if (pendingReupload != null && !pendingReupload.isDone()) {
+            if (pendingOrdinal != -1 && ordinal != -1 && pendingOrdinal != ordinal) {
+                pendingOrdinal = -1; // multiple ordinals changed — do all
+            } else if (ordinal == -1) {
+                pendingOrdinal = -1;
+            }
             pendingReupload.cancel(false);
+        } else {
+            pendingOrdinal = ordinal;
         }
+        final int ord = pendingOrdinal;
         pendingReupload = scheduler.schedule(() -> {
-            MinecraftClient.getInstance().execute(LiveNormalReuploader::reuploadAllAutoPBR);
-        }, 100, TimeUnit.MILLISECONDS);
+            MinecraftClient.getInstance().execute(() -> reuploadAutoPBR(ord));
+        }, 30, TimeUnit.MILLISECONDS);
+    }
+
+    /** Convenience overload — re-upload all materials. */
+    public static void scheduleReupload() {
+        scheduleReupload(-1);
     }
 
     /**
-     * Immediately re-generate and re-upload all auto-PBR normals and speculars.
-     * Must be called from the render thread (or via scheduleReupload which posts to it).
+     * Re-generate and re-upload auto-PBR normals and speculars.
+     * @param ordinal material ordinal to update, or -1 for all
      */
-    public static void reuploadAllAutoPBR() {
+    public static void reuploadAutoPBR(int ordinal) {
         specUpdateCount = 0;
         normUpdateCount = 0;
-        reuploadLegacyAtlas();
-        reuploadTextureArrays();
+        reuploadLegacyAtlas(ordinal);
+        reuploadTextureArrays(ordinal);
         System.err.println("[LiveReuploader] Reupload complete: " + specUpdateCount
-            + " spec layers, " + normUpdateCount + " norm layers");
+            + " spec layers, " + normUpdateCount + " norm layers"
+            + (ordinal >= 0 ? " (ordinal " + ordinal + ")" : " (all)"));
+    }
+
+    /** Re-upload all materials (called from non-UI paths). */
+    public static void reuploadAllAutoPBR() {
+        reuploadAutoPBR(-1);
     }
 
     // ── Legacy atlas path (directUpload to GLID — entities/fallback) ──────────
 
-    private static void reuploadLegacyAtlas() {
+    private static void reuploadLegacyAtlas(int targetOrdinal) {
         // Normals
         for (int albedoGLID : TextureTracker.autoPBRNormalGLIDs) {
+            if (targetOrdinal >= 0) {
+                Integer ord = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+                if (ord == null || ord != targetOrdinal) continue;
+            }
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
             if (cachedAlbedo == null) continue;
             if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
@@ -101,6 +127,10 @@ public final class LiveNormalReuploader {
 
         // Speculars
         for (int albedoGLID : TextureTracker.autoPBRSpecularGLIDs) {
+            if (targetOrdinal >= 0) {
+                Integer ord = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+                if (ord == null || ord != targetOrdinal) continue;
+            }
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
             if (cachedAlbedo == null) continue;
             if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
@@ -137,12 +167,13 @@ public final class LiveNormalReuploader {
     private static int specUpdateCount = 0;
     private static int normUpdateCount = 0;
 
-    private static void reuploadTextureArrays() {
+    private static void reuploadTextureArrays(int targetOrdinal) {
         if (BlockModelBridge.sortedSpriteIds.isEmpty()) return;
         int maxSpriteId = BlockModelBridge.sortedSpriteIds.size();
 
         for (Map.Entry<Integer, Set<Integer>> entry : BlockModelBridge.materialOrdinal2SpriteIds.entrySet()) {
             int ordinal = entry.getKey();
+            if (targetOrdinal >= 0 && ordinal != targetOrdinal) continue;
             Set<Integer> spriteIds = entry.getValue();
             if (spriteIds == null || spriteIds.isEmpty()) continue;
 

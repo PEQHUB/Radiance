@@ -98,6 +98,12 @@ public class NoisePreviewGenerator {
                 float n = fbm(x * 1.732f, y, seed, 1, 2.0f);
                 yield n > 0.5f ? 0.9f : 0.2f;
             }
+            case 11 -> { // Scratches: anisotropic stretched noise (brushed metal)
+                float sx = x * 0.125f; // 8:1 stretch in X
+                float raw = noise2D(sx, y, seed) * 2.0f - 1.0f; // remap to [-1,1]
+                float absRaw = Math.abs(raw);
+                yield clampF(absRaw * (3.0f - 2.0f * absRaw), 0, 1);
+            }
             case 12 -> { // Dots
                 float fx = x - (float) Math.floor(x);
                 float fy = y - (float) Math.floor(y);
@@ -112,6 +118,21 @@ public class NoisePreviewGenerator {
             case 15 -> worleyF2F1(x * 1.5f, y * 1.5f, seed); // Crackle
             case 16 -> 0.5f + 0.5f * (float) Math.sin(y * 6.28f); // Waves
             case 17 -> worleyF1(x, y, seed); // Cellular
+            case 18 -> { // Erosion: turbulent ridged (layered cracks)
+                float n = Math.abs(noise2D(x, y, seed) * 2.0f - 1.0f);
+                yield 1.0f - n * n; // squared abs, inverted = eroded surface
+            }
+            case 19 -> { // Fabric: woven cross-hatch pattern
+                float warp = (float) Math.sin(x * 6.2831853f) * 0.5f + 0.5f;
+                float weft = (float) Math.sin(y * 6.2831853f) * 0.5f + 0.5f;
+                float sel = ((x + y) - (float) Math.floor(x + y)) >= 0.5f ? 1.0f : 0.0f;
+                yield warp * (1.0f - sel) + weft * sel;
+            }
+            case 21 -> { // HashGrid: per-cell random value
+                int ix = fastFloor(x);
+                int iy = fastFloor(y);
+                yield (hash(ix, iy, seed) & 0xFFFF) / 65535.0f;
+            }
             case 22 -> { // Sine Lines
                 float n = noise2D(x, y, seed);
                 yield 0.5f + 0.5f * (float) Math.sin((x + y) * 6.28f + n * 3.0f);
@@ -240,6 +261,10 @@ public class NoisePreviewGenerator {
     }
 
     private static int clamp(int v, int min, int max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    private static float clampF(float v, float min, float max) {
         return Math.max(min, Math.min(max, v));
     }
 }

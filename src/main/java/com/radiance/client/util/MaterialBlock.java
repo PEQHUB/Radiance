@@ -1152,10 +1152,14 @@ public enum MaterialBlock {
 
     /** Dynamic blocks: Block → ordinal (for blocks not in the MaterialBlock enum). */
     private static final Map<Block, Integer> DYNAMIC_ORDINAL_MAP = new HashMap<>();
+    /** Dynamic ordinal → representative Block (first block registered for each ordinal). */
+    private static final Map<Integer, Block> DYNAMIC_PRIMARY_BLOCK = new HashMap<>();
     /** Dynamic texture names: registry path → ordinal. */
     private static final Map<String, Integer> DYNAMIC_TEXTURE_MAP = new HashMap<>();
     /** Dynamic block MaterialClass assignments. */
     private static final Map<Integer, MaterialClass> DYNAMIC_CLASS_MAP = new HashMap<>();
+    /** Cached sorted list of all unique ordinals (enum + dynamic). Invalidated on initDynamic(). */
+    private static List<Integer> cachedUniqueOrdinals = null;
     /** Next available dynamic ordinal (starts after the last enum entry). */
     private static int nextDynamicOrdinal = COUNT;
     /** Whether initDynamic() has been called. */
@@ -1223,6 +1227,7 @@ public enum MaterialBlock {
 
             int ordinal = nextDynamicOrdinal++;
             DYNAMIC_ORDINAL_MAP.put(block, ordinal);
+            DYNAMIC_PRIMARY_BLOCK.put(ordinal, block);
             DYNAMIC_TEXTURE_MAP.put(id, ordinal);
             baseOrdinals.put(baseName, ordinal);
 
@@ -1232,8 +1237,9 @@ public enum MaterialBlock {
             registered++;
         }
 
-        // Invalidate cached texture map so it rebuilds with dynamic entries
+        // Invalidate caches so they rebuild with dynamic entries
         textureMap = null;
+        cachedUniqueOrdinals = null;
 
         LOGGER.info("Auto-registered {} dynamic material blocks (ordinals {}-{})",
             registered, COUNT, nextDynamicOrdinal - 1);
@@ -1242,6 +1248,58 @@ public enum MaterialBlock {
     /** Returns the total number of active material ordinals (enum + dynamic). */
     public static int getActiveMaterialCount() {
         return nextDynamicOrdinal;
+    }
+
+    /** Returns a sorted list of all unique material ordinals (enum + dynamic, for UI). */
+    public static List<Integer> getUniqueOrdinals() {
+        if (cachedUniqueOrdinals != null) return cachedUniqueOrdinals;
+        List<Integer> list = new ArrayList<>();
+        // Enum entries first (0..COUNT-1)
+        for (int j = 0; j < COUNT; j++) list.add(j);
+        // Dynamic entries (COUNT..nextDynamicOrdinal-1), only those with a primary block
+        for (int j = COUNT; j < nextDynamicOrdinal; j++) {
+            if (DYNAMIC_PRIMARY_BLOCK.containsKey(j)) list.add(j);
+        }
+        cachedUniqueOrdinals = list;
+        return list;
+    }
+
+    /** Returns the representative Block for any ordinal (enum or dynamic). May return null. */
+    public static Block getBlockForOrdinal(int ordinal) {
+        if (ordinal >= 0 && ordinal < COUNT) {
+            return values()[ordinal].getPrimaryBlock();
+        }
+        return DYNAMIC_PRIMARY_BLOCK.get(ordinal);
+    }
+
+    /** Returns a string ID for any ordinal (enum name or registry path). */
+    public static String getIdForOrdinal(int ordinal) {
+        if (ordinal >= 0 && ordinal < COUNT) {
+            return values()[ordinal].getId();
+        }
+        Block b = DYNAMIC_PRIMARY_BLOCK.get(ordinal);
+        if (b != null) {
+            return net.minecraft.registry.Registries.BLOCK.getId(b).getPath();
+        }
+        return "unknown_" + ordinal;
+    }
+
+    /** Returns a human-readable display name for any ordinal. */
+    public static String getDisplayNameForOrdinal(int ordinal) {
+        if (ordinal >= 0 && ordinal < COUNT) {
+            return net.minecraft.text.Text.translatable(
+                "options.video.materials." + values()[ordinal].getId()).getString();
+        }
+        Block b = DYNAMIC_PRIMARY_BLOCK.get(ordinal);
+        if (b != null) return b.getName().getString();
+        return "Unknown #" + ordinal;
+    }
+
+    /** Finds the index of an ordinal in getUniqueOrdinals(). Returns 0 if not found. */
+    public static int indexOfOrdinal(int ordinal) {
+        List<Integer> list = getUniqueOrdinals();
+        int idx = list.indexOf(ordinal);
+        return idx >= 0 ? idx : 0;
     }
 
     /** Returns the MaterialClass for a given ordinal (enum or dynamic). */
