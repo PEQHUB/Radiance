@@ -104,8 +104,50 @@ public class PerformancePopulator implements ContentPopulator {
             }
         }
 
-        // ── Terrain ──
-        SettingsSection terrain = panel.addSection("Terrain");
+        // ── Render Distance ──
+        SettingsSection renderDist = panel.addSection("Render Distance");
+
+        // Extended Render Distance — the headline feature
+        SimpleOption<Integer> extendedRD = new SimpleOption<>(
+            Options.EXTENDED_RENDER_DISTANCE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(value == 0 ? "Off" : "+" + value + " chunks")),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 512),
+            Codec.intRange(0, 512),
+            Options.extendedRenderDistance,
+            value -> Options.setExtendedRenderDistance(value, true));
+
+        // Cull distance — max visibility in chunks
+        SimpleOption<Integer> chunkCullDistance = new SimpleOption<>(
+            Options.CHUNK_CULL_DISTANCE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(value == 0 ? "Unlimited" : value + " chunks")),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 512),
+            Codec.intRange(0, 512),
+            Options.chunkCullDistance,
+            value -> Options.setChunkCullDistance(value, true));
+
+        renderDist.addTwoWidgets(extendedRD.createWidget(gameOptions), chunkCullDistance.createWidget(gameOptions))
+            .tooltip("Extended RD loads extra chunks from disk beyond Java's render distance (singleplayer only). Cull Distance controls maximum visibility.");
+
+        // LOD distance — compact vertex threshold
+        SimpleOption<Integer> chunkLodDistance = new SimpleOption<>(
+            Options.CHUNK_LOD_DISTANCE_KEY,
+            SimpleOption.emptyTooltip(),
+            (optionText, value) -> getGenericValueText(optionText,
+                Text.literal(value == 0 ? "All Full Quality" : value + " chunks")),
+            new SimpleOption.ValidatingIntSliderCallbacks(0, 512),
+            Codec.intRange(0, 512),
+            Options.chunkLodDistance,
+            value -> Options.setChunkLodDistance(value, true));
+
+        renderDist.addTwoWidgets(chunkLodDistance.createWidget(gameOptions), null)
+            .tooltip("Chunks beyond this distance use compact 32-byte vertices (saves ~67% VRAM). 0 = all full quality.");
+
+        // ── Chunk Building ──
+        SettingsSection terrain = panel.addSection("Chunk Building");
 
         SimpleOption<Integer> chunkBatchSize = new SimpleOption<>(
             Options.CHUNK_BUILDING_BATCH_SIZE_KEY,
@@ -126,26 +168,6 @@ public class PerformancePopulator implements ContentPopulator {
             value -> Options.setChunkBuildingTotalBatches(value, true));
 
         terrain.addTwoWidgets(chunkBatchSize.createWidget(gameOptions), chunkTotalBatches.createWidget(gameOptions));
-
-        SimpleOption<Integer> chunkCullDistance = new SimpleOption<>(
-            Options.CHUNK_CULL_DISTANCE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText, Text.literal(value + " blocks")),
-            new SimpleOption.ValidatingIntSliderCallbacks(64, 1024),
-            Codec.intRange(64, 1024),
-            Options.chunkCullDistance,
-            value -> Options.setChunkCullDistance(value, true));
-
-        SimpleOption<Integer> chunkLodDistance = new SimpleOption<>(
-            Options.CHUNK_LOD_DISTANCE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText, Text.literal(value + " blocks")),
-            new SimpleOption.ValidatingIntSliderCallbacks(64, 512),
-            Codec.intRange(64, 512),
-            Options.chunkLodDistance,
-            value -> Options.setChunkLodDistance(value, true));
-
-        terrain.addTwoWidgets(chunkCullDistance.createWidget(gameOptions), chunkLodDistance.createWidget(gameOptions));
     }
 
     @Override
@@ -157,10 +179,11 @@ public class PerformancePopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Auto VRR Cap", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Frame Generation", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("FG Multiplier", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Chunk Batch Size", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Chunk Total Batches", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Extended Render Distance", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Chunk Cull Distance", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Chunk LOD Distance", category, nodeId, false)
+            new UnifiedSearchOverlay.SearchEntry("Chunk LOD Distance", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Chunk Batch Size", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Chunk Total Batches", category, nodeId, false)
         );
     }
 }

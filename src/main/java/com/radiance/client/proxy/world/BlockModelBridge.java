@@ -529,6 +529,7 @@ public class BlockModelBridge {
             buf.put(strBytes);
         }
 
+        buf.position(0); // Reset position — memAddress returns addr+position
         nativeUploadBlockStateRegistry(memAddress(buf), totalSize);
 
         double elapsed = (System.nanoTime() - startTime) / 1e6;

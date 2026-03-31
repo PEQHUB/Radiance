@@ -286,6 +286,7 @@ public class Options {
     public static final String CHUNK_BUILDING_TOTAL_BATCHES_KEY = "options.video.chunk_building_total_batches";
     public static final String CHUNK_CULL_DISTANCE_KEY = "options.video.chunk_cull_distance";
     public static final String CHUNK_LOD_DISTANCE_KEY = "options.video.chunk_lod_distance";
+    public static final String EXTENDED_RENDER_DISTANCE_KEY = "options.video.extended_render_distance";
     public static final String MEGA_MERGE_DISTANCE_KEY = "options.video.mega_merge_distance";
 
     // Pipeline
@@ -668,9 +669,10 @@ public class Options {
     public static int frameGenMultiplier = 1;    // 1=2x, 2=3x, 3=4x
     public static int chunkBuildingBatchSize = 6;
     public static int chunkBuildingTotalBatches = 6;
-    public static int chunkCullDistance = 384;  // 64-1024 blocks, chunks beyond excluded from TLAS
-    public static int chunkLodDistance = 160;  // 64-512 blocks, ≤ = lossless 64B vertex, > = compact 32B
+    public static int chunkCullDistance = 24;  // 0-512 chunks, chunks beyond excluded from TLAS (0=unlimited)
+    public static int chunkLodDistance = 10;  // 0-512 chunks, chunks beyond use compact 32B vertices (0=all full quality)
     public static int megaMergeDistance = 0;  // 0-512 blocks, 0=disabled, chunks beyond merged into mega-BLASes
+    public static int extendedRenderDistance = 0; // 0-512 extra chunks beyond Java RD, loaded from disk (0=off)
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
@@ -1689,6 +1691,9 @@ public class Options {
             setMegaMergeDistance(
                 Integer.parseInt(props.getProperty("megaMergeDistance",
                     String.valueOf(megaMergeDistance))), false);
+            setExtendedRenderDistance(
+                Integer.parseInt(props.getProperty("extendedRenderDistance",
+                    String.valueOf(extendedRenderDistance))), false);
             tonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
                 "tonemappingMode", String.valueOf(tonemappingMode))));
             sdrTonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
@@ -2562,6 +2567,7 @@ public class Options {
         props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
         props.setProperty("chunkLodDistance", String.valueOf(chunkLodDistance));
         props.setProperty("megaMergeDistance", String.valueOf(megaMergeDistance));
+        props.setProperty("extendedRenderDistance", String.valueOf(extendedRenderDistance));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
         // Save per-tonemapper params
@@ -3534,9 +3540,10 @@ public class Options {
         vrrMode = false;
         chunkBuildingBatchSize = 6;
         chunkBuildingTotalBatches = 6;
-        chunkCullDistance = 384;
-        chunkLodDistance = 160;
+        chunkCullDistance = 24;
+        chunkLodDistance = 10;
         megaMergeDistance = 0;
+        extendedRenderDistance = 0;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
         colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;
@@ -3634,6 +3641,7 @@ public class Options {
         nativeSetChunkCullDistance(chunkCullDistance, false);
         nativeSetChunkLodDistance(chunkLodDistance, false);
         nativeSetMegaMergeDistance(megaMergeDistance, false);
+        nativeSetExtendedRenderDistance(extendedRenderDistance, false);
         nativeSetSdrTransferFunction(sdrTransferFunction, false);
         nativeSetSaturation(saturationPercent / 100.0f, false);
         nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
@@ -3764,7 +3772,7 @@ public class Options {
     public native static void nativeSetChunkCullDistance(int distance, boolean write);
 
     public static void setChunkCullDistance(int distance, boolean write) {
-        Options.chunkCullDistance = clamp(distance, 64, 1024);
+        Options.chunkCullDistance = clamp(distance, 0, 512);
         nativeSetChunkCullDistance(Options.chunkCullDistance, write);
         if (write) {
             overwriteConfig();
@@ -3774,7 +3782,7 @@ public class Options {
     public native static void nativeSetChunkLodDistance(int distance, boolean write);
 
     public static void setChunkLodDistance(int distance, boolean write) {
-        Options.chunkLodDistance = clamp(distance, 64, 512);
+        Options.chunkLodDistance = clamp(distance, 0, 512);
         nativeSetChunkLodDistance(Options.chunkLodDistance, write);
         if (write) {
             overwriteConfig();
@@ -3786,6 +3794,16 @@ public class Options {
     public static void setMegaMergeDistance(int distance, boolean write) {
         Options.megaMergeDistance = clamp(distance, 0, 512);
         nativeSetMegaMergeDistance(Options.megaMergeDistance, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetExtendedRenderDistance(int distance, boolean write);
+
+    public static void setExtendedRenderDistance(int distance, boolean write) {
+        Options.extendedRenderDistance = clamp(distance, 0, 512);
+        nativeSetExtendedRenderDistance(Options.extendedRenderDistance, write);
         if (write) {
             overwriteConfig();
         }

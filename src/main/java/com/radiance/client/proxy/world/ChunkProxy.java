@@ -99,8 +99,10 @@ public class ChunkProxy {
         // Must run after BakedModels are loaded (guaranteed by this point in world init).
         if (!BlockModelBridge.isUploaded()) {
             BlockModelBridge.serializeAndUpload();
-            BlockModelBridge.serializeBlockStateRegistry();
         }
+        // Block state registry must be uploaded every world load (not gated behind isUploaded)
+        // because the extended chunk manager needs it and it may have been cleared.
+        BlockModelBridge.serializeBlockStateRegistry();
 
         // Pass world save path to C++ for extended render distance (Anvil region reader).
         try {
