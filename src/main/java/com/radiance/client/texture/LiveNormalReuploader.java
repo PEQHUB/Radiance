@@ -5,6 +5,7 @@ import com.radiance.client.proxy.vulkan.TextureProxy;
 import com.radiance.client.proxy.world.BlockModelBridge;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -15,10 +16,13 @@ import java.util.concurrent.TimeUnit;
  * Re-uploads auto-PBR normal and specular maps into their existing Vulkan texture slots
  * when auto-PBR parameters change. No destroy/recreate — overwrites the same GLID.
  *
- * Bypasses NativeImage.upload() entirely to avoid render thread assertions and
- * AuxiliaryTextures' uploadedLevelsMask. Calls TextureProxy.queueUpload() directly.
+ * Two upload paths:
+ *   1. Legacy atlas: directUpload() to the specular/normal GLID (entities, fallback)
+ *   2. Texture array: per-sprite updates via nativeUpdateSpecularLayer/nativeUpdateNormalLayer
  *
- * Uses debounced scheduling so rapid slider adjustments coalesce into a single re-upload.
+ * The texture array path uses per-sprite albedo images from TextureTracker.spriteAlbedoCache
+ * (sprite-sized, keyed by spriteId). The legacy path uses the atlas-sized cache in
+ * materialBlockAlbedoCache (keyed by atlas GLID).
  */
 public final class LiveNormalReuploader {
 
@@ -53,98 +57,60 @@ public final class LiveNormalReuploader {
     public static void reuploadAllAutoPBR() {
         specUpdateCount = 0;
         normUpdateCount = 0;
-        reuploadNormals();
-        reuploadSpeculars();
+        reuploadLegacyAtlas();
+        reuploadTextureArrays();
         System.err.println("[LiveReuploader] Reupload complete: " + specUpdateCount
             + " spec layers, " + normUpdateCount + " norm layers");
-        // Don't call performQueuedUpload() here — the queued uploads will be
-        // flushed by the regular submitCommand() path on the next frame.
-        // Calling it here risks double-processing (upload queue isn't cleared
-        // after processing) and command buffer state corruption if this runs
-        // before acquireContext() has begun the upload command buffer.
     }
 
-    private static boolean isAutoPBRActive(int albedoGLID) {
-        Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
-        if (ordinal == null) return false;
-        return Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
-    }
+    // ── Legacy atlas path (directUpload to GLID — entities/fallback) ──────────
 
-    private static void reuploadNormals() {
+    private static void reuploadLegacyAtlas() {
+        // Normals
         for (int albedoGLID : TextureTracker.autoPBRNormalGLIDs) {
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
             if (cachedAlbedo == null) continue;
-
             if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
             int normalGLID = TextureTracker.GLID2NormalGLID[albedoGLID];
             if (normalGLID == -1) continue;
 
             try {
+                Integer ordN = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
                 NativeImage newNormal;
-                if (isAutoPBRActive(albedoGLID)) {
-                    Integer ordN = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
-                    if (ordN != null) {
-                        newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo,
-                            Options.materialNormalStrength[ordN],
-                            (Options.materialAutoPBRFlags[ordN] & 2) != 0,
-                            Options.materialAutoPBRHeightGamma[ordN],
-                            (Options.materialAutoPBRFlags[ordN] & 4) != 0,
-                            AutoPBRGenerator.HeightParams.fromOptions(ordN),
-                            Options.materialPomAOStrength[ordN]);
-                    } else {
-                        newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo);
-                    }
+                if (isAutoPBRActiveForGLID(albedoGLID) && ordN != null) {
+                    newNormal = AutoPBRGenerator.generateNormal(cachedAlbedo,
+                        Options.materialNormalStrength[ordN],
+                        (Options.materialAutoPBRFlags[ordN] & 2) != 0,
+                        Options.materialAutoPBRHeightGamma[ordN],
+                        (Options.materialAutoPBRFlags[ordN] & 4) != 0,
+                        AutoPBRGenerator.HeightParams.fromOptions(ordN),
+                        Options.materialPomAOStrength[ordN]);
                 } else {
-                    // Flat neutral normal (128,128,255 = straight up, no bump)
                     newNormal = cachedAlbedo.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
                 }
-                NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt) (Object) newNormal)
-                    .neoVoxelRT$alignTo(cachedAlbedo);
-
+                NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                    (Object) newNormal).neoVoxelRT$alignTo(cachedAlbedo);
                 directUpload(aligned, normalGLID);
-
-                // Update texture array layers with neutral-strength normals
-                // (shader applies runtime normal strength from pack5.w)
-                Integer ordN2 = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
-                if (ordN2 != null && isAutoPBRActive(albedoGLID)) {
-                    NativeImage neutralNormal = AutoPBRGenerator.generateNormal(cachedAlbedo,
-                        100, // neutral strength — shader applies pack5.w
-                        (Options.materialAutoPBRFlags[ordN2] & 2) != 0,
-                        Options.materialAutoPBRHeightGamma[ordN2],
-                        (Options.materialAutoPBRFlags[ordN2] & 4) != 0,
-                        AutoPBRGenerator.HeightParams.fromOptions(ordN2),
-                        Options.materialPomAOStrength[ordN2]);
-                    NativeImage neutralAligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                        (Object) neutralNormal).neoVoxelRT$alignTo(cachedAlbedo);
-                    updateTextureArrayLayers(albedoGLID, neutralAligned, false);
-                    if (neutralAligned != neutralNormal) neutralNormal.close();
-                    neutralAligned.close();
-                } else {
-                    updateTextureArrayLayers(albedoGLID, aligned, false);
-                }
-
                 if (aligned != newNormal) newNormal.close();
                 aligned.close();
             } catch (Exception e) {
-                System.err.println("[LiveReuploader] Normal re-upload failed for GLID "
+                System.err.println("[LiveReuploader] Legacy normal re-upload failed for GLID "
                     + albedoGLID + ": " + e.getMessage());
             }
         }
-    }
 
-    private static void reuploadSpeculars() {
+        // Speculars
         for (int albedoGLID : TextureTracker.autoPBRSpecularGLIDs) {
             NativeImage cachedAlbedo = TextureTracker.materialBlockAlbedoCache.get(albedoGLID);
             if (cachedAlbedo == null) continue;
-
             if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
             int specularGLID = TextureTracker.GLID2SpecularGLID[albedoGLID];
             if (specularGLID == -1) continue;
 
             try {
-                NativeImage newSpec;
                 Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
-                if (isAutoPBRActive(albedoGLID) && ordinal != null) {
+                NativeImage newSpec;
+                if (isAutoPBRActiveForGLID(albedoGLID) && ordinal != null) {
                     newSpec = AutoPBRGenerator.generateSpecularPercentile(cachedAlbedo,
                         Options.materialAutoPBRRoughnessMin[ordinal],
                         Options.materialAutoPBRRoughnessMax[ordinal],
@@ -152,62 +118,104 @@ public final class LiveNormalReuploader {
                         Options.materialPercentileSpread[ordinal],
                         (Options.materialAutoPBRFlags[ordinal] & 1) != 0);
                 } else {
-                    // Flat zero specular (no roughness/F0/emission data)
                     newSpec = cachedAlbedo.applyToCopy(i -> 0);
                 }
-                NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt) (Object) newSpec)
-                    .neoVoxelRT$alignTo(cachedAlbedo);
-
+                NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                    (Object) newSpec).neoVoxelRT$alignTo(cachedAlbedo);
                 directUpload(aligned, specularGLID);
-
-                // Also update texture array layers for block rendering path
-                updateTextureArrayLayers(albedoGLID, aligned, true);
-
                 if (aligned != newSpec) newSpec.close();
                 aligned.close();
             } catch (Exception e) {
-                System.err.println("[LiveReuploader] Specular re-upload failed for GLID "
+                System.err.println("[LiveReuploader] Legacy specular re-upload failed for GLID "
                     + albedoGLID + ": " + e.getMessage());
             }
         }
     }
 
-    /**
-     * Push a NativeImage to all texture array layers for sprites belonging to the same material block.
-     * @param isSpecular true for specular array, false for normal array
-     */
+    // ── Texture array path (per-sprite updates — blocks) ─────────────────────
+
     private static int specUpdateCount = 0;
     private static int normUpdateCount = 0;
 
-    private static void updateTextureArrayLayers(int albedoGLID, NativeImage image, boolean isSpecular) {
-        // Guard: skip during texture system reset/reload
+    private static void reuploadTextureArrays() {
         if (BlockModelBridge.sortedSpriteIds.isEmpty()) return;
-
-        Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
-        if (ordinal == null) return;
-        Set<Integer> spriteIds = BlockModelBridge.materialOrdinal2SpriteIds.get(ordinal);
-        if (spriteIds == null || spriteIds.isEmpty()) return;
-
-        if (isSpecular) specUpdateCount += spriteIds.size();
-        else normUpdateCount += spriteIds.size();
-
-        long ptr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-            (Object) image).neoVoxelRT$getPointer();
-        int sizeBytes = image.getWidth() * image.getHeight() * 4;
         int maxSpriteId = BlockModelBridge.sortedSpriteIds.size();
-        for (int sid : spriteIds) {
-            if (sid < 0 || sid >= maxSpriteId) continue; // bounds guard
-            if (isSpecular) {
-                BlockModelBridge.nativeUpdateSpecularLayer(sid, ptr, sizeBytes);
-            } else {
-                BlockModelBridge.nativeUpdateNormalLayer(sid, ptr, sizeBytes);
+
+        for (Map.Entry<Integer, Set<Integer>> entry : BlockModelBridge.materialOrdinal2SpriteIds.entrySet()) {
+            int ordinal = entry.getKey();
+            Set<Integer> spriteIds = entry.getValue();
+            if (spriteIds == null || spriteIds.isEmpty()) continue;
+
+            if (ordinal < 0 || ordinal >= Options.materialAutoPBR.length) continue;
+            boolean autoPBR = Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
+
+            for (int spriteId : spriteIds) {
+                if (spriteId < 0 || spriteId >= maxSpriteId) continue;
+                NativeImage spriteAlbedo = TextureTracker.spriteAlbedoCache.get(spriteId);
+                if (spriteAlbedo == null) continue;
+
+                try {
+                    // ── Specular ──
+                    // Skip transmissive blocks — roughness from material class slider, not CPU bake
+                    boolean transmissive = Options.materialTransmission[ordinal] > 0;
+                    if (Options.materialSpecularInputType[ordinal] == 0 && !transmissive) {
+                        NativeImage specImg;
+                        if (autoPBR) {
+                            specImg = AutoPBRGenerator.generateSpecularPercentile(spriteAlbedo,
+                                Options.materialAutoPBRRoughnessMin[ordinal],
+                                Options.materialAutoPBRRoughnessMax[ordinal],
+                                Options.materialPercentileCenter[ordinal],
+                                Options.materialPercentileSpread[ordinal],
+                                (Options.materialAutoPBRFlags[ordinal] & 1) != 0);
+                        } else {
+                            specImg = spriteAlbedo.applyToCopy(i -> 0);
+                        }
+                        long specPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                            (Object) specImg).neoVoxelRT$getPointer();
+                        int specBytes = specImg.getWidth() * specImg.getHeight() * 4;
+                        BlockModelBridge.nativeUpdateSpecularLayer(spriteId, specPtr, specBytes);
+                        specUpdateCount++;
+                        specImg.close();
+                    }
+
+                    // ── Normal ──
+                    if (Options.materialNormalInputType[ordinal] == 0) {
+                        NativeImage normImg;
+                        if (autoPBR) {
+                            // Neutral strength for texture array — shader applies pack5.w at runtime
+                            normImg = AutoPBRGenerator.generateNormal(spriteAlbedo,
+                                100,
+                                (Options.materialAutoPBRFlags[ordinal] & 2) != 0,
+                                Options.materialAutoPBRHeightGamma[ordinal],
+                                (Options.materialAutoPBRFlags[ordinal] & 4) != 0,
+                                AutoPBRGenerator.HeightParams.fromOptions(ordinal),
+                                Options.materialPomAOStrength[ordinal]);
+                        } else {
+                            normImg = spriteAlbedo.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
+                        }
+                        long normPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                            (Object) normImg).neoVoxelRT$getPointer();
+                        int normBytes = normImg.getWidth() * normImg.getHeight() * 4;
+                        BlockModelBridge.nativeUpdateNormalLayer(spriteId, normPtr, normBytes);
+                        normUpdateCount++;
+                        normImg.close();
+                    }
+                } catch (Exception e) {
+                    System.err.println("[LiveReuploader] Texture array re-upload failed for sprite "
+                        + spriteId + " ordinal " + ordinal + ": " + e.getMessage());
+                }
             }
         }
     }
 
+    private static boolean isAutoPBRActiveForGLID(int albedoGLID) {
+        Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
+        if (ordinal == null) return false;
+        return Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
+    }
+
     /**
      * Upload pixel data directly to a Vulkan texture slot, bypassing the NativeImage mixin pipeline.
-     * The staging buffer copy happens inside the JNI call, so the NativeImage can be closed after this returns.
      */
     private static void directUpload(NativeImage image, int targetGLID) {
         long pointer = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt) (Object) image)

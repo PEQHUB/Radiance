@@ -55,8 +55,11 @@ public class TextureTracker {
     // Fallback luminance range for unregistered textures (mbOrdinal == -1)
     public static Map<Integer, float[]> fallbackLumRange = new ConcurrentHashMap<>();
 
-    // Albedo NativeImage copies keyed by albedo GLID — for live auto-PBR re-generation
+    // Albedo NativeImage copies keyed by albedo GLID — for legacy atlas live re-upload
     public static Map<Integer, NativeImage> materialBlockAlbedoCache = new ConcurrentHashMap<>();
+    // Per-sprite albedo NativeImage copies keyed by sprite ID — for texture array live re-upload
+    // Populated in SpriteAtlasTextureMixins with sprite-sized (not atlas-sized) images
+    public static Map<Integer, NativeImage> spriteAlbedoCache = new ConcurrentHashMap<>();
     // Albedo GLID → MaterialBlock ordinal (for per-block Auto-PBR toggle check)
     public static Map<Integer, Integer> albedoGLID2BlockOrdinal = new ConcurrentHashMap<>();
     // Albedo GLIDs whose normal slot exists and can be auto-PBR re-uploaded

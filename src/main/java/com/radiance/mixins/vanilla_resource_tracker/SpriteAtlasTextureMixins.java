@@ -2,6 +2,7 @@ package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.proxy.world.BlockModelBridge;
+import com.radiance.client.texture.TextureTracker;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt;
@@ -94,6 +95,22 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         LOGGER.info("[TextureSystem] Mapped {} sprites to {} materials",
             BlockModelBridge.spriteId2MaterialOrdinal.size(),
             BlockModelBridge.materialOrdinal2SpriteIds.size());
+
+        // ---- Step 1C: Cache per-sprite albedo images for LiveNormalReuploader ----
+        // The atlas-level albedo cache (materialBlockAlbedoCache) is atlas-sized and keyed by
+        // atlas GLID — useless for texture array live re-upload which needs sprite-sized images.
+        // Cache a copy of each material block sprite's NativeImage keyed by spriteId.
+        TextureTracker.spriteAlbedoCache.clear();
+        for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
+            int si = mapEntry.getKey();
+            if (si >= sorted.size()) continue;
+            Sprite sp = sorted.get(si).getValue();
+            NativeImage img = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
+            if (img == null) continue;
+            TextureTracker.spriteAlbedoCache.put(si, img.applyToCopy(i -> i));
+        }
+        LOGGER.info("[TextureSystem] Cached {} sprite albedos for live re-upload",
+            TextureTracker.spriteAlbedoCache.size());
 
         // Detect sprite size (all block sprites should be uniform)
         int spriteSize = 0;
