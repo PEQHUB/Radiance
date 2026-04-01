@@ -34,7 +34,6 @@
   "options.video.chunk_building_total_batches": "总构建中的提交数",
   "options.video.chunk_cull_distance": "区块剔除距离",
   "options.video.chunk_lod_distance": "区块LOD距离",
-  "options.video.mega_merge_distance": "超级BLAS合并距离",
   "options.video.pipeline_setup": "设置管线...",
   "render_pipeline_screen.back": "返回",
   "render_pipeline_screen.save_and_build": "保存 & 构建",

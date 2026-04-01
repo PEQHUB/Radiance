@@ -287,7 +287,6 @@ public class Options {
     public static final String CHUNK_CULL_DISTANCE_KEY = "options.video.chunk_cull_distance";
     public static final String CHUNK_LOD_DISTANCE_KEY = "options.video.chunk_lod_distance";
     public static final String EXTENDED_RENDER_DISTANCE_KEY = "options.video.extended_render_distance";
-    public static final String MEGA_MERGE_DISTANCE_KEY = "options.video.mega_merge_distance";
 
     // Pipeline
     public static final String PIPELINE_SETUP_KEY = "options.video.pipeline_setup";
@@ -671,7 +670,6 @@ public class Options {
     public static int chunkBuildingTotalBatches = 6;
     public static int chunkCullDistance = 24;  // 0-512 chunks, chunks beyond excluded from TLAS (0=unlimited)
     public static int chunkLodDistance = 10;  // 0-512 chunks, chunks beyond use compact 32B vertices (0=all full quality)
-    public static int megaMergeDistance = 0;  // 0-512 blocks, 0=disabled, chunks beyond merged into mega-BLASes
     public static int extendedRenderDistance = 0; // 0-512 extra chunks beyond Java RD, loaded from disk (0=off)
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
@@ -1688,9 +1686,6 @@ public class Options {
             setChunkLodDistance(
                 Integer.parseInt(props.getProperty("chunkLodDistance",
                     String.valueOf(chunkLodDistance))), false);
-            setMegaMergeDistance(
-                Integer.parseInt(props.getProperty("megaMergeDistance",
-                    String.valueOf(megaMergeDistance))), false);
             setExtendedRenderDistance(
                 Integer.parseInt(props.getProperty("extendedRenderDistance",
                     String.valueOf(extendedRenderDistance))), false);
@@ -2566,7 +2561,6 @@ public class Options {
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
         props.setProperty("chunkLodDistance", String.valueOf(chunkLodDistance));
-        props.setProperty("megaMergeDistance", String.valueOf(megaMergeDistance));
         props.setProperty("extendedRenderDistance", String.valueOf(extendedRenderDistance));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
@@ -3542,7 +3536,6 @@ public class Options {
         chunkBuildingTotalBatches = 6;
         chunkCullDistance = 24;
         chunkLodDistance = 10;
-        megaMergeDistance = 0;
         extendedRenderDistance = 0;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
@@ -3640,7 +3633,6 @@ public class Options {
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
         nativeSetChunkCullDistance(chunkCullDistance, false);
         nativeSetChunkLodDistance(chunkLodDistance, false);
-        nativeSetMegaMergeDistance(megaMergeDistance, false);
         nativeSetExtendedRenderDistance(extendedRenderDistance, false);
         nativeSetSdrTransferFunction(sdrTransferFunction, false);
         nativeSetSaturation(saturationPercent / 100.0f, false);
@@ -3784,16 +3776,6 @@ public class Options {
     public static void setChunkLodDistance(int distance, boolean write) {
         Options.chunkLodDistance = clamp(distance, 0, 512);
         nativeSetChunkLodDistance(Options.chunkLodDistance, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetMegaMergeDistance(int distance, boolean write);
-
-    public static void setMegaMergeDistance(int distance, boolean write) {
-        Options.megaMergeDistance = clamp(distance, 0, 512);
-        nativeSetMegaMergeDistance(Options.megaMergeDistance, write);
         if (write) {
             overwriteConfig();
         }
