@@ -118,6 +118,7 @@ public class Options {
     public static final String DARK_ADAPT_SPEED_KEY = "options.video.dark_adapt_speed";
     public static final String SCENE_CHANGE_THRESHOLD_KEY = "options.video.scene_change_threshold";
     public static final String CENTER_WEIGHT_STRENGTH_KEY = "options.video.center_weight_strength";
+    public static final String HIGHLIGHT_WEIGHT_KEY = "options.video.highlight_weight";
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
@@ -137,6 +138,7 @@ public class Options {
     public static final String PSYCHO_ADAPT_CONTRAST_KEY = "options.video.psycho.adapt_contrast";
     public static final String PSYCHO_WHITE_CURVE_KEY = "options.video.psycho.white_curve";
     public static final String PSYCHO_CONE_EXPONENT_KEY = "options.video.psycho.cone_exponent";
+    public static final String PSYCHO_PEAK_SDR_KEY = "options.video.psycho.peak_sdr";
     public static final String CATEGORY_PSYCHO = "options.video.psycho.category";
 
     // HDR10
@@ -686,6 +688,7 @@ public class Options {
     public static int darkAdaptSpeedTenths = 20;               // 5-100 → 0.5 to 10.0 seconds (tau for dark adapt)
     public static int sceneChangeThresholdTenths = 50;         // 20-100 → 2.0 to 10.0 EV (instant snap threshold)
     public static int centerWeightPercent = 0;                 // 0-100 → 0.0 to 1.0 (center-weighted metering strength, 0=uniform)
+    public static int highlightWeightPercent = 50;             // 0-100 → 0.0 to 1.0 (highlight-weighted metering, 0=uniform)
     public static int middleGreyPercent = 18;   // 1-50 → 0.01 to 0.50
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
@@ -754,6 +757,7 @@ public class Options {
     public static int psychoAdaptContrastPercent = 100;  // 0-300 → 0.0 to 3.0
     public static int psychoWhiteCurve = 1;              // 0 = Neutwo, 1 = Naka-Rushton
     public static int psychoConeExponentPercent = 100;   // 10-300 → 0.1 to 3.0
+    public static int psychoPeakSDRTenths = 20;          // 5-80 → 0.5 to 8.0 (SDR PsychoV peak)
 
     // HDR10 output (default: disabled, pure SDR)
     public static boolean hdrEnabled = false;
@@ -2109,6 +2113,9 @@ public class Options {
             nativeSetPsychoWhiteCurve(psychoWhiteCurve, false);
             psychoConeExponentPercent = Integer.parseInt(props.getProperty("psychoConeExponentPercent", "100"));
             nativeSetPsychoConeExponent(psychoConeExponentPercent / 100.0f, false);
+            psychoPeakSDRTenths = Integer.parseInt(props.getProperty("psychoPeakSDRTenths", "20"));
+            psychoPeakSDRTenths = clamp(psychoPeakSDRTenths, 5, 80);
+            nativeSetPsychoPeakSDR(psychoPeakSDRTenths / 10.0f, false);
 
             brightAdaptSpeedTenths = Integer.parseInt(props.getProperty(
                 "brightAdaptSpeedTenths", String.valueOf(brightAdaptSpeedTenths)));
@@ -2118,11 +2125,14 @@ public class Options {
                 "sceneChangeThresholdTenths", String.valueOf(sceneChangeThresholdTenths)));
             centerWeightPercent = Integer.parseInt(props.getProperty(
                 "centerWeightPercent", String.valueOf(centerWeightPercent)));
+            highlightWeightPercent = Integer.parseInt(props.getProperty(
+                "highlightWeightPercent", String.valueOf(highlightWeightPercent)));
 
             brightAdaptSpeedTenths = clamp(brightAdaptSpeedTenths, 1, 50);
             darkAdaptSpeedTenths = clamp(darkAdaptSpeedTenths, 5, 100);
             sceneChangeThresholdTenths = clamp(sceneChangeThresholdTenths, 20, 100);
             centerWeightPercent = clamp(centerWeightPercent, 0, 100);
+            highlightWeightPercent = clamp(highlightWeightPercent, 0, 100);
 
             nativeSetExposureCompensation(exposureCompensation / 10.0f, false);
             nativeSetManualExposureEnabled(manualExposureEnabled, false);
@@ -2138,6 +2148,7 @@ public class Options {
             nativeSetDarkAdaptSpeed(darkAdaptSpeedTenths / 10.0f, false);
             nativeSetSceneChangeThreshold(sceneChangeThresholdTenths / 10.0f, false);
             nativeSetCenterWeightStrength(centerWeightPercent / 100.0f, false);
+            nativeSetHighlightWeight(highlightWeightPercent / 100.0f, false);
 
             // HDR
             hdrEnabled = Boolean.parseBoolean(props.getProperty("hdrEnabled", String.valueOf(hdrEnabled)));
@@ -2582,6 +2593,7 @@ public class Options {
         props.setProperty("darkAdaptSpeedTenths", String.valueOf(darkAdaptSpeedTenths));
         props.setProperty("sceneChangeThresholdTenths", String.valueOf(sceneChangeThresholdTenths));
         props.setProperty("centerWeightPercent", String.valueOf(centerWeightPercent));
+        props.setProperty("highlightWeightPercent", String.valueOf(highlightWeightPercent));
         props.setProperty("middleGreyPercent", String.valueOf(middleGreyPercent));
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
@@ -2600,6 +2612,7 @@ public class Options {
         props.setProperty("psychoAdaptContrastPercent", String.valueOf(psychoAdaptContrastPercent));
         props.setProperty("psychoWhiteCurve", String.valueOf(psychoWhiteCurve));
         props.setProperty("psychoConeExponentPercent", String.valueOf(psychoConeExponentPercent));
+        props.setProperty("psychoPeakSDRTenths", String.valueOf(psychoPeakSDRTenths));
         props.setProperty("upscalerPreset", String.valueOf(upscalerPreset));
         props.setProperty("hdrEnabled", String.valueOf(hdrEnabled));
         props.setProperty("hdrScrgbMode", String.valueOf(hdrScrgbMode));
@@ -3655,6 +3668,7 @@ public class Options {
         nativeSetDarkAdaptSpeed(darkAdaptSpeedTenths / 10.0f, false);
         nativeSetSceneChangeThreshold(sceneChangeThresholdTenths / 10.0f, false);
         nativeSetCenterWeightStrength(centerWeightPercent / 100.0f, false);
+        nativeSetHighlightWeight(highlightWeightPercent / 100.0f, false);
         nativeSetMiddleGrey(middleGreyPercent / 100.0f, false);
         nativeSetLwhite(LwhiteTenths / 10.0f, false);
         // HDR tonemapper + PsychoV
@@ -3670,6 +3684,7 @@ public class Options {
         nativeSetPsychoAdaptContrast(psychoAdaptContrastPercent / 100.0f, false);
         nativeSetPsychoWhiteCurve(psychoWhiteCurve, false);
         nativeSetPsychoConeExponent(psychoConeExponentPercent / 100.0f, false);
+        nativeSetPsychoPeakSDR(psychoPeakSDRTenths / 10.0f, false);
         initTonemapDefaults();
         pushActiveTonemapParams();
         overwriteConfig();
@@ -4783,6 +4798,22 @@ public class Options {
     public native static void nativeSetDarkAdaptSpeed(float speed, boolean write);
     public native static void nativeSetSceneChangeThreshold(float threshold, boolean write);
     public native static void nativeSetCenterWeightStrength(float strength, boolean write);
+    public native static void nativeSetHighlightWeight(float weight, boolean write);
+    public native static void nativeSetPsychoPeakSDR(float peak, boolean write);
+
+    public static void setHighlightWeight(int percent, boolean write) {
+        percent = clamp(percent, 0, 100);
+        Options.highlightWeightPercent = percent;
+        nativeSetHighlightWeight(percent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoPeakSDR(int tenths, boolean write) {
+        tenths = clamp(tenths, 5, 80);
+        Options.psychoPeakSDRTenths = tenths;
+        nativeSetPsychoPeakSDR(tenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
 
     public static void setBrightAdaptSpeedTenths(int tenths, boolean write) {
         tenths = clamp(tenths, 1, 50);

@@ -74,6 +74,11 @@ public class PsychoVPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable(Options.PSYCHO_CONE_EXPONENT_KEY), Text.literal(String.format("%.2f", v / 100.0))),
             v -> Options.setPsychoConeExponent(v, true)));
         whiteCurve.tooltip("Controls the shape of cone response curve. Affects mid-tone contrast.");
+        whiteCurve.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
+            5, 80, Options.psychoPeakSDRTenths, 20,
+            v -> getGenericValueText(Text.translatable(Options.PSYCHO_PEAK_SDR_KEY), Text.literal(String.format("%.1f", v / 10.0))),
+            v -> Options.setPsychoPeakSDR(v, true)));
+        whiteCurve.tooltip("Peak luminance for SDR PsychoV. Higher preserves more highlight detail.");
     }
 
     @Override
@@ -84,7 +89,8 @@ public class PsychoVPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("PsychoV Contrast", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("PsychoV Purity", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("PsychoV Bleaching", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("PsychoV White Curve", category, nodeId, false)
+            new UnifiedSearchOverlay.SearchEntry("PsychoV White Curve", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("PsychoV SDR Peak", category, nodeId, false)
         );
     }
 }

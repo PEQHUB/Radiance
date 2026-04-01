@@ -71,19 +71,27 @@ public class ExposurePopulator implements ContentPopulator {
                 v -> Options.setCenterWeightPercent(v, true)));
         adapt.tooltip("Scene Cut: EV jump for instant snap. Center Weight: how much center of screen influences metering.");
 
-        // Row 3: Compensation | Middle Grey
+        // Row 3: Highlight Weight | Compensation
         adapt.addTwoSliders(
+            new ResettableSliderWidget(0, 0, 150, 20,
+                0, 100, Options.highlightWeightPercent, 50,
+                v -> getGenericValueText(Text.translatable(Options.HIGHLIGHT_WEIGHT_KEY),
+                    Text.literal(v + "%")),
+                v -> Options.setHighlightWeight(v, true)),
             new ResettableSliderWidget(0, 0, 150, 20,
                 0, 60, Options.exposureCompensation + 30, 0 + 30,
                 v -> getGenericValueText(Text.translatable(Options.EXPOSURE_COMPENSATION_KEY),
                     Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
-                v -> Options.setExposureCompensation(v - 30, true)),
-            new ResettableSliderWidget(0, 0, 150, 20,
+                v -> Options.setExposureCompensation(v - 30, true)));
+        adapt.tooltip("Highlight Weight: bright pixels influence metering more (reduces highlight blowout). Compensation: manual EV offset.");
+
+        // Row 4: Middle Grey
+        adapt.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                 1, 50, Options.middleGreyPercent, 18,
                 v -> getGenericValueText(Text.translatable(Options.MIDDLE_GREY_KEY),
                     Text.literal(String.format("%.2f", v / 100.0))),
                 v -> Options.setMiddleGrey(v, true)));
-        adapt.tooltip("Compensation: manual EV offset. Middle Grey: target luminance for 18% grey.");
+        adapt.tooltip("Target luminance for 18% grey.");
     }
 
     @Override
@@ -95,6 +103,7 @@ public class ExposurePopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Dark Adapt Speed", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Scene Cut Threshold", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Center Weight", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Highlight Weight", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Exposure Compensation", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Middle Grey", category, nodeId, false)
         );
