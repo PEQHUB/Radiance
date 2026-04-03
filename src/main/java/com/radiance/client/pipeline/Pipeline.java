@@ -489,6 +489,12 @@ public class Pipeline {
                 dlssModule.getInputImageConfig("gbuffer_material_id"));
             connect(rayTracingModule.getOutputImageConfig("position_view_space"),
                 dlssModule.getInputImageConfig("position_view_space"));
+            connect(rayTracingModule.getOutputImageConfig("transparency_layer"),
+                dlssModule.getInputImageConfig("transparency_layer"));
+            connect(rayTracingModule.getOutputImageConfig("transparency_layer_opacity"),
+                dlssModule.getInputImageConfig("transparency_layer_opacity"));
+            connect(rayTracingModule.getOutputImageConfig("transparency_layer_mvecs"),
+                dlssModule.getInputImageConfig("transparency_layer_mvecs"));
 
             connect(dlssModule.getOutputImageConfig("processed"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));

@@ -42,6 +42,12 @@ inputImageConfigs:
     format: "R16_SFLOAT"
   - name: "position_view_space"
     format: "R32G32B32A32_SFLOAT"
+  - name: "transparency_layer"
+    format: "R16G16B16A16_SFLOAT"
+  - name: "transparency_layer_opacity"
+    format: "R16G16B16A16_SFLOAT"
+  - name: "transparency_layer_mvecs"
+    format: "R32G32_SFLOAT"
 outputImageConfigs:
   - name: "processed"
     format: "R32G32B32A32_SFLOAT"
