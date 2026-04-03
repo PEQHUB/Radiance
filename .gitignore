@@ -136,3 +136,6 @@ shaders/
 natives/windows/*.dll
 natives/windows/*.lib
 natives/linux/*.so
+
+# Codegen output (regenerated from schema/engine_config.schema.json)
+src/generated/
