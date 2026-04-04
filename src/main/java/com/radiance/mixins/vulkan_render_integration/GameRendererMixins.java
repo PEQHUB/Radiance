@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.world.EntityProxy;
+import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IGameRendererExt;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
@@ -74,12 +75,13 @@ public class GameRendererMixins implements IGameRendererExt {
 
     @Inject(method = "renderBlur()V", at = @At(value = "HEAD"), cancellable = true)
     public void redirectRenderBlur(CallbackInfo ci) {
-        float f = this.client.options.getMenuBackgroundBlurrinessValue();
+        if (!EngineBridge.nativeIsInitialized()) {
+            float f = this.client.options.getMenuBackgroundBlurrinessValue();
 
-        //if (this.client.world == null && this.client.currentScreen != null && !(f < 1.0F)) {
-        if (!(f < 1.0F)) {
-            BufferProxy.updateOverlayPostUniform(f);
-            RendererProxy.postBlur();
+            if (!(f < 1.0F)) {
+                BufferProxy.updateOverlayPostUniform(f);
+                RendererProxy.postBlur();
+            }
         }
 
         ci.cancel();
@@ -121,7 +123,9 @@ public class GameRendererMixins implements IGameRendererExt {
 
     @Inject(method = "renderWorld(Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At(value = "TAIL"))
     public void buildEntities(RenderTickCounter renderTickCounter, CallbackInfo ci) {
-        EntityProxy.build();
+        if (!EngineBridge.nativeIsInitialized()) {
+            EntityProxy.build();
+        }
     }
 
     @Redirect(method = "renderWorld(Lnet/minecraft/client/render/RenderTickCounter;)V",
@@ -132,13 +136,17 @@ public class GameRendererMixins implements IGameRendererExt {
 
     @Inject(method = "renderWorld(Lnet/minecraft/client/render/RenderTickCounter;)V", at = @At(value = "TAIL"))
     public void fuseWorld(RenderTickCounter renderTickCounter, CallbackInfo ci) {
-        RendererProxy.fuseWorld();
+        if (!EngineBridge.nativeIsInitialized()) {
+            RendererProxy.fuseWorld();
+        }
     }
 
     @Inject(method = "renderHand(Lnet/minecraft/client/render/Camera;FLorg/joml/Matrix4f;)V", at = @At(value = "HEAD"), cancellable = true)
     public void redirectRenderHand(Camera camera, float tickDelta, Matrix4f matrix4f,
         CallbackInfo ci) {
-        EntityProxy.queueHandRebuild(buffers, tickDelta, firstPersonRenderer);
+        if (!EngineBridge.nativeIsInitialized()) {
+            EntityProxy.queueHandRebuild(buffers, tickDelta, firstPersonRenderer);
+        }
         ci.cancel();
     }
 
@@ -170,9 +178,11 @@ public class GameRendererMixins implements IGameRendererExt {
             }
         }
 
-        RendererProxy.shouldRenderWorld(
-            !this.client.skipGameRender && finishedLoading && tick
-                && client.world != null);
+        if (!EngineBridge.nativeIsInitialized()) {
+            RendererProxy.shouldRenderWorld(
+                !this.client.skipGameRender && finishedLoading && tick
+                    && client.world != null);
+        }
     }
 
     @Override
@@ -187,6 +197,12 @@ public class GameRendererMixins implements IGameRendererExt {
                     +
                     "Lnet/minecraft/client/texture/NativeImage;"))
     public NativeImage redirectScreenshot(Framebuffer framebuffer) {
+        if (EngineBridge.nativeIsInitialized()) {
+            // V2 screenshot not yet implemented — return opaque black placeholder
+            NativeImage placeholder = new NativeImage(1, 1, false);
+            placeholder.setColorArgb(0, 0, 0xFF000000);
+            return placeholder;
+        }
         return RendererProxy.takeScreenshotWithoutUI();
     }
 }

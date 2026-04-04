@@ -4,6 +4,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.vulkan.TextureProxy;
 import com.radiance.client.texture.AuxiliaryTextures;
+import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.util.function.IntUnaryOperator;
 import net.minecraft.client.texture.NativeImage;
@@ -47,6 +48,12 @@ public abstract class NativeImageMixins implements
     @Inject(method = "uploadInternal(IIIIIIIZ)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/texture/NativeImage;checkAllocated()V", shift = At.Shift.AFTER), cancellable = true)
     public void redirectUploadInternal(int level, int offsetX, int offsetY, int unpackSkipPixels,
         int unpackSkipRows, int regionWidth, int regionHeight, boolean blur, CallbackInfo ci) {
+        if (EngineBridge.nativeIsInitialized()) {
+            // V2: skip legacy texture upload entirely
+            if (blur) { this.close(); }
+            ci.cancel();
+            return;
+        }
         try {
             INativeImageExt self = (INativeImageExt) this;
             int targetId = self.neoVoxelRT$getTargetID();
@@ -177,6 +184,10 @@ public abstract class NativeImageMixins implements
 
     @Inject(method = "loadFromTextureImage(IZ)V", at = @At(value = "HEAD"), cancellable = true)
     public void redirectLoadFromTextureImage(int level, boolean removeAlpha, CallbackInfo ci) {
+        if (EngineBridge.nativeIsInitialized()) {
+            ci.cancel();
+            return;
+        }
         RenderSystem.assertOnRenderThread();
         this.checkAllocated();
         RendererProxy.takeScreenshot(true, this.width, this.height, this.format.getChannelCount(),

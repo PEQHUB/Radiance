@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.TextureUtil;
 import com.radiance.client.constant.VulkanConstants;
 import com.radiance.client.proxy.vulkan.TextureProxy;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IAbstractTextureExt;
+import com.radiance.v2.bridge.EngineBridge;
 import net.minecraft.client.texture.AbstractTexture;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -25,6 +26,7 @@ public class AbstractTextureMixins implements IAbstractTextureExt {
 
     @Inject(method = "setFilter(ZZ)V", at = @At(value = "HEAD"), cancellable = true)
     public void redirectSetFilter(boolean bilinear, boolean mipmap, CallbackInfo ci) {
+        if (EngineBridge.nativeIsInitialized()) { ci.cancel(); return; }
         TextureProxy.setFilter(glId,
             (bilinear ? VulkanConstants.VkFilter.VK_FILTER_LINEAR :
                 VulkanConstants.VkFilter.VK_FILTER_NEAREST).getValue(),
@@ -37,6 +39,7 @@ public class AbstractTextureMixins implements IAbstractTextureExt {
 
     @Inject(method = "setClamp(Z)V", at = @At(value = "HEAD"), cancellable = true)
     public void redirectSetClamp(boolean clamp, CallbackInfo ci) {
+        if (EngineBridge.nativeIsInitialized()) { ci.cancel(); return; }
         TextureProxy.setClamp(glId,
             clamp
                 ? VulkanConstants.VkSamplerAddressMode.VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE.getValue()

@@ -1,5 +1,6 @@
 package com.radiance.mixins.vulkan_render_integration;
 
+import com.radiance.client.RadianceClient;
 import com.radiance.client.UnsafeManager;
 import com.radiance.client.cloud.CloudTileManager;
 import com.radiance.client.option.Options;
@@ -7,6 +8,7 @@ import com.radiance.client.pipeline.Pipeline;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.vulkan.TextureProxy;
 import com.radiance.client.proxy.world.ChunkProxy;
+import com.radiance.v2.bridge.EngineBridge;
 import java.util.Optional;
 import java.util.function.Consumer;
 import net.minecraft.client.MinecraftClient;
@@ -56,29 +58,45 @@ public class MinecraftClientMixins {
         com.radiance.client.option.Options.restoreWindow();
         com.radiance.client.option.Options.suppressResizeCallback = false;
 
-        long stackSize = 512 * 1024 * 1024; // 32MB
-        Runnable myRunnable = () -> {
-            RendererProxy.initRenderer(window);
-            Pipeline.collectNativeModules();
-        };
-
-        Thread myThread = new Thread(null, myRunnable, "", stackSize);
-        myThread.start();
-        try {
-            myThread.join();
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        boolean v2Started = false;
+        if (Options.useV2Engine) {
+            System.out.println("[Radiance] V2 engine requested — compiled=" + EngineBridge.isV2Compiled());
+            String configDir = RadianceClient.radianceDir.toAbsolutePath().toString();
+            v2Started = EngineBridge.initFromWindow(window, configDir, false);
+            if (!v2Started) {
+                System.err.println("[Radiance] V2 init failed: " + EngineBridge.getLastInitError());
+                System.err.println("[Radiance] Falling back to legacy renderer");
+                Options.useV2Engine = false;
+            } else {
+                System.out.println("[Radiance] V2 engine active — GPU: " + EngineBridge.nativeGetDeviceName());
+            }
         }
 
-        Pipeline.loadPipeline();
-        Pipeline.build();
+        if (!v2Started) {
+            // Legacy path: RendererProxy + Pipeline
+            long stackSize = 512 * 1024 * 1024; // 32MB
+            Runnable myRunnable = () -> {
+                RendererProxy.initRenderer(window);
+                Pipeline.collectNativeModules();
+            };
 
-        // Apply settings that require renderer to be initialized
-        com.radiance.client.option.Options.applyDeferredSettings();
+            Thread myThread = new Thread(null, myRunnable, "", stackSize);
+            myThread.start();
+            try {
+                myThread.join();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
 
+            Pipeline.loadPipeline();
+            Pipeline.build();
 
-        // Auto-enable Reflex + VRR if hardware supports it and user hasn't explicitly configured
-        com.radiance.client.option.Options.autoDetectReflexVrr();
+            // Apply settings that require renderer to be initialized
+            com.radiance.client.option.Options.applyDeferredSettings();
+
+            // Auto-enable Reflex + VRR if hardware supports it and user hasn't explicitly configured
+            com.radiance.client.option.Options.autoDetectReflexVrr();
+        }
 
         // Schedule resolution sync — Minecraft's internal state needs updating after suppressed resize
         if (com.radiance.client.option.Options.windowWidth > 0) {
@@ -168,10 +186,19 @@ public class MinecraftClientMixins {
 
     @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;endWrite()V"))
     public void cancelFramebufferEndWrite(Framebuffer instance, boolean setViewport) {
-        ChunkProxy.waitImportantChunkRebuild();
-        synchronized (TextureProxy.class) {
-            RendererProxy.submitCommandAndPresent();
-            RendererProxy.acquireContext();
+        if (EngineBridge.nativeIsInitialized()) {
+            boolean ok = EngineBridge.nativeTick();
+            if (!ok) {
+                // V2 engine requested shutdown (device lost, fatal error)
+                System.err.println("[Radiance] V2 engine tick returned false — shutting down");
+                EngineBridge.nativeShutdown();
+            }
+        } else {
+            ChunkProxy.waitImportantChunkRebuild();
+            synchronized (TextureProxy.class) {
+                RendererProxy.submitCommandAndPresent();
+                RendererProxy.acquireContext();
+            }
         }
     }
 
@@ -195,7 +222,9 @@ public class MinecraftClientMixins {
 
     @Redirect(method = "onResolutionChanged()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;resize(II)V"))
     public void cancelFramebufferResize(Framebuffer instance, int width, int height) {
-
+        if (EngineBridge.nativeIsInitialized()) {
+            EngineBridge.nativePostResize(window.getFramebufferWidth(), window.getFramebufferHeight());
+        }
     }
     // endregion
 
@@ -210,7 +239,11 @@ public class MinecraftClientMixins {
     @Inject(method = "close()V", at = @At(value = "HEAD"))
     public void closeNativeRenderer(CallbackInfo ci) {
         CloudTileManager.shutdown();
-        RendererProxy.close();
+        if (EngineBridge.nativeIsInitialized()) {
+            EngineBridge.nativeShutdown();
+        } else {
+            RendererProxy.close();
+        }
     }
     // endregion
 

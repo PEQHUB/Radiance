@@ -341,6 +341,9 @@ public class Options {
     public static int tessMidDist = 96;              // Half tessellation distance (blocks)
     public static int tessFarDist = 192;             // Quarter tessellation distance (blocks)
     // SER: Shader Execution Reordering — groups threads by material for cache coherence
+    // V2 engine: use new EngineApp path instead of legacy Renderer (clear-screen only for now)
+    public static boolean useV2Engine = false;
+
     // serEnabled: toggle hit-object reordering (requires VK_EXT_ray_tracing_invocation_reorder)
     // serHints: explicit geometry-based coherence hints (additional 10-20% on top of basic SER)
     public static boolean serEnabled = true;
@@ -1797,6 +1800,8 @@ public class Options {
             tessFarDist = clamp(Integer.parseInt(props.getProperty("tessFarDist", String.valueOf(tessFarDist))), 32, 512);
             nativeSetTessFarDist(tessFarDist, false);
 
+            useV2Engine = Boolean.parseBoolean(props.getProperty("useV2Engine", String.valueOf(useV2Engine)));
+
             serEnabled = Boolean.parseBoolean(props.getProperty("serEnabled", String.valueOf(serEnabled)));
             nativeSetSEREnabled(serEnabled, false);
             serHintsEnabled = Boolean.parseBoolean(props.getProperty("serHintsEnabled", String.valueOf(serHintsEnabled)));
@@ -2400,6 +2405,7 @@ public class Options {
         props.setProperty("tessNearDist", String.valueOf(tessNearDist));
         props.setProperty("tessMidDist", String.valueOf(tessMidDist));
         props.setProperty("tessFarDist", String.valueOf(tessFarDist));
+        props.setProperty("useV2Engine", String.valueOf(useV2Engine));
         props.setProperty("serEnabled", String.valueOf(serEnabled));
         props.setProperty("serHintsEnabled", String.valueOf(serHintsEnabled));
         props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
