@@ -17,6 +17,7 @@ import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.util.MaterialBlock;
 import com.radiance.client.util.SpectralColor;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.v2.bridge.EngineBridge;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import net.minecraft.client.MinecraftClient;
@@ -608,6 +609,11 @@ public class BufferProxy {
             }
 
             updateMapping(texAddr);
+
+            // V2 mirror — same byte layout, just routed through the bridge
+            if (EngineBridge.isV2Active()) {
+                EngineBridge.updateTextureMapping(texAddr, texSize);
+            }
         } finally {
             memFree(texBB);
         }

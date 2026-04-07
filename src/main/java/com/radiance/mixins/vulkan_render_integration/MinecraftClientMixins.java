@@ -189,9 +189,12 @@ public class MinecraftClientMixins {
         if (EngineBridge.nativeIsInitialized()) {
             boolean ok = EngineBridge.nativeTick();
             if (!ok) {
-                // V2 engine requested shutdown (device lost, fatal error)
                 System.err.println("[Radiance] V2 engine tick returned false — shutting down");
                 EngineBridge.nativeShutdown();
+            }
+            if (!EngineBridge.nativeIsInWorld() && instance != null) {
+                // Not in world — let OpenGL present menus/title screen
+                instance.endWrite();
             }
         } else {
             ChunkProxy.waitImportantChunkRebuild();
@@ -204,7 +207,9 @@ public class MinecraftClientMixins {
 
     @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;draw(II)V"))
     public void cancelFramebufferDraw(Framebuffer instance, int width, int height) {
-
+        if (EngineBridge.nativeIsInitialized() && !EngineBridge.nativeIsInWorld() && instance != null) {
+            instance.draw(width, height);
+        }
     }
 
     @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;limitDisplayFPS(I)V"))

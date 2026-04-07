@@ -31,9 +31,27 @@ public class EngineBridge {
     private static native boolean nativeTick0();
     private static native void nativeShutdown0();
     private static native boolean nativeIsInitialized0();
+    private static native boolean nativeIsInWorld0();
     private static native void nativePostResize0(int width, int height);
     private static native void nativePostShutdown0();
     private static native String nativeGetDeviceName0();
+    private static native void nativeSubmitChunk0(int chunkX, int chunkZ,
+        int originX, int originY, int originZ,
+        long vertexPtr, int vertexSize, long indexPtr, int indexCount, int triangleCount);
+    private static native void nativeRemoveChunk0(int chunkX, int chunkZ);
+    private static native void nativeUpdateCamera0(float[] viewMatrix, float[] projMatrix,
+        float posX, float posY, float posZ, float dirX, float dirY, float dirZ,
+        float nearPlane, float farPlane);
+    private static native void nativeUpdateSky0(
+        float baseColorR, float baseColorG, float baseColorB,
+        float horizonColorR, float horizonColorG, float horizonColorB, float horizonColorA,
+        float sunDirX, float sunDirY, float sunDirZ,
+        float moonDirX, float moonDirY, float moonDirZ,
+        int skyType, boolean sunRisingOrSetting, boolean skyDark,
+        boolean hasBlindnessOrDarkness, int submersionType, int moonPhase,
+        float rainGradient, float thunderGradient,
+        int sunTextureID, int moonTextureID);
+    private static native void nativeUpdateTextureMapping0(long dataPtr, int dataSize);
 
     // --- State accessors ---
 
@@ -48,6 +66,15 @@ public class EngineBridge {
      */
     public static boolean nativeIsInitialized() {
         return v2Active;
+    }
+
+    /**
+     * Check if V2 engine is currently rendering a world (in-world).
+     * When false, the GL pipeline should present normally for menus.
+     */
+    public static boolean nativeIsInWorld() {
+        if (!v2Active) return false;
+        try { return nativeIsInWorld0(); } catch (UnsatisfiedLinkError e) { return false; }
     }
 
     /**
@@ -88,6 +115,67 @@ public class EngineBridge {
     public static String nativeGetDeviceName() {
         if (!v2Active) return "N/A";
         try { return nativeGetDeviceName0(); } catch (UnsatisfiedLinkError e) { return "N/A"; }
+    }
+
+    // --- Scene submission ---
+
+    public static void submitChunk(int chunkX, int chunkZ,
+                                   int originX, int originY, int originZ,
+                                   long vertexPtr, int vertexSize,
+                                   long indexPtr, int indexCount, int triangleCount) {
+        if (!v2Active) return;
+        try {
+            nativeSubmitChunk0(chunkX, chunkZ, originX, originY, originZ,
+                vertexPtr, vertexSize, indexPtr, indexCount, triangleCount);
+        } catch (UnsatisfiedLinkError e) {}
+    }
+
+    public static void removeChunk(int chunkX, int chunkZ) {
+        if (!v2Active) return;
+        try { nativeRemoveChunk0(chunkX, chunkZ); } catch (UnsatisfiedLinkError e) {}
+    }
+
+    public static void updateCamera(float[] viewMatrix, float[] projMatrix,
+                                    float posX, float posY, float posZ,
+                                    float dirX, float dirY, float dirZ,
+                                    float nearPlane, float farPlane) {
+        if (!v2Active) return;
+        try {
+            nativeUpdateCamera0(viewMatrix, projMatrix, posX, posY, posZ,
+                dirX, dirY, dirZ, nearPlane, farPlane);
+        } catch (UnsatisfiedLinkError e) {}
+    }
+
+    public static void updateSky(
+            float baseColorR, float baseColorG, float baseColorB,
+            float horizonColorR, float horizonColorG, float horizonColorB, float horizonColorA,
+            float sunDirX, float sunDirY, float sunDirZ,
+            float moonDirX, float moonDirY, float moonDirZ,
+            int skyType, boolean sunRisingOrSetting, boolean skyDark,
+            boolean hasBlindnessOrDarkness, int submersionType, int moonPhase,
+            float rainGradient, float thunderGradient,
+            int sunTextureID, int moonTextureID) {
+        if (!v2Active) return;
+        try {
+            nativeUpdateSky0(baseColorR, baseColorG, baseColorB,
+                horizonColorR, horizonColorG, horizonColorB, horizonColorA,
+                sunDirX, sunDirY, sunDirZ,
+                moonDirX, moonDirY, moonDirZ,
+                skyType, sunRisingOrSetting, skyDark,
+                hasBlindnessOrDarkness, submersionType, moonPhase,
+                rainGradient, thunderGradient,
+                sunTextureID, moonTextureID);
+        } catch (UnsatisfiedLinkError e) {}
+    }
+
+    /**
+     * Upload the texture mapping SSBO bytes (block→texture lookup table).
+     * Caller passes a raw memory address (e.g. from LWJGL memAddress()) and length.
+     * The native side copies the data immediately, so the buffer is safe to free after return.
+     */
+    public static void updateTextureMapping(long dataPtr, int dataSize) {
+        if (!v2Active) return;
+        try { nativeUpdateTextureMapping0(dataPtr, dataSize); } catch (UnsatisfiedLinkError e) {}
     }
 
     // --- Java helpers ---

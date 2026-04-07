@@ -9,6 +9,7 @@ import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.world.ChunkProxy;
 import com.radiance.client.proxy.world.EntityProxy;
 import com.radiance.client.proxy.world.PlayerProxy;
+import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.client.vertex.StorageVertexConsumerProvider;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IGameRendererExt;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.ILightMapManagerExt;
@@ -324,6 +325,20 @@ public abstract class WorldRendererMixins {
         BufferProxy.updateWorldUniform(camera, viewMatrix, effectedViewMatrix, projectionMatrix,
             overlayTextureID, fog, world, endSkyTextureID, endPortalTextureID);
 
+        // V2 camera update
+        if (EngineBridge.isV2Active()) {
+            float[] viewArr = new float[16];
+            float[] projArr = new float[16];
+            viewMatrix.get(viewArr);
+            projectionMatrix.get(projArr);
+            net.minecraft.util.math.Vec3d camPos = camera.getPos();
+            org.joml.Vector3f camDir = camera.getHorizontalPlane();
+            EngineBridge.updateCamera(viewArr, projArr,
+                (float) camPos.x, (float) camPos.y, (float) camPos.z,
+                camDir.x(), camDir.y(), camDir.z(),
+                0.05f, gameRenderer.getViewDistance() * 4.0f);
+        }
+
         // Sky
         float tickDelta = tickCounter.getTickDelta(false);
         int envDim = Options.getEnvironmentDimensionIndex(this.world);
@@ -540,6 +555,19 @@ public abstract class WorldRendererMixins {
             cloudPuffiness, cloudDetailScale, cloudDetailStrength, cloudAnisotropy,
             cloudShadowStrength, cloudAmbientStrength, cloudSunOcclusionStrength,
             cloudNoiseAffectsShadows);
+
+        // V2 sky update — subset of V1 fields, atmosphere/clouds added later
+        if (EngineBridge.isV2Active()) {
+            EngineBridge.updateSky(
+                baseColorR, baseColorG, baseColorB,
+                horizontalColorR, horizontalColorG, horizontalColorB, horizontalColorA,
+                sunDirection.x, sunDirection.y, sunDirection.z,
+                moonDirection.x, moonDirection.y, moonDirection.z,
+                skyType, sunRisingOrSetting, skyDark,
+                hasBlindnessOrDarkness, submersionType, moonPhase,
+                rainGradient, thunderGradient,
+                sunTextureID, moonTextureID);
+        }
 
         // Chunks
         jtT0 = System.nanoTime();
