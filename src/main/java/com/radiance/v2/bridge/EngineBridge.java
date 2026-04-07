@@ -35,10 +35,10 @@ public class EngineBridge {
     private static native void nativePostResize0(int width, int height);
     private static native void nativePostShutdown0();
     private static native String nativeGetDeviceName0();
-    private static native void nativeSubmitChunk0(int chunkX, int chunkZ,
+    private static native void nativeSubmitChunk0(int chunkX, int sectionY, int chunkZ,
         int originX, int originY, int originZ,
         long vertexPtr, int vertexSize, long indexPtr, int indexCount, int triangleCount);
-    private static native void nativeRemoveChunk0(int chunkX, int chunkZ);
+    private static native void nativeRemoveChunk0(int chunkX, int sectionY, int chunkZ);
     private static native void nativeUpdateCamera0(float[] viewMatrix, float[] projMatrix,
         float posX, float posY, float posZ, float dirX, float dirY, float dirZ,
         float nearPlane, float farPlane);
@@ -119,20 +119,20 @@ public class EngineBridge {
 
     // --- Scene submission ---
 
-    public static void submitChunk(int chunkX, int chunkZ,
+    public static void submitChunk(int chunkX, int sectionY, int chunkZ,
                                    int originX, int originY, int originZ,
                                    long vertexPtr, int vertexSize,
                                    long indexPtr, int indexCount, int triangleCount) {
         if (!v2Active) return;
         try {
-            nativeSubmitChunk0(chunkX, chunkZ, originX, originY, originZ,
+            nativeSubmitChunk0(chunkX, sectionY, chunkZ, originX, originY, originZ,
                 vertexPtr, vertexSize, indexPtr, indexCount, triangleCount);
         } catch (UnsatisfiedLinkError e) {}
     }
 
-    public static void removeChunk(int chunkX, int chunkZ) {
+    public static void removeChunk(int chunkX, int sectionY, int chunkZ) {
         if (!v2Active) return;
-        try { nativeRemoveChunk0(chunkX, chunkZ); } catch (UnsatisfiedLinkError e) {}
+        try { nativeRemoveChunk0(chunkX, sectionY, chunkZ); } catch (UnsatisfiedLinkError e) {}
     }
 
     public static void updateCamera(float[] viewMatrix, float[] projMatrix,
