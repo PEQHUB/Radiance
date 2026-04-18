@@ -3,6 +3,7 @@ package com.radiance.client.proxy.vulkan;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.radiance.client.constant.Constants;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt;
+import com.radiance.v2.bridge.EngineBridge;
 import java.nio.ByteBuffer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.VertexFormat;
@@ -63,7 +64,12 @@ public class RendererProxy {
     public static native void nativeSetWindowSize(int width, int height);
 
     // GPU profiler: returns "ModuleName:ms,...,TOTAL:ms" or "" if disabled
-    public static native String nativeGetGpuProfile();
+    // Routes to V2 engine when active, falls back to V1 JNI otherwise.
+    private static native String nativeGetGpuProfileV1();
+    public static String nativeGetGpuProfile() {
+        if (EngineBridge.isV2Active()) return EngineBridge.nativeGetGpuProfile();
+        return nativeGetGpuProfileV1();
+    }
     public static native void nativeSetGpuProfileEnabled(boolean enabled);
 
     // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"

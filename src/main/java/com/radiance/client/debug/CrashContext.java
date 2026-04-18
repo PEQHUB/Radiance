@@ -3,6 +3,7 @@ package com.radiance.client.debug;
 import com.radiance.client.RadianceClient;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.MaterialBlock;
+import com.radiance.v2.bridge.EngineBridge;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.BlockPos;
 
@@ -100,6 +101,19 @@ public final class CrashContext {
             } catch (Exception ignored) {}
 
             sb.append("Pipeline: default\n");
+            sb.append("\n");
+
+            // V2 engine snapshot — state, last frame, last breadcrumb, last bridge
+            // command. Critical for distinguishing "V2 never initialized" from
+            // "V2 crashed mid-tick" when the JVM exits abnormally. Cheap; JNI
+            // call reads atomics + two short strings.
+            sb.append("--- V2 Engine Snapshot ---\n");
+            try {
+                sb.append(EngineBridge.getV2Snapshot());
+            } catch (Throwable t) {
+                sb.append("snapshot_unavailable: ").append(t.getClass().getSimpleName())
+                  .append(": ").append(t.getMessage()).append("\n");
+            }
             sb.append("\n");
 
             // Recent settings changes

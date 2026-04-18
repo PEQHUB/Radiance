@@ -325,8 +325,11 @@ public class Options {
     public static boolean suppressResizeCallback = false;
 
     // Diagnostics
-    public static boolean loggingEnabled = false;
-    public static native void nativeSetLoggingEnabled(boolean enabled, boolean write);
+    public static int diagLevel = 0;
+    public static int diagFlags = 0;
+    public static boolean validationLayers = false; // Enable Vulkan validation layers (significant perf cost)
+    public static native void nativeSetDiagLevel(int level, boolean write);
+    public static native void nativeSetDiagFlags(int flags, boolean write);
 
     // POM (Parallax Occlusion Mapping)
     public static boolean pomEnabled = false;
@@ -1775,8 +1778,15 @@ public class Options {
             windowWidth = Integer.parseInt(props.getProperty("windowWidth", String.valueOf(windowWidth)));
             windowHeight = Integer.parseInt(props.getProperty("windowHeight", String.valueOf(windowHeight)));
 
-            loggingEnabled = Boolean.parseBoolean(props.getProperty("loggingEnabled", String.valueOf(loggingEnabled)));
-            // Don't call nativeSetLoggingEnabled here — C++ not initialized yet. Applied after renderer init.
+            // Migration: if loggingEnabled=true was set, promote to diagLevel=1
+            String legacyLogging = props.getProperty("loggingEnabled", null);
+            diagLevel = clamp(Integer.parseInt(props.getProperty("diagLevel", String.valueOf(diagLevel))), 0, 3);
+            if (legacyLogging != null && Boolean.parseBoolean(legacyLogging) && diagLevel == 0) {
+                diagLevel = 1;
+            }
+            diagFlags = Integer.parseInt(props.getProperty("diagFlags", String.valueOf(diagFlags)));
+            validationLayers = Boolean.parseBoolean(props.getProperty("validationLayers", String.valueOf(validationLayers)));
+            // Don't call nativeSetDiagLevel/nativeSetDiagFlags here — C++ not initialized yet. Applied after renderer init.
 
             pomEnabled = Boolean.parseBoolean(props.getProperty("pomEnabled", String.valueOf(pomEnabled)));
             nativeSetPOMEnabled(pomEnabled, false);
@@ -2394,7 +2404,9 @@ public class Options {
         props.setProperty("windowPosY", String.valueOf(windowPosY));
         props.setProperty("windowWidth", String.valueOf(windowWidth));
         props.setProperty("windowHeight", String.valueOf(windowHeight));
-        props.setProperty("loggingEnabled", String.valueOf(loggingEnabled));
+        props.setProperty("diagLevel", String.valueOf(diagLevel));
+        props.setProperty("diagFlags", String.valueOf(diagFlags));
+        props.setProperty("validationLayers", String.valueOf(validationLayers));
         props.setProperty("pomEnabled", String.valueOf(pomEnabled));
         props.setProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent));
         props.setProperty("pomSteps", String.valueOf(pomSteps));
@@ -4532,19 +4544,22 @@ public class Options {
         }
     }
 
-    public static void setLoggingEnabled(boolean enabled, boolean write) {
-        Options.loggingEnabled = enabled;
-        nativeSetLoggingEnabled(enabled, write);
-        com.radiance.client.debug.RadianceLogger.setEnabled(enabled);
+    public static void setDiagLevel(int level, boolean write) {
+        Options.diagLevel = clamp(level, 0, 3);
+        try { nativeSetDiagLevel(Options.diagLevel, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
+    }
+
+    public static void setDiagFlags(int flags, boolean write) {
+        Options.diagFlags = flags;
+        try { nativeSetDiagFlags(flags, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) overwriteConfig();
     }
 
     /** Apply deferred settings that require renderer to be initialized. */
     public static void applyDeferredSettings() {
-        if (loggingEnabled) {
-            nativeSetLoggingEnabled(true, false);
-            com.radiance.client.debug.RadianceLogger.setEnabled(true);
-        }
+        try { nativeSetDiagLevel(diagLevel, false); } catch (UnsatisfiedLinkError ignored) {}
+        try { nativeSetDiagFlags(diagFlags, false); } catch (UnsatisfiedLinkError ignored) {}
     }
 
     /** Restore saved window size and position, clamped to monitor work area. */

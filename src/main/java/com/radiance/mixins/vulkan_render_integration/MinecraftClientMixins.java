@@ -8,16 +8,17 @@ import com.radiance.client.pipeline.Pipeline;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.vulkan.TextureProxy;
 import com.radiance.client.proxy.world.ChunkProxy;
+import com.radiance.v2.bridge.BootTrace;
+import com.radiance.v2.bridge.ConfigBridge;
 import com.radiance.v2.bridge.EngineBridge;
+import com.radiance.v2.scene.AreaLightPacker;
 import java.util.Optional;
-import java.util.function.Consumer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.GlTimer;
 import net.minecraft.client.gl.ShaderLoader;
 import net.minecraft.client.gl.WindowFramebuffer;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.texture.TextureManager;
 import net.minecraft.client.util.Window;
 import net.minecraft.resource.ReloadableResourceManagerImpl;
 import net.minecraft.resource.ResourceReloader;
@@ -59,17 +60,37 @@ public class MinecraftClientMixins {
         com.radiance.client.option.Options.suppressResizeCallback = false;
 
         boolean v2Started = false;
-        if (Options.useV2Engine) {
+        // Phase 1 reversible boot: WindowMixins runs the dry-run Vulkan probe
+        // earlier in the boot sequence (via V2BootGate) and decides whether
+        // the window was brought up GL-less. Only attempt V2 init if BOTH the
+        // user wants V2 AND the probe accepted this hardware. Otherwise the
+        // window has a GL context and we must fall through to the legacy renderer.
+        boolean v2WantedThisSession = Options.useV2Engine
+                && com.radiance.v2.bridge.V2BootGate.isActive();
+        if (v2WantedThisSession) {
             System.out.println("[Radiance] V2 engine requested — compiled=" + EngineBridge.isV2Compiled());
+            BootTrace.event("V2_REQUESTED", "compiled=" + EngineBridge.isV2Compiled());
             String configDir = RadianceClient.radianceDir.toAbsolutePath().toString();
-            v2Started = EngineBridge.initFromWindow(window, configDir, false);
+            v2Started = EngineBridge.initFromWindow(window, configDir, Options.validationLayers);
             if (!v2Started) {
                 System.err.println("[Radiance] V2 init failed: " + EngineBridge.getLastInitError());
-                System.err.println("[Radiance] Falling back to legacy renderer");
-                Options.useV2Engine = false;
+                System.err.println("[Radiance] Falling back to legacy renderer for this session");
+                BootTrace.event("V2_FALLBACK_LEGACY", EngineBridge.getLastInitError());
+                // Do NOT clear Options.useV2Engine — keep the user's intent so
+                // the next launch retries. The probe runs earlier and determines
+                // whether GL was preserved, so falling back here without window
+                // mutation is safe only when the probe gate already agreed.
             } else {
                 System.out.println("[Radiance] V2 engine active — GPU: " + EngineBridge.nativeGetDeviceName());
+                BootTrace.event("V2_ACTIVE", "gpu=" + EngineBridge.nativeGetDeviceName());
+                ConfigBridge.syncAllSettings();
+                BootTrace.event("V2_CONFIG_SYNCED");
             }
+        } else if (Options.useV2Engine) {
+            // V2 was requested but the probe rejected this hardware/driver
+            // earlier. Skip V2 init entirely; the legacy path runs below with
+            // a GL-capable window that WindowMixins preserved.
+            BootTrace.event("V2_SKIPPED_PROBE_FAILED");
         }
 
         if (!v2Started) {
@@ -97,27 +118,16 @@ public class MinecraftClientMixins {
             // Auto-enable Reflex + VRR if hardware supports it and user hasn't explicitly configured
             com.radiance.client.option.Options.autoDetectReflexVrr();
         }
-
-        // Schedule resolution sync — Minecraft's internal state needs updating after suppressed resize
-        if (com.radiance.client.option.Options.windowWidth > 0) {
-            pendingResolutionSync = true;
-        }
-    }
-
-    private static boolean pendingResolutionSync = false;
-
-    @Inject(method = "tick()V", at = @At("HEAD"))
-    public void onTick(CallbackInfo ci) {
-        if (pendingResolutionSync) {
-            pendingResolutionSync = false;
-            // Now gameRenderer exists — tell Minecraft about the actual window size
-            ((MinecraftClient)(Object)this).onResolutionChanged();
-        }
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
         at = @At(value = "NEW", target = "net/minecraft/client/gl/WindowFramebuffer"))
     public WindowFramebuffer cancelNewFramebuffer(int width, int height) {
+        // In V2 mode, no GL context is initialized, so calling new WindowFramebuffer()
+        // would crash in glGetError() with a null LWJGL function pointer. Allocate the
+        // instance without invoking its constructor (no GL calls). The framebuffer field
+        // remains null in V2 mode — all framebuffer methods are suppressed by the
+        // redirects below and the V2 engine handles its own presentation.
         return UnsafeManager.INSTANCE.allocateInstance(WindowFramebuffer.class);
     }
 
@@ -126,18 +136,8 @@ public class MinecraftClientMixins {
             target = "Lnet/minecraft/client/MinecraftClient;framebuffer:Lnet/minecraft/client/gl/Framebuffer;",
             opcode = org.objectweb.asm.Opcodes.PUTFIELD))
     public void writeNullFramebuffer(MinecraftClient instance, Framebuffer value) {
-    }
-
-    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V", at = @At(value = "NEW", target = "net/minecraft/client/gl/ShaderLoader"))
-    public ShaderLoader cancelNewShaderLoader(TextureManager textureManager, Consumer<?> onError) {
-        return UnsafeManager.INSTANCE.allocateInstance(ShaderLoader.class);
-    }
-
-    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
-        at = @At(value = "FIELD",
-            target = "Lnet/minecraft/client/MinecraftClient;shaderLoader:Lnet/minecraft/client/gl/ShaderLoader;",
-            opcode = org.objectweb.asm.Opcodes.PUTFIELD))
-    public void writeNullShaderLoader(MinecraftClient instance, ShaderLoader value) {
+        // Intentional no-op: leave framebuffer null in V2 mode. All framebuffer
+        // method calls below guard on instance != null or nativeIsInitialized().
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
@@ -147,18 +147,19 @@ public class MinecraftClientMixins {
             ordinal = 2))
     public void cancelShaderLoaderRegister(ReloadableResourceManagerImpl instance,
         ResourceReloader reloader) {
+        instance.registerReloader(reloader);
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;setClearColor(FFFF)V"))
     public void cancelSetClearColor(Framebuffer instance, float r, float g, float b, float a) {
-
+        // no-op in V2 mode
     }
 
     @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
         at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;clear()V"))
     public void cancelClear(Framebuffer instance) {
-
+        // no-op in V2 mode
     }
 
     @Redirect(method = "<init>",
@@ -181,20 +182,38 @@ public class MinecraftClientMixins {
     // region <render>
     @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;beginWrite(Z)V"))
     public void cancelFramebufferBeginWrite(Framebuffer instance, boolean setViewport) {
-
+        // Always suppressed — V2 engine owns the framebuffer. In legacy mode instance is
+        // non-null but we still suppress to avoid the GL state conflict with RendererProxy.
     }
 
     @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;endWrite()V"))
-    public void cancelFramebufferEndWrite(Framebuffer instance, boolean setViewport) {
+    public void cancelFramebufferEndWrite(Framebuffer instance) {
         if (EngineBridge.nativeIsInitialized()) {
+            // Flush aggregated area lights to the V2 engine before the frame tick
+            AreaLightPacker.flush();
             boolean ok = EngineBridge.nativeTick();
             if (!ok) {
-                System.err.println("[Radiance] V2 engine tick returned false — shutting down");
+                // V2 engine reported a fatal error (e.g. DEVICE_LOST). Tear it down and
+                // schedule a clean JVM exit. Do NOT call instance.endWrite() — the vanilla
+                // GL framebuffer was never initialized in V2 mode.
+                BootTrace.event("V2_SHUTDOWN_BEGIN", "tick_returned_false");
                 EngineBridge.nativeShutdown();
+                BootTrace.event("V2_SHUTDOWN_OK", "after_fatal_tick");
+                net.minecraft.client.MinecraftClient.getInstance().scheduleStop();
+                return;
             }
+            // instance is null in V2 mode (writeNullFramebuffer is a no-op above),
+            // so the endWrite() branch below is only reached in legacy fallback.
             if (!EngineBridge.nativeIsInWorld() && instance != null) {
-                // Not in world — let OpenGL present menus/title screen
+                // Not in world — let OpenGL present menus/title screen. The vanilla GL
+                // framebuffer endWrite() must be called during LevelLoadingScreen so
+                // Minecraft's render state machine advances and the CompletableFuture
+                // chain resolves. Without this, the loading screen never transitions.
                 instance.endWrite();
+                // Yield to let the Netty event loop deliver packets (single-player).
+                // Without this the render thread starves the network thread and the
+                // GameJoinS2CPacket never arrives, blocking the world transition.
+                Thread.yield();
             }
         } else {
             ChunkProxy.waitImportantChunkRebuild();
@@ -224,7 +243,6 @@ public class MinecraftClientMixins {
     // endregion
 
     // region <onResolutionChanged>
-
     @Redirect(method = "onResolutionChanged()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;resize(II)V"))
     public void cancelFramebufferResize(Framebuffer instance, int width, int height) {
         if (EngineBridge.nativeIsInitialized()) {
@@ -245,7 +263,9 @@ public class MinecraftClientMixins {
     public void closeNativeRenderer(CallbackInfo ci) {
         CloudTileManager.shutdown();
         if (EngineBridge.nativeIsInitialized()) {
+            BootTrace.event("V2_SHUTDOWN_BEGIN");
             EngineBridge.nativeShutdown();
+            BootTrace.event("V2_SHUTDOWN_OK");
         } else {
             RendererProxy.close();
         }

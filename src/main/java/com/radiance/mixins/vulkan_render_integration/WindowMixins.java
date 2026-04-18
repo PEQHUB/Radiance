@@ -4,6 +4,8 @@ import static org.lwjgl.glfw.GLFW.GLFW_CLIENT_API;
 import static org.lwjgl.glfw.GLFW.GLFW_NO_API;
 
 import com.radiance.client.proxy.vulkan.WindowProxy;
+import com.radiance.v2.bridge.BootTrace;
+import com.radiance.v2.bridge.V2BootGate;
 import net.minecraft.client.WindowEventHandler;
 import net.minecraft.client.WindowSettings;
 import net.minecraft.client.util.MonitorTracker;
@@ -25,13 +27,19 @@ public class WindowMixins {
     @Shadow
     private long handle;
 
+    // Phase 1 reversible-boot gate. The actual probe + decision lives in
+    // {@link V2BootGate} (a regular helper class) because Mixin disallows
+    // non-private static methods, which prevents exposing the result via
+    // a static accessor on the mixin class itself.
+
     @Redirect(method =
         "<init>(Lnet/minecraft/client/WindowEventHandler;Lnet/minecraft/client/util/MonitorTracker;"
             +
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 0), remap = false)
     public void cancelGLFWWindowHint0(int hint, int value) {
-
+        V2BootGate.ensureChecked();
+        if (!V2BootGate.isActive()) GLFW.glfwWindowHint(hint, value);
     }
 
     @Redirect(method =
@@ -40,7 +48,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 1, remap = false))
     public void cancelGLFWWindowHint1(int hint, int value) {
-
+        if (!V2BootGate.isActive()) GLFW.glfwWindowHint(hint, value);
     }
 
     @Redirect(method =
@@ -49,7 +57,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 2, remap = false))
     public void cancelGLFWWindowHint2(int hint, int value) {
-
+        if (!V2BootGate.isActive()) GLFW.glfwWindowHint(hint, value);
     }
 
     @Redirect(method =
@@ -58,7 +66,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 3, remap = false))
     public void cancelGLFWWindowHint3(int hint, int value) {
-
+        if (!V2BootGate.isActive()) GLFW.glfwWindowHint(hint, value);
     }
 
     @Redirect(method =
@@ -67,7 +75,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 4, remap = false))
     public void cancelGLFWWindowHint4(int hint, int value) {
-
+        if (!V2BootGate.isActive()) GLFW.glfwWindowHint(hint, value);
     }
 
     @Redirect(method =
@@ -76,7 +84,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwWindowHint(II)V", ordinal = 5, remap = false))
     public void cancelGLFWWindowHint5(int hint, int value) {
-
+        if (!V2BootGate.isActive()) GLFW.glfwWindowHint(hint, value);
     }
 
     @Inject(method =
@@ -94,7 +102,14 @@ public class WindowMixins {
         String fullscreenVideoMode,
         String title,
         CallbackInfo ci) {
-        GLFW.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        // Phase 1 reversible-boot commit point: only set GLFW_NO_API after the
+        // probe has confirmed Vulkan can come up. If isActive is false (probe
+        // failed or V2 disabled), the original 6 hints have been preserved
+        // above and we let GLFW build a normal GL-capable window.
+        if (V2BootGate.isActive()) {
+            BootTrace.event("V2_GLFW_NO_API_COMMITTED");
+            GLFW.glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        }
     }
 
     @Redirect(method =
@@ -103,7 +118,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lorg/lwjgl/glfw/GLFW;glfwMakeContextCurrent(J)V", remap = false))
     public void cancelGLFWMakeContextCurrent(long window) {
-
+        if (!V2BootGate.isActive()) GLFW.glfwMakeContextCurrent(window);
     }
 
     @Redirect(method =
@@ -114,6 +129,7 @@ public class WindowMixins {
             target = "Lorg/lwjgl/opengl/GL;createCapabilities()Lorg/lwjgl/opengl/GLCapabilities;",
             remap = false))
     public GLCapabilities cancelGLCreateCapabilities() {
+        if (!V2BootGate.isActive()) return org.lwjgl.opengl.GL.createCapabilities();
         return null;
     }
 
@@ -123,6 +139,7 @@ public class WindowMixins {
             "Lnet/minecraft/client/WindowSettings;Ljava/lang/String;Ljava/lang/String;)V",
         at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;maxSupportedTextureSize()I", remap = false))
     public int cancelGetMaxSupportedTextureSize() {
+        if (!V2BootGate.isActive()) return com.mojang.blaze3d.systems.RenderSystem.maxSupportedTextureSize();
         return 0;
     }
 

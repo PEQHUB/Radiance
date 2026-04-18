@@ -64,6 +64,7 @@
     "vulkan_render_integration.RenderPhaseMixins",
     "vulkan_render_integration.RenderPhaseTargetMixins",
     "vulkan_render_integration.RenderSystemMixins",
+    "vulkan_render_integration.ShaderLoaderMixins",
     "vulkan_render_integration.ScreenMixins",
     "vulkan_render_integration.ScreenshotRecorderMixins",
     "vulkan_render_integration.SectionBuilderMixins",
