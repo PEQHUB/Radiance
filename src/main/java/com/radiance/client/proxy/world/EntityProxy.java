@@ -10,6 +10,7 @@ import com.radiance.client.fpv.FirstPersonView;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.constant.Constants.RayTracingFlags;
 import com.radiance.client.proxy.vulkan.BufferProxy;
+import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.SpectralColor;
 import com.radiance.client.vertex.PBRVertexConsumer;
@@ -1200,6 +1201,173 @@ public class EntityProxy {
                 indexFormatAddr,
                 vertexCountAddr,
                 verticesAddr);
+
+            // --- V2 engine routing ---
+            if (EngineBridge.isV2Active()) {
+                // Separate post-entity data (particles, weather, overlays) from
+                // regular entities. Post entities are rasterized on top of the
+                // tone-mapped output, NOT included in RT BLAS.
+                EntityRenderDataList rtEntities = new EntityRenderDataList();
+                EntityRenderDataList postEntities = new EntityRenderDataList();
+                for (EntityRenderData erd : entityRenderDataList) {
+                    if (erd.isPost()) {
+                        postEntities.add(erd);
+                    } else {
+                        rtEntities.add(erd);
+                    }
+                }
+
+                // --- RT entity batch (goes into BLAS/TLAS) ---
+                if (rtEntities.getTotalEntityCount() > 0) {
+                    int entryBytes = rtEntities.getTotalEntityCount() * 36;
+                    ByteBuffer entryBuf = MemoryUtil.memAlloc(entryBytes);
+                    long entryAddr = memAddress(entryBuf);
+
+                    int totalVertexBytes = 0;
+                    int totalIndexCount = 0;
+                    for (EntityRenderData erd : rtEntities) {
+                        for (EntityRenderLayer erl : erd) {
+                            BuiltBuffer vb = erl.builtBuffer();
+                            int vertCount = vb.getDrawParameters().vertexCount();
+                            int format = vb.getDrawParameters().format().getVertexSizeByte();
+                            totalVertexBytes += vertCount * format;
+                            totalIndexCount += vertCount / 4 * 6;
+                        }
+                    }
+
+                    if (totalVertexBytes > 0) {
+                        ByteBuffer vertBuf = MemoryUtil.memAlloc(totalVertexBytes);
+                        ByteBuffer idxBuf = MemoryUtil.memAlloc(totalIndexCount * 4);
+                        long vertAddr = memAddress(vertBuf);
+                        long idxAddr = memAddress(idxBuf);
+
+                        int vertByteOff = 0;
+                        int idxOff = 0;
+                        int entryOff = 0;
+
+                        for (EntityRenderData erd : rtEntities) {
+                            int entityVertStart = vertByteOff;
+                            int entityIdxStart = idxOff;
+                            int entityTriCount = 0;
+
+                            for (EntityRenderLayer erl : erd) {
+                                BuiltBuffer vb = erl.builtBuffer();
+                                int vertCount = vb.getDrawParameters().vertexCount();
+                                int stride = vb.getDrawParameters().format().getVertexSizeByte();
+                                int layerVertBytes = vertCount * stride;
+
+                                BufferProxy.BufferInfo binfo = BufferProxy.getBufferInfo(vb.getBuffer());
+                                MemoryUtil.memCopy(binfo.addr(), vertAddr + vertByteOff, layerVertBytes);
+
+                                int baseVertex = vertByteOff / stride;
+                                int quadCount = vertCount / 4;
+                                for (int q = 0; q < quadCount; q++) {
+                                    int base = baseVertex + q * 4;
+                                    idxBuf.putInt((idxOff) * 4, base);
+                                    idxBuf.putInt((idxOff + 1) * 4, base + 1);
+                                    idxBuf.putInt((idxOff + 2) * 4, base + 2);
+                                    idxBuf.putInt((idxOff + 3) * 4, base + 2);
+                                    idxBuf.putInt((idxOff + 4) * 4, base + 3);
+                                    idxBuf.putInt((idxOff + 5) * 4, base);
+                                    idxOff += 6;
+                                }
+                                entityTriCount += quadCount * 2;
+                                vertByteOff += layerVertBytes;
+                            }
+
+                            entryBuf.putInt(entryOff, erd.getHashCode());
+                            entryBuf.putFloat(entryOff + 4, (float) erd.getX());
+                            entryBuf.putFloat(entryOff + 8, (float) erd.getY());
+                            entryBuf.putFloat(entryOff + 12, (float) erd.getZ());
+                            entryBuf.putInt(entryOff + 16, erd.getRtFlag());
+                            entryBuf.putInt(entryOff + 20, coordinate.getValue());
+                            entryBuf.putInt(entryOff + 24, entityVertStart);
+                            entryBuf.putInt(entryOff + 28, entityIdxStart);
+                            entryBuf.putInt(entryOff + 32, entityTriCount);
+                            entryOff += 36;
+                        }
+
+                        EngineBridge.submitEntityBatch(entryAddr,
+                            rtEntities.getTotalEntityCount(),
+                            vertAddr, vertByteOff,
+                            idxAddr, idxOff);
+
+                        MemoryUtil.memFree(vertBuf);
+                        MemoryUtil.memFree(idxBuf);
+                    }
+
+                    MemoryUtil.memFree(entryBuf);
+                }
+
+                // --- Post-entity draws (particles, weather, overlays → rasterized over tone-mapped output) ---
+                if (postEntities.getTotalEntityCount() > 0) {
+                    int totalPostVertBytes = 0;
+                    int totalPostIdxCount = 0;
+                    int totalDrawCalls = 0;
+                    for (EntityRenderData erd : postEntities) {
+                        totalDrawCalls++;
+                        for (EntityRenderLayer erl : erd) {
+                            BuiltBuffer vb = erl.builtBuffer();
+                            int vertCount = vb.getDrawParameters().vertexCount();
+                            int format = vb.getDrawParameters().format().getVertexSizeByte();
+                            totalPostVertBytes += vertCount * format;
+                            totalPostIdxCount += vertCount / 4 * 6;
+                        }
+                    }
+
+                    if (totalPostVertBytes > 0) {
+                        byte[] vertexData = new byte[totalPostVertBytes];
+                        int[] indexData = new int[totalPostIdxCount];
+                        // Each draw call = 3 ints: {vertexByteOffset, indexElementOffset, indexCount}
+                        int[] drawCalls = new int[totalDrawCalls * 3];
+
+                        int vertOff = 0;
+                        int idxOff = 0;
+                        int dcIdx = 0;
+
+                        for (EntityRenderData erd : postEntities) {
+                            int drawVertStart = vertOff;
+                            int drawIdxStart = idxOff;
+                            int drawIdxCount = 0;
+
+                            for (EntityRenderLayer erl : erd) {
+                                BuiltBuffer vb = erl.builtBuffer();
+                                int vertCount = vb.getDrawParameters().vertexCount();
+                                int stride = vb.getDrawParameters().format().getVertexSizeByte();
+                                int layerVertBytes = vertCount * stride;
+
+                                // Copy vertex bytes into Java array
+                                BufferProxy.BufferInfo binfo = BufferProxy.getBufferInfo(vb.getBuffer());
+                                ByteBuffer src = MemoryUtil.memByteBuffer(binfo.addr(), layerVertBytes);
+                                src.get(vertexData, vertOff, layerVertBytes);
+
+                                // Generate quad indices
+                                int baseVertex = vertOff / stride;
+                                int quadCount = vertCount / 4;
+                                for (int q = 0; q < quadCount; q++) {
+                                    int base = baseVertex + q * 4;
+                                    indexData[idxOff]     = base;
+                                    indexData[idxOff + 1] = base + 1;
+                                    indexData[idxOff + 2] = base + 2;
+                                    indexData[idxOff + 3] = base + 2;
+                                    indexData[idxOff + 4] = base + 3;
+                                    indexData[idxOff + 5] = base;
+                                    idxOff += 6;
+                                }
+                                drawIdxCount += quadCount * 6;
+                                vertOff += layerVertBytes;
+                            }
+
+                            drawCalls[dcIdx]     = drawVertStart;
+                            drawCalls[dcIdx + 1] = drawIdxStart;
+                            drawCalls[dcIdx + 2] = drawIdxCount;
+                            dcIdx += 3;
+                        }
+
+                        EngineBridge.submitPostEntities(vertexData, indexData, drawCalls);
+                    }
+                }
+            }
         } finally {
             // ByteBuffers are pooled in bbPool[] — no memFree needed here.
             // They persist across frames and are freed via freeByteBufferPool() on shutdown.

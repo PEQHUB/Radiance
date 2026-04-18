@@ -8,6 +8,8 @@ import com.mojang.blaze3d.systems.VertexSorter;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.util.ChunkLightCollector;
+import com.radiance.v2.bridge.EngineBridge;
+import com.radiance.v2.scene.AreaLightPacker;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderBuiltChunkExt;
@@ -23,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BuiltBuffer;
@@ -134,13 +137,31 @@ public class ChunkProxy {
     }
 
     public static void clear() {
-        waitImportantChunkRebuild();
+        // In V2 mode, chunk tracking is handled by the C++ engine independently.
+        // Skip the render-thread-blocking important-chunk wait to avoid deadlock during
+        // world load/unload sequences. CmdWorldUnload will clear V2-side chunk state.
+        if (!EngineBridge.isV2Active()) {
+            waitImportantChunkRebuild();
+        } else {
+            // Cancel all pending important-chunk futures immediately instead of waiting.
+            for (Future<?> f : rebuildTasks) {
+                f.cancel(true);
+            }
+            rebuildTasks.clear();
+        }
 
         backgroundChunkRebuildExecutor.shutdown();
         try {
-            backgroundChunkRebuildExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
+            // Use a bounded timeout (2s) to avoid blocking the render thread indefinitely
+            // during world teardown. Background rebuild workers only post() to the V2
+            // bridge (fast) or call JNI on the V1 path. Force-terminate if they stall.
+            boolean finished = backgroundChunkRebuildExecutor.awaitTermination(2, TimeUnit.SECONDS);
+            if (!finished) {
+                backgroundChunkRebuildExecutor.shutdownNow();
+            }
         } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            backgroundChunkRebuildExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
         }
         backgroundChunkRebuildExecutor = Executors.newFixedThreadPool(numNormalChunkRebuildThreads,
             r -> {
@@ -151,6 +172,7 @@ public class ChunkProxy {
 
         rebuildQueue.clear();
         rebuildTasks.clear();
+        AreaLightPacker.clear();
     }
 
     public static void enqueueRebuild(ChunkBuilder.BuiltChunk chunk) {
@@ -162,7 +184,6 @@ public class ChunkProxy {
     }
 
     public static void rebuild(Camera camera) {
-
         BlockPos blockPos = camera.getBlockPos();
         boolean smoothing = inWorldLoadSmoothingWindow();
         int maxImportantTasksPerFrame = smoothing ?
@@ -266,9 +287,17 @@ public class ChunkProxy {
 
         for (Future<?> rebuildTask : rebuildTasks) {
             try {
-                rebuildTask.get();
+                // 2-second timeout per future — prevents render-thread deadlock if a
+                // chunk worker is stuck inside a JNI call or C++ engine lock.
+                rebuildTask.get(2, TimeUnit.SECONDS);
+            } catch (TimeoutException e) {
+                // Worker is stuck — cancel it and continue. The chunk will rebuild
+                // on the next frame when it re-enters the rebuild queue.
+                rebuildTask.cancel(true);
+                System.err.println("[chunk-proxy] important rebuild timed out — cancelling");
             } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
+                // Log but don't crash — chunk rebuild failures are non-fatal.
+                System.err.println("[chunk-proxy] important rebuild failed: " + e.getMessage());
             }
         }
 
@@ -288,6 +317,14 @@ public class ChunkProxy {
 
             if (chunkRendererRegion == null) {
                 invalidateSingle(builtChunk.index);
+                // Notify V2 engine so it removes stale geometry for this section
+                if (EngineBridge.isV2Active()) {
+                    BlockPos origin = builtChunk.getOrigin();
+                    EngineBridge.removeChunk(
+                        origin.getX() >> 4,
+                        origin.getY() >> 4,
+                        origin.getZ() >> 4);
+                }
                 builtChunk.data.set(ChunkBuilder.ChunkData.EMPTY);
                 return;
             }
@@ -326,7 +363,6 @@ public class ChunkProxy {
             // Build palette on-the-fly: map unique states to indices
             java.util.ArrayList<Integer> palette = new java.util.ArrayList<>();
             java.util.HashMap<Integer, Integer> paletteMap = new java.util.HashMap<>();
-            boolean hasFluid = false;
             boolean hasBlockEntity = false;
 
             // Also build occlusion data for vanilla compat
@@ -365,18 +401,17 @@ public class ChunkProxy {
                             }
                         }
 
-                        // Track fluids (C++ mesher doesn't handle these yet)
-                        if (!state.getFluidState().isEmpty()) {
-                            hasFluid = true;
-                        }
+                        // Note: fluids are handled by the C++ BlockMesher::emitFluidQuads path
+                        // (see MCVR/src/core/render/block_mesher.cpp:406-411). No Java-side
+                        // tracking or routing needed here.
                     }
                 }
             }
 
-            // Fluids: C++ mesher handles solid blocks; Java path handles fluids separately.
-            // Previously, ANY fluid in a section forced full Java fallback — causing textureID
-            // corruption (Java uses GLIDs, C++ uses spriteIds, shader expects spriteIds).
-            // Now: always use C++ for solids. Fluids are rendered via entity/particle path.
+            // Fluids: the C++ BlockMesher handles both pure fluids (renderType==2: water, lava)
+            // and waterlogged model blocks (renderType==1 with non-empty fluid state). Water
+            // routes to the translucent vertex layer; lava routes to solid. No Java-side
+            // fluid meshing or fallback is needed.
 
             // Palette array: uint32 per entry
             ByteBuffer paletteBuf = stack.malloc(palette.size() * Integer.BYTES);
@@ -540,7 +575,16 @@ public class ChunkProxy {
             builtChunkNum++;
 
             invalidateSingle(builtChunk.index);
+            // Notify V2 engine so it removes stale geometry for this section
+            if (EngineBridge.isV2Active()) {
+                BlockPos emptyOrigin = builtChunk.getOrigin();
+                EngineBridge.removeChunk(
+                    emptyOrigin.getX() >> 4,
+                    emptyOrigin.getY() >> 4,
+                    emptyOrigin.getZ() >> 4);
+            }
             setChunkLights(builtChunk.index, 0, 0);
+            AreaLightPacker.removeChunkLights(builtChunk.index);
         } else {
             ChunkBuilder.ChunkData chunkData = new ChunkBuilder.ChunkData() {
                 @Override
@@ -671,6 +715,8 @@ public class ChunkProxy {
             } else {
                 setChunkLights(builtChunk.index, 0, 0);
             }
+            // V2: route collected lights to the Java-side aggregator
+            AreaLightPacker.setChunkLightsFromCollector(builtChunk.index, collectedLights);
         }
 
         for (Map.Entry<RenderLayer, BuiltBuffer> entry : buffers.entrySet()) {

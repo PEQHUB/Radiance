@@ -3,6 +3,7 @@ package com.radiance.mixins.vanilla_resource_tracker;
 import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.proxy.world.BlockModelBridge;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt;
@@ -80,6 +81,43 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
         BlockModelBridge.sortedSpriteIds = sortedIds;
         BlockModelBridge.markForReupload(); // Force model table re-serialization with new IDs
+
+        // Task 1.4 diagnostic (copper-grate hunt): dump the first 16 sorted sprite
+        // identifiers + their (would-be) spriteId index, and specifically locate
+        // minecraft:block/copper_grate so the C++ DIAG reg[] output (which logs
+        // atlasXY per registry entry) can be cross-referenced with the shader's
+        // dominant textureID to confirm or refute H-A.
+        {
+            int n = Math.min(16, sortedIds.size());
+            StringBuilder head = new StringBuilder();
+            for (int i = 0; i < n; i++) {
+                if (i > 0) head.append(", ");
+                head.append(i).append('=').append(sortedIds.get(i).toString());
+            }
+            LOGGER.warn("[TextureSystem] DIAG sortedSpriteIds size={} head[0..{}]={}",
+                sortedIds.size(), n - 1, head);
+
+            Identifier copperGrate = Identifier.of("minecraft", "block/copper_grate");
+            int copperGrateIdx = sortedIds.indexOf(copperGrate);
+            LOGGER.warn("[TextureSystem] DIAG copper_grate sprite index = {} (-1 means not in block atlas)",
+                copperGrateIdx);
+
+            // Also log all copper_* sprites since the visual symptom shows a weathered
+            // green patina — could be exposed_copper_grate, weathered_copper_grate,
+            // oxidized_copper_grate, or the base copper_grate.
+            StringBuilder coppers = new StringBuilder();
+            int copperCount = 0;
+            for (int i = 0; i < sortedIds.size(); i++) {
+                String s = sortedIds.get(i).getPath();
+                if (s.contains("copper")) {
+                    if (copperCount++ > 0) coppers.append(", ");
+                    coppers.append(i).append('=').append(s);
+                    if (copperCount >= 24) { coppers.append(", ..."); break; }
+                }
+            }
+            LOGGER.warn("[TextureSystem] DIAG copper_* sprites: {}", coppers);
+        }
+
 
         // ---- Step 1B: Build spriteId ↔ materialOrdinal mapping for CPU Auto-PBR ----
         BlockModelBridge.spriteId2MaterialOrdinal.clear();
@@ -178,7 +216,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             metaBuf.putShort(off + 14, flags);
         }
 
-        BlockModelBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
+        if (!EngineBridge.isV2Active()) BlockModelBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
+        if (EngineBridge.isV2Active()) {
+            EngineBridge.submitSpriteTable(memAddress(metaBuf), count, atlasW, atlasH, spriteSize);
+        }
         LOGGER.info("[TextureSystem] Sent sprite table: {} entries", count);
 
         // ---- Step 4: Build pixel bulk buffer (frame 0 for each sprite, RGBA8) ----
@@ -215,7 +256,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             if (imgH > h) animatedCount++;
         }
 
-        BlockModelBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), count * bytesPerSprite);
+        if (!EngineBridge.isV2Active()) BlockModelBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), count * bytesPerSprite);
+        if (EngineBridge.isV2Active()) {
+            EngineBridge.submitSpritePixels(memAddress(pixelBuf), count * bytesPerSprite);
+        }
         LOGGER.info("[TextureSystem] Sent {} sprite pixels ({} KB), {} animated",
             uploaded, (count * bytesPerSprite) / 1024, animatedCount);
 
@@ -358,8 +402,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             LOGGER.info("[TextureSystem] CPU-baked {} Auto-PBR normal sprites (neutral strength)", normalBakedCount);
         }
 
-        BlockModelBridge.nativeReceiveSpriteAuxPixels(
+        if (!EngineBridge.isV2Active()) BlockModelBridge.nativeReceiveSpriteAuxPixels(
             memAddress(specPixelBuf), memAddress(normalPixelBuf), count * bytesPerSprite);
+        if (EngineBridge.isV2Active()) {
+            EngineBridge.submitSpriteAuxPixels(memAddress(specPixelBuf), memAddress(normalPixelBuf), count * bytesPerSprite);
+        }
         LOGGER.info("[TextureSystem] Sent aux pixels: {} specular, {} normal ({} KB each)",
             specCount, normalCount, (count * bytesPerSprite) / 1024);
 
@@ -425,15 +472,24 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 }
             }
 
-            BlockModelBridge.nativeReceiveAnimationFrames(memAddress(animBuf), animOffset);
+            if (!EngineBridge.isV2Active()) BlockModelBridge.nativeReceiveAnimationFrames(memAddress(animBuf), animOffset);
+            if (EngineBridge.isV2Active()) {
+                EngineBridge.submitAnimationFrames(memAddress(animBuf), animOffset);
+            }
             LOGGER.info("[TextureSystem] Sent {} bytes of animation data", animOffset);
         } else {
             // No animations — send empty
-            BlockModelBridge.nativeReceiveAnimationFrames(0, 0);
+            if (!EngineBridge.isV2Active()) BlockModelBridge.nativeReceiveAnimationFrames(0, 0);
+            if (EngineBridge.isV2Active()) {
+                EngineBridge.submitAnimationFrames(0, 0);
+            }
         }
 
         // ---- Step 6: Finalize ----
-        BlockModelBridge.nativeTextureFinalize();
+        if (!EngineBridge.isV2Active()) BlockModelBridge.nativeTextureFinalize();
+        if (EngineBridge.isV2Active()) {
+            EngineBridge.textureFinalize();
+        }
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
     }
 

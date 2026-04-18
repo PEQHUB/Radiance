@@ -329,9 +329,21 @@ public abstract class WorldRendererMixins {
         if (EngineBridge.isV2Active()) {
             float[] viewArr = new float[16];
             float[] projArr = new float[16];
-            viewMatrix.get(viewArr);
-            projectionMatrix.get(projArr);
             net.minecraft.util.math.Vec3d camPos = camera.getPos();
+
+            // Minecraft's stock viewMatrix here is ROTATION-ONLY — vanilla applies
+            // the world→camera-relative translation per-chunk during rasterization.
+            // V2's RT path places chunks at ABSOLUTE world coordinates in the TLAS
+            // and `v2_world.rgen` derives the ray origin from
+            // `cameraViewMatInv * vec4(0,0,0,1)`, which only equals the camera
+            // world position if the view matrix already contains the camera
+            // translation. Bake it in here as `R * T(-camPos)`. Otherwise rays
+            // originate at world (0,0,0) and chunks at their absolute coordinates
+            // appear "far away from the player".
+            new Matrix4f(viewMatrix)
+                    .translate(-(float) camPos.x, -(float) camPos.y, -(float) camPos.z)
+                    .get(viewArr);
+            projectionMatrix.get(projArr);
             org.joml.Vector3f camDir = camera.getHorizontalPlane();
             EngineBridge.updateCamera(viewArr, projArr,
                 (float) camPos.x, (float) camPos.y, (float) camPos.z,
@@ -602,6 +614,15 @@ public abstract class WorldRendererMixins {
         ChunkRenderingDataPreparer instance, BuiltChunkStorage storage) {
 
     }
+
+    @Inject(method = "setWorld(Lnet/minecraft/client/world/ClientWorld;)V", at = @At("RETURN"))
+    public void onSetWorld(ClientWorld world, CallbackInfo ci) {
+        if (world != null && EngineBridge.isV2Active()) {
+            // Notify the V2 engine that a world has been loaded so inWorld_ becomes true
+            // and tick() transitions from the menu/loading early-out to the render path.
+            EngineBridge.worldLoad();
+        }
+    }
     // endregion
 
     //region <setupTerrain>
@@ -644,9 +665,34 @@ public abstract class WorldRendererMixins {
     }
     // endregion
 
+    // region <isTerrainRenderComplete>
+    // Called by LevelLoadingScreen (via WorldLoadingState.isReady()) to determine
+    // when the loading screen CompletableFuture can resolve. In V2 mode, vanilla
+    // never runs ChunkRenderingDataPreparer so this never returns true on its own.
+    // Return true immediately in V2 mode — the engine renders correctly without
+    // requiring vanilla chunk mesh completions.
+    @Inject(method = "isTerrainRenderComplete()Z", at = @At(value = "HEAD"), cancellable = true)
+    public void forceTerrainRenderCompleteInV2Mode(CallbackInfoReturnable<Boolean> cir) {
+        if (EngineBridge.isV2Active()) {
+            cir.setReturnValue(true);
+        }
+    }
+    // endregion
+
     // region <isRenderingReady>
+    // In V2 mode the Vulkan engine owns all rendering; vanilla never builds chunk
+    // meshes so builtChunk is always null for the player's chunk.  Returning false
+    // there causes DownloadingTerrainScreen / WorldLoadingState to block forever.
+    // Short-circuit to true at HEAD whenever V2 is active so the loading screen
+    // can always close as soon as the server sends the "chunks coming" packet.
     @Inject(method = "isRenderingReady(Lnet/minecraft/util/math/BlockPos;)Z", at = @At(value = "HEAD"), cancellable = true)
     public void redirectIsRenderingReady(BlockPos pos, CallbackInfoReturnable<Boolean> cir) {
+        if (EngineBridge.isV2Active()) {
+            cir.setReturnValue(true);
+            return;
+        }
+
+        // V1 / vanilla fallback path
         ChunkBuilder.BuiltChunk builtChunk = chunks.getRenderedChunk(pos);
 
         if (builtChunk == null) {
@@ -662,7 +708,19 @@ public abstract class WorldRendererMixins {
     // region <>
     @Inject(method = "getCompletedChunkCount()I", at = @At(value = "HEAD"), cancellable = true)
     public void fixGetCompletedChunkCount(CallbackInfoReturnable<Integer> cir) {
-        cir.setReturnValue(ChunkProxy.builtChunkNum - 54); // 54 + 10 = 64
+        if (EngineBridge.isV2Active()) {
+            // In V2 mode, vanilla never builds chunk meshes so builtChunkNum stays at 0.
+            // LevelLoadingScreen uses getCompletedChunkCount() to both fill its progress bar
+            // (count / 441) AND as a readiness gate — if count == 0 the loading bar never
+            // fills and the screen can stall indefinitely.
+            // Return 441 (full 100 % progress) so the loading screen always considers
+            // terrain complete.  isTerrainRenderComplete() and isRenderingReady() already
+            // return true unconditionally in V2 mode; this is the matching chunk-count signal.
+            cir.setReturnValue(441);
+            return;
+        }
+        // V1 formula: 54 + 10 = 64 base offset, clamp to 0 to avoid negatives.
+        cir.setReturnValue(Math.max(0, ChunkProxy.builtChunkNum - 54));
     }
     // endregion
 }

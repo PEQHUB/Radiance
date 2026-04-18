@@ -39,6 +39,10 @@ public class BufferProxy {
     // Animation tick counter — incremented per frame for texture array sprite animation
     public static int animTick = 0;
 
+    // Emission data dirty flag — only upload once per settings change, not every frame
+    private static boolean emissionDataDirty = true;
+    public static void markEmissionDataDirty() { emissionDataDirty = true; }
+
     public static native int allocateBuffer();
 
     public static native void initializeBuffer(int id, int size, int usageFlags);
@@ -379,6 +383,14 @@ public class BufferProxy {
             // No longer packed into WorldUBO — saves ~18 KB from UBO.
 
             updateWorldUniform(addr);
+
+            // Send emission data to V2 engine (emissionData + emissiveGamut are the last
+            // (50+13)*16 = 1008 bytes of the WorldUBO buffer, starting at offset 560).
+            // Only upload when dirty — emission data is static between setting changes.
+            if (EngineBridge.isV2Active() && emissionDataDirty) {
+                EngineBridge.uploadEmissionData(addr + 560);
+                emissionDataDirty = false;
+            }
 
             // Upload material SSBO (unified material system — replaces old UBO packing)
             com.radiance.client.material.MaterialRegistry.init();
