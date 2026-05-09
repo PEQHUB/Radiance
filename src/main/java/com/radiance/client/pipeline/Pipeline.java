@@ -887,11 +887,21 @@ public class Pipeline {
                 }
 
                 ImageConfig srcImageConfig = srcModule.getOutputImageConfig(
-                    storedConnection.srcImageName);
-                ImageConfig dstImageConfig = dstModule.getInputImageConfig(
-                    storedConnection.dstImageName);
+                storedConnection.srcImageName);
+            ImageConfig dstImageConfig = dstModule.getInputImageConfig(
+                storedConnection.dstImageName);
 
-                connect(srcImageConfig, dstImageConfig);
+            if (srcImageConfig == null || dstImageConfig == null) {
+                RadianceClient.LOGGER.warn(
+                    "Saved pipeline references unknown image '{}->{}' / '{}->{}'. Rebuilding default pipeline.",
+                    storedConnection.srcModuleId, storedConnection.srcImageName,
+                    storedConnection.dstModuleId, storedConnection.dstImageName);
+                assembleDefault();
+                savePipeline();
+                return;
+            }
+
+            connect(srcImageConfig, dstImageConfig);
             }
         }
 

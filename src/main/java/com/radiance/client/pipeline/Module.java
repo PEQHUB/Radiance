@@ -28,7 +28,7 @@ public class Module {
                 return imageConfig;
             }
         }
-        throw new RuntimeException("No such image config: " + name);
+        return null;
     }
 
     public ImageConfig getOutputImageConfig(String name) {
@@ -37,6 +37,6 @@ public class Module {
                 return imageConfig;
             }
         }
-        throw new RuntimeException("No such image config: " + name);
+        return null;
     }
 }
