@@ -298,14 +298,7 @@ public class LightSourceRegistry {
     }
 
     private static void registerCopperBulbs() {
-        Block[] copperBulbs = {
-            Blocks.COPPER_BULB, Blocks.EXPOSED_COPPER_BULB,
-            Blocks.WEATHERED_COPPER_BULB, Blocks.OXIDIZED_COPPER_BULB,
-            Blocks.WAXED_COPPER_BULB, Blocks.WAXED_EXPOSED_COPPER_BULB,
-            Blocks.WAXED_WEATHERED_COPPER_BULB, Blocks.WAXED_OXIDIZED_COPPER_BULB
-        };
-        for (Block block : copperBulbs) {
-            register(block, s -> s.get(Properties.LIT) ? DEF_COPPER_BULB : null);
-        }
+        // Copper bulbs (and weathered/waxed variants) were added in 1.21; deferred
+        // for the 1.20.1 backport. Re-enable once the MC target moves forward.
     }
 }
