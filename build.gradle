@@ -22,9 +22,9 @@ loom {
 tasks.named("runClient", JavaExec) {
     args "--gameDir", file("../mc-test/instance").absolutePath
     args "--width", "1920", "--height", "1080"
-    // Force Java 21 for runtime — LWJGL 3.3.3 is incompatible with Java 25
+    // Force Java 17 for runtime — matches MC 1.20.1's bundled JRE
     javaLauncher = javaToolchains.launcherFor {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -90,7 +90,7 @@ processResources {
     }
 }
 
-def targetJavaVersion = 21
+def targetJavaVersion = 17
 tasks.withType(JavaCompile).configureEach {
     // ensure that the encoding is set to UTF-8, no matter what the system default is
     // this fixes some edge cases with special characters not displaying correctly
