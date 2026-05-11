@@ -106,7 +106,8 @@ public class Constants {
             BY_VERTEX_FORMAT =
             Collections.unmodifiableMap(Arrays.stream(values())
                 .collect(
-                    Collectors.toMap(VertexFormats::getVertexFormat, VertexFormats::getValue)));
+                    Collectors.toMap(VertexFormats::getVertexFormat, VertexFormats::getValue,
+                        (existing, duplicate) -> existing)));
 
         private final VertexFormat vertexFormat;
         private final int value;
@@ -198,6 +199,23 @@ public class Constants {
         public int getValue() {
             return value;
         }
+    }
+
+    /**
+     * Constructs the Java-side ordinal table for the JNI ABI handshake (PRD §4.3 / §4.4).
+     * The order is part of the JNI contract: vertex format ordinals first, then draw mode,
+     * then index type, then geometry type, then RT flags. MCVR validates this exact order.
+     */
+    public static long[] dumpOrdinals() {
+        java.util.List<Long> out = new java.util.ArrayList<>();
+        for (VertexFormats v : VertexFormats.values()) out.add((long) v.getValue());
+        for (DrawModes d : DrawModes.values()) out.add((long) d.getValue());
+        for (IndexTypes i : IndexTypes.values()) out.add((long) i.getValue());
+        for (GeometryTypes g : GeometryTypes.values()) out.add((long) g.getValue());
+        for (RayTracingFlags r : RayTracingFlags.values()) out.add((long) r.getValue());
+        long[] arr = new long[out.size()];
+        for (int idx = 0; idx < arr.length; idx++) arr[idx] = out.get(idx);
+        return arr;
     }
 
 }
