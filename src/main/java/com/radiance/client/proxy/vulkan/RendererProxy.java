@@ -14,6 +14,19 @@ public class RendererProxy {
 
     public static native void initFolderPath(String folderPath);
 
+    /**
+     * Java passes its ordinal table to native; native compares against its own. Returns 0 on
+     * match, non-zero status code on mismatch (encodes which table mismatched).
+     * PRD §4.3 / §4.4. Called once from RadianceClient.onInitializeClient after System.load.
+     */
+    public static native int handshake(int mcVersionId, long[] javaOrdinals);
+
+    /**
+     * Idempotent re-check of the ABI table. Same arguments and return semantics as handshake.
+     * Used by debug tooling and at every render-loop start when -Dradiance.dev_logging=true.
+     */
+    public static native int validateAbi(int mcVersionId, long[] javaOrdinals);
+
     public static native void initRenderer(String[] glfwLibCandidates, long windowHandle);
 
     public static void initRenderer(Window window) {
