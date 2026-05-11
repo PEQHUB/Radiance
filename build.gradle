@@ -11,6 +11,12 @@ base {
 }
 
 compileJava {
+    doFirst {
+        delete fileTree("${projectDir}/src/main/native/include") {
+            include '*.h'
+        }
+        mkdir "${projectDir}/src/main/native/include"
+    }
     options.compilerArgs += ['-h', "${projectDir}/src/main/native/include"]
     outputs.upToDateWhen { false }
 }
