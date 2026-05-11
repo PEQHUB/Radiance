@@ -4,10 +4,12 @@ This document is the **single entry point** for continuing the Radiance 1.20.1 b
 
 ## Current state (2026-05-11)
 
-- **Head commit:** `095273e87e1d5f62dfba3fbe480c1ade68971c19` on `origin/main` (`095273e` short). Three commits added in this session on top of `a456701`:
+- **Head commit on `origin/main`:** `0fcf656` (this docs commit). Four commits added in this session on top of `a456701`:
   - `91a7b37` feat(alpha-0): wire RendererProxy.handshake into RadianceClient init; lock structured ordinal table format
   - `ffe8215` feat(alpha-0): ModuleEntry prefers disk module over classpath when both present
   - `095273e` build/docs: JNI header cleanup in build.gradle and runClient gameDir; CLAUDE.md catch-up
+  - `0fcf656` docs: commit PLAN.md + HANDOFF.md for cross-machine continuity
+- **Alpha-0 code wiring** is the first three commits (`91a7b37` → `095273e`); the fourth (`0fcf656`) adds these docs. Both produce identical runtime behavior.
 - **Test suite:** 21 tests, 0 failures (`./gradlew test` from a clean build). Run before doing anything destructive; this is the regression baseline.
   - 8 `RadianceStateTest` · 4 `RadianceBufferHandleTest` · 4 `ConstantsDumpOrdinalsTest` · 3 `MixinPluginTest` · 2 `ModuleEntryTest`
 - **Working tree:** clean.
