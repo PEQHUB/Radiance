@@ -1,25 +1,40 @@
+# Done May 5th 2026 10:09 AM EST
+
 # Handoff — Where this is and what's next
 
 This document is the **single entry point** for continuing the Radiance 1.20.1 backport on a new machine (especially Windows, where the next checkpoint physically lives). It is committed to the repo so `git clone` is the only setup step needed.
 
-## Current state (2026-05-11)
+## Current state (2026-05-11, end of Checkpoint 0c+A)
 
-- **Head commit on `origin/main`:** `0fcf656` (this docs commit). Four commits added in this session on top of `a456701`:
-  - `91a7b37` feat(alpha-0): wire RendererProxy.handshake into RadianceClient init; lock structured ordinal table format
-  - `ffe8215` feat(alpha-0): ModuleEntry prefers disk module over classpath when both present
-  - `095273e` build/docs: JNI header cleanup in build.gradle and runClient gameDir; CLAUDE.md catch-up
-  - `0fcf656` docs: commit PLAN.md + HANDOFF.md for cross-machine continuity
-- **Alpha-0 code wiring** is the first three commits (`91a7b37` → `095273e`); the fourth (`0fcf656`) adds these docs. Both produce identical runtime behavior.
-- **Test suite:** 21 tests, 0 failures (`./gradlew test` from a clean build). Run before doing anything destructive; this is the regression baseline.
-  - 8 `RadianceStateTest` · 4 `RadianceBufferHandleTest` · 4 `ConstantsDumpOrdinalsTest` · 3 `MixinPluginTest` · 2 `ModuleEntryTest`
-- **Working tree:** clean.
+**Checkpoint 0c+A SHIPPED. PRD G1+G3-recovery CLEARED.** The alpha-0 boot path works end-to-end on Windows.
+
+- **Branch:** `checkpoint/0c-a` cut from `eecebfe` on the Windows box. Three commits on top:
+  - `d556769` feat(alpha-0): bump Fabric Loader to 0.16.10; pre-load libxess.dll before core.dll
+  - `d983842` docs: BUILD-WINDOWS.md — actual Windows build workflow used to clear G1+G3-recovery
+  - (this commit) docs(W15): mark G1+G3-recovery cleared in PLAN.md; refresh HANDOFF.md current-state
+- **MCVR side:** `mc/1.20.1` branch on the Windows MCVR clone, three commits on top of upstream `9905c81`:
+  - `c2f9327` feat(handshake): RendererProxy.handshake/validateAbi for mcVersion 12001 (Radiance PRD §4.3.1)
+  - `bee0add` build(mc/1.20.1): exclude deferred-class .cpp files from build
+  - `ef54555` fix(mc/1.20.1): include <cstddef> for size_t; exclude ShaderProxy.cpp
+- **Gate evidence:** `runClient` log captured `RendererProxy.handshake(12001, javaOrdinals.length=130) returned 0`. `System.load` for `libxess.dll` then `core.dll` both succeeded. No `RENDERER_DISABLED` / `INIT_FAILED` / `UnsatisfiedLinkError` in the log post-boot. Main menu rendered, clean Stopping! on close.
+- **`BUILD-WINDOWS.md` committed** at repo root with the real toolchain versions, paths, and a Known Issues section documenting plan deviations.
+- **Test suite:** 21 tests still passing (regression baseline unchanged; no Java test changes in this checkpoint).
+- **Neither branch pushed to remote yet** — both `checkpoint/0c-a` (Radiance) and `mc/1.20.1` (MCVR clone) are local-only. Push decision is the user's; see "Next steps" below.
 
 ## What's done
 
 - **Checkpoint 0b** (Java foundation, 1.20.1 yarn migration, compile-quarantine of 66 deferred files, JUnit 5, `RadianceState`, `RadianceBufferHandle`, JNI `handshake`/`validateAbi` declarations) — SHIPPED in merge `a456701`. See `docs/PLAN.md` Part 3.
-- **Alpha-0 Java wiring** (handshake call site in `RadianceClient.performHandshake()`, structured `Constants.dumpOrdinals()` per PRD §4.3.1, `core.lib` + Streamline DLLs marked optional via `copyOptionalFileFromResource`, resource-tracker mixins guarded by `RadianceState.isResourceTrackingEnabled()`, `ModuleEntry` disk-precedence refactor) — SHIPPED in the three M0 commits above.
+- **Alpha-0 Java wiring** (handshake call site in `RadianceClient.performHandshake()`, structured `Constants.dumpOrdinals()` per PRD §4.3.1, `core.lib` + Streamline DLLs marked optional via `copyOptionalFileFromResource`, resource-tracker mixins guarded by `RadianceState.isResourceTrackingEnabled()`, `ModuleEntry` disk-precedence refactor) — SHIPPED in commits `91a7b37`/`ffe8215`/`095273e`.
+- **Checkpoint 0c+A** — MCVR `mc/1.20.1` branch built; §4.3.1 handshake decoder implemented and verified; `core.dll` produced; Radiance Java wired to pre-load libxess.dll; Fabric Loader bumped; `runClient` reaches `BOOT_OK` and main menu via vanilla GL. See `BUILD-WINDOWS.md` and `docs/PLAN.md` Part 4 status note.
 
-## What's queued (next physical session)
+## Next steps
+
+- **Push the branches** if you want them backed up off the Windows box. `checkpoint/0c-a` (Radiance) and `mc/1.20.1` (MCVR clone). If you fork MCVR on GitHub first, you can push there; otherwise just push Radiance to `origin/main` once you've reviewed the diff.
+- **DLSS DLLs (optional):** for ray reconstruction support, download `nvngx_dlss.dll` + `nvngx_dlssd.dll` from https://github.com/NVIDIA/DLSS/tree/main/lib/Windows_x86_64/rel into `mc-test/instance/radiance/`. NVIDIA license forbids redistribution so this is a manual step on every machine (same workflow whether the mod is shipped via GitHub Releases or CurseForge).
+- **Tech debt:** 125 MB of `libxess*.dll` is bloating the jar. Fix at MCVR install rule OR `processResources` filter. See `BUILD-WINDOWS.md` Known Issues section.
+- **Next planning target: Checkpoint B** (alpha-1 boot-path mixins). Per `docs/PLAN.md` Part 2 §B.
+
+## What was queued (historical — preserved for reference)
 
 **Implementation Checkpoint 0c+A** — build MCVR's `mc/1.20.1` branch with the §4.3.1 handshake decoder against the current Java head, clear PRD G1+G3-recovery (alpha-0 release gate). All work physically lives on the Windows box.
 

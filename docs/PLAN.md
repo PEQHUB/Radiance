@@ -66,6 +66,8 @@ Mixed-version pairing (1.21.4 native against 1.20.1 Java) is **explicitly prohib
 
 If the engineer cannot complete 0a in ~2 weeks of part-time work, slow down and pair-program through the C++ side with Claude Code rather than rushing it. The OSS-collaborator escalation path that earlier drafts called "Path B" has been retired — the user does all C++ work themselves with Claude Code as a pair-programming assistant on the Windows box.
 
+**Status (2026-05-11):** user implemented the §4.3.1 handshake decoder on MCVR's `mc/1.20.1` branch and built `core.dll` locally on Windows, paired with Claude Code throughout. The Java alpha-0 boot path reaches `RadianceState.BOOT_OK`. See Part 4 status note below.
+
 ### 4.3 JNI compatibility strategy
 - **Java owns the ordinal table.** All Minecraft-version-sensitive ordinals (vertex format, draw mode, index type, geometry type, RT flag) are constructed on the Java side from `Constants.java` via `Constants.dumpOrdinals(): long[]` (a pure-Java method, no JNI).
 - New JNI: **`RendererProxy.handshake(int mcVersionId, long[] javaOrdinals): int`** — Java passes its full structured ordinal table (format below). Native compares against its own table for that mcVersionId. Returns `0` for match; non-zero status code identifies the first mismatched section/entry.
@@ -481,7 +483,7 @@ Each gate blocks a specific release. Independently verifiable.
 | Gate | Description | Blocks | Cleared by |
 |---|---|---|---|
 | **G1** | **(Original — superseded by G1+G3-recovery, see below. Also superseded: an interim "G1-recovery" row that lived here briefly during the third pass; it has been removed to avoid clutter.)** An unmodified `core.dll` exists, was built against this Java tree's unmodified (1.21.4) JNI headers, and `System.load`s on the test rig without OS-level error. | alpha-0 | Implementation Checkpoint 0a. |
-| **G1+G3-recovery** | Replaces G1 and G3. A `core.dll` exists, was built on the user's Windows machine against the current 1.20.1 Java headers (which include `handshake`/`validateAbi` declarations from 0b), and `System.load`s without OS-level error. **MCVR's C++ `RendererProxy_handshake` symbol exists, decodes the structured ordinal table per PRD §4.3.1, and returns `0` for `mcVersionId == 12001`** against the head Java commit. `RadianceState` transitions `UNINITIALIZED → BOOT_OK`. The four resource-tracker mixins begin shadowing without runtime error. The Java `runClient` reaches the main menu via vanilla GL (no renderer mixins active). `shaders/` and `modules/` MUST be packaged into the jar and extracted successfully (their absence sets `RENDERER_DISABLED` rather than `BOOT_OK`, which fails the gate). Optional natives absent (`core.lib`, Streamline DLLs) are logged WARN but do not fail the gate. | alpha-0 | Implementation Checkpoint 0c+A (Part 4). |
+| **G1+G3-recovery** | Replaces G1 and G3. A `core.dll` exists, was built on the user's Windows machine against the current 1.20.1 Java headers (which include `handshake`/`validateAbi` declarations from 0b), and `System.load`s without OS-level error. **MCVR's C++ `RendererProxy_handshake` symbol exists, decodes the structured ordinal table per PRD §4.3.1, and returns `0` for `mcVersionId == 12001`** against the head Java commit. `RadianceState` transitions `UNINITIALIZED → BOOT_OK`. The four resource-tracker mixins begin shadowing without runtime error. The Java `runClient` reaches the main menu via vanilla GL (no renderer mixins active). `shaders/` and `modules/` MUST be packaged into the jar and extracted successfully (their absence sets `RENDERER_DISABLED` rather than `BOOT_OK`, which fails the gate). Optional natives absent (`core.lib`, Streamline DLLs) are logged WARN but do not fail the gate. | alpha-0 | **CLEARED 2026-05-11** via Implementation Checkpoint 0c+A (Part 4). `core.dll` built from MCVR `mc/1.20.1` branch (head `ef54555`) against Radiance Java head `eecebfe`; `RendererProxy.handshake(12001, ordinals length=130)` returned `0`; `RadianceState` reached `BOOT_OK`; `runClient` reached main menu via vanilla GL; clean Stopping! at session end. See `BUILD-WINDOWS.md` for the build workflow. |
 | **G2** | All new JNI declarations land in Java; deferred mixins are compile-quarantined (§4.5); JNI headers regenerate. | alpha-0 | Implementation Checkpoint 0b. (MCVR-side build of the new symbols folded into G1+G3-recovery, so G2 is now Java-side-only.) |
 | **G3** | **(Folded into G1+G3-recovery above.)** Was originally a separate Checkpoint A gate for handshake success. After the handshake call site moved into the alpha-0 boot path, G3 cannot pass without the C++ side also passing — so G1 and G3 are reached together by Checkpoint 0c+A. | alpha-0 | Folded into G1+G3-recovery. |
 | **G4** | `RadianceBufferHandle` / `RadianceBufferAdapter` / `RadianceVertexConsumer` are in place; the §4.4 ByteBuffer transport is implemented; `BuiltBuffer` and `VertexConsumer` no longer cross JNI. (`grep -r BuiltBuffer\|VertexConsumer src/main/java/com/radiance/client/proxy/` matches only the adapter file.) | alpha-2 | Implementation Checkpoint C. |
@@ -540,7 +542,7 @@ Every release's README and KNOWN-ISSUES.md must restate the following exactly:
 
 | # | Question | Owner | Resolved by |
 |---|---|---|---|
-| OQ-01 | Will the user pursue C++ MCVR work themselves, or seek a collaborator? | User | End of Implementation Checkpoint 0c+A (clears G1+G3-recovery; original 0a/G1, planned 0a-recovery/G1-recovery, and Checkpoint A/G3 framings all superseded after the handshake call site landed in `RadianceClient.onInitializeClient` mid-checkpoint). See Part 4. |
+| OQ-01 | Will the user pursue C++ MCVR work themselves, or seek a collaborator? | User | **RESOLVED 2026-05-11** via Checkpoint 0c+A. User implemented the §4.3.1 handshake decoder on MCVR's `mc/1.20.1` branch (`Java_com_radiance_client_proxy_vulkan_RendererProxy_handshake` + `_validateAbi`, ~220 LOC at `src/core/middleware/com_radiance_client_proxy_vulkan_RendererProxy_Handshake.cpp`) and built `core.dll` locally on Windows, paired with Claude Code. `BUILD-WINDOWS.md` committed to the Radiance repo. No OSS outreach was conducted (user chose solo + Claude Code; the Outreach workstream was retired before being attempted). |
 | OQ-02 | Reference test rig spec (GPU model, OS version, RAM)? | User | Before alpha-1 verification. |
 | OQ-03 | Streamline DLL redistribution license — verified, or DLLs moved to user-supplied? | User / legal | Before v1.0 (clears G10). |
 | OQ-04 | Version-number convention for git tags (e.g., `alpha-0`, `0.1.3-alpha+mc1.20.1-alpha-0`, `1.20.1-0.1`)? | User | Before alpha-0 ships. |
@@ -3050,6 +3052,26 @@ Two acceptable outcomes:
   ```
 
 The plan file under `~/.claude-anthropic/plans/` and the repo-local `docs/` are two different artifacts serving two different audiences — pick (a) if status only matters to you, (b) if it matters to anyone who clones the repo. They are not mutually exclusive.
+
+---
+
+## Part 4 — Status Note: Checkpoint 0c+A SHIPPED (2026-05-11)
+
+MCVR's `mc/1.20.1` branch (head `ef54555`) implements `RendererProxy_handshake` and `RendererProxy_validateAbi` per PRD §4.3.1. `core.dll` (29.7 MB) built on user's Windows 11 machine via the `BUILD-WINDOWS.md` flow. Java client launches on Temurin JDK 17 / Gradle daemon JDK 21; `System.load(libxess.dll)` succeeds (pre-load); `System.load(core.dll)` succeeds; `RendererProxy.handshake(12001, ordinals length=130)` returns `0`; `RadianceState` transitions `UNINITIALIZED → BOOT_OK`; main menu renders via vanilla GL; runClient exits cleanly. PRD G1+G3-recovery cleared. OQ-01 resolved (user built MCVR themselves with Claude Code; OSS-collaborator outreach was retired before being attempted).
+
+**Plan deviations corrected at W14 in `BUILD-WINDOWS.md`** (these were wrong in the W2/W6/W11 plan text and should be folded back into the next plan revision):
+
+- **JDK 17 vs 21:** plan said "use JDK 17, not 21" — Loom 1.11-SNAPSHOT actually requires JVM 21 to run Gradle itself. Install BOTH (21 for Gradle daemon via `JAVA_HOME`, 17 for `compileJava --release 17` and `runClient` toolchain).
+- **CMake 4.x is incompatible** with several MCVR submodules (`glfw`, `nrd`, `volk`, `vma`, `glm`, `json`, `tiny-process-library`). Must use CMake 3.27–3.31, not 4.x.
+- **Fabric Loader version pin** (`gradle.properties`) had to bump `0.15.11 → 0.16.10` for Fabric API 0.92.6+1.20.1 compatibility.
+- **MCVR deferred-class .cpp exclusions:** `BufferProxy`, `ChunkProxy`, `EntityProxy`, `ShaderProxy` middleware files were excluded via `list(FILTER SOURCE_FILES EXCLUDE REGEX ...)` in `src/core/CMakeLists.txt` on the `mc/1.20.1` branch (commit `bee0add` + `ef54555`). Revert when those Java classes are promoted out of `src/deferred/`.
+- **libxess.dll preload:** MCVR built with `-DMCVR_ENABLE_XESS=ON` has libxess.dll as a static-link dependency in `core.dll`'s PE header; Windows DLL search doesn't see core.dll's own directory for transitive deps. `RadianceClient.initializeNativeRenderer` now extracts AND `System.load`s libxess.dll BEFORE `System.load(core.dll)` (commit `d556769`).
+- **`mc-test/instance/` parent must be pre-created** before `runClient` (Loom doesn't recursively create `--gameDir`).
+- **125 MB libxess jar bloat** is tech debt: MCVR's `install(FILES ${XESS_RUNTIME_DLLS} DESTINATION ${MCVR_INSTALL_LIB_DIR})` drops `libxess*.dll` into `src/main/resources/` where `processResources` then sucks them into the jar. Inflates the jar from ~30 MB to ~110 MB. Either filter in `processResources` or fix MCVR's install rule to target `natives/windows/`.
+
+**Real toolchain versions captured** (vs. plan's placeholder "1.3.x" etc.): MSVC `cl.exe` v19.44.35215 (toolset 14.44.35207), Vulkan SDK 1.4.341.0, CMake 3.31.12, Temurin JDK 17.0.19+10 and 21.0.11+10, Git for Windows 2.51.0.windows.1. Test hardware: NVIDIA GeForce RTX 5070 Ti (Vulkan 1.4.329, driver 596.21) on Windows 11 Home build 26200.
+
+Next planning target: Checkpoint B (alpha-1 boot-path mixins) per Part 2 §B.
 
 ---
 
