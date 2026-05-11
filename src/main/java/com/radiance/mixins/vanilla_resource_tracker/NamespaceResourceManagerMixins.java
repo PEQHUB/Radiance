@@ -1,5 +1,6 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
+import com.radiance.client.RadianceState;
 import com.radiance.client.texture.IdentifierInputStream;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
@@ -34,6 +35,10 @@ public abstract class NamespaceResourceManagerMixins {
         InputSupplier<InputStream> supplier,
         InputSupplier<ResourceMetadata> metadataSupplier,
         CallbackInfoReturnable<Resource> cir) {
+        if (!RadianceState.isResourceTrackingEnabled()) {
+            return;
+        }
+
         cir.setReturnValue(new Resource(pack, () -> {
             InputSupplier<InputStream> inputStreamInputSupplier = wrapForDebug(id, pack, supplier);
             if (inputStreamInputSupplier == null) {
@@ -57,6 +62,10 @@ public abstract class NamespaceResourceManagerMixins {
     public void filterPbrTexturesFromAtlas(String startingPath,
         Predicate<Identifier> pathPredicate,
         CallbackInfoReturnable<Map<Identifier, Resource>> cir) {
+        if (!RadianceState.isResourceTrackingEnabled()) {
+            return;
+        }
+
         Map<Identifier, Resource> original = cir.getReturnValue();
         if (original == null || original.isEmpty()) {
             return;

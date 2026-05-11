@@ -480,7 +480,8 @@ public class Options {
             }
         } catch (Throwable ignored) {
         }
-        return Boolean.getBoolean("radiance.devLog");
+        return Boolean.getBoolean("radiance.dev_logging")
+            || Boolean.getBoolean("radiance.devLog");
     }
 
     private static void runOnClientThread(Runnable task) {

@@ -1,5 +1,6 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
+import com.radiance.client.RadianceState;
 import com.radiance.client.texture.TextureTracker;
 import net.minecraft.client.texture.AbstractTexture;
 import net.minecraft.client.texture.TextureManager;
@@ -14,6 +15,10 @@ public abstract class TextureManagerMixins {
 
     @Inject(method = "registerTexture(Lnet/minecraft/util/Identifier;Lnet/minecraft/client/texture/AbstractTexture;)V", at = @At("HEAD"))
     private void profileTextureRegister(Identifier id, AbstractTexture texture, CallbackInfo ci) {
+        if (!RadianceState.isResourceTrackingEnabled()) {
+            return;
+        }
+
         TextureTracker.textureID2GLID.put(id, texture.getGlId());
 //        System.out.println("Registered texture: " + id + " (GL_ID = " + texture.getGlId() + ")");
     }

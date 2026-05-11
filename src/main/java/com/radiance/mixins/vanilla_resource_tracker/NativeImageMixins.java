@@ -1,5 +1,6 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
+import com.radiance.client.RadianceState;
 import com.radiance.client.texture.IdentifierInputStream;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.InputStream;
@@ -43,6 +44,10 @@ public abstract class NativeImageMixins implements INativeImageExt {
         "Lnet/minecraft/client/texture/NativeImage;", at = @At(value = "RETURN"), cancellable = true)
     private static void readIdentifier(NativeImage.Format format, InputStream stream,
         CallbackInfoReturnable<NativeImage> cir) {
+        if (!RadianceState.isResourceTrackingEnabled()) {
+            return;
+        }
+
         NativeImage nativeImage = cir.getReturnValue();
 
         if (stream instanceof IdentifierInputStream) {

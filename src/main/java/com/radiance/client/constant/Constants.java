@@ -12,6 +12,20 @@ import net.minecraft.client.render.RenderPhase;
 import net.minecraft.client.render.VertexFormat;
 
 public class Constants {
+    private static final long ORDINAL_TABLE_MAGIC = 0x5241445f4f524453L; // RAD_ORDS
+    private static final long ORDINAL_TABLE_VERSION = 1L;
+    private static final long ORDINAL_TABLE_SECTION_COUNT = 5L;
+
+    private static final long SECTION_VERTEX_FORMATS = 1L;
+    private static final long SECTION_DRAW_MODES = 2L;
+    private static final long SECTION_INDEX_TYPES = 3L;
+    private static final long SECTION_GEOMETRY_TYPES = 4L;
+    private static final long SECTION_RAY_TRACING_FLAGS = 5L;
+
+    private static final long ENTRY_ACTIVE = 0L;
+    private static final long ENTRY_RESERVED = 1L;
+
+    private static final long[] RESERVED_VERTEX_FORMAT_ORDINALS = {10L, 11L, 12L};
 
     public enum IndexTypes {
         SHORT(VertexFormat.IndexType.SHORT, 0),
@@ -203,19 +217,59 @@ public class Constants {
 
     /**
      * Constructs the Java-side ordinal table for the JNI ABI handshake (PRD §4.3 / §4.4).
-     * The order is part of the JNI contract: vertex format ordinals first, then draw mode,
-     * then index type, then geometry type, then RT flags. MCVR validates this exact order.
+     *
+     * <p>Layout:
+     * [magic, version, section-count,
+     *   section-id, payload-length, entry-id, abi-value, flags, ...]
+     *
+     * <p>Each section payload is a sequence of entry triples. Vertex format slots 10, 11,
+     * and 12 are emitted as reserved entries so native validation can distinguish intentional
+     * gaps from ABI drift.
      */
     public static long[] dumpOrdinals() {
         java.util.List<Long> out = new java.util.ArrayList<>();
-        for (VertexFormats v : VertexFormats.values()) out.add((long) v.getValue());
-        for (DrawModes d : DrawModes.values()) out.add((long) d.getValue());
-        for (IndexTypes i : IndexTypes.values()) out.add((long) i.getValue());
-        for (GeometryTypes g : GeometryTypes.values()) out.add((long) g.getValue());
-        for (RayTracingFlags r : RayTracingFlags.values()) out.add((long) r.getValue());
+        out.add(ORDINAL_TABLE_MAGIC);
+        out.add(ORDINAL_TABLE_VERSION);
+        out.add(ORDINAL_TABLE_SECTION_COUNT);
+
+        appendVertexFormatSection(out);
+        appendEnumSection(out, SECTION_DRAW_MODES, DrawModes.values().length,
+            index -> DrawModes.values()[index].getValue());
+        appendEnumSection(out, SECTION_INDEX_TYPES, IndexTypes.values().length,
+            index -> IndexTypes.values()[index].getValue());
+        appendEnumSection(out, SECTION_GEOMETRY_TYPES, GeometryTypes.values().length,
+            index -> GeometryTypes.values()[index].getValue());
+        appendEnumSection(out, SECTION_RAY_TRACING_FLAGS, RayTracingFlags.values().length,
+            index -> RayTracingFlags.values()[index].getValue());
+
         long[] arr = new long[out.size()];
         for (int idx = 0; idx < arr.length; idx++) arr[idx] = out.get(idx);
         return arr;
     }
 
+    private static void appendVertexFormatSection(java.util.List<Long> out) {
+        out.add(SECTION_VERTEX_FORMATS);
+        out.add((long) (VertexFormats.values().length + RESERVED_VERTEX_FORMAT_ORDINALS.length) * 3L);
+        for (VertexFormats v : VertexFormats.values()) {
+            appendEntry(out, v.getValue(), v.getValue(), ENTRY_ACTIVE);
+        }
+        for (long reservedOrdinal : RESERVED_VERTEX_FORMAT_ORDINALS) {
+            appendEntry(out, reservedOrdinal, reservedOrdinal, ENTRY_RESERVED);
+        }
+    }
+
+    private static void appendEnumSection(java.util.List<Long> out, long sectionId, int entryCount,
+                                          java.util.function.IntFunction<Integer> valueAt) {
+        out.add(sectionId);
+        out.add((long) entryCount * 3L);
+        for (int entryId = 0; entryId < entryCount; entryId++) {
+            appendEntry(out, entryId, valueAt.apply(entryId), ENTRY_ACTIVE);
+        }
+    }
+
+    private static void appendEntry(java.util.List<Long> out, long entryId, long abiValue, long flags) {
+        out.add(entryId);
+        out.add(abiValue);
+        out.add(flags);
+    }
 }
