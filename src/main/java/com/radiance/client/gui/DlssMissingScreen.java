@@ -76,7 +76,9 @@ public class DlssMissingScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        super.renderBackground(context, mouseX, mouseY, delta);
+        // 1.20.1 renderBackground(DrawContext) takes a single arg; the
+        // (DrawContext, int, int, float) overload arrived in 1.20.5/1.21.
+        super.renderBackground(context);
 
         // Title
         context.drawCenteredTextWithShadow(

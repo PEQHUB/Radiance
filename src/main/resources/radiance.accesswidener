@@ -42,6 +42,10 @@ accessible field com/mojang/blaze3d/systems/RenderSystem shaderLightDirections [
 
 accessible class net/minecraft/client/render/chunk/ChunkRendererRegionBuilder$ClientChunk
 accessible method net/minecraft/client/render/BuiltChunkStorage getRenderedChunk (Lnet/minecraft/util/math/BlockPos;)Lnet/minecraft/client/render/chunk/ChunkBuilder$BuiltChunk;
+accessible class net/minecraft/client/render/RenderPhase$Lightmap
+accessible class net/minecraft/client/render/RenderPhase$Target
+accessible class net/minecraft/client/option/SimpleOption$CyclingCallbacks
+accessible class net/minecraft/client/gui/widget/OptionListWidget$WidgetEntry
 accessible class net/minecraft/client/render/RenderLayer$MultiPhase
 accessible field net/minecraft/client/render/RenderLayer$MultiPhase phases Lnet/minecraft/client/render/RenderLayer$MultiPhaseParameters;
 

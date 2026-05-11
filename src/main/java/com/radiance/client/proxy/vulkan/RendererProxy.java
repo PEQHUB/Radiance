@@ -1,11 +1,9 @@
 package com.radiance.client.proxy.vulkan;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.radiance.client.constant.Constants;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt;
 import java.nio.ByteBuffer;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.Window;
 import org.lwjgl.system.MemoryUtil;
@@ -45,11 +43,9 @@ public class RendererProxy {
     public static native void drawOverlay(int vertexId, int indexId, int pipelineType,
         int indexCount, int indexType);
 
-    public static void drawOverlay(BufferProxy.VertexIndexBufferHandle handle, int indexCount,
-        VertexFormat.IndexType indexType) {
-        drawOverlay(handle.vertexId, handle.indexId, pipelineType, indexCount,
-            Constants.IndexTypes.getValue(indexType));
-    }
+    // drawOverlay(BufferProxy.VertexIndexBufferHandle, ...) overload deferred — see
+    // src/deferred/java/com/radiance/client/proxy/vulkan/BufferProxy.java. Will be re-added in
+    // Checkpoint A/B once BufferProxy is rewritten for 1.20.1.
 
     public static native void fuseWorld();
 

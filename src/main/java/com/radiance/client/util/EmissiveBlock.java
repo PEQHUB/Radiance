@@ -156,14 +156,8 @@ public enum EmissiveBlock {
         register(Blocks.BLAST_FURNACE, BLAST_FURNACE);
         register(Blocks.SMOKER, SMOKER);
         register(Blocks.ENDER_CHEST, ENDER_CHEST);
-        register(Blocks.COPPER_BULB, COPPER_BULB);
-        register(Blocks.EXPOSED_COPPER_BULB, COPPER_BULB);
-        register(Blocks.WEATHERED_COPPER_BULB, COPPER_BULB);
-        register(Blocks.OXIDIZED_COPPER_BULB, COPPER_BULB);
-        register(Blocks.WAXED_COPPER_BULB, COPPER_BULB);
-        register(Blocks.WAXED_EXPOSED_COPPER_BULB, COPPER_BULB);
-        register(Blocks.WAXED_WEATHERED_COPPER_BULB, COPPER_BULB);
-        register(Blocks.WAXED_OXIDIZED_COPPER_BULB, COPPER_BULB);
+        // COPPER_BULB and its weathered/waxed variants are 1.21+ blocks; deferred until
+        // a future MC bump. Tracked alongside LightSourceRegistry's COPPER_BULB list.
         register(Blocks.ENCHANTING_TABLE, ENCHANTING_TABLE);
     }
 

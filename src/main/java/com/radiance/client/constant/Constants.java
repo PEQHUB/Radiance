@@ -1,6 +1,8 @@
 package com.radiance.client.constant;
 
-import com.radiance.client.vertex.PBRVertexFormats;
+// PBRVertexFormats deferred during 1.20.1 backport — see
+// src/deferred/java/com/radiance/client/vertex/PBRVertexFormats.java.
+// Re-import once the format is rewritten against 1.20.1's VertexFormat shape.
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -92,12 +94,13 @@ public class Constants {
         POSITION_TEXTURE(net.minecraft.client.render.VertexFormats.POSITION_TEXTURE, 7),
         POSITION_TEXTURE_COLOR(net.minecraft.client.render.VertexFormats.POSITION_TEXTURE_COLOR, 8),
         POSITION_COLOR_TEXTURE_LIGHT(
-            net.minecraft.client.render.VertexFormats.POSITION_COLOR_TEXTURE_LIGHT, 9),
+            net.minecraft.client.render.VertexFormats.POSITION_COLOR_TEXTURE_LIGHT, 9);
         // Ordinals 10 and 11 reserved for 1.21+-only formats POSITION_TEXTURE_LIGHT_COLOR
         // and POSITION_TEXTURE_COLOR_NORMAL. These do not exist in 1.20.1 yarn. The slots
         // remain reserved so MCVR's ordinal table stays version-stable. Re-add when
         // backporting to 1.21.x. See PRD §4.4 / §4.6.
-        PBR_TRIANGLE(PBRVertexFormats.PBR_TRIANGLE, 12);
+        // Ordinal 12 reserved for PBR_TRIANGLE — depends on deferred PBRVertexFormats
+        // (uses 1.21+ VertexFormat.builder()). Re-enable in Checkpoint A/B.
 
         private static final Map<VertexFormat, Integer>
             BY_VERTEX_FORMAT =
@@ -143,57 +146,16 @@ public class Constants {
         }
 
         public static GeometryTypes getGeometryType(RenderLayer renderLayer, boolean reflect) {
-            // single objects
-            if (renderLayer.name.contains("water_mask")) {
-                return BOAT_WATER_MASK;
-            } else if (renderLayer.name.contains("end_portal")) {
-                return END_PORTAL;
-            } else if (renderLayer.name.contains("end_gateway")) {
-                return END_GATEWAY;
-            }
-
-            if (renderLayer.name.contains("cloud")) {
-                return WORLD_CLOUD;
-            }
-
-            if (!reflect) {
-                return WORLD_NO_REFLECT;
-            }
-
-            RenderLayer.MultiPhase multiPhase = (RenderLayer.MultiPhase) renderLayer;
-            if (multiPhase.name.contains("solid")) {
-                // solid
-                return WORLD_SOLID;
-            }
-
-            if (multiPhase.isTranslucent()) {
-                // transparent
-                if (RenderPhase.NO_TRANSPARENCY.equals(multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else if (RenderPhase.ADDITIVE_TRANSPARENCY.equals(
-                    multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else if (RenderPhase.LIGHTNING_TRANSPARENCY.equals(
-                    multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else if (RenderPhase.GLINT_TRANSPARENCY.equals(multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else if (RenderPhase.CRUMBLING_TRANSPARENCY.equals(
-                    multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else if (RenderPhase.OVERLAY_TRANSPARENCY.equals(
-                    multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else if (RenderPhase.TRANSLUCENT_TRANSPARENCY.equals(
-                    multiPhase.phases.transparency)) {
-                    return WORLD_TRANSPARENT;
-                } else {
-                    throw new IllegalArgumentException("Invalid render layer " + multiPhase);
-                }
-            } else {
-                // cut out
-                return WORLD_TRANSPARENT;
-            }
+            // Stubbed during Checkpoint 0b backport — body originally inspected
+            // RenderLayer.MultiPhase.isTranslucent() and the OVERLAY_TRANSPARENCY/etc.
+            // RenderPhase.Transparency constants. In 1.20.1 isTranslucent() is not
+            // exposed, OVERLAY_TRANSPARENCY does not exist, and equals() on
+            // RenderPhase.Transparency is package-private. The only callers were
+            // ChunkProxy/EntityProxy which are themselves deferred — see
+            // src/deferred/java/com/radiance/client/proxy/. To be reimplemented
+            // alongside those proxies in Checkpoint A/B/C/D.
+            throw new UnsupportedOperationException(
+                "Constants.GeometryTypes.getGeometryType deferred to Checkpoint A/B/C/D");
         }
 
         public int getValue() {
