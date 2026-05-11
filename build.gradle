@@ -56,6 +56,13 @@ dependencies {
     // https://mvnrepository.com/artifact/org.yaml/snakeyaml
     implementation "org.yaml:snakeyaml:2.5"
     include "org.yaml:snakeyaml:2.5"
+    testImplementation platform("org.junit:junit-bom:5.10.2")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+    useJUnitPlatform()
 }
 
 // Platform-specific native library support
