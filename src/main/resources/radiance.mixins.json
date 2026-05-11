@@ -17,7 +17,8 @@
     "vulkan_render_integration.RenderLayerMixins (1.21+ TriState)",
     "vulkan_render_integration.ReloadableResourceManagerImplMixins (1.21+ registerReloader variant)",
     "vulkan_render_integration.SectionBuilderMixins (1.21+ SectionBuilder)",
-    "vulkan_render_integration.VideoWarningManagerWarningPatternLoaderMixins (1.21+ buildWarnings shape)"
+    "vulkan_render_integration.VideoWarningManagerWarningPatternLoaderMixins (1.21+ buildWarnings shape)",
+    "vulkan_render_integration.WorldRendererMixins (1.21+ SkyRendering / WeatherRendering / WorldBorderRendering / CloudRenderer / ObjectAllocator / RenderTickCounter / ChunkRenderingDataPreparer; rewrite for 1.20.1 in Checkpoint C/D)"
   ],
   "mixins": [
     "vanilla_resource_tracker.NamespaceResourceManagerMixins",
@@ -67,8 +68,7 @@
     "vulkan_render_integration.ScreenMixins",
     "vulkan_render_integration.ScreenshotRecorderMixins",
     "vulkan_render_integration.TextureUtilMixins",
-    "vulkan_render_integration.WindowMixins",
-    "vulkan_render_integration.WorldRendererMixins"
+    "vulkan_render_integration.WindowMixins"
   ],
   "injectors": {
     "defaultRequire": 1
