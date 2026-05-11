@@ -93,10 +93,10 @@ public class Constants {
         POSITION_TEXTURE_COLOR(net.minecraft.client.render.VertexFormats.POSITION_TEXTURE_COLOR, 8),
         POSITION_COLOR_TEXTURE_LIGHT(
             net.minecraft.client.render.VertexFormats.POSITION_COLOR_TEXTURE_LIGHT, 9),
-        POSITION_TEXTURE_LIGHT_COLOR(
-            net.minecraft.client.render.VertexFormats.POSITION_TEXTURE_LIGHT_COLOR, 10),
-        POSITION_TEXTURE_COLOR_NORMAL(
-            net.minecraft.client.render.VertexFormats.POSITION_TEXTURE_COLOR_NORMAL, 11),
+        // Ordinals 10 and 11 reserved for 1.21+-only formats POSITION_TEXTURE_LIGHT_COLOR
+        // and POSITION_TEXTURE_COLOR_NORMAL. These do not exist in 1.20.1 yarn. The slots
+        // remain reserved so MCVR's ordinal table stays version-stable. Re-add when
+        // backporting to 1.21.x. See PRD §4.4 / §4.6.
         PBR_TRIANGLE(PBRVertexFormats.PBR_TRIANGLE, 12);
 
         private static final Map<VertexFormat, Integer>
