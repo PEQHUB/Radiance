@@ -8,7 +8,20 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 
 public class MixinPlugin implements IMixinConfigPlugin {
 
-    public static boolean ENABLED = true;
+    /**
+     * Per-mixin allowlist (PRD §4.5 / §4.6). Mixins not listed here are skipped at runtime
+     * even if `radiance.mixins.json` declares them. Each Implementation Checkpoint adds the
+     * mixins it owns. The allowlist is canonical; `radiance.mixins.json` is structural.
+     *
+     * Current scope: alpha-0 — only the four resource-tracker mixins are applied. Vulkan
+     * rendering mixins are added starting in Checkpoint B.
+     */
+    public static final java.util.Set<String> ENABLED_MIXINS = java.util.Set.of(
+        "com.radiance.mixins.vanilla_resource_tracker.NamespaceResourceManagerMixins",
+        "com.radiance.mixins.vanilla_resource_tracker.TextureManagerMixins",
+        "com.radiance.mixins.vanilla_resource_tracker.AbstractTextureMixins",
+        "com.radiance.mixins.vanilla_resource_tracker.NativeImageMixins"
+    );
 
     @Override
     public void onLoad(String mixinPackage) {
@@ -16,7 +29,7 @@ public class MixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        return ENABLED;
+        return ENABLED_MIXINS.contains(mixinClassName);
     }
 
     @Override
