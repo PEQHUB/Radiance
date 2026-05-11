@@ -105,6 +105,30 @@ public class RadianceClient implements ClientModInitializer {
                     }
                 }
 
+                // Extract Intel XeSS runtime DLLs next to core.dll. libxess.dll is a
+                // hard dependency of core.dll (resolved by the Windows PE loader at
+                // System.load time) when MCVR is built with -DMCVR_ENABLE_XESS=ON,
+                // so it must be (a) on disk AND (b) pre-loaded into the process before
+                // System.load(core.dll), because Windows' standard DLL search order
+                // does NOT include core.dll's own directory when resolving its
+                // transitive dependencies. Pre-loading places libxess into the loader's
+                // module table, where Windows finds it by name when resolving core.dll.
+                Path xessTargetPath = radianceDir.resolve("libxess.dll");
+                boolean xessExtracted = copyOptionalFileFromResource(xessTargetPath, Path.of("libxess.dll"));
+                if (xessExtracted) {
+                    System.load(xessTargetPath.toAbsolutePath().toString());
+                    LOGGER.info("[radiance] Pre-loaded libxess.dll from {}", xessTargetPath.toAbsolutePath());
+                } else {
+                    LOGGER.warn("libxess.dll not found in JAR — core.dll load may fail if MCVR was built with XeSS enabled");
+                }
+                // Extract the variant DLLs too (used by libxess.dll at upscale time,
+                // not by core.dll at load time). Stay optional.
+                for (String xessDll : new String[]{"libxess_dx11.dll", "libxess_fg.dll"}) {
+                    if (!copyOptionalFileFromResource(radianceDir.resolve(xessDll), Path.of(xessDll))) {
+                        LOGGER.warn("XeSS variant DLL not found in JAR: {} (some XeSS modes unavailable)", xessDll);
+                    }
+                }
+
                 System.load(dllTargetPath.toAbsolutePath().toString());
                 LOGGER.info("[radiance] System.load succeeded for {}", dllTargetPath.toAbsolutePath());
             } catch (RuntimeException | LinkageError e) {
