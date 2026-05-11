@@ -2,7 +2,8 @@ accessWidener v2 named
 accessible class net/minecraft/client/font/BitmapFont$BitmapFontGlyph
 
 accessible class net/minecraft/client/font/TrueTypeFont$TtfGlyph
-accessible method net/minecraft/client/font/TrueTypeFont getInfo ()Lorg/lwjgl/util/freetype/FT_Face;
+# TrueTypeFont.getInfo() returns LWJGL freetype FT_Face which doesn't exist in 1.20.1's LWJGL 3.3.1.
+# Re-add when porting TtfGlyphMixins (deferred). PRD §4.5.
 accessible field net/minecraft/client/font/TrueTypeFont oversample F
 
 accessible method net/minecraft/client/font/UnihexFont addGlyphPixels (Ljava/nio/IntBuffer;Lnet/minecraft/client/font/UnihexFont$BitmapGlyph;II)V
