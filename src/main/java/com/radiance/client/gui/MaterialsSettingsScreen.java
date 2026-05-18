@@ -767,12 +767,12 @@ public class MaterialsSettingsScreen extends Screen {
         // Auto-PBR toggles (paired)
         ButtonWidget perBlockAutoPBRBtn = makeToggle("This Block", Options.materialAutoPBR[i], value -> {
             Options.materialAutoPBR[i] = value;
-            onSliderChanged(i); LiveNormalReuploader.scheduleReupload(i);
+            onSliderChanged(i); LiveNormalReuploader.scheduleGeneratedReupload(i, true, true);
             rebuildSelf();
         });
         ButtonWidget globalAutoPBRBtn = makeToggle("Global", Options.autoPBREnabled, value -> {
             Options.autoPBREnabled = value;
-            LiveNormalReuploader.scheduleReupload(); // -1 = all
+            LiveNormalReuploader.scheduleGeneratedReupload(true, true);
             rebuildSelf();
         });
         ry = addPair(rightX, ry, colW, perBlockAutoPBRBtn, globalAutoPBRBtn);
@@ -795,7 +795,7 @@ public class MaterialsSettingsScreen extends Screen {
                 Options.materialPercentileSpread[i] = nextP.spread;
                 Options.materialAutoPBRRoughnessMin[i] = nextP.roughMin;
                 Options.materialAutoPBRRoughnessMax[i] = nextP.roughMax;
-                onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
+                onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false);
                 rebuildSelf();
             }).dimensions(0, 0, colW, WIDGET_H).build();
         presetBtn.active = autoPBRActive;
@@ -804,11 +804,11 @@ public class MaterialsSettingsScreen extends Screen {
         ResettableSliderWidget roughMin = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 100, Options.materialAutoPBRRoughnessMin[i], 30,
             v -> getGenericValueText(Text.literal("R. Min"), Text.literal(v + "%")),
-            v -> { Options.materialAutoPBRRoughnessMin[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
+            v -> { Options.materialAutoPBRRoughnessMin[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false); });
         ResettableSliderWidget roughMax = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 100, Options.materialAutoPBRRoughnessMax[i], 95,
             v -> getGenericValueText(Text.literal("R. Max"), Text.literal(v + "%")),
-            v -> { Options.materialAutoPBRRoughnessMax[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
+            v -> { Options.materialAutoPBRRoughnessMax[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false); });
         roughMin.active = autoPBRActive;
         roughMax.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, roughMin, roughMax);
@@ -816,18 +816,18 @@ public class MaterialsSettingsScreen extends Screen {
         ResettableSliderWidget perCenter = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 100, Options.materialPercentileCenter[i], 50,
             v -> getGenericValueText(Text.literal("Center"), Text.literal(v + "%")),
-            v -> { Options.materialPercentileCenter[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
+            v -> { Options.materialPercentileCenter[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false); });
         ResettableSliderWidget perSpread = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             1, 100, Options.materialPercentileSpread[i], 80,
             v -> getGenericValueText(Text.literal("Spread"), Text.literal(v + "%")),
-            v -> { Options.materialPercentileSpread[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
+            v -> { Options.materialPercentileSpread[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false); });
         perCenter.active = autoPBRActive;
         perSpread.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, perCenter, perSpread);
 
         ButtonWidget invertRoughBtn = makeToggle("Invert", (Options.materialAutoPBRFlags[i] & 1) != 0, value -> {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~1) | (value ? 1 : 0);
-            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
+            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false);
         });
         ry = addPair(rightX, ry, colW, invertRoughBtn, null);
 
@@ -838,11 +838,11 @@ public class MaterialsSettingsScreen extends Screen {
             0, 200, Options.materialNormalStrength[i], 100,
             v -> getGenericValueText(Text.literal("Strength"),
                 Text.literal(String.format("\u00d7%.2f", v / 100.0))),
-            v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
+            v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); regeneratePreview(); });
         normalStrength.active = autoPBRActive;
         ButtonWidget invertNormalBtn = makeToggle("Invert", (Options.materialAutoPBRFlags[i] & 2) != 0, value -> {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~2) | (value ? 2 : 0);
-            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
+            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, false, true);
         });
         ry = addPair(rightX, ry, colW, normalStrength, invertNormalBtn);
 
@@ -852,11 +852,11 @@ public class MaterialsSettingsScreen extends Screen {
         ResettableSliderWidget perHeightGamma = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
             10, 300, Options.materialAutoPBRHeightGamma[i], 100,
             v -> getGenericValueText(Text.literal("Gamma"), Text.literal(String.format("%.2f", v / 100.0))),
-            v -> { Options.materialAutoPBRHeightGamma[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i); });
+            v -> { Options.materialAutoPBRHeightGamma[i] = v; onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, false, true); });
         perHeightGamma.active = autoPBRActive;
         ButtonWidget invertHeightBtn = makeToggle("Invert", (Options.materialAutoPBRFlags[i] & 4) != 0, value -> {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~4) | (value ? 4 : 0);
-            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleReupload(i);
+            onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, false, true);
         });
         ry = addPair(rightX, ry, colW, perHeightGamma, invertHeightBtn);
 
@@ -1239,12 +1239,18 @@ public class MaterialsSettingsScreen extends Screen {
             return;
         }
 
-        int srcW = sourceAlbedo.getWidth();
-        int srcH = Math.min(sourceAlbedo.getHeight(), srcW);
+        int fullW = sourceAlbedo.getWidth();
+        int fullH = Math.min(sourceAlbedo.getHeight(), fullW);
+        int srcW = Math.min(160, Math.max(16, fullW));
+        int srcH = Math.min(160, Math.max(16, fullH));
         NativeImage albedoCopy = new NativeImage(srcW, srcH, false);
-        for (int y = 0; y < srcH; y++)
-            for (int x = 0; x < srcW; x++)
-                albedoCopy.setColorArgb(x, y, sourceAlbedo.getColorArgb(x, y));
+        for (int y = 0; y < srcH; y++) {
+            int sy = Math.min(fullH - 1, y * fullH / srcH);
+            for (int x = 0; x < srcW; x++) {
+                int sx = Math.min(fullW - 1, x * fullW / srcW);
+                albedoCopy.setColorArgb(x, y, sourceAlbedo.getColorArgb(sx, sy));
+            }
+        }
         int ci = currentBlockIndex;
         int flags = Options.materialAutoPBRFlags[ci];
         boolean invertRough = (flags & 1) != 0;

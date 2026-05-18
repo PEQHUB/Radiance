@@ -28,6 +28,7 @@ import org.yaml.snakeyaml.inspector.TagInspector;
 public class Pipeline {
 
     public static Pipeline INSTANCE = new Pipeline();
+    private static final String PIPELINE_CONFIG_FILE = "pipeline_fork.yaml";
     private static Path PIPELINE_CONFIG_PATH = null;
     private final List<Module> modules = new ArrayList<>();
     private final Map<ImageConfig, List<ImageConfig>> moduleConnections = new HashMap<>();
@@ -37,7 +38,7 @@ public class Pipeline {
     }
 
     public static void initFolderPath(Path folderPath) {
-        PIPELINE_CONFIG_PATH = folderPath.resolve("pipeline.yaml");
+        PIPELINE_CONFIG_PATH = folderPath.resolve(PIPELINE_CONFIG_FILE);
     }
 
     public static void reloadAllModuleEntries() {
@@ -387,7 +388,8 @@ public class Pipeline {
 
         // 0=DLSS-RR, 1=FSR3, 2=Off
         boolean useDlss = (Options.upscalerMode == 0) && isNativeModuleAvailable("render_pipeline.module.dlss.name");
-        boolean useCloud = isNativeModuleAvailable("render_pipeline.module.cloud.name");
+        boolean useCloud = Options.volCloudQuality > 0
+            && isNativeModuleAvailable("render_pipeline.module.cloud.name");
 
         Module rayTracingModule = addModule("render_pipeline.module.ray_tracing.name");
 
@@ -489,6 +491,12 @@ public class Pipeline {
                 dlssModule.getInputImageConfig("gbuffer_material_id"));
             connect(rayTracingModule.getOutputImageConfig("position_view_space"),
                 dlssModule.getInputImageConfig("position_view_space"));
+            connect(rayTracingModule.getOutputImageConfig("transparency_layer"),
+                dlssModule.getInputImageConfig("transparency_layer"));
+            connect(rayTracingModule.getOutputImageConfig("transparency_layer_opacity"),
+                dlssModule.getInputImageConfig("transparency_layer_opacity"));
+            connect(rayTracingModule.getOutputImageConfig("transparency_layer_mvecs"),
+                dlssModule.getInputImageConfig("transparency_layer_mvecs"));
 
             connect(dlssModule.getOutputImageConfig("processed"),
                 toneMappingModule.getInputImageConfig("denoised_radiance"));
@@ -769,8 +777,11 @@ public class Pipeline {
 
         boolean dlssAvailable = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
         boolean fsr3Available = !dlssAvailable && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name");
+        boolean cloudAvailable = Options.volCloudQuality > 0
+            && isNativeModuleAvailable("render_pipeline.module.cloud.name");
         boolean savedPipelineHasDlss = false;
         boolean savedPipelineHasFsr3 = false;
+        boolean savedPipelineHasCloud = false;
         for (int index = 0; index < pipelineStorage.modules.size(); index++) {
             StoredModule storedModule = pipelineStorage.modules.get(index);
 
@@ -784,14 +795,19 @@ public class Pipeline {
             if ("render_pipeline.module.fsr3_upscaler.name".equals(storedModule.entryName)) {
                 savedPipelineHasFsr3 = true;
             }
+            if ("render_pipeline.module.cloud.name".equals(storedModule.entryName)) {
+                savedPipelineHasCloud = true;
+            }
         }
 
-        if (savedPipelineHasDlss != dlssAvailable || savedPipelineHasFsr3 != fsr3Available) {
+        if (savedPipelineHasDlss != dlssAvailable || savedPipelineHasFsr3 != fsr3Available
+            || savedPipelineHasCloud != cloudAvailable) {
             assembleDefault();
             savePipeline();
             RadianceClient.LOGGER.warn(
-                "Saved pipeline upscaler state (DLSS={}, FSR3={}) does not match current availability (DLSS={}, FSR3={}). Rebuilding default pipeline.",
-                savedPipelineHasDlss, savedPipelineHasFsr3, dlssAvailable, fsr3Available);
+                "Saved pipeline module state (DLSS={}, FSR3={}, Cloud={}) does not match current availability (DLSS={}, FSR3={}, Cloud={}). Rebuilding default pipeline.",
+                savedPipelineHasDlss, savedPipelineHasFsr3, savedPipelineHasCloud,
+                dlssAvailable, fsr3Available, cloudAvailable);
             return;
         }
 

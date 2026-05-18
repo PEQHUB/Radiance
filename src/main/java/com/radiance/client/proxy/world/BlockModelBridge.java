@@ -44,6 +44,19 @@ public class BlockModelBridge {
     private static boolean uploaded = false;
     private static boolean biomeTintsUploaded = false;
 
+    // Texture generation counter — incremented on each texture atlas reload.
+    // Used by ChunkProxy to tag chunk build tasks with the generation they were built for,
+    // so the C++ side can detect stale chunks after a resource pack change.
+    private static long activeTextureGeneration = 0;
+
+    public static long getActiveTextureGeneration() {
+        return activeTextureGeneration;
+    }
+
+    public static void incrementTextureGeneration() {
+        activeTextureGeneration++;
+    }
+
     // Texture system: sorted sprite identifier list, populated during atlas stitching
     // (SpriteAtlasTextureMixins). spriteId = index in this sorted list.
     // Used during block model serialization to write deterministic spriteIds.

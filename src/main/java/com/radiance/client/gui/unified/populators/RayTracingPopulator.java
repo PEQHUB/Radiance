@@ -40,10 +40,6 @@ public class RayTracingPopulator implements ContentPopulator {
             Options.SIMPLIFIED_INDIRECT_KEY, Options.simplifiedIndirect,
             value -> Options.setSimplifiedIndirect(value, true));
 
-        SimpleOption<Boolean> greedyMeshing = SimpleOption.ofBoolean(
-            Options.GREEDY_MESHING_KEY, Options.greedyMeshingEnabled,
-            value -> Options.setGreedyMeshingEnabled(value, true));
-
         if (Options.ommEnabled) {
             // OMM Baker Level only visible when OMM is enabled
             SelectionDropdownWidget ommBakerLevel = new SelectionDropdownWidget(
@@ -57,9 +53,6 @@ public class RayTracingPopulator implements ContentPopulator {
             section.addToggle(simplifiedIndirect.createWidget(gameOptions))
                   .tooltip("Simplified Indirect uses Lambertian instead of Disney BRDF for bounced light.");
         }
-
-        section.addToggle(greedyMeshing.createWidget(gameOptions))
-              .tooltip("Merges adjacent block faces with identical materials into larger quads, reducing triangle count by 50-70%. Rebuilds chunks on toggle.");
 
         SimpleOption<Boolean> multiScatterGGX = SimpleOption.ofBoolean(
             Options.MULTI_SCATTER_GGX_KEY, Options.multiScatterGGX,
@@ -140,7 +133,6 @@ public class RayTracingPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("OMM Enabled", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("OMM Baker Level", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("Simplified Indirect", category, nodeId, true),
-            new UnifiedSearchOverlay.SearchEntry("Greedy Meshing", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("Noise LOD", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SER Enabled", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SER Hints", category, nodeId, true),

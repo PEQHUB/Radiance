@@ -52,9 +52,6 @@ public class ConfigUIMetadata {
         ALL.add(new OptionMeta("eonDiffuse", "options.video.category.ray_tracing", ControlType.TOGGLE,
             "EON diffuse BRDF (replaces Lambertian)", RestartScope.NONE,
             0, 0, 0, null, false));
-        ALL.add(new OptionMeta("greedyMeshingEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "CPU-side coplanar face merging for chunk geometry", RestartScope.RENDERER,
-            0, 0, 0, null, false));
         ALL.add(new OptionMeta("multiScatterGGX", "options.video.category.ray_tracing", ControlType.TOGGLE,
             "Multi-scatter GGX energy compensation (Kulla-Conty)", RestartScope.NONE,
             0, 0, 0, null, false));

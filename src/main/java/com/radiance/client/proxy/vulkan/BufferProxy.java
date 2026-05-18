@@ -217,9 +217,12 @@ public class BufferProxy {
     public static void updateWorldUniform(Camera camera, Matrix4f viewMatrix,
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
-        animTick++;
+        int nextAnimTick = world != null ? (int) world.getTime() : animTick + 1;
+        if (nextAnimTick != animTick) {
+            animTick = nextAnimTick;
         // Update animated sprite textures (water, lava, etc.) — re-uploads current frame pixels
-        com.radiance.client.proxy.world.BlockModelBridge.updateAnimatedSprites(animTick);
+            com.radiance.client.proxy.world.BlockModelBridge.updateAnimatedSprites(animTick);
+        }
         try (MemoryStack stack = stackPush()) {
             int size = 560 + 50 * 16 + 13 * 16; // base + emissionData[50] + emissiveGamut[13] (materialData moved to SSBO)
             ByteBuffer bb = stack.malloc(size);

@@ -12,6 +12,8 @@ public class PBRVertexFormatElements {
     public static final int PBR_FLAG_USE_GLINT        = 1 << 4;
     public static final int PBR_FLAG_USE_LIGHT        = 1 << 5;
     public static final int PBR_FLAG_COORD_SHIFT      = 8;
+    public static final int PBR_FLAG_BLOCK_GEOMETRY   = 1 << 14;
+    public static final int PBR_FLAG_FLUID_GEOMETRY   = 1 << 15;
 
     // --- Vertex format elements (order matches 96-byte PBRTriangle struct) ---
 

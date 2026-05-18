@@ -80,6 +80,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
         BlockModelBridge.sortedSpriteIds = sortedIds;
         BlockModelBridge.markForReupload(); // Force model table re-serialization with new IDs
+        BlockModelBridge.incrementTextureGeneration(); // Tag new chunk builds with this generation
 
         // ---- Step 1B: Build spriteId ↔ materialOrdinal mapping for CPU Auto-PBR ----
         BlockModelBridge.spriteId2MaterialOrdinal.clear();
@@ -283,7 +284,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
 
         // ---- Step 4C: CPU-bake Auto-PBR specular for registered material blocks ----
-        // Overwrite zeroed specular data with real roughness computed from albedo luminance
+        // Overwrite zeroed (generated) specular data with real roughness computed from albedo luminance.
+        // Do NOT overwrite pack-authored specular textures — those contain hand-tuned metal indices
+        // and F0 values that the CPU bake would destroy (hardcoding green=10, F0≈0.039).
         int bakedCount = 0;
         for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
             int si = mapEntry.getKey();
@@ -294,6 +297,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             // Skip transmissive blocks — roughness handled by material class slider
             if (com.radiance.client.option.Options.materialTransmission[ordinal] > 0) continue;
             if (si >= count) continue;
+            // Skip blocks with pack-authored specular — CPU bake would overwrite metal indices
+            if (com.radiance.client.texture.TextureTracker.spriteSpecularSource[si]
+                    == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED) continue;
 
             Sprite sp = sorted.get(si).getValue();
             NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
@@ -331,16 +337,19 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             if (!com.radiance.client.option.Options.autoPBREnabled) continue;
             if (!com.radiance.client.option.Options.materialAutoPBR[ordinal]) continue;
             if (com.radiance.client.option.Options.materialNormalInputType[ordinal] != 0) continue;
-            if (si >= count) continue;
+        if (si >= count) continue;
+        // Skip blocks with pack-authored normals — CPU bake would overwrite hand-tuned normals
+        if (com.radiance.client.texture.TextureTracker.spriteNormalSource[si]
+            == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED) continue;
 
-            Sprite sp = sorted.get(si).getValue();
-            NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
-            if (albedo == null) continue;
-            int sw = sp.getContents().getWidth();
-            int sh = sp.getContents().getHeight();
-            if (sw != spriteSize || sh != spriteSize) continue;
+        Sprite sp = sorted.get(si).getValue();
+        NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
+        if (albedo == null) continue;
+        int sw = sp.getContents().getWidth();
+        int sh = sp.getContents().getHeight();
+        if (sw != spriteSize || sh != spriteSize) continue;
 
-            NativeImage normalBaked = com.radiance.client.texture.AutoPBRGenerator.generateNormal(
+        NativeImage normalBaked = com.radiance.client.texture.AutoPBRGenerator.generateNormal(
                 albedo,
                 100, // neutral strength — shader applies runtime value from pack5.w
                 (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 2) != 0,

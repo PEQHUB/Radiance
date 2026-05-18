@@ -41,6 +41,58 @@ public class MaterialRegistry {
         dirtyFrames = 3;
     }
 
+    private static void dumpDiagnostic(ByteBuffer buf, int activeMaterials) {
+        // Dump SSBO data for key blocks: GOLD_BLOCK=1, EMERALD_BLOCK=19, OBSIDIAN=24
+        int[] targets = {0, 1, 16, 19, 24, 25};
+        String[] names = {"IRON_BLOCK", "GOLD_BLOCK", "DIAMOND", "EMERALD_BLOCK", "OBSIDIAN", "CRYING_OBSIDIAN"};
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("=== MaterialRegistry SSBO Diagnostic ===\n");
+            for (int t = 0; t < targets.length; t++) {
+                int i = targets[t];
+                if (i >= activeMaterials) continue;
+                int offset = i * ENTRY_SIZE;
+                buf.position(offset);
+                float f0r = buf.getFloat();
+                float f0g = buf.getFloat();
+                float f0b = buf.getFloat();
+                float roughness = buf.getFloat();
+                float metallic = buf.getFloat();
+                float transmission = buf.getFloat();
+                float ior = buf.getFloat();
+                float subsurface = buf.getFloat();
+                // Skip packs 2-6 (read position forward)
+                buf.position(offset + 36); // skip to pack 7
+                float emissionNits = buf.getFloat();
+                int emissionType = buf.getInt();
+                int classId = buf.getInt();
+                int flags = buf.getInt();
+                // Pack 8
+                float lumMin = buf.getFloat();
+                float lumMax = buf.getFloat();
+                int autoPBRPacked0 = buf.getInt();
+                int autoPBRPacked1 = buf.getInt();
+
+                boolean hasAutoPBR = (flags & 0x8) != 0;
+                int rMin = autoPBRPacked0 & 0xFF;
+                int rMax = (autoPBRPacked0 >> 8) & 0xFF;
+
+                sb.append(String.format(
+                    "[%d] %s: f0=(%.3f,%.3f,%.3f) roughness=%.4f metallic=%.3f transmission=%.3f ior=%.3f " +
+                    "flags=0x%s hasAutoPBR=%s lumMin=%.4f lumMax=%.4f rMin=%d rMax=%d\n",
+                    i, names[t], f0r, f0g, f0b, roughness, metallic, transmission, ior,
+                    Integer.toBinaryString(flags), hasAutoPBR, lumMin, lumMax, rMin, rMax
+                ));
+            }
+            java.nio.file.Files.writeString(
+                java.nio.file.Path.of("radiance/logs/material_ssbo_dump.txt"),
+                sb.toString()
+            );
+        } catch (Exception e) {
+            // Non-critical diagnostic
+        }
+    }
+
     public static void uploadIfDirty() {
         if (dirtyFrames <= 0) return;
         dirtyFrames--;
@@ -63,6 +115,9 @@ public class MaterialRegistry {
             for (int i = Math.min(activeMaterials, MAX_ENTRIES); i < MAX_ENTRIES; i++) {
                 packDefault(buf);
             }
+
+            // Diagnostic dump
+            dumpDiagnostic(buf, activeMaterials);
 
             buf.position(0);
             BufferProxy.updateMaterialClassMapping(MemoryUtil.memAddress(buf));

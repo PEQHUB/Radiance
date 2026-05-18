@@ -25,6 +25,10 @@ public interface INativeImageExt {
 
     void neoVoxelRT$setFlagNativeImage(NativeImage image);
 
+    byte neoVoxelRT$getAuxSource();
+
+    void neoVoxelRT$setAuxSource(byte source);
+
     int neoVoxelRT$getSpecularUploadedLevelsMask();
 
     void neoVoxelRT$setSpecularUploadedLevelsMask(int uploadedLevelsMask);

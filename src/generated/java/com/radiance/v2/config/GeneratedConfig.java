@@ -20,7 +20,7 @@ public class GeneratedConfig {
     // --- rayTracing ---
     public static boolean areaLightsEnabled = false;  // Enable area light evaluation in RT shaders
     public static boolean eonDiffuse = true;  // EON diffuse BRDF (replaces Lambertian)
-    public static boolean greedyMeshingEnabled = true;  // CPU-side coplanar face merging for chunk geometry
+    public static boolean greedyMeshingEnabled = false;  // Disabled: unsafe across native block and Java atlas geometry
     public static boolean multiScatterGGX = true;  // Multi-scatter GGX energy compensation (Kulla-Conty)
     public static boolean noiseLOD = true;  // Noise-based LOD for distant surfaces
     public static int ommBakerLevel = 4;  // OMM subdivision level (higher = more precise, more memory)
@@ -127,7 +127,7 @@ public class GeneratedConfig {
         upscalerResOverride = Integer.parseInt(props.getProperty("upscalerResOverride", String.valueOf(99)));
         areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(false)));
         eonDiffuse = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(true)));
-        greedyMeshingEnabled = Boolean.parseBoolean(props.getProperty("greedyMeshingEnabled", String.valueOf(true)));
+        greedyMeshingEnabled = false;
         multiScatterGGX = Boolean.parseBoolean(props.getProperty("multiScatterGGX", String.valueOf(true)));
         noiseLOD = Boolean.parseBoolean(props.getProperty("noiseLOD", String.valueOf(true)));
         ommBakerLevel = Integer.parseInt(props.getProperty("ommBakerLevel", String.valueOf(4)));
@@ -325,7 +325,7 @@ public class GeneratedConfig {
         nativeSetUpscalerResOverride(upscalerResOverride, false);
         nativeSetAreaLightsEnabled(areaLightsEnabled, false);
         nativeSetEonDiffuse(eonDiffuse, false);
-        nativeSetGreedyMeshingEnabled(greedyMeshingEnabled, false);
+        nativeSetGreedyMeshingEnabled(false, false);
         nativeSetMultiScatterGGX(multiScatterGGX, false);
         nativeSetNoiseLOD(noiseLOD, false);
         nativeSetOmmBakerLevel(ommBakerLevel, false);

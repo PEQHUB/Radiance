@@ -124,6 +124,39 @@ public enum AuxiliaryTextures {
         return 1 << level;
     }
 
+    private void markPackProvided(int glid) {
+        if (glid < 0) return;
+        if (this == SPECULAR) {
+            TextureTracker.packProvidedSpecularGLIDs.add(glid);
+            TextureTracker.customSpecularGLIDs.remove(glid);
+        } else if (this == NORMAL) {
+            TextureTracker.packProvidedNormalGLIDs.add(glid);
+            TextureTracker.customNormalGLIDs.remove(glid);
+        }
+    }
+
+    private void markCustomProvided(int glid) {
+        if (glid < 0) return;
+        if (this == SPECULAR) {
+            TextureTracker.packProvidedSpecularGLIDs.remove(glid);
+            TextureTracker.customSpecularGLIDs.add(glid);
+        } else if (this == NORMAL) {
+            TextureTracker.packProvidedNormalGLIDs.remove(glid);
+            TextureTracker.customNormalGLIDs.add(glid);
+        }
+    }
+
+    private void markGenerated(int glid) {
+        if (glid < 0) return;
+        if (this == SPECULAR) {
+            TextureTracker.packProvidedSpecularGLIDs.remove(glid);
+            TextureTracker.customSpecularGLIDs.remove(glid);
+        } else if (this == NORMAL) {
+            TextureTracker.packProvidedNormalGLIDs.remove(glid);
+            TextureTracker.customNormalGLIDs.remove(glid);
+        }
+    }
+
     public static void loadAndUpload(NativeImage source, INativeImageExt sourceExt, int level,
         int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int regionWidth,
         int regionHeight, boolean blur) {
@@ -131,6 +164,10 @@ public enum AuxiliaryTextures {
         Identifier identifier = sourceExt.neoVoxelRT$getIdentifier();
 
         ResourceManager resourceManager = MinecraftClient.getInstance().getResourceManager();
+        if (targetId < 0 || targetId >= TextureTracker.MAX_TEXTURES
+            || !TextureTracker.GLID2Texture.containsKey(targetId)) {
+            return;
+        }
 
         if (identifier != null) {
             if (ALL_TEXTURES.stream().anyMatch(texture -> {
@@ -146,6 +183,9 @@ public enum AuxiliaryTextures {
             int levelBit = getLevelBit(level);
             for (AuxiliaryTextures auxiliaryTexture : ALL_TEXTURES) {
                 NativeImage auxiliaryTemplateImage = auxiliaryTexture.getter.get(sourceExt);
+                byte auxiliarySource = auxiliaryTemplateImage != null
+                    ? ((INativeImageExt) (Object) auxiliaryTemplateImage).neoVoxelRT$getAuxSource()
+                    : TextureTracker.SOURCE_GENERATED;
                 int uploadedLevelsMask = auxiliaryTexture.uploadedLevelsMaskGetter.get(sourceExt);
 
                 if (auxiliaryTemplateImage != null
@@ -210,6 +250,10 @@ public enum AuxiliaryTextures {
                             }
 
                             success = true;
+                            if (level == 0) {
+                                auxiliaryTexture.markPackProvided(auxiliaryTargetId);
+                                auxiliarySource = TextureTracker.SOURCE_PACK_AUTHORED;
+                            }
                             break;
                         }
                     }
@@ -250,6 +294,9 @@ public enum AuxiliaryTextures {
                     }
 
                     if (!success) {
+                        if (level == 0) {
+                            auxiliaryTexture.markGenerated(auxiliaryTargetId);
+                        }
                         int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
 
                         // Check per-material input type override
@@ -264,6 +311,7 @@ public enum AuxiliaryTextures {
 
                         if (inputType == 2) {
                             // Flat: neutral normal or zero specular
+                            auxiliarySource = TextureTracker.SOURCE_FLAT;
                             if (auxiliaryTexture == NORMAL) {
                                 auxiliaryTemplateImage = source.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
                             } else {
@@ -277,8 +325,12 @@ public enum AuxiliaryTextures {
                             if (customPath != null && !customPath.isEmpty()) {
                                 int customGlid = CustomTextureLoader.loadAndUpload(customPath, source);
                                 if (customGlid >= 0) {
+                                    auxiliarySource = TextureTracker.SOURCE_USER_CUSTOM;
                                     if (targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES) {
                                         auxiliaryTexture.GLIDMapping[targetId] = customGlid;
+                                    }
+                                    if (level == 0) {
+                                        auxiliaryTexture.markCustomProvided(customGlid);
                                     }
                                     auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
                                         uploadedLevelsMask | levelBit);
@@ -292,6 +344,7 @@ public enum AuxiliaryTextures {
                             // Neutral LabPBR fill for normals (R=128 X=0, G=128 Y=0, B=255 AO=1, A=0 height=0).
                             // Zero fill causes NaN normals in shader: sqrt(1 - dot((-1,-1),(-1,-1))) = sqrt(-1).
                             int customFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
+                            auxiliarySource = TextureTracker.SOURCE_GENERATED;
                             auxiliaryTemplateImage = source.applyToCopy(i -> customFallback);
                         } else {
                             // Auto: existing LabPBR/auto-PBR path
@@ -299,6 +352,7 @@ public enum AuxiliaryTextures {
                                 && com.radiance.client.option.Options.autoPBREnabled && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
                             // lumMin/lumMax already computed above (before !success guard)
                             if (autoPBR && auxiliaryTexture == NORMAL) {
+                                auxiliarySource = TextureTracker.SOURCE_GENERATED;
                                 // Keep generating normal texture for POM height data (alpha channel)
                                 auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
                                     com.radiance.client.option.Options.materialNormalStrength[mbOrdinal],
@@ -309,11 +363,13 @@ public enum AuxiliaryTextures {
                                     com.radiance.client.option.Options.materialPomAOStrength[mbOrdinal]);
                                 TextureTracker.hasHeightMap.add(targetId);
                             } else if (autoPBR && auxiliaryTexture == SPECULAR) {
+                                auxiliarySource = TextureTracker.SOURCE_GENERATED;
                                 // GPU-side AutoPBR: roughness computed in shader, skip CPU bake
                                 auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                             } else {
                                 // Neutral LabPBR fill for normals; zero for specular
                                 int autoFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
+                                auxiliarySource = TextureTracker.SOURCE_GENERATED;
                                 auxiliaryTemplateImage = source.applyToCopy(i -> autoFallback);
                             }
                             // Always cache albedo and track GLIDs for block textures at mip 0,
@@ -341,6 +397,8 @@ public enum AuxiliaryTextures {
                         source);
                     ((INativeImageExt) (Object) auxiliaryImage).neoVoxelRT$setTargetID(
                         auxiliaryTargetId);
+                    ((INativeImageExt) (Object) auxiliaryImage).neoVoxelRT$setAuxSource(
+                        auxiliarySource);
                     if (auxiliaryTemplateImage != auxiliaryImage) {
                         auxiliaryTemplateImage.close();
                     }

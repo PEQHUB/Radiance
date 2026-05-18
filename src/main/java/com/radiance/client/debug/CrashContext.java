@@ -18,14 +18,15 @@ import java.util.List;
 /**
  * Captures diagnostic context on crash. Always active, near-zero overhead.
  *
- * <p>A shutdown hook checks whether the C++ crash ring buffer was just written
- * (radiance/logs/crash_ring.txt modified within 5 seconds). If so, it dumps
- * all current settings, recent changes, and player state to crash-context.txt
- * in the same directory.</p>
+ * <p>A shutdown hook dumps current settings, recent changes, and player state
+ * to crash-context.txt. If the C++ crash ring was just written, it inspects the
+ * ring entries for failed Vulkan results before labeling the exit as a GPU
+ * crash.</p>
  */
 public final class CrashContext {
 
     private static final int MAX_RECENT_CHANGES = 40;
+    private static final int CRASH_RING_FRESH_WINDOW_MS = 5000;
     private static final DateTimeFormatter FMT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(ZoneId.systemDefault());
 
@@ -74,11 +75,13 @@ public final class CrashContext {
 
             // Always dump on shutdown — distinguishes clean vs crash via ring file presence
             Path ringFile = logsDir.resolve("crash_ring.txt");
+            boolean freshRing = false;
             boolean gpuCrash = false;
             if (Files.exists(ringFile)) {
                 long lastMod = Files.getLastModifiedTime(ringFile).toMillis();
                 long now = System.currentTimeMillis();
-                gpuCrash = (now - lastMod) < 5000;
+                freshRing = (now - lastMod) < CRASH_RING_FRESH_WINDOW_MS;
+                gpuCrash = freshRing && crashRingHasFailedVulkanResult(ringFile);
             }
 
             Files.createDirectories(logsDir);
@@ -87,7 +90,11 @@ public final class CrashContext {
 
             sb.append("=== Radiance Crash Context ===\n");
             sb.append("Time: ").append(FMT.format(Instant.now())).append("\n");
-            sb.append("Type: ").append(gpuCrash ? "GPU crash (VK_ERROR_DEVICE_LOST)" : "Java/JVM crash or forced exit").append("\n\n");
+            String exitType = gpuCrash
+                ? "GPU crash (failed Vulkan result in crash ring)"
+                : (freshRing ? "Clean shutdown (crash ring has no failed Vulkan results)"
+                    : "Java/JVM crash or forced exit");
+            sb.append("Type: ").append(exitType).append("\n\n");
 
             // Player position
             try {
@@ -99,7 +106,7 @@ public final class CrashContext {
                 }
             } catch (Exception ignored) {}
 
-            sb.append("Pipeline: default\n");
+            sb.append("Pipeline: ").append(resolvePipelineName()).append("\n");
             sb.append("\n");
 
             // Recent settings changes
@@ -158,5 +165,57 @@ public final class CrashContext {
         } catch (Exception e) {
             System.err.println("[CrashContext] Failed to write crash context: " + e.getMessage());
         }
+    }
+
+    private static boolean crashRingHasFailedVulkanResult(Path ringFile) {
+        try {
+            for (String line : Files.readAllLines(ringFile)) {
+                if (line.contains("DEVICE_LOST") || line.contains("VK_ERROR")) {
+                    return true;
+                }
+
+                int vkIndex = line.indexOf("vk=");
+                if (vkIndex < 0) {
+                    continue;
+                }
+
+                int valueStart = vkIndex + 3;
+                while (valueStart < line.length() && Character.isWhitespace(line.charAt(valueStart))) {
+                    valueStart++;
+                }
+
+                int valueEnd = valueStart;
+                if (valueEnd < line.length() && line.charAt(valueEnd) == '-') {
+                    valueEnd++;
+                }
+                while (valueEnd < line.length() && Character.isDigit(line.charAt(valueEnd))) {
+                    valueEnd++;
+                }
+
+                if (valueEnd > valueStart) {
+                    int vkResult = Integer.parseInt(line.substring(valueStart, valueEnd));
+                    if (vkResult != 0) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return false;
+    }
+
+    private static String resolvePipelineName() {
+        if (logsDir == null || logsDir.getParent() == null) {
+            return "unknown";
+        }
+
+        Path radianceDir = logsDir.getParent();
+        if (Files.exists(radianceDir.resolve("pipeline_fork.yaml"))) {
+            return "pipeline_fork.yaml";
+        }
+        if (Files.exists(radianceDir.resolve("pipeline.yaml"))) {
+            return "pipeline.yaml";
+        }
+        return "default";
     }
 }

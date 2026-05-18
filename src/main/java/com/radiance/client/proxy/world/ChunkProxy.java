@@ -292,8 +292,10 @@ public class ChunkProxy {
                 return;
             }
 
-            // Try C++ meshing path if model table is loaded
-            if (BlockModelBridge.isUploaded()) {
+            // Fluids are deliberately kept on the vanilla SectionBuilder path.
+            // Minecraft's FluidRenderer owns the water/lava surface rules; the
+            // native block-state mesher is for dry sections only.
+            if (BlockModelBridge.isUploaded() && !containsFluid(chunkRendererRegion, builtChunk.getOrigin())) {
                 rebuildSingleCpp(chunkRendererRegion, builtChunk, important);
                 return;
             }
@@ -305,6 +307,26 @@ public class ChunkProxy {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean containsFluid(ChunkRendererRegion region, BlockPos origin) {
+        BlockPos.Mutable mutablePos = new BlockPos.Mutable();
+        int ox = origin.getX();
+        int oy = origin.getY();
+        int oz = origin.getZ();
+
+        for (int y = 0; y < 16; y++) {
+            for (int z = 0; z < 16; z++) {
+                for (int x = 0; x < 16; x++) {
+                    mutablePos.set(ox + x, oy + y, oz + z);
+                    if (!region.getBlockState(mutablePos).getFluidState().isEmpty()) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -326,7 +348,6 @@ public class ChunkProxy {
             // Build palette on-the-fly: map unique states to indices
             java.util.ArrayList<Integer> palette = new java.util.ArrayList<>();
             java.util.HashMap<Integer, Integer> paletteMap = new java.util.HashMap<>();
-            boolean hasFluid = false;
             boolean hasBlockEntity = false;
 
             // Also build occlusion data for vanilla compat
@@ -365,18 +386,12 @@ public class ChunkProxy {
                             }
                         }
 
-                        // Track fluids (C++ mesher doesn't handle these yet)
-                        if (!state.getFluidState().isEmpty()) {
-                            hasFluid = true;
-                        }
                     }
                 }
             }
 
-            // Fluids: C++ mesher handles solid blocks; Java path handles fluids separately.
-            // Previously, ANY fluid in a section forced full Java fallback — causing textureID
-            // corruption (Java uses GLIDs, C++ uses spriteIds, shader expects spriteIds).
-            // Now: always use C++ for solids. Fluids are rendered via entity/particle path.
+            // Fluid states remain in the palette. BlockModelBridge tags them so the C++
+            // mesher can emit water/lava quads with sprite IDs matching the texture arrays.
 
             // Palette array: uint32 per entry
             ByteBuffer paletteBuf = stack.malloc(palette.size() * Integer.BYTES);
@@ -440,6 +455,26 @@ public class ChunkProxy {
                 }
             }
 
+            // One-block halo for native fluid meshing. Vanilla fluid corner heights can
+            // sample diagonal neighbors; six face planes are not enough at section edges.
+            ByteBuffer haloBuf = stack.malloc(18 * 18 * 18 * Integer.BYTES);
+            long haloAddr = memAddress(haloBuf);
+            for (int hy = -1; hy <= 16; hy++) {
+                for (int hz = -1; hz <= 16; hz++) {
+                    for (int hx = -1; hx <= 16; hx++) {
+                        mutablePos.set(ox + hx, oy + hy, oz + hz);
+                        int haloIndex = (hy + 1) * 18 * 18 + (hz + 1) * 18 + (hx + 1);
+                        try {
+                            BlockState haloState = region.getBlockState(mutablePos);
+                            haloBuf.putInt(haloIndex * Integer.BYTES,
+                                Block.getRawIdFromState(haloState));
+                        } catch (Exception e) {
+                            haloBuf.putInt(haloIndex * Integer.BYTES, 0);
+                        }
+                    }
+                }
+            }
+
             // Get block atlas texture ID
             int blockAtlasTextureId = MinecraftClient.getInstance()
                 .getTextureManager()
@@ -460,8 +495,9 @@ public class ChunkProxy {
             // Call C++ meshing path
             rebuildSingleBlockStates(ox, oy, oz, builtChunk.index,
                 statesAddr, paletteAddr, palette.size(),
-                biomeAddr, neighborAddr, blockAtlasTextureId, important,
-                grassColor, foliageColor, waterColor);
+                biomeAddr, neighborAddr, haloAddr, blockAtlasTextureId, important,
+                grassColor, foliageColor, waterColor,
+                BlockModelBridge.getActiveTextureGeneration());
 
             // Set vanilla chunk data (occlusion, block entities)
             final var occlusionData = occlusionBuilder.build();
@@ -648,7 +684,8 @@ public class ChunkProxy {
                     vertexFormatAddr,
                     vertexCountAddr,
                     verticesAddr,
-                    important);
+                    important,
+                    BlockModelBridge.getActiveTextureGeneration());
             }
 
             // Pack and transmit collected light sources for this chunk
@@ -689,13 +726,16 @@ public class ChunkProxy {
         long vertexFormats,
         long vertexCounts,
         long vertices,
-        boolean important);
+        boolean important,
+        long textureGeneration);
 
     // Phase 2: C++ meshing path — sends block states instead of pre-meshed vertices
     private static native void rebuildSingleBlockStates(int originX, int originY, int originZ,
         long index, long blockStateArrayPtr, long palettePtr, int paletteSize,
-        long biomeDataPtr, long neighborFacesPtr, int blockAtlasTextureId, boolean important,
-        int biomeGrassColor, int biomeFoliageColor, int biomeWaterColor);
+        long biomeDataPtr, long neighborFacesPtr, long haloStatesPtr,
+        int blockAtlasTextureId, boolean important,
+        int biomeGrassColor, int biomeFoliageColor, int biomeWaterColor,
+        long textureGeneration);
 
     public static native boolean isChunkReady(long index);
 

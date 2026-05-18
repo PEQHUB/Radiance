@@ -53,6 +53,12 @@ outputImageConfigs:
     format: "R16_SFLOAT"
   - name: "position_view_space"
     format: "R32G32B32A32_SFLOAT"
+  - name: "transparency_layer"
+    format: "R16G16B16A16_SFLOAT"
+  - name: "transparency_layer_opacity"
+    format: "R16G16B16A16_SFLOAT"
+  - name: "transparency_layer_mvecs"
+    format: "R32G32_SFLOAT"
 attributeConfigs:
   - name: "render_pipeline.module.ray_tracing.attribute.num_ray_bounces"
     type: "int_range:1-12"

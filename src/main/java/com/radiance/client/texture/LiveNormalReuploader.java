@@ -66,6 +66,16 @@ public final class LiveNormalReuploader {
         scheduleReupload(-1);
     }
 
+    public static void scheduleGeneratedReupload(int ordinal, boolean specular, boolean normal) {
+        if (needsGeneratedReupload(ordinal, specular, normal)) {
+            scheduleReupload(ordinal);
+        }
+    }
+
+    public static void scheduleGeneratedReupload(boolean specular, boolean normal) {
+        scheduleGeneratedReupload(-1, specular, normal);
+    }
+
     /**
      * Re-generate and re-upload auto-PBR normals and speculars.
      * @param ordinal material ordinal to update, or -1 for all
@@ -99,6 +109,8 @@ public final class LiveNormalReuploader {
             if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
             int normalGLID = TextureTracker.GLID2NormalGLID[albedoGLID];
             if (normalGLID == -1) continue;
+            if (TextureTracker.packProvidedNormalGLIDs.contains(normalGLID)
+                || TextureTracker.customNormalGLIDs.contains(normalGLID)) continue;
 
             try {
                 Integer ordN = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
@@ -136,6 +148,8 @@ public final class LiveNormalReuploader {
             if (albedoGLID < 0 || albedoGLID >= TextureTracker.MAX_TEXTURES) continue;
             int specularGLID = TextureTracker.GLID2SpecularGLID[albedoGLID];
             if (specularGLID == -1) continue;
+            if (TextureTracker.packProvidedSpecularGLIDs.contains(specularGLID)
+                || TextureTracker.customSpecularGLIDs.contains(specularGLID)) continue;
 
             try {
                 Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
@@ -189,7 +203,10 @@ public final class LiveNormalReuploader {
                     // ── Specular ──
                     // Skip transmissive blocks — roughness from material class slider, not CPU bake
                     boolean transmissive = Options.materialTransmission[ordinal] > 0;
-                    if (Options.materialSpecularInputType[ordinal] == 0 && !transmissive) {
+                    boolean generatedSpecular = spriteId < TextureTracker.spriteSpecularSource.length
+                        && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
+                        && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM;
+                    if (Options.materialSpecularInputType[ordinal] == 0 && !transmissive && generatedSpecular) {
                         NativeImage specImg;
                         if (autoPBR) {
                             specImg = AutoPBRGenerator.generateSpecularPercentile(spriteAlbedo,
@@ -210,7 +227,10 @@ public final class LiveNormalReuploader {
                     }
 
                     // ── Normal ──
-                    if (Options.materialNormalInputType[ordinal] == 0) {
+                    boolean generatedNormal = spriteId < TextureTracker.spriteNormalSource.length
+                        && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
+                        && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM;
+                    if (Options.materialNormalInputType[ordinal] == 0 && generatedNormal) {
                         NativeImage normImg;
                         if (autoPBR) {
                             // Neutral strength for texture array — shader applies pack5.w at runtime
@@ -243,6 +263,38 @@ public final class LiveNormalReuploader {
         Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
         if (ordinal == null) return false;
         return Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
+    }
+
+    private static boolean needsGeneratedReupload(int ordinal, boolean specular, boolean normal) {
+        if ((!specular && !normal) || BlockModelBridge.materialOrdinal2SpriteIds.isEmpty()) {
+            return true;
+        }
+
+        if (ordinal < 0) {
+            for (int candidate : BlockModelBridge.materialOrdinal2SpriteIds.keySet()) {
+                if (needsGeneratedReupload(candidate, specular, normal)) return true;
+            }
+            return false;
+        }
+        if (ordinal >= Options.materialAutoPBR.length) return false;
+
+        Set<Integer> spriteIds = BlockModelBridge.materialOrdinal2SpriteIds.get(ordinal);
+        if (spriteIds == null || spriteIds.isEmpty()) return true;
+
+        for (int spriteId : spriteIds) {
+            if (spriteId < 0 || spriteId >= TextureTracker.MAX_TEXTURES) continue;
+            if (specular && Options.materialSpecularInputType[ordinal] == 0
+                && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
+                && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM) {
+                return true;
+            }
+            if (normal && Options.materialNormalInputType[ordinal] == 0
+                && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
+                && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
