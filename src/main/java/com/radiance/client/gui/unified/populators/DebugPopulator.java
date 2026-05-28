@@ -120,6 +120,8 @@ public class DebugPopulator implements ContentPopulator {
         profiler.addInfo("Status", DebugRuntimeSampler.status());
         Path last = DebugRuntimeSampler.lastGpuProfilePath();
         profiler.addInfo("Last GPU Profile", last == null ? "None" : last.toString());
+        Path lastSharcProbe = DebugRuntimeSampler.lastSharcProbePath();
+        profiler.addInfo("Last SHARC Probe", lastSharcProbe == null ? "None" : lastSharcProbe.toString());
         Path lastRtSweep = DebugRuntimeSampler.lastRtMainTraceSweepPath();
         profiler.addInfo("Last RT Sweep", lastRtSweep == null ? "None" : lastRtSweep.toString());
         Path lastRtFloorSweep = DebugRuntimeSampler.lastRtMainTraceFloorSweepPath();
@@ -143,6 +145,10 @@ public class DebugPopulator implements ContentPopulator {
             DebugRuntimeSampler.startRtMainTraceSweep(mc);
             screen.refreshContent();
         })).tooltip("Closes this menu, temporarily sweeps RT shader options, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
+        profiler.addButton(button("Run SHARC Probe", () -> {
+            DebugRuntimeSampler.startSharcProbe(mc);
+            screen.refreshContent();
+        })).tooltip("Closes this menu, enables SHARC temporarily, captures staged SHARC feature truth/GPU timings, restores settings, and writes C:\\RadSER\\results\\sharc_probes.");
         profiler.addButton(button("Run RT MainTrace Floor Sweep", () -> {
             DebugRuntimeSampler.startRtMainTraceFloorSweep(mc);
             screen.refreshContent();
@@ -217,6 +223,7 @@ public class DebugPopulator implements ContentPopulator {
                 new UnifiedSearchOverlay.SearchEntry("GPU Profile 30 Samples", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("GPU Profile 120 Samples", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("RT MainTrace Sweep", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("SHARC Probe", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("VMA Snapshot", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Overlay Snapshot", category, nodeId, false));
             case RESOURCES -> List.of(
