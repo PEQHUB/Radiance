@@ -65,6 +65,8 @@ public class RendererProxy {
     // GPU profiler: returns "ModuleName:ms,...,TOTAL:ms" or "" if disabled
     public static native String nativeGetGpuProfile();
     public static native void nativeSetGpuProfileEnabled(boolean enabled);
+    public static native int nativeGetRtDebugFlags();
+    public static native void nativeSetRtDebugFlags(int flags);
 
     // Native feature truth: compiled/runtime renderer reality, not just Java option intent
     public static native String nativeGetFeatureTruth();

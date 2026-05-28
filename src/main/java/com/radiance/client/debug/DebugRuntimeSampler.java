@@ -44,6 +44,7 @@ public final class DebugRuntimeSampler {
     private static volatile String status = "Idle";
     private static volatile Path lastGpuProfilePath = null;
     private static volatile Path lastRtMainTraceSweepPath = null;
+    private static volatile Path lastRtMainTraceFloorSweepPath = null;
     private static volatile Path lastNsightCaptureManifestPath = null;
     private static volatile Path lastNsightCaptureResponsePath = null;
 
@@ -68,6 +69,10 @@ public final class DebugRuntimeSampler {
 
     public static Path lastRtMainTraceSweepPath() {
         return lastRtMainTraceSweepPath;
+    }
+
+    public static Path lastRtMainTraceFloorSweepPath() {
+        return lastRtMainTraceFloorSweepPath;
     }
 
     public static Path lastNsightCaptureManifestPath() {
@@ -221,6 +226,41 @@ public final class DebugRuntimeSampler {
         });
     }
 
+    public static void startRtMainTraceFloorSweep(MinecraftClient client) {
+        if (!BUSY.compareAndSet(false, true)) {
+            DebugRuntimeDiagnostics.toast(client, "Radiance debug task already running: " + status);
+            return;
+        }
+        status = "Closing menu for RT MainTrace floor sweep";
+        DebugRuntimeDiagnostics.toast(client, "Radiance: " + status);
+        if (client.currentScreen != null) {
+            client.setScreen(null);
+        }
+        EXECUTOR.submit(() -> {
+            try {
+                waitForGameplayCaptureSurface(client);
+                status = "Running RT MainTrace floor sweep";
+                JsonObject response = requestBridgeRtMainTraceFloorSweep();
+                Path responsePath = writeRtMainTraceFloorSweepResponse(response);
+                if (response.has("path")) {
+                    lastRtMainTraceFloorSweepPath = Path.of(response.get("path").getAsString());
+                    status = "RT floor sweep saved: " + lastRtMainTraceFloorSweepPath.getFileName();
+                } else {
+                    lastRtMainTraceFloorSweepPath = responsePath;
+                    status = "RT floor sweep response saved: " + responsePath.getFileName();
+                }
+                client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
+                RadianceLogger.log("DebugMenu", "INFO", "rtMainTraceFloorSweep=" + responsePath);
+            } catch (Exception e) {
+                status = "RT floor sweep failed: " + e.getMessage();
+                client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
+                RadianceLogger.log("DebugMenu", "ERROR", status);
+            } finally {
+                BUSY.set(false);
+            }
+        });
+    }
+
     private static void waitForGameplayCaptureSurface(MinecraftClient client) throws IOException {
         long deadline = System.nanoTime() + 5_000_000_000L;
         while (System.nanoTime() < deadline) {
@@ -346,6 +386,27 @@ public final class DebugRuntimeSampler {
         }
     }
 
+    private static JsonObject requestBridgeRtMainTraceFloorSweep() throws IOException {
+        JsonObject req = new JsonObject();
+        req.addProperty("cmd", "rtMainTraceFloorSweep");
+        req.addProperty("frames", 45);
+        req.addProperty("settleMs", 500);
+
+        try (Socket socket = new Socket("127.0.0.1", 19845)) {
+            socket.setSoTimeout(240_000);
+            try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
+                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
+                     StandardCharsets.UTF_8))) {
+                out.println(req);
+                String line = in.readLine();
+                if (line == null || line.isBlank()) {
+                    throw new IOException("DebugBridge returned no response");
+                }
+                return JsonParser.parseString(line).getAsJsonObject();
+            }
+        }
+    }
+
     private static Path writeNsightCaptureResponse(JsonObject response) throws IOException {
         Files.createDirectories(DebugRuntimeDiagnostics.logsDir());
         Path latest = DebugRuntimeDiagnostics.logsDir().resolve("nsight_capture_context_response_latest.json");
@@ -363,6 +424,18 @@ public final class DebugRuntimeSampler {
         Path latest = DebugRuntimeDiagnostics.logsDir().resolve("rt_main_trace_sweep_response_latest.json");
         Path stamped = DebugRuntimeDiagnostics.logsDir().resolve(
             "rt_main_trace_sweep_response_" + FILE_TIME.format(Instant.now()) + ".json");
+        String body = PRETTY_GSON.toJson(response);
+        Files.writeString(latest, body, StandardCharsets.UTF_8,
+            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.writeString(stamped, body, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+        return latest;
+    }
+
+    private static Path writeRtMainTraceFloorSweepResponse(JsonObject response) throws IOException {
+        Files.createDirectories(DebugRuntimeDiagnostics.logsDir());
+        Path latest = DebugRuntimeDiagnostics.logsDir().resolve("rt_main_trace_floor_sweep_response_latest.json");
+        Path stamped = DebugRuntimeDiagnostics.logsDir().resolve(
+            "rt_main_trace_floor_sweep_response_" + FILE_TIME.format(Instant.now()) + ".json");
         String body = PRETTY_GSON.toJson(response);
         Files.writeString(latest, body, StandardCharsets.UTF_8,
             StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);

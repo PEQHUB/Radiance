@@ -122,6 +122,8 @@ public class DebugPopulator implements ContentPopulator {
         profiler.addInfo("Last GPU Profile", last == null ? "None" : last.toString());
         Path lastRtSweep = DebugRuntimeSampler.lastRtMainTraceSweepPath();
         profiler.addInfo("Last RT Sweep", lastRtSweep == null ? "None" : lastRtSweep.toString());
+        Path lastRtFloorSweep = DebugRuntimeSampler.lastRtMainTraceFloorSweepPath();
+        profiler.addInfo("Last RT Floor Sweep", lastRtFloorSweep == null ? "None" : lastRtFloorSweep.toString());
         profiler.addButton(button(
             DebugRuntimeSampler.isGpuProfilerEnabled() ? "Disable GPU Profiler" : "Enable GPU Profiler",
             () -> {
@@ -141,6 +143,10 @@ public class DebugPopulator implements ContentPopulator {
             DebugRuntimeSampler.startRtMainTraceSweep(mc);
             screen.refreshContent();
         })).tooltip("Closes this menu, temporarily sweeps RT shader options, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
+        profiler.addButton(button("Run RT MainTrace Floor Sweep", () -> {
+            DebugRuntimeSampler.startRtMainTraceFloorSweep(mc);
+            screen.refreshContent();
+        })).tooltip("Closes this menu, toggles transient RT.MainTrace floor diagnostics, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(
