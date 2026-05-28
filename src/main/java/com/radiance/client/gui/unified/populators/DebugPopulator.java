@@ -120,6 +120,8 @@ public class DebugPopulator implements ContentPopulator {
         profiler.addInfo("Status", DebugRuntimeSampler.status());
         Path last = DebugRuntimeSampler.lastGpuProfilePath();
         profiler.addInfo("Last GPU Profile", last == null ? "None" : last.toString());
+        Path lastRtSweep = DebugRuntimeSampler.lastRtMainTraceSweepPath();
+        profiler.addInfo("Last RT Sweep", lastRtSweep == null ? "None" : lastRtSweep.toString());
         profiler.addButton(button(
             DebugRuntimeSampler.isGpuProfilerEnabled() ? "Disable GPU Profiler" : "Enable GPU Profiler",
             () -> {
@@ -135,6 +137,10 @@ public class DebugPopulator implements ContentPopulator {
                 DebugRuntimeSampler.startGpuProfileCapture(120, mc);
                 screen.refreshContent();
             })).tooltip("Samples native GPU timestamp results without blocking the menu.");
+        profiler.addButton(button("Run RT MainTrace Sweep", () -> {
+            DebugRuntimeSampler.startRtMainTraceSweep(mc);
+            screen.refreshContent();
+        })).tooltip("Closes this menu, temporarily sweeps RT shader options, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(
@@ -204,6 +210,7 @@ public class DebugPopulator implements ContentPopulator {
                 new UnifiedSearchOverlay.SearchEntry("GPU Profiler", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("GPU Profile 30 Samples", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("GPU Profile 120 Samples", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("RT MainTrace Sweep", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("VMA Snapshot", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Overlay Snapshot", category, nodeId, false));
             case RESOURCES -> List.of(
