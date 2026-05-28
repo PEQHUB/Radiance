@@ -200,6 +200,7 @@ public final class DebugRuntimeDiagnostics {
 
         sb.append("Renderer\n--------\n");
         sb.append("gpuProfile=").append(safeNative(RendererProxy::nativeGetGpuProfile)).append('\n');
+        sb.append("featureTruth=").append(safeNative(RendererProxy::nativeGetFeatureTruth)).append('\n');
         sb.append("vmaStats=").append(safeNative(RendererProxy::nativeGetVmaStats)).append('\n');
         sb.append("overlayDiag=").append(safeNative(RendererProxy::nativeGetOverlayDiag)).append('\n');
         sb.append("textureReload=").append(safeNative(RendererProxy::nativeGetTextureReloadDiagnostics)).append('\n');

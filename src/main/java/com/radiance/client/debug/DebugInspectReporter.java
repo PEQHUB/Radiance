@@ -160,6 +160,7 @@ public final class DebugInspectReporter {
         sb.append("Renderer Diagnostics\n");
         sb.append("--------------------\n");
         sb.append("gpuProfile=").append(safeNativeString(RendererProxy::nativeGetGpuProfile)).append('\n');
+        sb.append("featureTruth=").append(safeNativeString(RendererProxy::nativeGetFeatureTruth)).append('\n');
         sb.append("vmaStats=").append(safeNativeString(RendererProxy::nativeGetVmaStats)).append('\n');
         sb.append("overlayDiag=").append(safeNativeString(RendererProxy::nativeGetOverlayDiag)).append('\n');
         sb.append('\n');

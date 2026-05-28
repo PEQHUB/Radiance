@@ -66,6 +66,9 @@ public class RendererProxy {
     public static native String nativeGetGpuProfile();
     public static native void nativeSetGpuProfileEnabled(boolean enabled);
 
+    // Native feature truth: compiled/runtime renderer reality, not just Java option intent
+    public static native String nativeGetFeatureTruth();
+
     // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"
     public static native String nativeGetVmaStats();
 

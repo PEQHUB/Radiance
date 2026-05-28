@@ -60,6 +60,7 @@ public class DebugPopulator implements ContentPopulator {
 
         SettingsSection renderer = panel.addSection("Renderer Status").setLinear();
         renderer.addInfo("GPU Profile", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetGpuProfile)));
+        renderer.addInfo("Feature Truth", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetFeatureTruth)));
         renderer.addInfo("VMA", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetVmaStats)));
         renderer.addInfo("Overlay", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetOverlayDiag)));
         renderer.addInfo("Texture Generation", String.valueOf(BlockModelBridge.getActiveTextureGeneration()));
