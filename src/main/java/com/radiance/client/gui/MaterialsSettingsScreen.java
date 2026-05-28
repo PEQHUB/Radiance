@@ -112,6 +112,7 @@ public class MaterialsSettingsScreen extends Screen {
     private static final int[] snapNoiseType = new int[Options.MAX_MATERIALS], snapNoiseSeed = new int[Options.MAX_MATERIALS];
     private static final int[] snapGamutBoost = new int[Options.MAX_MATERIALS];
     private static final int[] snapGamutBoostMode = new int[Options.MAX_MATERIALS];
+    private static final int[] snapDisplacementMode = new int[Options.MAX_MATERIALS];
     private static final int[] snapPomDepth = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMin = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMax = new int[Options.MAX_MATERIALS];
@@ -121,6 +122,7 @@ public class MaterialsSettingsScreen extends Screen {
     private static final int[] snapPerBlockAutoPBRFlags = new int[Options.MAX_MATERIALS];
     private static final boolean[] snapAutoPBR = new boolean[Options.MAX_MATERIALS];
     private static final boolean[] snapChildOverride = new boolean[Options.MAX_MATERIALS];
+    private static final boolean[] snapDisplacementSelfShadow = new boolean[Options.MAX_MATERIALS];
     private static boolean snapAutoPBREnabled;
 
     public MaterialsSettingsScreen(Screen parent) {
@@ -153,6 +155,7 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(Options.materialNoiseSeed, 0, snapNoiseSeed, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGamutBoost, 0, snapGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGamutBoostMode, 0, snapGamutBoostMode, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialPomMode, 0, snapDisplacementMode, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPomDepth, 0, snapPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMin, 0, snapAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMax, 0, snapAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
@@ -162,6 +165,7 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(Options.materialAutoPBRFlags, 0, snapPerBlockAutoPBRFlags, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBR, 0, snapAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChildOverride, 0, snapChildOverride, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialDisplacementSelfShadow, 0, snapDisplacementSelfShadow, 0, Options.MAX_MATERIALS);
         snapAutoPBREnabled = Options.autoPBREnabled;
     }
 
@@ -186,6 +190,7 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(snapNoiseSeed, 0, Options.materialNoiseSeed, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGamutBoost, 0, Options.materialGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGamutBoostMode, 0, Options.materialGamutBoostMode, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapDisplacementMode, 0, Options.materialPomMode, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPomDepth, 0, Options.materialPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMin, 0, Options.materialAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMax, 0, Options.materialAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
@@ -195,6 +200,7 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(snapPerBlockAutoPBRFlags, 0, Options.materialAutoPBRFlags, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBR, 0, Options.materialAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChildOverride, 0, Options.materialChildOverride, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapDisplacementSelfShadow, 0, Options.materialDisplacementSelfShadow, 0, Options.MAX_MATERIALS);
         Options.autoPBREnabled = snapAutoPBREnabled;
         Options.markMaterialDirty();
         com.radiance.client.material.MaterialRegistry.markDirty();
@@ -658,26 +664,31 @@ public class MaterialsSettingsScreen extends Screen {
             cy = addPair(centerX, cy, colW, maskThreshold, maskInvertBtn);
         }
 
-        // -- Displacement --
+        // -- Surface Displacement --
         cy = addHeader(centerX, cy, colW, "Displacement");
 
-        String[] dispMethodNames = {"Off (Global)", "DDA", "Tessellation", "Hybrid"};
-        ButtonWidget dispMethodBtn = ButtonWidget.builder(
-            Text.literal("Method: " + dispMethodNames[Math.min(Options.materialPomMode[i], 3)]),
+        String[] dispModeNames = {"Inherit", "Off", "Custom"};
+        int safeDispMode = Math.min(Options.materialPomMode[i], 2);
+        ButtonWidget dispModeBtn = ButtonWidget.builder(
+            Text.literal("Mode: " + dispModeNames[safeDispMode]),
             btn -> {
-                Options.materialPomMode[i] = (Options.materialPomMode[i] + 1) % 4;
-                btn.setMessage(Text.literal("Method: " + dispMethodNames[Options.materialPomMode[i]]));
+                Options.materialPomMode[i] = (Options.materialPomMode[i] + 1) % 3;
+                if (Options.materialPomMode[i] == 2 && Options.materialPomDepth[i] == 0) {
+                    Options.materialPomDepth[i] = 5;
+                }
+                btn.setMessage(Text.literal("Mode: " + dispModeNames[Options.materialPomMode[i]]));
                 onSliderChanged(i);
                 rebuildSelf();
             }).dimensions(0, 0, 150, WIDGET_H).build();
         ButtonWidget heightFilterBtn = ButtonWidget.builder(
-            Text.literal("Filter: " + new String[]{"Nearest", "Bilinear", "Bicubic"}[Math.min(Options.materialHeightFilter[i], 2)]),
+            Text.literal("Filter: " + new String[]{"Nearest", "Bilinear", "Smooth"}[Math.min(Options.materialHeightFilter[i], 2)]),
             btn -> {
                 Options.materialHeightFilter[i] = (Options.materialHeightFilter[i] + 1) % 3;
-                btn.setMessage(Text.literal("Filter: " + new String[]{"Nearest", "Bilinear", "Bicubic"}[Options.materialHeightFilter[i]]));
+                btn.setMessage(Text.literal("Filter: " + new String[]{"Nearest", "Bilinear", "Smooth"}[Options.materialHeightFilter[i]]));
                 onSliderChanged(i);
             }).dimensions(0, 0, 100, WIDGET_H).build();
-        cy = addPair(centerX, cy, colW, dispMethodBtn, heightFilterBtn);
+        heightFilterBtn.active = Options.materialPomMode[i] == 2;
+        cy = addPair(centerX, cy, colW, dispModeBtn, heightFilterBtn);
 
         ResettableSliderWidget dispDepth = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 50, Options.materialPomDepth[i], 0,
@@ -685,7 +696,7 @@ public class MaterialsSettingsScreen extends Screen {
                 v == 0 ? Text.literal("Off") : Text.literal(String.format("%.2f", v / 100.0) + " blk")),
             v -> { Options.materialPomDepth[i] = v; onSliderChanged(i); });
 
-        if (Options.materialPomDepth[i] > 0 || Options.materialPomMode[i] > 0) {
+        if (Options.materialPomMode[i] == 2) {
             String[] srcNames = {"Luminance", "Red", "Green", "Blue", "Alpha", "MaxRGB", "MinRGB"};
             ButtonWidget heightSourceBtn = ButtonWidget.builder(
                 Text.literal("Source: " + srcNames[Math.min(Options.materialHeightSource[i], 6)]),
@@ -695,17 +706,6 @@ public class MaterialsSettingsScreen extends Screen {
                     onSliderChanged(i);
                 }).dimensions(0, 0, 100, WIDGET_H).build();
             cy = addPair(centerX, cy, colW, dispDepth, heightSourceBtn);
-
-            // Steps / Refine
-            ResettableSliderWidget ddaSteps = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-                4, 127, Options.materialPomSteps[i], 64,
-                v -> getGenericValueText(Text.literal("Steps"), Text.literal(Integer.toString(v))),
-                v -> { Options.materialPomSteps[i] = v; onSliderChanged(i); });
-            ResettableSliderWidget ddaRefine = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-                0, 8, Options.materialPomRefinement[i], 4,
-                v -> getGenericValueText(Text.literal("Refine"), Text.literal(Integer.toString(v))),
-                v -> { Options.materialPomRefinement[i] = v; onSliderChanged(i); });
-            cy = addPair(centerX, cy, colW, ddaSteps, ddaRefine);
 
             // Contrast / Offset
             ResettableSliderWidget heightContrast = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
@@ -729,15 +729,11 @@ public class MaterialsSettingsScreen extends Screen {
                 v -> { Options.materialHeightRemapMax[i] = v; onSliderChanged(i); });
             cy = addPair(centerX, cy, colW, remapMin, remapMax);
 
-            // AO
-            ResettableSliderWidget pomAO = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
-                0, 100, Options.materialPomAOStrength[i], 0,
-                v -> getGenericValueText(Text.literal("AO"),
-                    v == 0 ? Text.literal("Off") : Text.literal(v + "%")),
-                v -> { Options.materialPomAOStrength[i] = v; onSliderChanged(i); });
-            cy = addPair(centerX, cy, colW, pomAO, null);
-        } else {
-            cy = addPair(centerX, cy, colW, dispDepth, null);
+            ButtonWidget selfShadowBtn = makeToggle("Self Shadow", Options.materialDisplacementSelfShadow[i], value -> {
+                Options.materialDisplacementSelfShadow[i] = value;
+                onSliderChanged(i);
+            });
+            cy = addPair(centerX, cy, colW, selfShadowBtn, null);
         }
 
         // -- Parent/Child (enum blocks only) --

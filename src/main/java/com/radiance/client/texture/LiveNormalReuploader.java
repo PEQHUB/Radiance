@@ -35,6 +35,7 @@ public final class LiveNormalReuploader {
 
     private static ScheduledFuture<?> pendingReupload;
     private static volatile int pendingOrdinal = -1; // -1 = all
+    private static volatile long pendingGeneration = 0;
 
     private LiveNormalReuploader() {}
 
@@ -44,6 +45,7 @@ public final class LiveNormalReuploader {
      * Pass -1 to re-upload all materials (e.g. global toggle).
      */
     public static synchronized void scheduleReupload(int ordinal) {
+        long generation = BlockModelBridge.getActiveTextureGeneration();
         // If already pending for all, keep all; otherwise widen to all if different ordinal
         if (pendingReupload != null && !pendingReupload.isDone()) {
             if (pendingOrdinal != -1 && ordinal != -1 && pendingOrdinal != ordinal) {
@@ -55,10 +57,19 @@ public final class LiveNormalReuploader {
         } else {
             pendingOrdinal = ordinal;
         }
+        pendingGeneration = generation;
         final int ord = pendingOrdinal;
+        final long gen = pendingGeneration;
         pendingReupload = scheduler.schedule(() -> {
-            MinecraftClient.getInstance().execute(() -> reuploadAutoPBR(ord));
+            MinecraftClient.getInstance().execute(() -> reuploadAutoPBR(ord, gen));
         }, 30, TimeUnit.MILLISECONDS);
+    }
+
+    public static synchronized void cancelPendingReupload() {
+        if (pendingReupload != null && !pendingReupload.isDone()) {
+            pendingReupload.cancel(false);
+        }
+        pendingReupload = null;
     }
 
     /** Convenience overload — re-upload all materials. */
@@ -81,13 +92,23 @@ public final class LiveNormalReuploader {
      * @param ordinal material ordinal to update, or -1 for all
      */
     public static void reuploadAutoPBR(int ordinal) {
+        reuploadAutoPBR(ordinal, BlockModelBridge.getActiveTextureGeneration());
+    }
+
+    public static void reuploadAutoPBR(int ordinal, long generation) {
+        if (generation != BlockModelBridge.getActiveTextureGeneration()) {
+            System.err.println("[LiveReuploader] Dropping stale reupload: scheduledGen="
+                + generation + " currentGen=" + BlockModelBridge.getActiveTextureGeneration());
+            return;
+        }
         specUpdateCount = 0;
         normUpdateCount = 0;
-        reuploadLegacyAtlas(ordinal);
-        reuploadTextureArrays(ordinal);
+        reuploadLegacyAtlas(ordinal, generation);
+        reuploadTextureArrays(ordinal, generation);
         System.err.println("[LiveReuploader] Reupload complete: " + specUpdateCount
             + " spec layers, " + normUpdateCount + " norm layers"
-            + (ordinal >= 0 ? " (ordinal " + ordinal + ")" : " (all)"));
+            + (ordinal >= 0 ? " (ordinal " + ordinal + ")" : " (all)")
+            + " gen=" + generation);
     }
 
     /** Re-upload all materials (called from non-UI paths). */
@@ -97,9 +118,11 @@ public final class LiveNormalReuploader {
 
     // ── Legacy atlas path (directUpload to GLID — entities/fallback) ──────────
 
-    private static void reuploadLegacyAtlas(int targetOrdinal) {
+    private static void reuploadLegacyAtlas(int targetOrdinal, long generation) {
+        if (generation != BlockModelBridge.getActiveTextureGeneration()) return;
         // Normals
         for (int albedoGLID : TextureTracker.autoPBRNormalGLIDs) {
+            if (generation != BlockModelBridge.getActiveTextureGeneration()) return;
             if (targetOrdinal >= 0) {
                 Integer ord = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
                 if (ord == null || ord != targetOrdinal) continue;
@@ -128,6 +151,11 @@ public final class LiveNormalReuploader {
                 }
                 NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                     (Object) newNormal).neoVoxelRT$alignTo(cachedAlbedo);
+                if (generation != BlockModelBridge.getActiveTextureGeneration()) {
+                    if (aligned != newNormal) newNormal.close();
+                    aligned.close();
+                    return;
+                }
                 directUpload(aligned, normalGLID);
                 if (aligned != newNormal) newNormal.close();
                 aligned.close();
@@ -139,6 +167,7 @@ public final class LiveNormalReuploader {
 
         // Speculars
         for (int albedoGLID : TextureTracker.autoPBRSpecularGLIDs) {
+            if (generation != BlockModelBridge.getActiveTextureGeneration()) return;
             if (targetOrdinal >= 0) {
                 Integer ord = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
                 if (ord == null || ord != targetOrdinal) continue;
@@ -166,6 +195,11 @@ public final class LiveNormalReuploader {
                 }
                 NativeImage aligned = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                     (Object) newSpec).neoVoxelRT$alignTo(cachedAlbedo);
+                if (generation != BlockModelBridge.getActiveTextureGeneration()) {
+                    if (aligned != newSpec) newSpec.close();
+                    aligned.close();
+                    return;
+                }
                 directUpload(aligned, specularGLID);
                 if (aligned != newSpec) newSpec.close();
                 aligned.close();
@@ -181,11 +215,13 @@ public final class LiveNormalReuploader {
     private static int specUpdateCount = 0;
     private static int normUpdateCount = 0;
 
-    private static void reuploadTextureArrays(int targetOrdinal) {
+    private static void reuploadTextureArrays(int targetOrdinal, long generation) {
+        if (generation != BlockModelBridge.getActiveTextureGeneration()) return;
         if (BlockModelBridge.sortedSpriteIds.isEmpty()) return;
         int maxSpriteId = BlockModelBridge.sortedSpriteIds.size();
 
         for (Map.Entry<Integer, Set<Integer>> entry : BlockModelBridge.materialOrdinal2SpriteIds.entrySet()) {
+            if (generation != BlockModelBridge.getActiveTextureGeneration()) return;
             int ordinal = entry.getKey();
             if (targetOrdinal >= 0 && ordinal != targetOrdinal) continue;
             Set<Integer> spriteIds = entry.getValue();
@@ -221,7 +257,8 @@ public final class LiveNormalReuploader {
                         long specPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                             (Object) specImg).neoVoxelRT$getPointer();
                         int specBytes = specImg.getWidth() * specImg.getHeight() * 4;
-                        BlockModelBridge.nativeUpdateSpecularLayer(spriteId, specPtr, specBytes);
+                        BlockModelBridge.nativeUpdateSpecularLayer(spriteId, specPtr, specBytes,
+                            generation);
                         specUpdateCount++;
                         specImg.close();
                     }
@@ -247,7 +284,8 @@ public final class LiveNormalReuploader {
                         long normPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                             (Object) normImg).neoVoxelRT$getPointer();
                         int normBytes = normImg.getWidth() * normImg.getHeight() * 4;
-                        BlockModelBridge.nativeUpdateNormalLayer(spriteId, normPtr, normBytes);
+                        BlockModelBridge.nativeUpdateNormalLayer(spriteId, normPtr, normBytes,
+                            generation);
                         normUpdateCount++;
                         normImg.close();
                     }

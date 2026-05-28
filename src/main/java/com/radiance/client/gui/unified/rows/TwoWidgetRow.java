@@ -13,9 +13,10 @@ import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 
 /**
- * A row with two generic ClickableWidgets side by side.
+ * A row with one or two generic ClickableWidgets.
  * Uses custom rendering: detects widget type (slider vs button/toggle)
- * and renders appropriately. If the right widget is null, the left takes full width.
+ * and renders appropriately. If the right widget is null, the left keeps a
+ * compact preferred width.
  */
 public class TwoWidgetRow extends SettingsRow {
 
@@ -77,7 +78,7 @@ public class TwoWidgetRow extends SettingsRow {
 
             if (looksLikeToggle) {
                 boolean isOn = msg.contains(ON_TEXT);
-                RadianceTheme.drawCustomToggle(ctx, x, y, w, h,
+                RadianceTheme.drawCompactToggle(ctx, x, y, w, h,
                     isOn, hovered, renderer, widget.getMessage());
             } else {
                 RadianceTheme.drawCustomButton(ctx, x, y, w, h,

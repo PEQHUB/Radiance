@@ -92,7 +92,7 @@ public class UnifiedEmissionPopulator implements ContentPopulator {
         EmissiveBlock[] sorted = blocks.clone();
         Arrays.sort(sorted, Comparator.comparing(EmissiveBlock::getId));
 
-        SettingsSection section = panel.addSection(title);
+        SettingsSection section = panel.addSection(title).setLinear();
         for (EmissiveBlock block : sorted) {
             var wave = EmissionWidgetFactory.makeWavelengthSlider(block);
             var mat = EmissionWidgetFactory.makeMaterialDropdown(block, wave);

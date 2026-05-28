@@ -18,6 +18,7 @@ public class KeyBindButton extends PressableWidget {
 
     private final KeyBinding binding;
     private boolean listening = false;
+    private static final int HORIZONTAL_PADDING = 10;
 
     public KeyBindButton(int x, int y, KeyBinding binding) {
         super(x, y, 24, 20, Text.literal(getKeyName(binding)));
@@ -71,8 +72,8 @@ public class KeyBindButton extends PressableWidget {
         // Draw border
         context.drawBorder(getX(), getY(), getWidth(), getHeight(), borderColor);
 
-        // Draw key text centered
-        String text = getMessage().getString();
+        // Draw key text centered and clipped to this button.
+        Text text = RadianceTheme.trimText(textRenderer, getMessage(), Math.max(8, getWidth() - HORIZONTAL_PADDING));
         int textWidth = textRenderer.getWidth(text);
         int textX = getX() + (getWidth() - textWidth) / 2;
         int textY = getY() + (getHeight() - 8) / 2;

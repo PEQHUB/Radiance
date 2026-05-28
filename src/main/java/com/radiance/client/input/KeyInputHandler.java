@@ -1,6 +1,7 @@
 package com.radiance.client.input;
 
 import com.radiance.client.RadianceClient;
+import com.radiance.client.debug.DebugInspectReporter;
 import com.radiance.client.gui.MaterialsSettingsScreen;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
 import com.radiance.client.gui.unified.populators.UnifiedEmissionPopulator;
@@ -32,6 +33,7 @@ public class KeyInputHandler {
 
     public static KeyBinding focusKey;
     public static KeyBinding inspectKey;
+    public static KeyBinding debugInspectKey;
 
     // Debounce for AF-S click (prevent re-triggering on same press)
     private static boolean afClickConsumed = false;
@@ -97,6 +99,13 @@ public class KeyInputHandler {
             "key.radiance.inspect",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_I,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        debugInspectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.debug_inspect",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_UNKNOWN,
             Options.KEY_CATEGORY_RADIANCE
         ));
 
@@ -328,6 +337,12 @@ public class KeyInputHandler {
                             client.setScreen(new RadianceUnifiedScreen(null));
                         }
                     }
+                }
+            }
+
+            while (debugInspectKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    DebugInspectReporter.captureCurrentTarget(client);
                 }
             }
         });

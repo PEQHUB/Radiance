@@ -19,7 +19,9 @@ import java.util.List;
  */
 public class KeyBindRow extends SettingsRow {
 
-    private static final int KEYBIND_WIDTH = 28;
+    private static final int MIN_KEYBIND_WIDTH = 28;
+    private static final int MAX_KEYBIND_WIDTH = 84;
+    private static final int KEYBIND_PAD = 12;
     private static final int GAP = 4;
     private static final String ON_TEXT = Text.translatable("options.on").getString();
 
@@ -46,15 +48,16 @@ public class KeyBindRow extends SettingsRow {
                        int mouseX, int mouseY, float delta, float alphaMult) {
         if (alphaMult <= 0f) return;
         TextRenderer renderer = MinecraftClient.getInstance().textRenderer;
+        int keyWidth = keyBindWidth(renderer, width);
 
         // Keybind button on the left
         keyBindButton.setX(x);
         keyBindButton.setY(y);
-        keyBindButton.setWidth(KEYBIND_WIDTH);
+        keyBindButton.setWidth(keyWidth);
         keyBindButton.render(context, mouseX, mouseY, delta);
 
-        int rightX = x + KEYBIND_WIDTH + GAP;
-        int rightW = width - KEYBIND_WIDTH - GAP;
+        int rightX = x + keyWidth + GAP;
+        int rightW = Math.max(0, width - keyWidth - GAP);
 
         if (rightWidget != null) {
             rightWidget.setX(rightX);
@@ -79,8 +82,15 @@ public class KeyBindRow extends SettingsRow {
         } else if (label != null) {
             // Just draw a label
             int textY = y + (getHeight() - 8) / 2;
-            context.drawTextWithShadow(renderer, label, rightX + 4, textY, RadianceTheme.textPrimary);
+            Text drawLabel = RadianceTheme.trimText(renderer, Text.literal(label), Math.max(0, rightW - 8));
+            context.drawTextWithShadow(renderer, drawLabel, rightX + 4, textY, RadianceTheme.textPrimary);
         }
+    }
+
+    private int keyBindWidth(TextRenderer renderer, int availableWidth) {
+        int wanted = renderer.getWidth(keyBindButton.getMessage()) + KEYBIND_PAD;
+        int clamped = Math.max(MIN_KEYBIND_WIDTH, Math.min(MAX_KEYBIND_WIDTH, wanted));
+        return Math.min(Math.max(MIN_KEYBIND_WIDTH, availableWidth), clamped);
     }
 
     @Override
@@ -97,6 +107,11 @@ public class KeyBindRow extends SettingsRow {
         list.add(keyBindButton);
         if (rightWidget != null) list.add(rightWidget);
         return list;
+    }
+
+    @Override
+    public boolean isGridFullSpan() {
+        return true;
     }
 
 }

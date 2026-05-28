@@ -220,8 +220,10 @@ public class BufferProxy {
         int nextAnimTick = world != null ? (int) world.getTime() : animTick + 1;
         if (nextAnimTick != animTick) {
             animTick = nextAnimTick;
-        // Update animated sprite textures (water, lava, etc.) — re-uploads current frame pixels
-            com.radiance.client.proxy.world.BlockModelBridge.updateAnimatedSprites(animTick);
+            if (com.radiance.client.texture.TextureTracker.textureArrayAnimationUpdatesEnabled) {
+                // Update animated sprite textures (water, lava, etc.) - re-uploads current frame pixels
+                com.radiance.client.proxy.world.BlockModelBridge.updateAnimatedSprites(animTick);
+            }
         }
         try (MemoryStack stack = stackPush()) {
             int size = 560 + 50 * 16 + 13 * 16; // base + emissionData[50] + emissiveGamut[13] (materialData moved to SSBO)

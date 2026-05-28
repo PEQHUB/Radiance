@@ -41,7 +41,7 @@ public class ToggleRow extends SettingsRow {
         boolean hovered = mouseX >= x && mouseX < x + width
             && mouseY >= y && mouseY < y + getHeight();
 
-        RadianceTheme.drawCustomToggle(context, x, y, width, getHeight(),
+        RadianceTheme.drawCompactToggle(context, x, y, width, getHeight(),
             isOn, hovered, MinecraftClient.getInstance().textRenderer, widget.getMessage());
     }
 

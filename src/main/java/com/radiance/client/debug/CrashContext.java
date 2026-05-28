@@ -127,10 +127,13 @@ public final class CrashContext {
             sb.append("autoPBREnabled=").append(Options.autoPBREnabled).append("\n");
             sb.append("rayBounces=").append(Options.rayBounces).append("\n");
             sb.append("upscalerResOverride=").append(Options.upscalerResOverride).append("\n");
-            sb.append("pomEnabled=").append(Options.pomEnabled).append("\n");
-            sb.append("pomHeightScalePercent=").append(Options.pomHeightScalePercent).append("\n");
-            sb.append("pomSteps=").append(Options.pomSteps).append("\n");
-            sb.append("pomFadeDistance=").append(Options.pomFadeDistance).append("\n");
+            sb.append("displacementEnabled=").append(Options.displacementEnabled).append("\n");
+            sb.append("displacementDepthCapPercent=").append(Options.displacementDepthCapPercent).append("\n");
+            sb.append("displacementQuality=").append(Options.displacementQuality)
+                .append(" (").append(Options.displacementQualityName(Options.displacementQuality)).append(")\n");
+            sb.append("displacementSteps=").append(Options.displacementSteps).append("\n");
+            sb.append("displacementRefinement=").append(Options.displacementRefinement).append("\n");
+            sb.append("displacementFadeDistance=").append(Options.displacementFadeDistance).append("\n");
             sb.append("sharcQualityPreset=").append(Options.sharcQualityPreset).append("\n");
             sb.append("sharcCapacityExponent=").append(Options.sharcCapacityExponent).append("\n");
             sb.append("reflexEnabled=").append(Options.reflexEnabled).append("\n");
@@ -139,18 +142,23 @@ public final class CrashContext {
             sb.append("chunkBuildingTotalBatches=").append(Options.chunkBuildingTotalBatches).append("\n");
             sb.append("\n");
 
-            // Per-block materials with non-default POM or transmission (most crash-relevant)
-            sb.append("--- Per-Block Materials (non-default POM/Transmission) ---\n");
+            // Per-block materials with non-default displacement or transmission (most crash-relevant)
+            sb.append("--- Per-Block Materials (non-default Displacement/Transmission) ---\n");
             for (MaterialBlock mb : MaterialBlock.values()) {
                 int i = mb.ordinal();
-                boolean hasPom = Options.materialPomDepth[i] > 0;
+                boolean hasDisplacement = Options.materialPomMode[i] != 0
+                    || Options.materialPomDepth[i] > 0
+                    || Options.materialDisplacementSelfShadow[i];
                 boolean hasTrans = Options.materialTransmission[i] > 0;
                 boolean hasAutoPBR = Options.materialAutoPBR[i];
-                if (hasPom || hasTrans) {
+                if (hasDisplacement || hasTrans) {
                     sb.append("  ").append(mb.getId()).append(": ");
                     sb.append("roughness=").append(Options.materialRoughness[i]);
                     sb.append(" transmission=").append(Options.materialTransmission[i]);
-                    sb.append(" pomDepth=").append(Options.materialPomDepth[i]);
+                    sb.append(" dispMode=").append(Options.materialPomMode[i]);
+                    sb.append(" dispDepth=").append(Options.materialPomDepth[i]);
+                    sb.append(" heightSource=").append(Options.materialHeightSource[i]);
+                    sb.append(" selfShadow=").append(Options.materialDisplacementSelfShadow[i]);
                     sb.append(" normalStr=").append(Options.materialNormalStrength[i]);
                     sb.append(" autoPBR=").append(hasAutoPBR);
                     sb.append(" flags=").append(Options.materialAutoPBRFlags[i]);

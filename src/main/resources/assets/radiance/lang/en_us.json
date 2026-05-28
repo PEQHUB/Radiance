@@ -9,7 +9,7 @@
   "options.video.category.camera_controls": "Camera Controls",
   "options.video.ray_bounces": "Ray Bounces",
   "options.video.omm_enabled": "Opacity Micro Maps (OMM)",
-  "options.video.pom_enabled": "Parallax Occlusion Mapping",
+  "options.video.pom_enabled": "Surface Displacement",
   "options.video.omm_baker_level": "OMM Subdivision Level",
   "options.video.greedy_meshing": "Greedy Meshing",
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
@@ -146,6 +146,7 @@
   "key.radiance.offline_ground_truth": "Toggle Ground Truth (Offline)",
   "key.radiance.focus": "Focus Mode",
   "key.radiance.inspect": "Inspect Block/Entity",
+  "key.radiance.debug_inspect": "Log Debug Inspect",
   "key.category.radiance": "Radiance",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode": "Tonemapping Mode",
   "render_pipeline.module.tone_mapping.attribute.tonemap_mode.pbr_neutral": "PBR Neutral",
@@ -460,6 +461,7 @@
   ,"options.video.category.materials.special": "Special"
   ,"options.video.materials.overridesEnabled": "Material Overrides"
   ,"options.video.materials.autoPBR": "Auto-PBR Generation"
+  ,"options.video.materials.displacementEnabled": "Enable Displacement"
   ,"options.video.materials.autoPBRBlock": "Auto-PBR (This Block)"
   ,"options.video.materials.autoPBRInvertNormal": "Invert Normal"
   ,"options.video.materials.autoPBRInvertRoughness": "Invert Roughness"

@@ -1,8 +1,10 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
+import com.radiance.client.option.Options;
 import com.radiance.client.proxy.world.BlockModelBridge;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.VanillaTextureManifest;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt;
@@ -12,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.texture.SpriteAtlasTexture;
@@ -78,6 +81,27 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         for (var entry : sorted) {
             sortedIds.add(entry.getKey());
         }
+
+        VanillaTextureManifest manifest =
+            VanillaTextureManifest.fromBlockAtlas(atlasId, sorted, atlasW, atlasH);
+        manifest.writeDebugDump(MinecraftClient.getInstance().runDirectory.toPath());
+        LOGGER.info("[TextureRefactor] Vanilla texture manifest: {}", manifest.summary());
+        int warningLimit = Math.min(manifest.warnings().size(), 32);
+        for (int i = 0; i < warningLimit; i++) {
+            LOGGER.warn("[TextureRefactor] {}", manifest.warnings().get(i));
+        }
+        if (manifest.warnings().size() > warningLimit) {
+            LOGGER.warn("[TextureRefactor] {} additional manifest warnings written to texture_manifest.json",
+                manifest.warnings().size() - warningLimit);
+        }
+        if (!manifest.isValid()) {
+            for (String error : manifest.errors()) {
+                LOGGER.error("[TextureRefactor] {}", error);
+            }
+            LOGGER.error("[TextureRefactor] Aborting texture-array extraction for invalid vanilla manifest");
+            return;
+        }
+
         BlockModelBridge.sortedSpriteIds = sortedIds;
         BlockModelBridge.markForReupload(); // Force model table re-serialization with new IDs
         BlockModelBridge.incrementTextureGeneration(); // Tag new chunk builds with this generation
@@ -101,7 +125,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // The atlas-level albedo cache (materialBlockAlbedoCache) is atlas-sized and keyed by
         // atlas GLID — useless for texture array live re-upload which needs sprite-sized images.
         // Cache a copy of each material block sprite's NativeImage keyed by spriteId.
-        TextureTracker.spriteAlbedoCache.clear();
+        TextureTracker.clearSpriteAlbedoCache();
         for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
             int si = mapEntry.getKey();
             if (si >= sorted.size()) continue;
@@ -124,6 +148,26 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
         int count = sorted.size();
         int bytesPerSprite = spriteSize * spriteSize * 4; // RGBA8
+
+        TextureTracker.resetSpriteAuxSources(count);
+        for (int i = 0; i < count; i++) {
+            Sprite sprite = sorted.get(i).getValue();
+            NativeImage img = ((ISpriteContentsExt) sprite.getContents()).neoVoxelRT$getImage();
+            if (img == null) continue;
+
+            INativeImageExt auxExt = (INativeImageExt) (Object) img;
+            NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
+            if (specImg != null) {
+                TextureTracker.spriteSpecularSource[i] =
+                    ((INativeImageExt) (Object) specImg).neoVoxelRT$getAuxSource();
+            }
+
+            NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+            if (normalImg != null) {
+                TextureTracker.spriteNormalSource[i] =
+                    ((INativeImageExt) (Object) normalImg).neoVoxelRT$getAuxSource();
+            }
+        }
 
         // ---- Step 2: Detect overlay sprites (grass_block_side_overlay → grass_block_side) ----
         // overlayOf[i] = spriteId that sprite i is an overlay FOR, or -1
@@ -169,14 +213,29 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             metaBuf.putShort(off +  8, (short) frameCount);
             metaBuf.putShort(off + 10, (short) 3); // tickRate (~3 render frames per anim advance)
             metaBuf.putShort(off + 12, overlayOf[i]);
-            // Flags: bit 0 = hasSpecular, bit 1 = hasNormal
-            short flags = 0;
+            // Flags: aux presence, authored/generated source, and whether normal alpha is height.
+            int flags = TextureTracker.encodeSpriteSourceFlags(
+                TextureTracker.spriteSpecularSource[i],
+                TextureTracker.spriteNormalSource[i]);
             if (img != null) {
                 INativeImageExt auxExt = (INativeImageExt) (Object) img;
-                if (auxExt.neoVoxelRT$getSpecularNativeImage() != null) flags |= 1;
-                if (auxExt.neoVoxelRT$getNormalNativeImage() != null) flags |= 2;
+                NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
+                NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+                int ordinal = BlockModelBridge.spriteId2MaterialOrdinal.getOrDefault(i, -1);
+                boolean autoPBRHeight = ordinal >= 0
+                    && Options.autoPBREnabled
+                    && Options.materialAutoPBR[ordinal]
+                    && Options.materialNormalInputType[ordinal] == 0;
+                byte normalSource = TextureTracker.spriteNormalSource[i];
+                boolean authoredHeight = normalSource == TextureTracker.SOURCE_PACK_AUTHORED
+                    || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
+                if (specImg != null) flags |= TextureTracker.SPRITE_FLAG_HAS_SPECULAR;
+                if (normalImg != null || autoPBRHeight) flags |= TextureTracker.SPRITE_FLAG_HAS_NORMAL;
+                if ((normalImg != null && authoredHeight) || autoPBRHeight) {
+                    flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
+                }
             }
-            metaBuf.putShort(off + 14, flags);
+            metaBuf.putShort(off + 14, (short) flags);
         }
 
         BlockModelBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
@@ -340,7 +399,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         if (si >= count) continue;
         // Skip blocks with pack-authored normals — CPU bake would overwrite hand-tuned normals
         if (com.radiance.client.texture.TextureTracker.spriteNormalSource[si]
-            == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED) continue;
+                == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED
+            || com.radiance.client.texture.TextureTracker.spriteNormalSource[si]
+                == com.radiance.client.texture.TextureTracker.SOURCE_USER_CUSTOM) continue;
 
         Sprite sp = sorted.get(si).getValue();
         NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
@@ -354,7 +415,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 100, // neutral strength — shader applies runtime value from pack5.w
                 (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 2) != 0,
                 com.radiance.client.option.Options.materialAutoPBRHeightGamma[ordinal],
-                (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 4) != 0);
+                (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 4) != 0,
+                com.radiance.client.texture.AutoPBRGenerator.HeightParams.fromOptions(ordinal),
+                com.radiance.client.option.Options.materialPomAOStrength[ordinal]);
 
             long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                 (Object) normalBaked).neoVoxelRT$getPointer();
@@ -443,6 +506,18 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
         // ---- Step 6: Finalize ----
         BlockModelBridge.nativeTextureFinalize();
+        BlockModelBridge.publishTextureGeneration();
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc != null && mc.world != null && mc.worldRenderer != null) {
+            try {
+                Options.nativeRebuildChunks();
+            } catch (UnsatisfiedLinkError e) {
+                LOGGER.debug("[TextureSystem] Native chunk rebuild skipped after texture finalize", e);
+            }
+            Options.debouncedChunkReload();
+        } else {
+            LOGGER.debug("[TextureSystem] Texture generation published before world load; chunk reload deferred");
+        }
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
     }
 

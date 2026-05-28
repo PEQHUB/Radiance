@@ -10,7 +10,7 @@ import com.radiance.client.gui.unified.rows.FiveColumnEmissionRow;
 public class ParticlesEmissionPopulator implements ContentPopulator {
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
-        SettingsSection section = panel.addSection("Particles");
+        SettingsSection section = panel.addSection("Particles").setLinear();
 
         for (int i = 0; i < EmissionWidgetFactory.PARTICLE_DEFS.length; i++) {
             EmissionWidgetFactory.ParticleDef def = EmissionWidgetFactory.PARTICLE_DEFS[i];

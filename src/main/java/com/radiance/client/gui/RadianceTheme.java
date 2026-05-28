@@ -361,14 +361,13 @@ public final class RadianceTheme {
     // ── Modified setting indicator ──
 
     /**
-     * Draw a small accent dot to the left of a widget if the setting is non-default.
+     * Draw a tiny in-bounds dot if the setting is non-default.
      */
     public static void drawModifiedDot(DrawContext ctx, int x, int y, int entryHeight, boolean modified) {
         if (!modified) return;
-        int dotSize = 4;
-        int dotX = x - dotSize - 3;
-        int dotY = y + (entryHeight - dotSize) / 2;
-        ctx.fill(dotX, dotY, dotX + dotSize, dotY + dotSize, textAccent);
+        int dotX = x + 2;
+        int dotY = y + 2;
+        ctx.fill(dotX, dotY, dotX + 2, dotY + 2, modifiedDot);
     }
 
     // ── Breadcrumb navigation ──
@@ -502,10 +501,16 @@ public final class RadianceTheme {
     public static void drawCustomSlider(DrawContext ctx, int x, int y, int w, int h,
             double value, boolean hovered, boolean active,
             TextRenderer renderer, Text message) {
+        drawCustomSlider(ctx, x, y, w, h, value, hovered, active, renderer, message, false);
+    }
+
+    public static void drawCustomSlider(DrawContext ctx, int x, int y, int w, int h,
+            double value, boolean hovered, boolean active,
+            TextRenderer renderer, Text message, boolean modified) {
         // Dark backdrop behind slider so it remains visible over the game scene.
         // Always drawn (not just when active) so sliders are readable in the menu.
         float bgAlpha = active ? 0.75f : 0.55f;
-        ctx.fill(x - 2, y - 1, x + w + 2, y + h + 1, withAlpha(0x000000, bgAlpha));
+        ctx.fill(x, y, x + w, y + h, withAlpha(0x000000, bgAlpha));
 
         // Track background — use higher alpha when active for visibility
         int trackH = 4;
@@ -514,7 +519,7 @@ public final class RadianceTheme {
         ctx.fill(x, trackY, x + w, trackY + trackH, trackColor);
 
         // Filled portion (accent color)
-        int fillW = (int) (w * value);
+        int fillW = Math.max(0, Math.min(w, (int) Math.round(w * value)));
         int fillColor = active ? withAlpha(BASE_SLIDER_FILL, 0.95f) : sliderFill;
         if (fillW > 0) {
             ctx.fill(x, trackY, x + fillW, trackY + trackH, fillColor);
@@ -528,9 +533,39 @@ public final class RadianceTheme {
         ctx.fill(thumbX, thumbY, thumbX + thumbW, thumbY + thumbH, thumbColor);
 
         // Label centered on widget
-        int textW = renderer.getWidth(message);
-        drawOutlinedText(ctx, renderer, message,
-                x + (w - textW) / 2, y + (h - 8) / 2, textPrimary);
+        int maxTextW = Math.max(24, w - 10);
+        Text drawMessage = trimText(renderer, message, maxTextW);
+        int textW = renderer.getWidth(drawMessage);
+        int labelColor = modified ? modifiedDot : textPrimary;
+        drawOutlinedText(ctx, renderer, drawMessage,
+                x + (w - textW) / 2, y + (h - 8) / 2, labelColor);
+    }
+
+    /**
+     * Render a compact toggle row: label text plus a small switch, without a
+     * full-width button slab.
+     */
+    public static void drawCompactToggle(DrawContext ctx, int x, int y, int w, int h,
+            boolean value, boolean hovered, TextRenderer renderer, Text message) {
+        if (hovered) {
+            ctx.fill(x, y, x + w, y + h, scaleAlpha(widgetBgHover, 0.45f));
+        }
+
+        int swW = 28, swH = 14;
+        int swX = x + w - swW - 16;
+        int swY = y + (h - swH) / 2;
+        int swBg = value ? toggleOn : toggleOff;
+        ctx.fill(swX, swY, swX + swW, swY + swH, swBg);
+
+        int knobW = 10, knobH = swH - 2;
+        int knobX = value ? swX + swW - knobW - 1 : swX + 1;
+        ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH, sliderThumb);
+
+        String label = compactToggleLabel(message.getString());
+        int maxTextW = Math.max(24, swX - x - 10);
+        Text labelText = trimText(renderer, Text.literal(label), maxTextW);
+        drawOutlinedText(ctx, renderer, labelText, x + 6, y + (h - 8) / 2,
+            hovered ? textPrimary : textSecondary);
     }
 
     /**
@@ -542,8 +577,9 @@ public final class RadianceTheme {
         int bg = hovered ? buttonHover : buttonBg;
         ctx.fill(x, y, x + w, y + h, bg);
         ctx.drawBorder(x, y, w, h, buttonBorder);
-        int textW = renderer.getWidth(message);
-        drawOutlinedText(ctx, renderer, message,
+        Text drawMessage = trimText(renderer, message, Math.max(16, w - 10));
+        int textW = renderer.getWidth(drawMessage);
+        drawOutlinedText(ctx, renderer, drawMessage,
                 x + (w - textW) / 2, y + (h - 8) / 2,
                 hovered ? textPrimary : textSecondary);
     }
@@ -571,6 +607,27 @@ public final class RadianceTheme {
         ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH, sliderThumb);
 
         // Label on left
-        drawOutlinedText(ctx, renderer, message, x + 6, y + (h - 8) / 2, textPrimary);
+        Text drawMessage = trimText(renderer, message, Math.max(24, swX - x - 10));
+        drawOutlinedText(ctx, renderer, drawMessage, x + 6, y + (h - 8) / 2, textPrimary);
+    }
+
+    public static Text trimText(TextRenderer renderer, Text text, int maxWidth) {
+        if (renderer.getWidth(text) <= maxWidth) {
+            return text;
+        }
+        int ellipsisWidth = renderer.getWidth("...");
+        String trimmed = renderer.trimToWidth(text.getString(), Math.max(0, maxWidth - ellipsisWidth));
+        return Text.literal(trimmed + "...");
+    }
+
+    private static String compactToggleLabel(String message) {
+        int colon = message.lastIndexOf(':');
+        if (colon > 0) {
+            String suffix = message.substring(colon + 1).trim();
+            if (suffix.equalsIgnoreCase("ON") || suffix.equalsIgnoreCase("OFF")) {
+                return message.substring(0, colon).trim();
+            }
+        }
+        return message;
     }
 }

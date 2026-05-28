@@ -20,10 +20,6 @@ import org.lwjgl.glfw.GLFW;
  * Unified Radiance settings screen with tree navigation (left) and content panel (right).
  * Replaces RadianceSettingsScreen and all 15+ sub-screens in a single panel+sidebar layout.
  *
- * Two modes:
- * - Simple (default): AAA-style flat menu with 6 curated categories
- * - Advanced: Full tree with all sub-categories and every setting exposed
- *
  * Features:
  * - Category nodes populate ALL child sections at once
  * - Leaf nodes populate only their own section
@@ -64,7 +60,6 @@ public class RadianceUnifiedScreen extends Screen {
     // ── Header controls ──
     private ResettableSliderWidget opacitySlider;
     private ButtonWidget resetDefaultsButton;
-    private ButtonWidget advancedToggleButton;
     private ButtonWidget[] presetButtons;
 
     // ── Search ──
@@ -113,22 +108,10 @@ public class RadianceUnifiedScreen extends Screen {
             .build();
         this.addDrawableChild(resetDefaultsButton);
 
-        // Advanced/Simple toggle button (to the left of Reset)
-        int toggleBtnW = 80;
-        int toggleBtnH = 18;
-        int toggleBtnX = resetBtnX - toggleBtnW - 6;
-        int toggleBtnY = (HEADER_HEIGHT - toggleBtnH) / 2;
-        advancedToggleButton = ButtonWidget.builder(
-            Text.literal(Options.advancedMode ? "Advanced" : "Simple"),
-            btn -> toggleAdvancedMode())
-            .dimensions(toggleBtnX, toggleBtnY, toggleBtnW, toggleBtnH)
-            .build();
-        this.addDrawableChild(advancedToggleButton);
-
-        // Opacity slider (to the left of Advanced toggle)
+        // Opacity slider (to the left of Reset)
         int sliderW = 140;
         int sliderH = 18;
-        int sliderX = toggleBtnX - sliderW - 8;
+        int sliderX = resetBtnX - sliderW - 8;
         int sliderY = (HEADER_HEIGHT - sliderH) / 2;
         opacitySlider = new ResettableSliderWidget(
             sliderX, sliderY, sliderW, sliderH,
@@ -202,17 +185,10 @@ public class RadianceUnifiedScreen extends Screen {
         return null;
     }
 
-    /** Toggle between simple and advanced modes, rebuild the tree. */
-    private void toggleAdvancedMode() {
-        Options.advancedMode = !Options.advancedMode;
-        Options.overwriteConfig();
-        // Reset remembered node since tree structure changes
-        rememberedNodeId = null;
-        rememberedScrollY = 0;
-        activeNode = null;
+    /** Compatibility marker: Options.advancedMode remains loadable but does not shape this menu. */
+    private void advancedModeCompatibilityMarker() {
+        // Retained only as a compatibility marker for old configs.
         // Full reinit — re-set screen to trigger init()
-        MinecraftClient mc = MinecraftClient.getInstance();
-        mc.setScreen(new RadianceUnifiedScreen(parent));
     }
 
     // ── Preset handling ──
@@ -245,32 +221,19 @@ public class RadianceUnifiedScreen extends Screen {
     // ── Tree structure ──
 
     private void populateTree() {
-        if (Options.advancedMode) {
-            populateAdvancedTree();
-        } else {
-            populateSimpleTree();
-        }
+        populateSuperTree();
         tree.setOnSelect(this::onCategorySelected);
     }
 
     /**
-     * Simple mode: 6 flat categories with curated AAA-style settings.
-     * No sub-categories, no deep nesting — clean and approachable.
+     * Full super menu tree with every settings category exposed.
+     * Category roots remain selectable and show composite child content.
      */
-    private void populateSimpleTree() {
-        tree.addRoot(new TreeNode("s_graphics", "Graphics", new SimpleGraphicsPopulator()));
-        tree.addRoot(new TreeNode("s_display", "Display", new SimpleDisplayPopulator()));
-        tree.addRoot(new TreeNode("s_lighting", "Lighting", new SimpleLightingPopulator()));
-        tree.addRoot(new TreeNode("s_post", "Post Processing", new SimplePostProcessingPopulator()));
-        tree.addRoot(new TreeNode("s_environment", "Environment", new SimpleEnvironmentPopulator()));
-        tree.addRoot(new TreeNode("s_camera", "Camera", new SimpleCameraPopulator()));
-    }
-
     /**
-     * Advanced mode: full tree with all sub-categories — every setting exposed.
-     * 6 roots, 19 leaves, max depth 2.
+     * All renderer categories are exposed in one permanent menu.
+     * Root order: Scene, Camera, Surfaces, Lighting, Rendering, System, Debug.
      */
-    private void populateAdvancedTree() {
+    private void populateSuperTree() {
         // ▼ Scene
         TreeNode scene = new TreeNode("scene", "Scene");
         scene.addChild(new TreeNode("sky_atmosphere", "Sky & Atmosphere", new SkyPopulator()));
@@ -280,6 +243,15 @@ public class RadianceUnifiedScreen extends Screen {
             compositeOf(new SunPopulator(), new MoonPopulator())));
         scene.populator = compositePopulator(scene.children);
         tree.addRoot(scene);
+
+        // Camera
+        TreeNode camera = new TreeNode("camera", "Camera");
+        camera.addChild(new TreeNode("physical_camera", "Physical Camera", new PhysicalCameraPopulator()));
+        camera.addChild(new TreeNode("offline", "Offline Rendering", new OfflinePopulator()));
+        camera.addChild(new TreeNode("freecam_fpv", "Freecam / First-Person",
+            compositeOf(new FreecamPopulator(), new FpvPopulator())));
+        camera.populator = compositePopulator(camera.children);
+        tree.addRoot(camera);
 
         // ▼ Surfaces
         TreeNode surfaces = new TreeNode("surfaces", "Surfaces");
@@ -291,30 +263,24 @@ public class RadianceUnifiedScreen extends Screen {
 
         // ▼ Lighting
         TreeNode lighting = new TreeNode("lighting", "Lighting");
-        lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
         lighting.addChild(new TreeNode("exposure", "Exposure", new ExposurePopulator()));
-        lighting.addChild(new TreeNode("tone_mapping", "Tone Mapping",
+        lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
+        lighting.addChild(new TreeNode("tone_mapping", "Tone Mapping / HDR",
             compositeOf(new PsychoVPopulator(), new HdrSaturationPopulator())));
         lighting.populator = compositePopulator(lighting.children);
         tree.addRoot(lighting);
 
         // ▼ Rendering
         TreeNode rendering = new TreeNode("rendering", "Rendering");
-        rendering.addChild(new TreeNode("upscaler", "Upscaler", new UpscalerPopulator()));
         rendering.addChild(new TreeNode("ray_tracing", "Ray Tracing",
             compositeOf(new RayTracingPopulator(), new SharcPopulator())));
+        rendering.addChild(new TreeNode("upscaler", "Upscaling & FG", new UpscalerPopulator()));
         rendering.addChild(new TreeNode("post_processing", "Post Processing", new PostProcessingPopulator()));
-        rendering.addChild(new TreeNode("performance", "Performance", new PerformancePopulator()));
+        rendering.addChild(new TreeNode("performance", "Frame Pacing", new PerformancePopulator()));
         rendering.populator = compositePopulator(rendering.children);
         tree.addRoot(rendering);
 
         // ▼ Camera
-        TreeNode camera = new TreeNode("camera", "Camera");
-        camera.addChild(new TreeNode("offline", "Offline Rendering", new OfflinePopulator()));
-        camera.addChild(new TreeNode("fpv", "First-Person View", new FpvPopulator()));
-        camera.populator = compositePopulator(camera.children);
-        tree.addRoot(camera);
-
         // ▼ System
         TreeNode system = new TreeNode("system", "System");
         system.addChild(new TreeNode("window", "Window", new WindowPopulator()));
@@ -322,6 +288,16 @@ public class RadianceUnifiedScreen extends Screen {
         system.addChild(new TreeNode("ui_settings", "UI Settings", new UiSettingsPopulator()));
         system.populator = compositePopulator(system.children);
         tree.addRoot(system);
+
+        // Debug
+        TreeNode debug = new TreeNode("debug", "Debug");
+        debug.addChild(new TreeNode("debug_status", "Status", new DebugPopulator(DebugPopulator.Page.STATUS)));
+        debug.addChild(new TreeNode("debug_capture_logs", "Capture & Logs", new DebugPopulator(DebugPopulator.Page.CAPTURE_LOGS)));
+        debug.addChild(new TreeNode("debug_gpu_profiling", "GPU / Frame Profiling", new DebugPopulator(DebugPopulator.Page.GPU_PROFILING)));
+        debug.addChild(new TreeNode("debug_resources", "Resources", new DebugPopulator(DebugPopulator.Page.RESOURCES)));
+        debug.addChild(new TreeNode("debug_power_actions", "Power Actions", new DebugPopulator(DebugPopulator.Page.POWER_ACTIONS)));
+        debug.populator = compositePopulator(debug.children);
+        tree.addRoot(debug);
     }
 
     /**
@@ -494,25 +470,6 @@ public class RadianceUnifiedScreen extends Screen {
             if (opacitySlider != null) {
                 opacitySlider.render(context, mouseX, mouseY, delta);
             }
-            if (advancedToggleButton != null) {
-                renderHeaderButton(context, mouseX, mouseY, advancedToggleButton);
-
-                // Modified badge: orange dot + count when simple mode has non-default advanced settings
-                if (!Options.advancedMode) {
-                    int modCount = Options.countNonDefaultAdvancedSettings();
-                    if (modCount > 0) {
-                        int dotX = advancedToggleButton.getX() + advancedToggleButton.getWidth() + 4;
-                        int dotY = advancedToggleButton.getY() + (advancedToggleButton.getHeight() - 8) / 2;
-                        // Orange dot
-                        context.fill(dotX, dotY, dotX + 6, dotY + 6, 0xFFE8712A);
-                        // Count text
-                        String badge = modCount + " modified";
-                        RadianceTheme.drawOutlinedText(context, this.textRenderer,
-                            Text.literal(badge), dotX + 9, dotY - 1,
-                            RadianceTheme.textAccent, fade);
-                    }
-                }
-            }
             if (resetDefaultsButton != null) {
                 renderHeaderButton(context, mouseX, mouseY, resetDefaultsButton);
             }
@@ -598,8 +555,9 @@ public class RadianceUnifiedScreen extends Screen {
         // Don't toggle search when an overlay screen is showing
         if (overlayScreen != null) return super.keyPressed(keyCode, scanCode, modifiers);
 
-        // Search: Space opens search (when no overlay active)
-        if (keyCode == GLFW.GLFW_KEY_SPACE) {
+        // Search: Space or Ctrl+F opens search (when no overlay active)
+        boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+        if (keyCode == GLFW.GLFW_KEY_SPACE || (ctrl && keyCode == GLFW.GLFW_KEY_F)) {
             if (searchOverlay != null) searchOverlay.toggle();
             return true;
         }

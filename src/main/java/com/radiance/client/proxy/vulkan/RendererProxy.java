@@ -69,6 +69,9 @@ public class RendererProxy {
     // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"
     public static native String nativeGetVmaStats();
 
+    // Texture reload diagnostics: texture generation, array IDs/bytes, chunk generation histogram
+    public static native String nativeGetTextureReloadDiagnostics();
+
     // Overlay compositor diagnostics (CSV key=value pairs)
     public static native String nativeGetOverlayDiag();
 

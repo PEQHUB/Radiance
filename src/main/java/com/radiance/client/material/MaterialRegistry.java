@@ -42,9 +42,16 @@ public class MaterialRegistry {
     }
 
     private static void dumpDiagnostic(ByteBuffer buf, int activeMaterials) {
-        // Dump SSBO data for key blocks: GOLD_BLOCK=1, EMERALD_BLOCK=19, OBSIDIAN=24
-        int[] targets = {0, 1, 16, 19, 24, 25};
-        String[] names = {"IRON_BLOCK", "GOLD_BLOCK", "DIAMOND", "EMERALD_BLOCK", "OBSIDIAN", "CRYING_OBSIDIAN"};
+        int[] targets = {
+            MaterialBlock.IRON_BLOCK.ordinal(),
+            MaterialBlock.GOLD_BLOCK.ordinal(),
+            MaterialBlock.DIAMOND_BLOCK.ordinal(),
+            MaterialBlock.EMERALD_BLOCK.ordinal(),
+            MaterialBlock.OBSIDIAN.ordinal(),
+            MaterialBlock.CRYING_OBSIDIAN.ordinal(),
+            MaterialBlock.DIRT_MAT.ordinal()
+        };
+        String[] names = {"IRON_BLOCK", "GOLD_BLOCK", "DIAMOND", "EMERALD_BLOCK", "OBSIDIAN", "CRYING_OBSIDIAN", "DIRT"};
         try {
             StringBuilder sb = new StringBuilder();
             sb.append("=== MaterialRegistry SSBO Diagnostic ===\n");
@@ -61,8 +68,7 @@ public class MaterialRegistry {
                 float transmission = buf.getFloat();
                 float ior = buf.getFloat();
                 float subsurface = buf.getFloat();
-                // Skip packs 2-6 (read position forward)
-                buf.position(offset + 36); // skip to pack 7
+                buf.position(offset + 112); // pack 7
                 float emissionNits = buf.getFloat();
                 int emissionType = buf.getInt();
                 int classId = buf.getInt();
@@ -158,18 +164,13 @@ public class MaterialRegistry {
                 | (Options.materialNoiseWrap[i] << 20);
         buf.putInt(noisePacked);
 
-        // Pack 4: pomPacked0, pomPacked1, pomPacked2, pomDepth
-        // Per-block displacement + height pipeline parameters (bit-packed uint32s + float depth)
+        // Pack 4: displacement/height pipeline parameters (legacy field names on the native side).
         int pp0 = (Options.materialHeightFilter[i] & 0x7)                                // bits 0-2:  heightFilter
-                | ((Options.materialPomMode[i] & 0x7) << 3)                              // bits 3-5:  displacementMethod
+                | ((Options.materialPomMode[i] & 0x3) << 3)                              // bits 3-4:  mode 0=inherit,1=off,2=custom
                 | ((Options.materialHeightSource[i] & 0x7) << 6)                         // bits 6-8:  heightSource
-                | ((Math.min(Options.materialPomSteps[i], 127) & 0x7F) << 9)             // bits 9-15: ddaSteps
-                | ((Options.materialPomRefinement[i] & 0xF) << 16)                       // bits 16-19: ddaRefinement
                 | ((Options.materialFilterRadius[i] & 0xF) << 20)                        // bits 20-23: filterRadius
                 | ((Options.materialMipBias[i] & 0xF) << 24)                             // bits 24-27: mipBias
-                | ((Options.materialPomClipSilhouette[i] ? 1 : 0) << 29)                 // bit 29: clipSilhouette
-                | ((Options.materialPomMotionVectors[i] ? 1 : 0) << 30)                  // bit 30: motionVectors
-                | ((Options.materialPomAreaLightOffset[i] ? 1 : 0) << 31);               // bit 31: areaLightOffset
+                | ((Options.materialDisplacementSelfShadow[i] ? 1 : 0) << 28);           // bit 28: local self-shadow
         buf.putInt(pp0);
 
         int pp1 = (Options.materialNormalClamp[i] & 0xFF)                                // bits 0-7:  normalClamp
@@ -206,8 +207,7 @@ public class MaterialRegistry {
         buf.putInt(255);
         buf.putInt(MaterialBlock.getMaterialClassForOrdinal(i).ordinal());
         int flags = 0;
-        boolean hasLumData = blockLumMax[i] > blockLumMin[i];
-        if (hasLumData && (Options.autoPBREnabled || Options.materialAutoPBR[i])) flags |= 0x8; // bit 3: AutoPBR
+        if (Options.autoPBREnabled || Options.materialAutoPBR[i]) flags |= 0x8; // bit 3: AutoPBR
         int apbFlags = Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
         flags |= (apbFlags & 0x7) << 4; // bits 4-6
         buf.putInt(flags);

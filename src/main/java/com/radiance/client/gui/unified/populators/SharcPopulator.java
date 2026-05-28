@@ -211,6 +211,11 @@ public class SharcPopulator implements ContentPopulator {
         public List<? extends Element> children() {
             return List.of();
         }
+
+        @Override
+        public boolean isGridFullSpan() {
+            return true;
+        }
     }
 
     @Override

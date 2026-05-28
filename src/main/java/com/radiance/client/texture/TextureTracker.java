@@ -2,6 +2,8 @@ package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +23,24 @@ public class TextureTracker {
     public static final int SPRITE_FLAG_SPEC_SOURCE_SHIFT = 3;
     public static final int SPRITE_FLAG_NORMAL_SOURCE_SHIFT = 5;
     public static final int SPRITE_FLAG_SOURCE_MASK = 0x3;
-    public static final int MAX_SPRITES = 2048;
+    public static final int MAX_SPRITES = 4096;
+    public static volatile boolean textureArrayAnimationUpdatesEnabled = false;
+
+    /**
+     * Set texture array animation enabled state and sync to C++.
+     * When disabled (default), vanilla atlas animation ticks are frozen and
+     * C++ texture arrays do not receive animation updates. This prevents
+     * per-tick NativeImage pixel copies + GL upload calls that cause menu
+     * stutter with high-res texture packs.
+     */
+    public static void setTextureArrayAnimationUpdatesEnabled(boolean enabled) {
+        textureArrayAnimationUpdatesEnabled = enabled;
+        try {
+            com.radiance.client.proxy.world.BlockModelBridge.nativeSetTextureArrayAnimationEnabled(enabled);
+        } catch (UnsatisfiedLinkError ignored) {
+            // Native not loaded yet
+        }
+    }
 
     public static Map<Identifier, Integer> textureID2GLID = new ConcurrentHashMap<>();
     public static Map<Integer, Texture> GLID2Texture = new ConcurrentHashMap<>();
@@ -110,8 +129,9 @@ public class TextureTracker {
         pendingMaskGLID.clear();
         hasHeightMap.clear();
         fallbackLumRange.clear();
-        materialBlockAlbedoCache.clear();
-        spriteAlbedoCache.clear();
+        LiveNormalReuploader.cancelPendingReupload();
+        closeAndClearImageCache(materialBlockAlbedoCache);
+        closeAndClearImageCache(spriteAlbedoCache);
         currentSpriteLayerSize = 0;
         albedoGLID2BlockOrdinal.clear();
         autoPBRNormalGLIDs.clear();
@@ -124,6 +144,24 @@ public class TextureTracker {
         packProvidedNormalSpriteIds.clear();
         Arrays.fill(spriteSpecularSource, SOURCE_GENERATED);
         Arrays.fill(spriteNormalSource, SOURCE_GENERATED);
+    }
+
+    public static void clearSpriteAlbedoCache() {
+        LiveNormalReuploader.cancelPendingReupload();
+        closeAndClearImageCache(spriteAlbedoCache);
+    }
+
+    public static void closeAndClearImageCache(Map<Integer, NativeImage> cache) {
+        Set<NativeImage> closed = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (NativeImage image : cache.values()) {
+            if (image == null) continue;
+            if (!closed.add(image)) continue;
+            try {
+                image.close();
+            } catch (Exception ignored) {
+            }
+        }
+        cache.clear();
     }
 
     public static int encodeSpriteSourceFlags(byte specularSource, byte normalSource) {

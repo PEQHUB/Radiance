@@ -42,12 +42,12 @@ import org.slf4j.LoggerFactory;
 public class BlockModelBridge {
     private static final Logger LOGGER = LoggerFactory.getLogger("BlockModelBridge");
     private static boolean uploaded = false;
-    private static boolean biomeTintsUploaded = false;
+    private static volatile boolean biomeTintsUploaded = false;
 
     // Texture generation counter — incremented on each texture atlas reload.
     // Used by ChunkProxy to tag chunk build tasks with the generation they were built for,
     // so the C++ side can detect stale chunks after a resource pack change.
-    private static long activeTextureGeneration = 0;
+    private static volatile long activeTextureGeneration = 0;
 
     public static long getActiveTextureGeneration() {
         return activeTextureGeneration;
@@ -55,6 +55,14 @@ public class BlockModelBridge {
 
     public static void incrementTextureGeneration() {
         activeTextureGeneration++;
+    }
+
+    public static void publishTextureGeneration() {
+        try {
+            nativeSetTextureGeneration(activeTextureGeneration);
+        } catch (UnsatisfiedLinkError e) {
+            LOGGER.debug("[TextureSystem] Native texture generation publish skipped", e);
+        }
     }
 
     // Texture system: sorted sprite identifier list, populated during atlas stitching
@@ -419,7 +427,9 @@ public class BlockModelBridge {
      * Serialize biome tint colors and upload to C++.
      * Must be called when a world is loaded (biome registry available).
      */
-    public static void serializeBiomeTints() {
+    public static synchronized void serializeBiomeTints() {
+        if (biomeTintsUploaded) return;
+
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc.world == null) return;
 
@@ -595,16 +605,20 @@ public class BlockModelBridge {
     public static native void nativeReceiveSpritePixels(long dataPtr, int totalBytes);
     public static native void nativeReceiveAnimationFrames(long dataPtr, int totalBytes);
     public static native void nativeTextureFinalize();
-    public static native void nativeTickAnimation(int gameTick);
+    public static native void nativeSetTextureGeneration(long generation);
+    public static native void nativeTickAnimation(int gameTick, long generation);
+    public static native void nativeSetTextureArrayAnimationEnabled(boolean enabled);
     public static native void nativeReceiveSpriteAuxPixels(
         long specularDataPtr, long normalDataPtr, int totalBytesPerType);
-    public static native void nativeUpdateSpecularLayer(int spriteId, long pixelPtr, int sizeBytes);
-    public static native void nativeUpdateNormalLayer(int spriteId, long pixelPtr, int sizeBytes);
+    public static native void nativeUpdateSpecularLayer(int spriteId, long pixelPtr, int sizeBytes,
+        long generation);
+    public static native void nativeUpdateNormalLayer(int spriteId, long pixelPtr, int sizeBytes,
+        long generation);
 
     /**
      * Called per game tick from BufferProxy. C++ owns animation — just forward the tick.
      */
     public static void updateAnimatedSprites(int animTick) {
-        nativeTickAnimation(animTick);
+        nativeTickAnimation(animTick, getActiveTextureGeneration());
     }
 }

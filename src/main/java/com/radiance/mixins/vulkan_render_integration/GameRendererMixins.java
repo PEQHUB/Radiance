@@ -170,9 +170,11 @@ public class GameRendererMixins implements IGameRendererExt {
             }
         }
 
+        // Render RT world on EVERY frame, not just tick frames.
+        // The tick flag controls game logic (20 TPS), not rendering.
+        // Gating on tick limited RT output to ~10 FPS on 240 Hz.
         RendererProxy.shouldRenderWorld(
-            !this.client.skipGameRender && finishedLoading && tick
-                && client.world != null);
+            !this.client.skipGameRender && finishedLoading && client.world != null);
     }
 
     @Override

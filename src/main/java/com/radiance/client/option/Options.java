@@ -309,7 +309,7 @@ public class Options {
     public static int rayBounces = 12;
     public static boolean ommEnabled = false;
     public static int ommBakerLevel = 4;
-    public static boolean greedyMeshingEnabled = true;
+    public static boolean greedyMeshingEnabled = false;
     public static boolean simplifiedIndirect = false;
     public static boolean noiseLOD = true;  // Noise quality LOD (default ON for performance)
     public static boolean multiScatterGGX = true;  // Kulla-Conty multi-scatter GGX energy compensation
@@ -327,19 +327,31 @@ public class Options {
     // Diagnostics
     public static boolean loggingEnabled = false;
     public static native void nativeSetLoggingEnabled(boolean enabled, boolean write);
+    public static boolean gpuDebugLabels = false;
+    public static native void nativeSetGpuDebugLabels(boolean enabled, boolean write);
 
-    // POM (Parallax Occlusion Mapping)
+    // Material-owned shader displacement. Legacy POM keys are load aliases only.
+    public static final int DISPLACEMENT_QUALITY_LOW = 1;
+    public static final int DISPLACEMENT_QUALITY_BALANCED = 2;
+    public static final int DISPLACEMENT_QUALITY_HIGH = 3;
+    public static final int DISPLACEMENT_QUALITY_ULTRA = 4;
+    public static boolean displacementEnabled = false;
+    public static int displacementDepthCapPercent = 5;  // 1-50, /100 = 0.01-0.50 blocks
+    public static int displacementQuality = DISPLACEMENT_QUALITY_BALANCED;
+    public static int displacementFadeDistance = 64;    // 8-256 blocks
+    public static int displacementSteps = 32;
+    public static int displacementRefinement = 4;
+    // Legacy runtime aliases. Keep in sync for old callers/configs.
     public static boolean pomEnabled = false;
-    public static int pomHeightScalePercent = 5;    // 1-50, /100 = 0.01-0.50
-    public static int pomSteps = 64;                // 8-512
-    public static int pomRefinement = 4;            // 0-8
-    public static int pomFadeDistance = 64;          // 8-256 blocks
-    // Displacement (proper RT displacement, replaces POM)
-    public static int displacementQuality = 0;      // 0=Off, 1=DDA, 2=Tessellation, 3=Hybrid, 4=CLAS
-    public static int tessMaxLevel = 16;             // NxN grid max (2-32)
-    public static int tessNearDist = 32;             // Full tessellation distance (blocks)
-    public static int tessMidDist = 96;              // Half tessellation distance (blocks)
-    public static int tessFarDist = 192;             // Quarter tessellation distance (blocks)
+    public static int pomHeightScalePercent = displacementDepthCapPercent;
+    public static int pomSteps = displacementSteps;
+    public static int pomRefinement = displacementRefinement;
+    public static int pomFadeDistance = displacementFadeDistance;
+    // Legacy tessellation keys are compatibility-only.
+    public static int tessMaxLevel = 16;             // ignored legacy key
+    public static int tessNearDist = 32;             // ignored legacy key
+    public static int tessMidDist = 96;              // ignored legacy key
+    public static int tessFarDist = 192;             // ignored legacy key
     // SER: Shader Execution Reordering — groups threads by material for cache coherence
     // serEnabled: toggle hit-object reordering (requires VK_EXT_ray_tracing_invocation_reorder)
     // serHints: explicit geometry-based coherence hints (additional 10-20% on top of basic SER)
@@ -439,8 +451,8 @@ public class Options {
         // Multi-scatter / EON (default is true)
         if (!multiScatterGGX) count++;
         if (!eonDiffuse) count++;
-        // POM (default disabled)
-        if (pomEnabled) count++;
+        // Material-owned shader displacement (default disabled)
+        if (displacementEnabled) count++;
         // SER (default enabled)
         if (!serEnabled) count++;
         if (!serHintsEnabled) count++;
@@ -1049,7 +1061,7 @@ public class Options {
     public static final int[] materialNoiseContrast = new int[MAX_MATERIALS];     // 0-200 (0.0-2.0)
     public static final int[] materialGamutBoost = new int[MAX_MATERIALS];    // 0-200 (×0.01 = 0.00-2.00 multiplier)
     public static final int[] materialGamutBoostMode = new int[MAX_MATERIALS]; // 0=uniform, 1=saturation-based
-    public static final int[] materialPomDepth = new int[MAX_MATERIALS];     // 0-200 (×0.01 = 0.00-2.00, per-block POM depth, 0=off)
+    public static final int[] materialPomDepth = new int[MAX_MATERIALS];     // 0-200 (×0.01 = 0.00-2.00, per-material displacement depth, 0=inherit/flat)
     public static final int[] materialNormalStrength = new int[MAX_MATERIALS];  // 0-200 (×0.01 = 0.00-2.00 multiplier, 100=neutral)
     public static final int[] materialAutoPBRRoughnessMin = new int[MAX_MATERIALS]; // 0-100, per-block roughness min %
     public static final int[] materialAutoPBRRoughnessMax = new int[MAX_MATERIALS]; // 0-100, per-block roughness max %
@@ -1059,17 +1071,18 @@ public class Options {
     public static final int[] materialAutoPBRFlags = new int[MAX_MATERIALS];           // bit 0=invertRoughness, bit 1=invertNormal, bit 2=invertHeight
 
     // Height filtering
-    public static final int[] materialHeightFilter = new int[MAX_MATERIALS];      // 0=Forward,1=Central,2=Sobel,3=Bilinear,4=Bicubic
+    public static final int[] materialHeightFilter = new int[MAX_MATERIALS];      // Shader displacement: 0=Nearest,1=Bilinear,2=Smooth
     public static final int[] materialFilterRadius = new int[MAX_MATERIALS];      // 0-15 (= 0.5 + val*0.25 texels)
     public static final int[] materialMipBias = new int[MAX_MATERIALS];           // 0-15 (= val*0.2)
 
-    // POM per-block
-    public static final int[] materialPomMode = new int[MAX_MATERIALS];           // 0=Standard,1=Contact,2=Shadow,3=Full
-    public static final int[] materialPomSteps = new int[MAX_MATERIALS];          // 4-128
-    public static final int[] materialPomRefinement = new int[MAX_MATERIALS];     // 0-8
+    // Per-material shader displacement. materialPom* names are legacy storage aliases.
+    public static final int[] materialPomMode = new int[MAX_MATERIALS];           // 0=Inherit,1=Off,2=Custom
+    public static final int[] materialPomSteps = new int[MAX_MATERIALS];          // legacy, ignored by shader budget
+    public static final int[] materialPomRefinement = new int[MAX_MATERIALS];     // legacy, ignored by shader budget
     public static final boolean[] materialPomClipSilhouette = new boolean[MAX_MATERIALS];
     public static final boolean[] materialPomAreaLightOffset = new boolean[MAX_MATERIALS];
     public static final boolean[] materialPomMotionVectors = new boolean[MAX_MATERIALS];
+    public static final boolean[] materialDisplacementSelfShadow = new boolean[MAX_MATERIALS];
 
     // Height field
     public static final int[] materialHeightSource = new int[MAX_MATERIALS];      // 0=Lum,1=R,2=G,3=B,4=Alpha,5=MaxRGB,6=MinRGB,7=Custom
@@ -1083,7 +1096,7 @@ public class Options {
     public static final int[] materialGeometricBlend = new int[MAX_MATERIALS];    // 0-100 (= val/100, 0=no blend)
     public static final int[] materialNormalDistanceFade = new int[MAX_MATERIALS]; // 0-255 blocks (0=disabled)
 
-    // POM interaction
+    // Displacement interaction
     public static final int[] materialPomAOStrength = new int[MAX_MATERIALS];     // 0-100 (= val/100, 0=disabled)
 
     static {
@@ -1111,13 +1124,13 @@ public class Options {
             materialPercentileSpread[i] = 80;
             materialAutoPBRHeightGamma[i] = 100;
             // Height filter defaults
-            materialHeightFilter[i] = 0;     // Forward (current behavior)
+            materialHeightFilter[i] = 0;     // Nearest
             materialFilterRadius[i] = 0;     // 0.5 texels
             materialMipBias[i] = 0;          // no mip bias
-            // POM defaults
-            materialPomMode[i] = 0;          // Standard
-            materialPomSteps[i] = 64;        // 64 steps
-            materialPomRefinement[i] = 4;    // 4 binary refinement iterations
+            // Displacement defaults
+            materialPomMode[i] = 0;          // Inherit global material budget
+            materialPomSteps[i] = 32;        // legacy only
+            materialPomRefinement[i] = 4;    // legacy only
             // materialPomClipSilhouette defaults to false (Java boolean[] init)
             // materialPomAreaLightOffset defaults to false
             // materialPomMotionVectors defaults to false
@@ -1131,7 +1144,7 @@ public class Options {
             materialNormalClamp[i] = 100;    // unclamped
             materialGeometricBlend[i] = 0;   // no blend
             materialNormalDistanceFade[i] = 0; // disabled
-            // POM interaction
+            // Displacement interaction
             materialPomAOStrength[i] = 0;    // disabled
         }
 
@@ -1166,7 +1179,7 @@ public class Options {
             materialNoiseContrast[i] = 100;  // 1.0
             materialGamutBoost[i] = 100;    // 1.0× (neutral)
             materialGamutBoostMode[i] = 1;  // saturation-based
-            materialPomDepth[i] = 0;        // off by default (per-block POM disabled)
+            materialPomDepth[i] = 0;        // inherited by default
             materialNormalStrength[i] = 100; // 1.0× (neutral)
             materialAutoPBRRoughnessMin[i] = 30;  // default roughness min 30%
             materialAutoPBRRoughnessMax[i] = 95;  // default roughness max 95%
@@ -1484,6 +1497,7 @@ public class Options {
                 materialPomClipSilhouette[ci] = materialPomClipSilhouette[parentOrdinal];
                 materialPomAreaLightOffset[ci] = materialPomAreaLightOffset[parentOrdinal];
                 materialPomMotionVectors[ci] = materialPomMotionVectors[parentOrdinal];
+                materialDisplacementSelfShadow[ci] = materialDisplacementSelfShadow[parentOrdinal];
                 materialHeightSource[ci] = materialHeightSource[parentOrdinal];
                 materialHeightContrast[ci] = materialHeightContrast[parentOrdinal];
                 materialHeightRemapMin[ci] = materialHeightRemapMin[parentOrdinal];
@@ -1755,8 +1769,8 @@ public class Options {
             ommBakerLevel = clamp(Integer.parseInt(props.getProperty("ommBakerLevel", String.valueOf(ommBakerLevel))), 1, 8);
             nativeSetOMMBakerLevel(ommBakerLevel, false);
 
-            greedyMeshingEnabled = Boolean.parseBoolean(props.getProperty("greedyMeshingEnabled", String.valueOf(greedyMeshingEnabled)));
-            nativeSetGreedyMeshingEnabled(greedyMeshingEnabled, false);
+            greedyMeshingEnabled = false;
+            nativeSetGreedyMeshingEnabled(false, false);
 
             simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
@@ -1773,21 +1787,27 @@ public class Options {
             windowHeight = Integer.parseInt(props.getProperty("windowHeight", String.valueOf(windowHeight)));
 
             loggingEnabled = Boolean.parseBoolean(props.getProperty("loggingEnabled", String.valueOf(loggingEnabled)));
-            // Don't call nativeSetLoggingEnabled here — C++ not initialized yet. Applied after renderer init.
+            gpuDebugLabels = Boolean.parseBoolean(props.getProperty("gpuDebugLabels", String.valueOf(loggingEnabled)));
+            nativeSetGpuDebugLabels(gpuDebugLabels, false);
+            // Full file logging waits for renderer init, but Vulkan debug labels are safe to arm now.
 
-            pomEnabled = Boolean.parseBoolean(props.getProperty("pomEnabled", String.valueOf(pomEnabled)));
-            nativeSetPOMEnabled(pomEnabled, false);
-            pomHeightScalePercent = clamp(Integer.parseInt(props.getProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent))), 1, 50);
-            nativeSetPOMHeightScale(pomHeightScalePercent / 100.0f, false);
-            pomSteps = clamp(Integer.parseInt(props.getProperty("pomSteps", String.valueOf(pomSteps))), 8, 512);
-            nativeSetPOMSteps(pomSteps, false);
-            pomRefinement = clamp(Integer.parseInt(props.getProperty("pomRefinement", String.valueOf(pomRefinement))), 0, 8);
-            nativeSetPOMRefinement(pomRefinement, false);
-            pomFadeDistance = clamp(Integer.parseInt(props.getProperty("pomFadeDistance", String.valueOf(pomFadeDistance))), 8, 256);
-            nativeSetPOMFadeDistance((float) pomFadeDistance, false);
-
-            displacementQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))), 0, 4);
-            nativeSetDisplacementQuality(displacementQuality, false);
+            boolean hasCanonicalDisplacement = props.containsKey("displacementEnabled");
+            boolean hasDisplacementQualityKey = props.containsKey("displacementQuality");
+            int loadedQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))), 0, DISPLACEMENT_QUALITY_ULTRA);
+            displacementEnabled = Boolean.parseBoolean(props.getProperty(
+                "displacementEnabled", props.getProperty("pomEnabled", String.valueOf(displacementEnabled))));
+            displacementDepthCapPercent = clamp(Integer.parseInt(props.getProperty(
+                "displacementDepthCapPercent", props.getProperty("pomHeightScalePercent", String.valueOf(displacementDepthCapPercent)))), 1, 50);
+            displacementFadeDistance = clamp(Integer.parseInt(props.getProperty(
+                "displacementFadeDistance", props.getProperty("pomFadeDistance", String.valueOf(displacementFadeDistance)))), 8, 256);
+            if (!hasCanonicalDisplacement && hasDisplacementQualityKey && loadedQuality > 0) {
+                displacementEnabled = true;
+                displacementQuality = DISPLACEMENT_QUALITY_BALANCED;
+            } else if (loadedQuality > 0) {
+                displacementQuality = loadedQuality;
+            }
+            applyDisplacementQualityPreset(displacementQuality);
+            syncDisplacementNative(false);
             tessMaxLevel = clamp(Integer.parseInt(props.getProperty("tessMaxLevel", String.valueOf(tessMaxLevel))), 2, 32);
             nativeSetTessMaxLevel(tessMaxLevel, false);
             tessNearDist = clamp(Integer.parseInt(props.getProperty("tessNearDist", String.valueOf(tessNearDist))), 8, 256);
@@ -1982,7 +2002,12 @@ public class Options {
                 materialNoiseContrast[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseContrast." + pid, "100")), 0, 200);
                 materialGamutBoost[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]))), 0, 200);
                 materialGamutBoostMode[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoostMode." + pid, String.valueOf(materialGamutBoostMode[i]))), 0, 1);
-                materialPomDepth[i] = clamp(Integer.parseInt(props.getProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]))), 0, 200);
+                String displacementDepthKey = "materialDisplacementDepth." + pid;
+                String legacyPomDepthKey = "materialPomDepth." + pid;
+                boolean hasCanonicalDisplacementMode = props.containsKey("materialDisplacementMode." + pid);
+                boolean hasCanonicalDisplacementDepth = props.containsKey(displacementDepthKey);
+                materialPomDepth[i] = clamp(Integer.parseInt(props.getProperty(
+                    displacementDepthKey, props.getProperty(legacyPomDepthKey, String.valueOf(materialPomDepth[i])))), 0, 200);
                 materialNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]))), 0, 200);
                 materialAutoPBRRoughnessMin[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]))), 0, 100);
                 materialAutoPBRRoughnessMax[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]))), 0, 100);
@@ -1998,12 +2023,19 @@ public class Options {
                 materialHeightFilter[i] = clamp(Integer.parseInt(props.getProperty("materialHeightFilter." + pid, "0")), 0, 4);
                 materialFilterRadius[i] = clamp(Integer.parseInt(props.getProperty("materialFilterRadius." + pid, "0")), 0, 15);
                 materialMipBias[i] = clamp(Integer.parseInt(props.getProperty("materialMipBias." + pid, "0")), 0, 15);
-                materialPomMode[i] = clamp(Integer.parseInt(props.getProperty("materialPomMode." + pid, "0")), 0, 3);
+                materialPomMode[i] = clamp(Integer.parseInt(props.getProperty(
+                    "materialDisplacementMode." + pid, "0")), 0, 2);
+                if (!hasCanonicalDisplacementMode && !hasCanonicalDisplacementDepth && props.containsKey(legacyPomDepthKey) && materialPomDepth[i] > 0) {
+                    materialPomMode[i] = 2;
+                }
                 materialPomSteps[i] = clamp(Integer.parseInt(props.getProperty("materialPomSteps." + pid, "64")), 4, 128);
                 materialPomRefinement[i] = clamp(Integer.parseInt(props.getProperty("materialPomRefinement." + pid, "4")), 0, 8);
                 materialPomClipSilhouette[i] = Boolean.parseBoolean(props.getProperty("materialPomClipSilhouette." + pid, "false"));
                 materialPomAreaLightOffset[i] = Boolean.parseBoolean(props.getProperty("materialPomAreaLightOffset." + pid, "false"));
                 materialPomMotionVectors[i] = Boolean.parseBoolean(props.getProperty("materialPomMotionVectors." + pid, "false"));
+                materialDisplacementSelfShadow[i] = Boolean.parseBoolean(props.getProperty(
+                    "materialDisplacementSelfShadow." + pid,
+                    props.getProperty("materialPomSelfShadow." + pid, props.getProperty("materialPomAreaLightOffset." + pid, "false"))));
                 materialHeightSource[i] = clamp(Integer.parseInt(props.getProperty("materialHeightSource." + pid, "0")), 0, 7);
                 materialHeightContrast[i] = clamp(Integer.parseInt(props.getProperty("materialHeightContrast." + pid, "10")), 0, 30);
                 materialHeightRemapMin[i] = clamp(Integer.parseInt(props.getProperty("materialHeightRemapMin." + pid, "0")), 0, 100);
@@ -2390,16 +2422,11 @@ public class Options {
         props.setProperty("windowWidth", String.valueOf(windowWidth));
         props.setProperty("windowHeight", String.valueOf(windowHeight));
         props.setProperty("loggingEnabled", String.valueOf(loggingEnabled));
-        props.setProperty("pomEnabled", String.valueOf(pomEnabled));
-        props.setProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent));
-        props.setProperty("pomSteps", String.valueOf(pomSteps));
-        props.setProperty("pomRefinement", String.valueOf(pomRefinement));
-        props.setProperty("pomFadeDistance", String.valueOf(pomFadeDistance));
+        props.setProperty("gpuDebugLabels", String.valueOf(gpuDebugLabels));
+        props.setProperty("displacementEnabled", String.valueOf(displacementEnabled));
+        props.setProperty("displacementDepthCapPercent", String.valueOf(displacementDepthCapPercent));
         props.setProperty("displacementQuality", String.valueOf(displacementQuality));
-        props.setProperty("tessMaxLevel", String.valueOf(tessMaxLevel));
-        props.setProperty("tessNearDist", String.valueOf(tessNearDist));
-        props.setProperty("tessMidDist", String.valueOf(tessMidDist));
-        props.setProperty("tessFarDist", String.valueOf(tessFarDist));
+        props.setProperty("displacementFadeDistance", String.valueOf(displacementFadeDistance));
         props.setProperty("serEnabled", String.valueOf(serEnabled));
         props.setProperty("serHintsEnabled", String.valueOf(serHintsEnabled));
         props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
@@ -2500,7 +2527,8 @@ public class Options {
             props.setProperty("materialNoiseContrast." + pid, String.valueOf(materialNoiseContrast[i]));
             props.setProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]));
             props.setProperty("materialGamutBoostMode." + pid, String.valueOf(materialGamutBoostMode[i]));
-            props.setProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]));
+            props.setProperty("materialDisplacementMode." + pid, String.valueOf(materialPomMode[i]));
+            props.setProperty("materialDisplacementDepth." + pid, String.valueOf(materialPomDepth[i]));
             props.setProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]));
             props.setProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]));
             props.setProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]));
@@ -2520,12 +2548,7 @@ public class Options {
             props.setProperty("materialHeightFilter." + pid, String.valueOf(materialHeightFilter[i]));
             props.setProperty("materialFilterRadius." + pid, String.valueOf(materialFilterRadius[i]));
             props.setProperty("materialMipBias." + pid, String.valueOf(materialMipBias[i]));
-            props.setProperty("materialPomMode." + pid, String.valueOf(materialPomMode[i]));
-            props.setProperty("materialPomSteps." + pid, String.valueOf(materialPomSteps[i]));
-            props.setProperty("materialPomRefinement." + pid, String.valueOf(materialPomRefinement[i]));
-            props.setProperty("materialPomClipSilhouette." + pid, String.valueOf(materialPomClipSilhouette[i]));
-            props.setProperty("materialPomAreaLightOffset." + pid, String.valueOf(materialPomAreaLightOffset[i]));
-            props.setProperty("materialPomMotionVectors." + pid, String.valueOf(materialPomMotionVectors[i]));
+            props.setProperty("materialDisplacementSelfShadow." + pid, String.valueOf(materialDisplacementSelfShadow[i]));
             props.setProperty("materialHeightSource." + pid, String.valueOf(materialHeightSource[i]));
             props.setProperty("materialHeightContrast." + pid, String.valueOf(materialHeightContrast[i]));
             props.setProperty("materialHeightRemapMin." + pid, String.valueOf(materialHeightRemapMin[i]));
@@ -3455,7 +3478,7 @@ public class Options {
         rayBounces = 16;
         ommEnabled = false;
         ommBakerLevel = 4;
-        greedyMeshingEnabled = true;
+        greedyMeshingEnabled = false;
         simplifiedIndirect = false;
         sharcEnabled = true;
         sharcSceneScaleTenths = 40;
@@ -3956,8 +3979,8 @@ public class Options {
     public native static void nativeSetGreedyMeshingEnabled(boolean enabled, boolean write);
 
     public static void setGreedyMeshingEnabled(boolean enabled, boolean write) {
-        Options.greedyMeshingEnabled = enabled;
-        nativeSetGreedyMeshingEnabled(enabled, write);
+        Options.greedyMeshingEnabled = false;
+        nativeSetGreedyMeshingEnabled(false, write);
         if (write) {
             overwriteConfig();
         }
@@ -4018,52 +4041,112 @@ public class Options {
         }
     }
 
-    // --- POM (Parallax Occlusion Mapping) ---
+    // --- Material-owned shader displacement ---
     public native static void nativeSetPOMEnabled(boolean enabled, boolean write);
     public native static void nativeSetPOMHeightScale(float scale, boolean write);
     public native static void nativeSetPOMSteps(int steps, boolean write);
     public native static void nativeSetPOMRefinement(int refinement, boolean write);
     public native static void nativeSetPOMFadeDistance(float distance, boolean write);
+    public native static void nativeSetDisplacementQuality(int quality, boolean write);
+
+    private static void applyDisplacementQualityPreset(int quality) {
+        Options.displacementQuality = clamp(quality, DISPLACEMENT_QUALITY_LOW, DISPLACEMENT_QUALITY_ULTRA);
+        switch (Options.displacementQuality) {
+            case DISPLACEMENT_QUALITY_LOW -> {
+                Options.displacementSteps = 16;
+                Options.displacementRefinement = 2;
+            }
+            case DISPLACEMENT_QUALITY_HIGH -> {
+                Options.displacementSteps = 64;
+                Options.displacementRefinement = 5;
+            }
+            case DISPLACEMENT_QUALITY_ULTRA -> {
+                Options.displacementSteps = 96;
+                Options.displacementRefinement = 6;
+            }
+            default -> {
+                Options.displacementQuality = DISPLACEMENT_QUALITY_BALANCED;
+                Options.displacementSteps = 32;
+                Options.displacementRefinement = 4;
+            }
+        }
+        Options.pomSteps = Options.displacementSteps;
+        Options.pomRefinement = Options.displacementRefinement;
+    }
+
+    public static String displacementQualityName(int quality) {
+        return switch (clamp(quality, DISPLACEMENT_QUALITY_LOW, DISPLACEMENT_QUALITY_ULTRA)) {
+            case DISPLACEMENT_QUALITY_LOW -> "Low";
+            case DISPLACEMENT_QUALITY_HIGH -> "High";
+            case DISPLACEMENT_QUALITY_ULTRA -> "Ultra";
+            default -> "Balanced";
+        };
+    }
+
+    private static void syncDisplacementNative(boolean write) {
+        Options.pomEnabled = Options.displacementEnabled;
+        Options.pomHeightScalePercent = Options.displacementDepthCapPercent;
+        Options.pomFadeDistance = Options.displacementFadeDistance;
+        nativeSetPOMEnabled(Options.displacementEnabled, write);
+        nativeSetPOMHeightScale(Options.displacementDepthCapPercent / 100.0f, false);
+        nativeSetPOMSteps(Options.displacementSteps, false);
+        nativeSetPOMRefinement(Options.displacementRefinement, false);
+        nativeSetPOMFadeDistance((float) Options.displacementFadeDistance, false);
+        nativeSetDisplacementQuality(Options.displacementQuality, false);
+    }
+
+    public static void setDisplacementEnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("displacementEnabled=" + enabled);
+        Options.displacementEnabled = enabled;
+        syncDisplacementNative(write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setDisplacementDepthCapPercent(int percent, boolean write) {
+        Options.displacementDepthCapPercent = clamp(percent, 1, 50);
+        com.radiance.client.debug.CrashContext.recordChange("displacementDepthCapPercent=" + Options.displacementDepthCapPercent);
+        syncDisplacementNative(false);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setDisplacementQuality(int quality, boolean write) {
+        applyDisplacementQualityPreset(quality);
+        com.radiance.client.debug.CrashContext.recordChange("displacementQuality=" + Options.displacementQuality);
+        syncDisplacementNative(false);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setDisplacementFadeDistance(int distance, boolean write) {
+        Options.displacementFadeDistance = clamp(distance, 8, 256);
+        com.radiance.client.debug.CrashContext.recordChange("displacementFadeDistance=" + Options.displacementFadeDistance);
+        syncDisplacementNative(false);
+        if (write) { overwriteConfig(); }
+    }
 
     public static void setPOMEnabled(boolean enabled, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("pomEnabled=" + enabled);
-        Options.pomEnabled = enabled;
-        nativeSetPOMEnabled(enabled, write);
-        if (write) { overwriteConfig(); }
+        setDisplacementEnabled(enabled, write);
     }
 
     public static void setPOMHeightScalePercent(int percent, boolean write) {
-        Options.pomHeightScalePercent = Math.max(1, Math.min(50, percent));
-        nativeSetPOMHeightScale(Options.pomHeightScalePercent / 100.0f, write);
-        if (write) { overwriteConfig(); }
+        setDisplacementDepthCapPercent(percent, write);
     }
 
     public static void setPOMSteps(int steps, boolean write) {
-        Options.pomSteps = Math.max(8, Math.min(512, steps));
+        Options.displacementSteps = clamp(steps, 8, 512);
+        Options.pomSteps = Options.displacementSteps;
         nativeSetPOMSteps(Options.pomSteps, write);
         if (write) { overwriteConfig(); }
     }
 
     public static void setPOMRefinement(int refinement, boolean write) {
-        Options.pomRefinement = Math.max(0, Math.min(8, refinement));
+        Options.displacementRefinement = clamp(refinement, 0, 8);
+        Options.pomRefinement = Options.displacementRefinement;
         nativeSetPOMRefinement(Options.pomRefinement, write);
         if (write) { overwriteConfig(); }
     }
 
     public static void setPOMFadeDistance(int distance, boolean write) {
-        Options.pomFadeDistance = Math.max(8, Math.min(256, distance));
-        nativeSetPOMFadeDistance((float) Options.pomFadeDistance, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    // --- Displacement ---
-    public native static void nativeSetDisplacementQuality(int quality, boolean write);
-
-    public static void setDisplacementQuality(int quality, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("displacementQuality=" + quality);
-        Options.displacementQuality = Math.max(0, Math.min(4, quality));
-        nativeSetDisplacementQuality(Options.displacementQuality, write);
-        if (write) { overwriteConfig(); }
+        setDisplacementFadeDistance(distance, write);
     }
 
     public native static void nativeSetTessMaxLevel(int v, boolean write);
@@ -4533,11 +4616,20 @@ public class Options {
         if (write) overwriteConfig();
     }
 
+    public static void setGpuDebugLabels(boolean enabled, boolean write) {
+        Options.gpuDebugLabels = enabled;
+        nativeSetGpuDebugLabels(enabled, write);
+        if (write) overwriteConfig();
+    }
+
     /** Apply deferred settings that require renderer to be initialized. */
     public static void applyDeferredSettings() {
         if (loggingEnabled) {
             nativeSetLoggingEnabled(true, false);
             com.radiance.client.debug.RadianceLogger.setEnabled(true);
+        }
+        if (gpuDebugLabels) {
+            nativeSetGpuDebugLabels(true, false);
         }
     }
 

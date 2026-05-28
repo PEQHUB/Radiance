@@ -84,8 +84,9 @@ public class ContentPanelWidget extends ClickableWidget {
     /** Total height of all sections content. */
     private int totalContentHeight() {
         int total = contentPadding;
+        int contentWidth = getWidth() - contentPadding * 2;
         for (SettingsSection section : sections) {
-            total += section.getHeight() + 4; // 4px gap between sections
+            total += section.getHeight(contentWidth) + 4; // 4px gap between sections
         }
         return total + contentPadding;
     }
@@ -145,9 +146,11 @@ public class ContentPanelWidget extends ClickableWidget {
         context.enableScissor(panelLeft, panelTop, panelRight, panelBottom);
 
         // Render sections
+        int contentX = panelLeft + contentPadding;
+        int contentWidth = getWidth() - contentPadding * 2;
         int drawY = panelTop + contentPadding - (int) scrollDisplay;
         for (SettingsSection section : sections) {
-            int sectionHeight = section.getHeight();
+            int sectionHeight = section.getHeight(contentWidth);
 
             // Skip if entirely off-screen
             if (drawY + sectionHeight < panelTop - 20) {
@@ -166,10 +169,11 @@ public class ContentPanelWidget extends ClickableWidget {
             if (combinedAlpha > 0.005f) {
                 // Subtle section backdrop (lighter than panel bg for depth)
                 int backdropColor = RadianceTheme.withAlpha(0x141418, 0.4f * combinedAlpha);
-                context.fill(panelLeft + 2, drawY - 1, panelRight - 2, drawY + sectionHeight + 1, backdropColor);
+                int visualWidth = section.getVisualWidth(contentWidth);
+                context.fill(contentX, drawY - 1, contentX + visualWidth, drawY + sectionHeight + 1, backdropColor);
 
-                section.render(context, panelLeft + contentPadding, drawY,
-                    getWidth() - contentPadding * 2, mouseX, mouseY, delta, combinedAlpha);
+                section.render(context, contentX, drawY,
+                    contentWidth, mouseX, mouseY, delta, combinedAlpha);
             }
 
             drawY += sectionHeight + 4;
@@ -230,12 +234,13 @@ public class ContentPanelWidget extends ClickableWidget {
         }
 
         clickedSection = null;
+        int contentWidth = getWidth() - contentPadding * 2;
         int drawY = getY() + contentPadding - (int) scrollDisplay;
         for (SettingsSection section : sections) {
-            int sectionHeight = section.getHeight();
+            int sectionHeight = section.getHeight(contentWidth);
             if (mouseY >= drawY && mouseY < drawY + sectionHeight) {
                 if (section.mouseClicked(mouseX, mouseY, button,
-                        getX() + contentPadding, drawY, getWidth() - contentPadding * 2)) {
+                        getX() + contentPadding, drawY, contentWidth)) {
                     clickedSection = section;
                     return true;
                 }

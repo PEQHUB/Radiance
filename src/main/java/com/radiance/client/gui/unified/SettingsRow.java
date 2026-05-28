@@ -50,6 +50,15 @@ public abstract class SettingsRow {
         return ROW_HEIGHT;
     }
 
+    /**
+     * Whether this row should occupy the full section content width when the
+     * parent section is using grid layout. Dense tables and long diagnostic rows
+     * use this to stay readable inside otherwise grid-based pages.
+     */
+    public boolean isGridFullSpan() {
+        return false;
+    }
+
     /** Return all interactive child widgets (for focus/click delegation). */
     public abstract List<? extends Element> children();
 

@@ -4,15 +4,17 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.mojang.serialization.Codec;
 import com.radiance.client.gui.ResettableSliderWidget;
-import com.radiance.client.gui.SelectionDropdownWidget;
-import com.radiance.client.gui.unified.*;
+import com.radiance.client.gui.unified.ContentPanelWidget;
+import com.radiance.client.gui.unified.ContentPopulator;
+import com.radiance.client.gui.unified.RadianceUnifiedScreen;
+import com.radiance.client.gui.unified.SettingsSection;
+import com.radiance.client.gui.unified.UnifiedSearchOverlay;
 import com.radiance.client.option.Options;
+import java.util.List;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.option.SimpleOption;
 import net.minecraft.text.Text;
-
-import java.util.List;
 
 public class PerformancePopulator implements ContentPopulator {
     @Override
@@ -20,10 +22,8 @@ public class PerformancePopulator implements ContentPopulator {
         var mc = MinecraftClient.getInstance();
         var gameOptions = mc.options;
 
-        // ── Frame Pacing ──
         SettingsSection pacing = panel.addSection("Frame Pacing");
 
-        // VSync (always available — not gated behind Reflex)
         SimpleOption<Boolean> vsyncToggle = SimpleOption.ofBoolean(
             Options.VSYNC_KEY, Options.vsync,
             value -> {
@@ -32,14 +32,14 @@ public class PerformancePopulator implements ContentPopulator {
             });
 
         if (Options.isReflexSupported()) {
-            // Reflex toggle paired with VSync
             boolean fgForced = Options.frameGenMode != 0;
             if (fgForced) {
                 ButtonWidget reflexLocked = ButtonWidget.builder(
                     Text.literal("Reflex: Locked (FG)"), btn -> {})
                     .width(150).build();
                 reflexLocked.active = false;
-                pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexLocked);
+                pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexLocked)
+                      .tooltip("Locked by the upscaling page while generated frames are active.");
             } else {
                 SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
                     Options.REFLEX_ENABLED_KEY, Options.reflexEnabled,
@@ -50,11 +50,9 @@ public class PerformancePopulator implements ContentPopulator {
                 pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexEnabled.createWidget(gameOptions));
             }
         } else {
-            // No Reflex hardware — VSync solo
             pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), null);
         }
 
-        // FPS Limit (always available — not gated behind Reflex)
         pacing.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 999, Options.maxFps, 0,
             v -> getGenericValueText(Text.translatable(Options.MAX_FPS_KEY),
@@ -73,52 +71,8 @@ public class PerformancePopulator implements ContentPopulator {
             }).width(150).build();
         pacing.addButton(vrrButton);
 
-        // ── Frame Generation ──
-        if (Options.isFrameGenSupported()) {
-            SettingsSection fg = panel.addSection("Frame Generation");
-
-            String[] fgModeNames = {"Off", "On", "Auto"};
-            SelectionDropdownWidget fgModeDropdown = new SelectionDropdownWidget(
-                0, 0, 150, 20, "Frame Generation",
-                fgModeNames, Options.frameGenMode, value -> {
-                    Options.setFrameGenMode(value, true);
-                    screen.refreshContent();
-                });
-
-            int maxMulti = Options.getFrameGenMaxMultiplier();
-            if (Options.frameGenMode == 1 && maxMulti > 1) {
-                String[] multiNames = new String[maxMulti];
-                for (int i = 0; i < maxMulti; i++) multiNames[i] = (i + 2) + "x";
-                SelectionDropdownWidget fgMultiDropdown = new SelectionDropdownWidget(
-                    0, 0, 150, 20, "FG Multiplier",
-                    multiNames, Options.frameGenMultiplier - 1, value -> {
-                        Options.setFrameGenMultiplier(value + 1, true);
-                    });
-                fg.addTwoWidgets(fgModeDropdown, fgMultiDropdown)
-                  .tooltip("Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
-            } else {
-                fg.addTwoWidgets(fgModeDropdown, null)
-                  .tooltip(Options.frameGenMode == 2
-                      ? "Auto: dynamically varies frame generation multiplier based on scene load."
-                      : "Generates interpolated frames between real renders. Requires Reflex for frame pacing.");
-            }
-        }
-
-        // ── Render Distance ──
         SettingsSection renderDist = panel.addSection("Render Distance");
 
-        // Extended Render Distance — the headline feature
-        SimpleOption<Integer> extendedRD = new SimpleOption<>(
-            Options.EXTENDED_RENDER_DISTANCE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(value == 0 ? "Off" : "+" + value + " chunks")),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 512),
-            Codec.intRange(0, 512),
-            Options.extendedRenderDistance,
-            value -> Options.setExtendedRenderDistance(value, true));
-
-        // Cull distance — max visibility in chunks
         SimpleOption<Integer> chunkCullDistance = new SimpleOption<>(
             Options.CHUNK_CULL_DISTANCE_KEY,
             SimpleOption.emptyTooltip(),
@@ -129,10 +83,9 @@ public class PerformancePopulator implements ContentPopulator {
             Options.chunkCullDistance,
             value -> Options.setChunkCullDistance(value, true));
 
-        renderDist.addTwoWidgets(extendedRD.createWidget(gameOptions), chunkCullDistance.createWidget(gameOptions))
-            .tooltip("Extended RD loads extra chunks from disk beyond Java's render distance (singleplayer only). Cull Distance controls maximum visibility.");
+        renderDist.addTwoWidgets(chunkCullDistance.createWidget(gameOptions), null)
+            .tooltip("Cull Distance controls maximum ray-traced chunk visibility.");
 
-        // LOD distance — compact vertex threshold
         SimpleOption<Integer> chunkLodDistance = new SimpleOption<>(
             Options.CHUNK_LOD_DISTANCE_KEY,
             SimpleOption.emptyTooltip(),
@@ -144,9 +97,8 @@ public class PerformancePopulator implements ContentPopulator {
             value -> Options.setChunkLodDistance(value, true));
 
         renderDist.addTwoWidgets(chunkLodDistance.createWidget(gameOptions), null)
-            .tooltip("Chunks beyond this distance use compact 32-byte vertices (saves ~67% VRAM). 0 = all full quality.");
+            .tooltip("Chunks beyond this distance use compact 32-byte vertices. 0 = all full quality.");
 
-        // ── Chunk Building ──
         SettingsSection terrain = panel.addSection("Chunk Building");
 
         SimpleOption<Integer> chunkBatchSize = new SimpleOption<>(
@@ -177,9 +129,6 @@ public class PerformancePopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Reflex", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("FPS Limit", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Auto VRR Cap", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Frame Generation", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("FG Multiplier", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Extended Render Distance", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Chunk Cull Distance", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Chunk LOD Distance", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Chunk Batch Size", category, nodeId, false),

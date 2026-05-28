@@ -108,14 +108,17 @@ public class SelectionDropdownWidget extends ClickableWidget {
         context.drawBorder(x, y, w, h, borderColor);
 
         var tr = MinecraftClient.getInstance().textRenderer;
-        String display = label + ": " + options[selectedIndex];
         int textX = x + 6;
         int textY = y + (h - 8) / 2;
-        RadianceTheme.drawOutlinedText(context, tr, Text.literal(display), textX, textY,
+        String arrow = open ? "\u25B2" : "\u25BC";
+        int arrowW = tr.getWidth(arrow);
+        int arrowX = x + w - arrowW - 6;
+        Text display = RadianceTheme.trimText(tr, Text.literal(label + ": " + options[selectedIndex]),
+            Math.max(24, arrowX - textX - 4));
+        RadianceTheme.drawOutlinedText(context, tr, display, textX, textY,
                 RadianceTheme.textPrimary, alphaMult);
 
-        String arrow = open ? "\u25B2" : "\u25BC";
-        RadianceTheme.drawOutlinedText(context, tr, Text.literal(arrow), x + w - 10, textY,
+        RadianceTheme.drawOutlinedText(context, tr, Text.literal(arrow), arrowX, textY,
                 RadianceTheme.textSecondary, alphaMult);
     }
 
