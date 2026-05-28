@@ -151,10 +151,15 @@ public final class DebugRuntimeSampler {
             DebugRuntimeDiagnostics.toast(client, "Radiance debug task already running: " + status);
             return;
         }
-        status = "Writing Nsight capture context";
+        status = "Closing menu for Nsight capture context";
         DebugRuntimeDiagnostics.toast(client, "Radiance: " + status);
+        if (client.currentScreen != null) {
+            client.setScreen(null);
+        }
         EXECUTOR.submit(() -> {
             try {
+                waitForGameplayCaptureSurface(client);
+                status = "Writing Nsight capture context";
                 JsonObject response = requestBridgeCaptureContext();
                 Path responsePath = writeNsightCaptureResponse(response);
                 lastNsightCaptureResponsePath = responsePath;
@@ -174,6 +179,33 @@ public final class DebugRuntimeSampler {
                 BUSY.set(false);
             }
         });
+    }
+
+    private static void waitForGameplayCaptureSurface(MinecraftClient client) throws IOException {
+        long deadline = System.nanoTime() + 5_000_000_000L;
+        while (System.nanoTime() < deadline) {
+            boolean ready = client.world != null
+                && client.player != null
+                && client.currentScreen == null
+                && client.getWindow().getFramebufferWidth() > 0
+                && client.getWindow().getFramebufferHeight() > 0;
+            if (ready) {
+                try {
+                    Thread.sleep(750);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting for gameplay capture surface", e);
+                }
+                return;
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Interrupted while waiting for gameplay capture surface", e);
+            }
+        }
+        throw new IOException("Gameplay did not resume before captureContext timeout");
     }
 
     private static Path captureGpuProfile(int samples) throws IOException {

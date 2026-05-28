@@ -97,7 +97,7 @@ public class DebugPopulator implements ContentPopulator {
         capture.addButton(button("Write Debug Bundle", () -> DebugRuntimeSampler.writeDebugBundleAsync(mc)))
             .tooltip("Builds a zip with current diagnostics and key logs in the background.");
         capture.addButton(button("Write Nsight Context", () -> DebugRuntimeSampler.writeNsightCaptureContextAsync(mc)))
-            .tooltip("Asks DebugBridge to write an Nsight capture manifest under C:\\RadSER\\results\\nsight.");
+            .tooltip("Closes this menu, then asks DebugBridge to write an Nsight capture manifest under C:\\RadSER\\results\\nsight.");
 
         SettingsSection logging = panel.addSection("Logging").setLinear();
         var gameOptions = mc.options;
