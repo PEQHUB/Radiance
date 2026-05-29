@@ -282,6 +282,7 @@ public class Options {
     public static final String RESTIR_SIMPLIFIED_BRDF_KEY = "options.video.restir_simplified_brdf";
     public static final String RESTIR_SPATIAL_ENABLED_KEY = "options.video.restir_spatial_enabled";
     public static final String RESTIR_BOUNCE_ENABLED_KEY = "options.video.restir_bounce_enabled";
+    public static final String DIRECT_LIGHT_BACKEND_KEY = "options.video.direct_light_backend";
     public static final String CATEGORY_RESTIR_PERFORMANCE = "options.video.category.restir_performance";
 
     // Terrain
@@ -597,6 +598,8 @@ public class Options {
     public static boolean restirSimplifiedBRDF = false;   // Lambertian instead of Disney for area lights
     public static boolean restirSpatialEnabled = false;   // Spatial reuse compute pass (disabled — degrades quality)
     public static boolean restirBounceEnabled = false;    // ReSTIR on indirect bounces (1-3)
+    public static int directLightBackend = 0;              // 0=Legacy, 1=UpstreamReSTIR, 2=RTXDI
+    public static final String[] DIRECT_LIGHT_BACKEND_NAMES = {"Legacy", "Upstream ReSTIR", "RTXDI"};
     public static final int[] areaLightBlockIntensity = new int[AREA_LIGHT_TYPE_COUNT]; // 0-500%, default 100
     public static final int[] areaLightBlockScale = new int[AREA_LIGHT_TYPE_COUNT];     // 10-500%, default 100
     public static final int[] areaLightBlockYOffset = new int[AREA_LIGHT_TYPE_COUNT];   // -50 to +50 centi-blocks, default 0
@@ -1896,6 +1899,9 @@ public class Options {
             restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled)));
             nativeSetRestirBounceEnabled(restirBounceEnabled, false);
 
+            directLightBackend = clamp(Integer.parseInt(props.getProperty("directLightBackend", String.valueOf(directLightBackend))), 0, 2);
+            nativeSetDirectLightBackend(directLightBackend, false);
+
             beerLawShadows = Boolean.parseBoolean(props.getProperty("beerLawShadows", String.valueOf(beerLawShadows)));
             noEmissionClamp = Boolean.parseBoolean(props.getProperty("noEmissionClamp", String.valueOf(noEmissionClamp)));
             physicalSunDisk = Boolean.parseBoolean(props.getProperty("physicalSunDisk", String.valueOf(physicalSunDisk)));
@@ -2459,6 +2465,7 @@ public class Options {
         props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
         props.setProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled));
         props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
+        props.setProperty("directLightBackend", String.valueOf(directLightBackend));
         props.setProperty("beerLawShadows", String.valueOf(beerLawShadows));
         props.setProperty("noEmissionClamp", String.valueOf(noEmissionClamp));
         props.setProperty("physicalSunDisk", String.valueOf(physicalSunDisk));
@@ -3660,6 +3667,7 @@ public class Options {
         nativeSetRestirSimplifiedBRDF(restirSimplifiedBRDF, false);
         nativeSetRestirSpatialEnabled(restirSpatialEnabled, false);
         nativeSetRestirBounceEnabled(restirBounceEnabled, false);
+        nativeSetDirectLightBackend(directLightBackend, false);
         for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
             nativeSetAreaLightBlockIntensity(i, areaLightBlockIntensity[i] / 100.0f);
             nativeSetAreaLightBlockScale(i, areaLightBlockScale[i] / 100.0f);
@@ -4611,6 +4619,14 @@ public class Options {
     public static void setRestirBounceEnabled(boolean enabled, boolean write) {
         Options.restirBounceEnabled = enabled;
         nativeSetRestirBounceEnabled(enabled, write);
+        if (write) overwriteConfig();
+    }
+
+    public native static void nativeSetDirectLightBackend(int backend, boolean write);
+
+    public static void setDirectLightBackend(int backend, boolean write) {
+        Options.directLightBackend = Math.max(0, Math.min(2, backend));
+        nativeSetDirectLightBackend(Options.directLightBackend, write);
         if (write) overwriteConfig();
     }
 

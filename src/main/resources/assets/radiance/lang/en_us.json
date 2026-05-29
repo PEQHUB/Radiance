@@ -387,6 +387,7 @@
   ,"options.video.restir_simplified_brdf": "Simplified BRDF"
   ,"options.video.restir_spatial_enabled": "Spatial Reuse"
   ,"options.video.restir_bounce_enabled": "Bounce ReSTIR"
+  ,"options.video.direct_light_backend": "Direct Light Backend"
   ,"radiance.settings.area_lights.title": "Area Light Settings (Experimental)"
   ,"options.video.area_light.global_category": "Global Controls"
   ,"options.video.area_light.per_block_category": "Per-Block Settings"

@@ -4,6 +4,7 @@ import com.radiance.client.debug.DebugInspectReporter;
 import com.radiance.client.debug.DebugRuntimeDiagnostics;
 import com.radiance.client.debug.DebugRuntimeSampler;
 import com.radiance.client.gui.KeyBindButton;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.ContentPanelWidget;
 import com.radiance.client.gui.unified.ContentPopulator;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
@@ -122,6 +123,8 @@ public class DebugPopulator implements ContentPopulator {
         profiler.addInfo("Last GPU Profile", last == null ? "None" : last.toString());
         Path lastSharcProbe = DebugRuntimeSampler.lastSharcProbePath();
         profiler.addInfo("Last SHARC Probe", lastSharcProbe == null ? "None" : lastSharcProbe.toString());
+        Path lastRtDirectLightProbe = DebugRuntimeSampler.lastRtDirectLightProbePath();
+        profiler.addInfo("Last RT Direct-Light Probe", lastRtDirectLightProbe == null ? "None" : lastRtDirectLightProbe.toString());
         Path lastRtSweep = DebugRuntimeSampler.lastRtMainTraceSweepPath();
         profiler.addInfo("Last RT Sweep", lastRtSweep == null ? "None" : lastRtSweep.toString());
         Path lastRtFloorSweep = DebugRuntimeSampler.lastRtMainTraceFloorSweepPath();
@@ -153,6 +156,20 @@ public class DebugPopulator implements ContentPopulator {
             DebugRuntimeSampler.startRtMainTraceFloorSweep(mc);
             screen.refreshContent();
         })).tooltip("Closes this menu, toggles transient RT.MainTrace floor diagnostics, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
+
+        SettingsSection directLight = panel.addSection("RT Direct Light").setLinear();
+        SelectionDropdownWidget directLightBackend = new SelectionDropdownWidget(
+            0, 0, 170, 20, "Backend",
+            Options.DIRECT_LIGHT_BACKEND_NAMES,
+            Options.directLightBackend,
+            value -> {
+                Options.setDirectLightBackend(value, true);
+                screen.refreshContent();
+            });
+        directLight.addTwoWidgets(directLightBackend, button("Run Direct-Light Probe", () -> {
+            DebugRuntimeSampler.startRtDirectLightProbe(mc);
+            screen.refreshContent();
+        })).tooltip("Selects the experimental direct-light backend and writes C:\\RadSER\\results\\rtxdi. Legacy is the only active backend until the gated pipeline is implemented.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(
@@ -224,6 +241,7 @@ public class DebugPopulator implements ContentPopulator {
                 new UnifiedSearchOverlay.SearchEntry("GPU Profile 120 Samples", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("RT MainTrace Sweep", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("SHARC Probe", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("RT Direct-Light Probe", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("VMA Snapshot", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Overlay Snapshot", category, nodeId, false));
             case RESOURCES -> List.of(
