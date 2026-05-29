@@ -174,6 +174,10 @@ public class DebugPopulator implements ContentPopulator {
             DebugRuntimeSampler.startRtDirectLightAblationProbe(mc);
             screen.refreshContent();
         })).tooltip("Debug-only darkening probe: disables sampled direct lighting in RT.MainTrace to measure the maximum removable direct-light cost.");
+        directLight.addButton(button("Run Direct-Light Compare", () -> {
+            DebugRuntimeSampler.startRtDirectLightCompare(mc);
+            screen.refreshContent();
+        })).tooltip("Runs Legacy and UpstreamReSTIR back-to-back in the same scene, restores settings, and writes C:\\RadSER\\results\\rtxdi.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(
@@ -246,6 +250,7 @@ public class DebugPopulator implements ContentPopulator {
                 new UnifiedSearchOverlay.SearchEntry("RT MainTrace Sweep", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("SHARC Probe", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("RT Direct-Light Probe", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("RT Direct-Light Compare", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("VMA Snapshot", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Overlay Snapshot", category, nodeId, false));
             case RESOURCES -> List.of(
