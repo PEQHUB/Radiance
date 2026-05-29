@@ -118,7 +118,7 @@ public class SharcPopulator implements ContentPopulator {
             blockSize.settingKey = Options.SHARC_UPDATE_BLOCK_SIZE_KEY;
 
             ResettableSliderWidget bounces = new ResettableSliderWidget(
-                0, 0, 200, 20, 2, 16,
+                0, 0, 200, 20, 2, 8,
                 Options.sharcUpdateBounces, 4,
                 value -> Text.translatable(Options.SHARC_UPDATE_BOUNCES_KEY)
                     .append(": ").append(Text.literal(Integer.toString(value))),
@@ -130,9 +130,9 @@ public class SharcPopulator implements ContentPopulator {
             section.addTwoSliders(blockSize, bounces);
             section.tooltip("Block Size = NxN pixel blocks per frame (lower = more coverage). Bounces = ray depth for cache updates.");
 
-            // Cache Capacity (exponent: 20-24 → display 2^N entries + VRAM)
+            // Cache Capacity (exponent: 18-24 -> display 2^N entries + VRAM)
             ResettableSliderWidget capacity = new ResettableSliderWidget(
-                0, 0, 200, 20, 18, 26,
+                0, 0, 200, 20, 18, 24,
                 Options.sharcCapacityExponent, 21,
                 value -> {
                     long entries = 1L << value;

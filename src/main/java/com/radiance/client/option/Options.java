@@ -364,8 +364,8 @@ public class Options {
     public static int sharcStaleFrames = 16;                // 4-128
     public static int sharcDownscale = 1;                   // 1-8
     public static int sharcUpdateBlockSize = 2;             // 2-8 (NxN sparse block)
-    public static int sharcUpdateBounces = 16;               // 2-16 (max bounces in update pass)
-    public static int sharcCapacityExponent = 21;           // 18-26 (2^N entries)
+    public static int sharcUpdateBounces = 4;                // 2-8 (max bounces in update pass)
+    public static int sharcCapacityExponent = 21;           // 18-24 (2^N entries)
     public static int sharcQualityPreset = 5;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
 
     // ── Overall Quality Preset (simple mode master slider) ──
@@ -1843,10 +1843,10 @@ public class Options {
             sharcUpdateBlockSize = clamp(Integer.parseInt(props.getProperty("sharcUpdateBlockSize", String.valueOf(sharcUpdateBlockSize))), 1, 8);
             nativeSetSharcUpdateBlockSize(sharcUpdateBlockSize, false);
 
-            sharcUpdateBounces = clamp(Integer.parseInt(props.getProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces))), 2, 16);
+            sharcUpdateBounces = clamp(Integer.parseInt(props.getProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces))), 2, 8);
             nativeSetSharcUpdateBounces(sharcUpdateBounces, false);
 
-            sharcCapacityExponent = clamp(Integer.parseInt(props.getProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent))), 18, 26);
+            sharcCapacityExponent = clamp(Integer.parseInt(props.getProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent))), 18, 24);
             nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
 
             sharcQualityPreset = clamp(Integer.parseInt(props.getProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset))), 0, 5);
@@ -4250,13 +4250,13 @@ public class Options {
     }
 
     public static void setSharcUpdateBounces(int bounces, boolean write) {
-        Options.sharcUpdateBounces = Math.max(2, Math.min(16, bounces));
+        Options.sharcUpdateBounces = Math.max(2, Math.min(8, bounces));
         nativeSetSharcUpdateBounces(Options.sharcUpdateBounces, write);
         if (write) { overwriteConfig(); }
     }
 
     public static void setSharcCapacityExponent(int exponent, boolean write) {
-        Options.sharcCapacityExponent = Math.max(18, Math.min(26, exponent));
+        Options.sharcCapacityExponent = Math.max(18, Math.min(24, exponent));
         nativeSetSharcCapacityExponent(Options.sharcCapacityExponent, write);
         if (write) { overwriteConfig(); }
     }
