@@ -169,7 +169,7 @@ public class DebugPopulator implements ContentPopulator {
         directLight.addTwoWidgets(directLightBackend, button("Run Direct-Light Probe", () -> {
             DebugRuntimeSampler.startRtDirectLightProbe(mc);
             screen.refreshContent();
-        })).tooltip("Selects the experimental direct-light backend and writes C:\\RadSER\\results\\rtxdi. Legacy is the only active backend until the gated pipeline is implemented.");
+        })).tooltip("Selects the direct-light backend and writes C:\\RadSER\\results\\rtxdi. UpstreamReSTIR externalizes first-hit direct lighting for testing.");
         directLight.addButton(button("Run Direct-Light Ablation", () -> {
             DebugRuntimeSampler.startRtDirectLightAblationProbe(mc);
             screen.refreshContent();
