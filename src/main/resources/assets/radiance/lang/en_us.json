@@ -26,6 +26,7 @@
   "options.video.sharc_update_bounces": "Update Bounces",
   "options.video.sharc_capacity_exponent": "Cache Capacity",
   "options.video.sharc_quality_preset": "Quality Preset",
+  "options.video.sharc_query_mode": "Query Mode",
   "options.video.area_lights_enabled": "Area Lights (Unfinished - Experimental)",
   "options.video.area_light_intensity": "Area Light Intensity",
   "options.video.area_light_range": "Area Light Range",

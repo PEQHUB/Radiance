@@ -41,6 +41,14 @@ public class SharcPopulator implements ContentPopulator {
         section.tooltip("SHARC caches indirect lighting in a hash grid. Downscale reduces update cost.");
 
         if (Options.sharcEnabled) {
+            SelectionDropdownWidget sharcQueryMode = new SelectionDropdownWidget(
+                0, 0, 150, 20, "Query",
+                Options.SHARC_QUERY_MODE_NAMES,
+                Options.sharcQueryMode,
+                value -> Options.setSharcQueryMode(value, true));
+            section.addTwoWidgets(sharcQueryMode, null);
+            section.tooltip("Query controls the isolated SHARC lookup pass. Observe gathers hit-rate counters without changing pixels; Active is experimental.");
+
             // ── Row 2: Quality Preset slider (full width) ──
             // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
             ResettableSliderWidget presetSlider = new ResettableSliderWidget(
@@ -223,6 +231,7 @@ public class SharcPopulator implements ContentPopulator {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("SHARC Enabled", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Quality Preset", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Query Mode", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Scene Scale", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Roughness Threshold", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Accumulation Frames", category, nodeId, true),

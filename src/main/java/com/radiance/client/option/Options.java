@@ -206,6 +206,7 @@ public class Options {
     public static final String SHARC_UPDATE_BOUNCES_KEY = "options.video.sharc_update_bounces";
     public static final String SHARC_CAPACITY_EXPONENT_KEY = "options.video.sharc_capacity_exponent";
     public static final String SHARC_QUALITY_PRESET_KEY = "options.video.sharc_quality_preset";
+    public static final String SHARC_QUERY_MODE_KEY = "options.video.sharc_query_mode";
     public static final String CATEGORY_SHARC = "options.video.category.sharc";
     public static final String AREA_LIGHTS_ENABLED_KEY = "options.video.area_lights_enabled";
     public static final String AREA_LIGHT_INTENSITY_KEY = "options.video.area_light_intensity";
@@ -367,6 +368,7 @@ public class Options {
     public static int sharcUpdateBounces = 4;                // 2-8 (max bounces in update pass)
     public static int sharcCapacityExponent = 21;           // 18-24 (2^N entries)
     public static int sharcQualityPreset = 5;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
+    public static int sharcQueryMode = 0;                    // 0=Off, 1=Observe, 2=Active
 
     // ── Overall Quality Preset (simple mode master slider) ──
     public static int overallQualityPreset = 4;              // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Custom
@@ -477,6 +479,7 @@ public class Options {
         {15, 10, 64, 32, 1, 2, 8, 24},
     };
     public static final String[] SHARC_PRESET_NAMES = {"Low", "Medium", "High", "Ultra", "Overkill", "Custom"};
+    public static final String[] SHARC_QUERY_MODE_NAMES = {"Off", "Observe", "Active"};
     // Offline accumulation mode (transient runtime state — NOT persisted except preferences)
     public static int offlineState = 0;          // 0=NORMAL, 1=FREE, 2=ACCUMULATING
     public static long frozenDayTimeTicks = -1;  // captured on F7
@@ -1849,6 +1852,9 @@ public class Options {
             sharcCapacityExponent = clamp(Integer.parseInt(props.getProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent))), 18, 24);
             nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
 
+            sharcQueryMode = clamp(Integer.parseInt(props.getProperty("sharcQueryMode", String.valueOf(sharcQueryMode))), 0, 2);
+            nativeSetSharcQueryMode(sharcQueryMode, false);
+
             sharcQualityPreset = clamp(Integer.parseInt(props.getProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset))), 0, 5);
 
             areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled)));
@@ -2438,6 +2444,7 @@ public class Options {
         props.setProperty("sharcUpdateBlockSize", String.valueOf(sharcUpdateBlockSize));
         props.setProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces));
         props.setProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent));
+        props.setProperty("sharcQueryMode", String.valueOf(sharcQueryMode));
         props.setProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset));
         props.setProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled));
         props.setProperty("restirEnabled", String.valueOf(restirEnabled));
@@ -3489,6 +3496,7 @@ public class Options {
         sharcUpdateBlockSize = 5;
         sharcUpdateBounces = 4;
         sharcCapacityExponent = 21;
+        sharcQueryMode = 0;
         sharcQualityPreset = 1;
         areaLightsEnabled = true;
         restirEnabled = true;
@@ -3631,6 +3639,7 @@ public class Options {
         nativeSetSharcUpdateBlockSize(sharcUpdateBlockSize, false);
         nativeSetSharcUpdateBounces(sharcUpdateBounces, false);
         nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
+        nativeSetSharcQueryMode(sharcQueryMode, false);
         nativeSetAreaLightsEnabled(areaLightsEnabled, false);
         nativeSetRestirEnabled(restirEnabled, false);
         for (EmissiveBlock b : EmissiveBlock.values()) {
@@ -4242,6 +4251,7 @@ public class Options {
     public native static void nativeSetSharcUpdateBlockSize(int blockSize, boolean write);
     public native static void nativeSetSharcUpdateBounces(int bounces, boolean write);
     public native static void nativeSetSharcCapacityExponent(int exponent, boolean write);
+    public native static void nativeSetSharcQueryMode(int mode, boolean write);
 
     public static void setSharcUpdateBlockSize(int blockSize, boolean write) {
         Options.sharcUpdateBlockSize = Math.max(1, Math.min(8, blockSize));
@@ -4258,6 +4268,12 @@ public class Options {
     public static void setSharcCapacityExponent(int exponent, boolean write) {
         Options.sharcCapacityExponent = Math.max(18, Math.min(24, exponent));
         nativeSetSharcCapacityExponent(Options.sharcCapacityExponent, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setSharcQueryMode(int mode, boolean write) {
+        Options.sharcQueryMode = Math.max(0, Math.min(2, mode));
+        nativeSetSharcQueryMode(Options.sharcQueryMode, write);
         if (write) { overwriteConfig(); }
     }
 
