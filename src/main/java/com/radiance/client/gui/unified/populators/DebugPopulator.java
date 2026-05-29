@@ -170,6 +170,10 @@ public class DebugPopulator implements ContentPopulator {
             DebugRuntimeSampler.startRtDirectLightProbe(mc);
             screen.refreshContent();
         })).tooltip("Selects the experimental direct-light backend and writes C:\\RadSER\\results\\rtxdi. Legacy is the only active backend until the gated pipeline is implemented.");
+        directLight.addButton(button("Run Direct-Light Ablation", () -> {
+            DebugRuntimeSampler.startRtDirectLightAblationProbe(mc);
+            screen.refreshContent();
+        })).tooltip("Debug-only darkening probe: disables sampled direct lighting in RT.MainTrace to measure the maximum removable direct-light cost.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(

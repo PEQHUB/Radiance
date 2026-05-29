@@ -307,11 +307,21 @@ public final class DebugRuntimeSampler {
     }
 
     public static void startRtDirectLightProbe(MinecraftClient client) {
+        startRtDirectLightProbe(client, false);
+    }
+
+    public static void startRtDirectLightAblationProbe(MinecraftClient client) {
+        startRtDirectLightProbe(client, true);
+    }
+
+    private static void startRtDirectLightProbe(MinecraftClient client, boolean ablateDirectLight) {
         if (!BUSY.compareAndSet(false, true)) {
             DebugRuntimeDiagnostics.toast(client, "Radiance debug task already running: " + status);
             return;
         }
-        status = "Closing menu for RT direct-light probe";
+        status = ablateDirectLight
+            ? "Closing menu for RT direct-light ablation probe"
+            : "Closing menu for RT direct-light probe";
         DebugRuntimeDiagnostics.toast(client, "Radiance: " + status);
         if (client.currentScreen != null) {
             client.setScreen(null);
@@ -319,20 +329,25 @@ public final class DebugRuntimeSampler {
         EXECUTOR.submit(() -> {
             try {
                 waitForGameplayCaptureSurface(client);
-                status = "Running RT direct-light probe";
-                JsonObject response = requestBridgeRtDirectLightProbe();
+                status = ablateDirectLight
+                    ? "Running RT direct-light ablation probe"
+                    : "Running RT direct-light probe";
+                JsonObject response = requestBridgeRtDirectLightProbe(ablateDirectLight);
                 Path responsePath = writeRtDirectLightProbeResponse(response);
                 if (response.has("path")) {
                     lastRtDirectLightProbePath = Path.of(response.get("path").getAsString());
-                    status = "RT direct-light probe saved: " + lastRtDirectLightProbePath.getFileName();
+                    status = (ablateDirectLight ? "RT direct-light ablation saved: " : "RT direct-light probe saved: ")
+                        + lastRtDirectLightProbePath.getFileName();
                 } else {
                     lastRtDirectLightProbePath = responsePath;
-                    status = "RT direct-light probe response saved: " + responsePath.getFileName();
+                    status = (ablateDirectLight ? "RT direct-light ablation response saved: " : "RT direct-light probe response saved: ")
+                        + responsePath.getFileName();
                 }
                 client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
                 RadianceLogger.log("DebugMenu", "INFO", "rtDirectLightProbe=" + responsePath);
             } catch (Exception e) {
-                status = "RT direct-light probe failed: " + e.getMessage();
+                status = (ablateDirectLight ? "RT direct-light ablation failed: " : "RT direct-light probe failed: ")
+                    + e.getMessage();
                 client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
                 RadianceLogger.log("DebugMenu", "ERROR", status);
             } finally {
@@ -508,11 +523,12 @@ public final class DebugRuntimeSampler {
         }
     }
 
-    private static JsonObject requestBridgeRtDirectLightProbe() throws IOException {
+    private static JsonObject requestBridgeRtDirectLightProbe(boolean ablateDirectLight) throws IOException {
         JsonObject req = new JsonObject();
         req.addProperty("cmd", "rtDirectLightProbe");
         req.addProperty("frames", 45);
         req.addProperty("settleMs", 500);
+        req.addProperty("ablateDirectLight", ablateDirectLight);
 
         try (Socket socket = new Socket("127.0.0.1", 19845)) {
             socket.setSoTimeout(180_000);
