@@ -53,7 +53,7 @@ public class SimpleGraphicsPopulator implements ContentPopulator {
 
             if (Options.upscalerQuality == 4) {
                 section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                    33, 100, Options.upscalerResOverride, 67,
+                    1, 100, Options.upscalerResOverride, 67,
                     v -> getGenericValueText(Text.translatable(Options.UPSCALER_RES_OVERRIDE_KEY), Text.literal(v + "%")),
                     v -> Options.setUpscalerResOverride(v, true)));
             }

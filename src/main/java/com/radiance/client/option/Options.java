@@ -306,7 +306,7 @@ public class Options {
     // 2 = Off
     public static int upscalerMode = 0;
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
-    public static int upscalerResOverride = 99; // 33-100%
+    public static int upscalerResOverride = 99; // 1-100%
     public static boolean dlssDEnabled = true;
     public static int rayBounces = 12;
     public static boolean ommEnabled = false;
@@ -1739,8 +1739,8 @@ public class Options {
 
             // Push to native directly on startup (no debounce, write=false)
             // Support both old "dlss*" keys and new "upscaler*" keys for backwards compatibility
-            upscalerResOverride = Integer.parseInt(props.getProperty("upscalerResOverride",
-                props.getProperty("dlssResOverride", String.valueOf(upscalerResOverride))));
+            upscalerResOverride = clampPercent(Integer.parseInt(props.getProperty("upscalerResOverride",
+                props.getProperty("dlssResOverride", String.valueOf(upscalerResOverride)))));
             nativeSetDlssResOverride(upscalerResOverride, false);
 
             upscalerQuality = Integer.parseInt(props.getProperty("upscalerQuality",
@@ -3955,11 +3955,12 @@ public class Options {
     private static ScheduledFuture<?> dlssResOverrideTask;
 
     public static void setUpscalerResOverride(int resOverride, boolean write) {
-        Options.upscalerResOverride = resOverride;
+        final int clampedResOverride = clampPercent(resOverride);
+        Options.upscalerResOverride = clampedResOverride;
         if (Options.dlssDEnabled) {
             if (dlssResOverrideTask != null) dlssResOverrideTask.cancel(false);
             dlssResOverrideTask = scheduler.schedule(
-                () -> runOnClientThread(() -> nativeSetDlssResOverride(resOverride, write)),
+                () -> runOnClientThread(() -> nativeSetDlssResOverride(clampedResOverride, write)),
                 500,
                 TimeUnit.MILLISECONDS);
         }
