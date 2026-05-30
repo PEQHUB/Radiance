@@ -170,8 +170,7 @@ public enum MaterialBlock {
     WATER_MAT          ("water",              false, 0, 0, 0,  5, 1333),   // water IOR 1.333
     LAVA_MAT           ("lava",               false, 0, 0, 0, 90, 1500, 500),  // opaque, high subsurface
     HONEY_MAT          ("honey",              false, 0, 0, 0, 15, 1504, 300),  // viscous, IOR ~1.50
-    SLIME_MAT          ("slime_block",        false, 0, 0, 0, 30, 1500, 400),  // translucent gel
-    GRASS_PLANT_MAT    ("tall_grass",         false, 0, 0, 0, 88, 1500, 350);  // thin cutout plant matter
+    SLIME_MAT          ("slime_block",        false, 0, 0, 0, 30, 1500, 400);  // translucent gel
 
     public static final int COUNT = values().length;
 
@@ -929,13 +928,6 @@ public enum MaterialBlock {
         register(Blocks.SNOW_BLOCK, SNOW_BLOCK_MAT);
         register(Blocks.SNOW, SNOW_BLOCK_MAT);
         register(Blocks.POWDER_SNOW, SNOW_BLOCK_MAT);
-        register(Blocks.SHORT_GRASS, GRASS_PLANT_MAT);
-        register(Blocks.TALL_GRASS, GRASS_PLANT_MAT);
-        register(Blocks.FERN, GRASS_PLANT_MAT);
-        register(Blocks.LARGE_FERN, GRASS_PLANT_MAT);
-        register(Blocks.POTTED_FERN, GRASS_PLANT_MAT);
-        register(Blocks.DEAD_BUSH, GRASS_PLANT_MAT);
-        register(Blocks.SUGAR_CANE, GRASS_PLANT_MAT);
 
         // Category 17: Concrete Powder (all 16 colors → shared entry)
         register(Blocks.WHITE_CONCRETE_POWDER, CONCRETE_POWDER);
@@ -1012,8 +1004,7 @@ public enum MaterialBlock {
 
         for (MaterialBlock mb : new MaterialBlock[]{WOOL_MAT, LEAVES_MAT, CORAL_MAT, MUSHROOM_BLOCK,
                 SPONGE_MAT, HAY_BLOCK_MAT, BONE_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT,
-                NETHER_WART_BLOCK_MAT, WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT,
-                GRASS_PLANT_MAT})
+                NETHER_WART_BLOCK_MAT, WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT})
             mb.category = MaterialCategory.ORGANIC;
 
         for (MaterialBlock mb : new MaterialBlock[]{WATER_MAT, LAVA_MAT, HONEY_MAT, SLIME_MAT})
@@ -1120,7 +1111,7 @@ public enum MaterialBlock {
         for (MaterialBlock mb : new MaterialBlock[]{LEAVES_MAT, CORAL_MAT, MUSHROOM_BLOCK,
                 SPONGE_MAT, HAY_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT, NETHER_WART_BLOCK_MAT,
                 WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT, MELON_MAT, PUMPKIN_MAT,
-                DRIED_KELP_BLOCK_MAT, HONEYCOMB_BLOCK_MAT, GRASS_PLANT_MAT})
+                DRIED_KELP_BLOCK_MAT, HONEYCOMB_BLOCK_MAT})
             mb.materialClass = MaterialClass.ORGANIC;
         BONE_BLOCK_MAT.materialClass = MaterialClass.BONE;
         WOOL_MAT.materialClass = MaterialClass.WOOL;
