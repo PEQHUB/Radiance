@@ -157,7 +157,7 @@ public class DebugPopulator implements ContentPopulator {
             screen.refreshContent();
         })).tooltip("Closes this menu, toggles transient RT.MainTrace floor diagnostics, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
 
-        SettingsSection directLight = panel.addSection("RT Direct Light").setLinear();
+        SettingsSection directLight = panel.addSection("RT Upstream / Direct Light").setLinear();
         SelectionDropdownWidget directLightBackend = new SelectionDropdownWidget(
             0, 0, 170, 20, "Backend",
             Options.DIRECT_LIGHT_BACKEND_NAMES,
@@ -166,18 +166,18 @@ public class DebugPopulator implements ContentPopulator {
                 Options.setDirectLightBackend(value, false);
                 screen.refreshContent();
             });
-        directLight.addTwoWidgets(directLightBackend, button("Run Direct-Light Probe", () -> {
+        directLight.addTwoWidgets(directLightBackend, button("Run Upstream Readiness", () -> {
             DebugRuntimeSampler.startRtDirectLightProbe(mc);
             screen.refreshContent();
-        })).tooltip("Selects a session-only direct-light backend and writes C:\\RadSER\\results\\rtxdi. Legacy remains the startup-safe path.");
+        })).tooltip("Checks upstream RT asset/pass readiness and writes C:\\RadSER\\results\\rtxdi. Legacy remains the startup-safe path.");
         directLight.addButton(button("Run Direct-Light Ablation", () -> {
             DebugRuntimeSampler.startRtDirectLightAblationProbe(mc);
             screen.refreshContent();
         })).tooltip("Debug-only darkening probe: disables sampled direct lighting in RT.MainTrace to measure the maximum removable direct-light cost.");
-        directLight.addButton(button("Run Direct-Light Compare", () -> {
+        directLight.addButton(button("Run Legacy vs Upstream", () -> {
             DebugRuntimeSampler.startRtDirectLightCompare(mc);
             screen.refreshContent();
-        })).tooltip("Runs Legacy and UpstreamReSTIR back-to-back in the same scene, restores settings, and writes C:\\RadSER\\results\\rtxdi.");
+        })).tooltip("Runs Legacy and the current UpstreamReSTIR path back-to-back, restores settings, and marks the result readiness-only until the upstream executor is active.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(
@@ -249,8 +249,8 @@ public class DebugPopulator implements ContentPopulator {
                 new UnifiedSearchOverlay.SearchEntry("GPU Profile 120 Samples", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("RT MainTrace Sweep", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("SHARC Probe", category, nodeId, false),
-                new UnifiedSearchOverlay.SearchEntry("RT Direct-Light Probe", category, nodeId, false),
-                new UnifiedSearchOverlay.SearchEntry("RT Direct-Light Compare", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("RT Upstream Readiness", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("RT Legacy vs Upstream", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("VMA Snapshot", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Overlay Snapshot", category, nodeId, false));
             case RESOURCES -> List.of(
