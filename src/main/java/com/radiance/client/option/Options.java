@@ -1899,7 +1899,9 @@ public class Options {
             restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled)));
             nativeSetRestirBounceEnabled(restirBounceEnabled, false);
 
-            directLightBackend = clamp(Integer.parseInt(props.getProperty("directLightBackend", String.valueOf(directLightBackend))), 0, 2);
+            // Experimental direct-light backends are session-only until they match legacy
+            // visual quality. Do not let prior probe sessions become the boot default.
+            directLightBackend = 0;
             nativeSetDirectLightBackend(directLightBackend, false);
 
             beerLawShadows = Boolean.parseBoolean(props.getProperty("beerLawShadows", String.valueOf(beerLawShadows)));
@@ -2465,7 +2467,7 @@ public class Options {
         props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
         props.setProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled));
         props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
-        props.setProperty("directLightBackend", String.valueOf(directLightBackend));
+        props.setProperty("directLightBackend", "0");
         props.setProperty("beerLawShadows", String.valueOf(beerLawShadows));
         props.setProperty("noEmissionClamp", String.valueOf(noEmissionClamp));
         props.setProperty("physicalSunDisk", String.valueOf(physicalSunDisk));

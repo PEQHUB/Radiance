@@ -163,13 +163,13 @@ public class DebugPopulator implements ContentPopulator {
             Options.DIRECT_LIGHT_BACKEND_NAMES,
             Options.directLightBackend,
             value -> {
-                Options.setDirectLightBackend(value, true);
+                Options.setDirectLightBackend(value, false);
                 screen.refreshContent();
             });
         directLight.addTwoWidgets(directLightBackend, button("Run Direct-Light Probe", () -> {
             DebugRuntimeSampler.startRtDirectLightProbe(mc);
             screen.refreshContent();
-        })).tooltip("Selects the direct-light backend and writes C:\\RadSER\\results\\rtxdi. UpstreamReSTIR externalizes first-hit direct lighting for testing.");
+        })).tooltip("Selects a session-only direct-light backend and writes C:\\RadSER\\results\\rtxdi. Legacy remains the startup-safe path.");
         directLight.addButton(button("Run Direct-Light Ablation", () -> {
             DebugRuntimeSampler.startRtDirectLightAblationProbe(mc);
             screen.refreshContent();
