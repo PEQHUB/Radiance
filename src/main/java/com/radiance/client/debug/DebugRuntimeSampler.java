@@ -307,11 +307,11 @@ public final class DebugRuntimeSampler {
     }
 
     public static void startRtDirectLightProbe(MinecraftClient client) {
-        startRtDirectLightProbe(client, false);
+        startRtDirectLightProbe(client, false, "UpstreamReSTIR");
     }
 
     public static void startRtDirectLightAblationProbe(MinecraftClient client) {
-        startRtDirectLightProbe(client, true);
+        startRtDirectLightProbe(client, true, "Legacy");
     }
 
     public static void startRtDirectLightCompare(MinecraftClient client) {
@@ -349,7 +349,7 @@ public final class DebugRuntimeSampler {
         });
     }
 
-    private static void startRtDirectLightProbe(MinecraftClient client, boolean ablateDirectLight) {
+    private static void startRtDirectLightProbe(MinecraftClient client, boolean ablateDirectLight, String backend) {
         if (!BUSY.compareAndSet(false, true)) {
             DebugRuntimeDiagnostics.toast(client, "Radiance debug task already running: " + status);
             return;
@@ -367,7 +367,7 @@ public final class DebugRuntimeSampler {
                 status = ablateDirectLight
                     ? "Running RT direct-light ablation probe"
                     : "Running RT direct-light probe";
-                JsonObject response = requestBridgeRtDirectLightProbe(ablateDirectLight);
+                JsonObject response = requestBridgeRtDirectLightProbe(ablateDirectLight, backend);
                 Path responsePath = writeRtDirectLightProbeResponse(response);
                 if (response.has("path")) {
                     lastRtDirectLightProbePath = Path.of(response.get("path").getAsString());
@@ -558,12 +558,13 @@ public final class DebugRuntimeSampler {
         }
     }
 
-    private static JsonObject requestBridgeRtDirectLightProbe(boolean ablateDirectLight) throws IOException {
+    private static JsonObject requestBridgeRtDirectLightProbe(boolean ablateDirectLight, String backend) throws IOException {
         JsonObject req = new JsonObject();
         req.addProperty("cmd", "rtDirectLightProbe");
         req.addProperty("frames", 45);
         req.addProperty("settleMs", 500);
         req.addProperty("ablateDirectLight", ablateDirectLight);
+        req.addProperty("backend", backend);
 
         try (Socket socket = new Socket("127.0.0.1", 19845)) {
             socket.setSoTimeout(180_000);
