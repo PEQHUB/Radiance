@@ -205,7 +205,6 @@ public class MaterialDropdownWidget extends ClickableWidget {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (!this.active) return false;
         if (button != 0) return false;
 
         // Click on dropdown list item

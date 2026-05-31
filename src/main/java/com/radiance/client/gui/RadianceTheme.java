@@ -38,7 +38,6 @@ public final class RadianceTheme {
     private static final int BASE_BUTTON_BG    = 0x1E1E24;
     private static final int BASE_BUTTON_HOVER = 0x2A2A32;
     private static final int BASE_BUTTON_BORDER= 0x404048;
-    private static final int BASE_DISABLED     = 0x55555A;
 
     // ── Semantic colors (special purpose, fixed alpha) ──
     public static final int TEXT_ERROR    = 0xFFFF5555;
@@ -73,10 +72,6 @@ public final class RadianceTheme {
     public static int buttonBg;
     public static int buttonHover;
     public static int buttonBorder;
-    public static int disabledBg;
-    public static int disabledBorder;
-    public static int disabledText;
-    public static int disabledTrack;
 
     // ── Unified screen panel backgrounds (alpha-aware with readability floor) ──
     public static int unifiedContentBg;
@@ -191,10 +186,6 @@ public final class RadianceTheme {
         buttonBg      = withAlpha(BASE_BUTTON_BG, effectiveAlpha);
         buttonHover   = withAlpha(BASE_BUTTON_HOVER, effectiveAlpha);
         buttonBorder  = withAlpha(BASE_BUTTON_BORDER, effectiveAlpha * 0.6f);
-        disabledBg    = withAlpha(0x141416, Math.max(0.28f, effectiveAlpha * 0.55f));
-        disabledBorder= withAlpha(BASE_DISABLED, Math.max(0.20f, effectiveAlpha * 0.35f));
-        disabledText  = withAlpha(0x8A8A8F, 0.78f);
-        disabledTrack = withAlpha(0x303034, Math.max(0.25f, effectiveAlpha * 0.45f));
 
         // Unified panel backgrounds — track globalAlpha fully
         float panelAlpha = Math.min(0.92f, effectiveAlpha * 1.3f);
@@ -516,26 +507,20 @@ public final class RadianceTheme {
     public static void drawCustomSlider(DrawContext ctx, int x, int y, int w, int h,
             double value, boolean hovered, boolean active,
             TextRenderer renderer, Text message, boolean modified) {
-        drawCustomSlider(ctx, x, y, w, h, value, hovered, active, renderer, message, modified, true);
-    }
-
-    public static void drawCustomSlider(DrawContext ctx, int x, int y, int w, int h,
-            double value, boolean hovered, boolean active,
-            TextRenderer renderer, Text message, boolean modified, boolean enabled) {
         // Dark backdrop behind slider so it remains visible over the game scene.
         // Always drawn (not just when active) so sliders are readable in the menu.
-        float bgAlpha = enabled ? (active ? 0.75f : 0.55f) : 0.42f;
-        ctx.fill(x, y, x + w, y + h, enabled ? withAlpha(0x000000, bgAlpha) : disabledBg);
+        float bgAlpha = active ? 0.75f : 0.55f;
+        ctx.fill(x, y, x + w, y + h, withAlpha(0x000000, bgAlpha));
 
         // Track background — use higher alpha when active for visibility
         int trackH = 4;
         int trackY = y + (h - trackH) / 2;
-        int trackColor = !enabled ? disabledTrack : (active ? withAlpha(BASE_SLIDER_TRACK, 0.9f) : sliderTrack);
+        int trackColor = active ? withAlpha(BASE_SLIDER_TRACK, 0.9f) : sliderTrack;
         ctx.fill(x, trackY, x + w, trackY + trackH, trackColor);
 
         // Filled portion (accent color)
         int fillW = Math.max(0, Math.min(w, (int) Math.round(w * value)));
-        int fillColor = !enabled ? withAlpha(BASE_DISABLED, 0.45f) : (active ? withAlpha(BASE_SLIDER_FILL, 0.95f) : sliderFill);
+        int fillColor = active ? withAlpha(BASE_SLIDER_FILL, 0.95f) : sliderFill;
         if (fillW > 0) {
             ctx.fill(x, trackY, x + fillW, trackY + trackH, fillColor);
         }
@@ -544,15 +529,14 @@ public final class RadianceTheme {
         int thumbW = 8, thumbH = 14;
         int thumbX = Math.max(x, Math.min(x + fillW - thumbW / 2, x + w - thumbW));
         int thumbY = y + (h - thumbH) / 2;
-        int thumbColor = !enabled ? withAlpha(BASE_DISABLED, 0.72f)
-            : (active ? sliderFill : (hovered ? scaleAlpha(sliderThumb, 0.9f) : sliderThumb));
+        int thumbColor = active ? sliderFill : (hovered ? scaleAlpha(sliderThumb, 0.9f) : sliderThumb);
         ctx.fill(thumbX, thumbY, thumbX + thumbW, thumbY + thumbH, thumbColor);
 
         // Label centered on widget
         int maxTextW = Math.max(24, w - 10);
         Text drawMessage = trimText(renderer, message, maxTextW);
         int textW = renderer.getWidth(drawMessage);
-        int labelColor = !enabled ? disabledText : (modified ? modifiedDot : textPrimary);
+        int labelColor = modified ? modifiedDot : textPrimary;
         drawOutlinedText(ctx, renderer, drawMessage,
                 x + (w - textW) / 2, y + (h - 8) / 2, labelColor);
     }
@@ -563,31 +547,25 @@ public final class RadianceTheme {
      */
     public static void drawCompactToggle(DrawContext ctx, int x, int y, int w, int h,
             boolean value, boolean hovered, TextRenderer renderer, Text message) {
-        drawCompactToggle(ctx, x, y, w, h, value, hovered, renderer, message, true);
-    }
-
-    public static void drawCompactToggle(DrawContext ctx, int x, int y, int w, int h,
-            boolean value, boolean hovered, TextRenderer renderer, Text message, boolean enabled) {
         if (hovered) {
-            ctx.fill(x, y, x + w, y + h, enabled ? scaleAlpha(widgetBgHover, 0.45f) : disabledBg);
+            ctx.fill(x, y, x + w, y + h, scaleAlpha(widgetBgHover, 0.45f));
         }
 
         int swW = 28, swH = 14;
         int swX = x + w - swW - 16;
         int swY = y + (h - swH) / 2;
-        int swBg = !enabled ? disabledTrack : (value ? toggleOn : toggleOff);
+        int swBg = value ? toggleOn : toggleOff;
         ctx.fill(swX, swY, swX + swW, swY + swH, swBg);
 
         int knobW = 10, knobH = swH - 2;
         int knobX = value ? swX + swW - knobW - 1 : swX + 1;
-        ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH,
-            enabled ? sliderThumb : withAlpha(BASE_DISABLED, 0.72f));
+        ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH, sliderThumb);
 
         String label = compactToggleLabel(message.getString());
         int maxTextW = Math.max(24, swX - x - 10);
         Text labelText = trimText(renderer, Text.literal(label), maxTextW);
         drawOutlinedText(ctx, renderer, labelText, x + 6, y + (h - 8) / 2,
-            enabled ? (hovered ? textPrimary : textSecondary) : disabledText);
+            hovered ? textPrimary : textSecondary);
     }
 
     /**
@@ -596,19 +574,14 @@ public final class RadianceTheme {
      */
     public static void drawCustomButton(DrawContext ctx, int x, int y, int w, int h,
             boolean hovered, TextRenderer renderer, Text message) {
-        drawCustomButton(ctx, x, y, w, h, hovered, renderer, message, true);
-    }
-
-    public static void drawCustomButton(DrawContext ctx, int x, int y, int w, int h,
-            boolean hovered, TextRenderer renderer, Text message, boolean enabled) {
-        int bg = !enabled ? disabledBg : (hovered ? buttonHover : buttonBg);
+        int bg = hovered ? buttonHover : buttonBg;
         ctx.fill(x, y, x + w, y + h, bg);
-        ctx.drawBorder(x, y, w, h, enabled ? buttonBorder : disabledBorder);
+        ctx.drawBorder(x, y, w, h, buttonBorder);
         Text drawMessage = trimText(renderer, message, Math.max(16, w - 10));
         int textW = renderer.getWidth(drawMessage);
         drawOutlinedText(ctx, renderer, drawMessage,
                 x + (w - textW) / 2, y + (h - 8) / 2,
-                enabled ? (hovered ? textPrimary : textSecondary) : disabledText);
+                hovered ? textPrimary : textSecondary);
     }
 
     /**
@@ -617,32 +590,25 @@ public final class RadianceTheme {
      */
     public static void drawCustomToggle(DrawContext ctx, int x, int y, int w, int h,
             boolean value, boolean hovered, TextRenderer renderer, Text message) {
-        drawCustomToggle(ctx, x, y, w, h, value, hovered, renderer, message, true);
-    }
-
-    public static void drawCustomToggle(DrawContext ctx, int x, int y, int w, int h,
-            boolean value, boolean hovered, TextRenderer renderer, Text message, boolean enabled) {
         // Background
-        int bg = !enabled ? disabledBg : (hovered ? buttonHover : buttonBg);
+        int bg = hovered ? buttonHover : buttonBg;
         ctx.fill(x, y, x + w, y + h, bg);
-        ctx.drawBorder(x, y, w, h, enabled ? buttonBorder : disabledBorder);
+        ctx.drawBorder(x, y, w, h, buttonBorder);
 
         // Toggle switch on right side
         int swW = 28, swH = 14;
         int swX = x + w - swW - 6;
         int swY = y + (h - swH) / 2;
-        int swBg = !enabled ? disabledTrack : (value ? toggleOn : toggleOff);
+        int swBg = value ? toggleOn : toggleOff;
         ctx.fill(swX, swY, swX + swW, swY + swH, swBg);
         // Thumb knob
         int knobW = 10, knobH = swH - 2;
         int knobX = value ? swX + swW - knobW - 1 : swX + 1;
-        ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH,
-            enabled ? sliderThumb : withAlpha(BASE_DISABLED, 0.72f));
+        ctx.fill(knobX, swY + 1, knobX + knobW, swY + 1 + knobH, sliderThumb);
 
         // Label on left
         Text drawMessage = trimText(renderer, message, Math.max(24, swX - x - 10));
-        drawOutlinedText(ctx, renderer, drawMessage, x + 6, y + (h - 8) / 2,
-            enabled ? textPrimary : disabledText);
+        drawOutlinedText(ctx, renderer, drawMessage, x + 6, y + (h - 8) / 2, textPrimary);
     }
 
     public static Text trimText(TextRenderer renderer, Text text, int maxWidth) {

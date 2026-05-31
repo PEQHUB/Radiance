@@ -2,7 +2,7 @@ package com.radiance.client.input;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.debug.DebugInspectReporter;
-import com.radiance.client.gui.MaterialWorkbenchScreen;
+import com.radiance.client.gui.MaterialsSettingsScreen;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
 import com.radiance.client.gui.unified.populators.UnifiedEmissionPopulator;
 import com.radiance.client.material.EntityMaterial;
@@ -307,7 +307,7 @@ public class KeyInputHandler {
                     if (target != null) {
                         if ("materials".equals(target)) {
                             // Direct to material editor (ordinal already set by resolveInspectTarget)
-                            client.setScreen(new MaterialWorkbenchScreen(null));
+                            client.setScreen(new MaterialsSettingsScreen(null));
                         } else {
                             // Emission, area lights, entity materials → unified screen
                             if (!Options.advancedMode) {
@@ -327,7 +327,7 @@ public class KeyInputHandler {
                     String target = resolveInspectTarget(client);
                     if (target != null) {
                         if ("materials".equals(target)) {
-                            client.setScreen(new MaterialWorkbenchScreen(null));
+                            client.setScreen(new MaterialsSettingsScreen(null));
                         } else {
                             if (!Options.advancedMode) {
                                 Options.advancedMode = true;
@@ -471,7 +471,7 @@ public class KeyInputHandler {
 
             int mbOrd = MaterialBlock.getOrdinalForBlock(state.getBlock());
             if (mbOrd >= 0) {
-                MaterialWorkbenchScreen.setCurrentOrdinal(mbOrd);
+                MaterialsSettingsScreen.setCurrentOrdinal(mbOrd);
                 return "materials";
             }
         }
@@ -498,7 +498,7 @@ public class KeyInputHandler {
 
             int mbOrd = MaterialBlock.getOrdinalForBlock(state.getBlock());
             if (mbOrd >= 0) {
-                MaterialWorkbenchScreen.setCurrentOrdinal(mbOrd);
+                MaterialsSettingsScreen.setCurrentOrdinal(mbOrd);
                 return "materials";
             }
         }

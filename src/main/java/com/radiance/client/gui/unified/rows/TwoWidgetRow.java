@@ -79,10 +79,10 @@ public class TwoWidgetRow extends SettingsRow {
             if (looksLikeToggle) {
                 boolean isOn = msg.contains(ON_TEXT);
                 RadianceTheme.drawCompactToggle(ctx, x, y, w, h,
-                    isOn, hovered, renderer, widget.getMessage(), widget.active);
+                    isOn, hovered, renderer, widget.getMessage());
             } else {
                 RadianceTheme.drawCustomButton(ctx, x, y, w, h,
-                    hovered, renderer, widget.getMessage(), widget.active);
+                    hovered, renderer, widget.getMessage());
             }
         }
     }

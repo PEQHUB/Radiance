@@ -2,7 +2,7 @@ package com.radiance.client.gui.unified.populators;
 
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
-import com.radiance.client.gui.MaterialWorkbenchScreen;
+import com.radiance.client.gui.MaterialsSettingsScreen;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
@@ -13,6 +13,9 @@ import net.minecraft.text.Text;
 
 /**
  * Materials settings populator.
+ * The materials editor is the most complex screen (block selector, sphere preview,
+ * 13 sliders, presets, copy/paste, snapshot/restore). For now, launch old screens.
+ * TODO: Migrate to inline materials editor in a future pass.
  */
 public class MaterialsPopulator implements ContentPopulator {
     @Override
@@ -63,7 +66,7 @@ public class MaterialsPopulator implements ContentPopulator {
             .tooltip("Depth Cap limits every material. Fade Distance removes the effect at range to protect performance.");
 
         section.addLauncher("options.video.materials_settings",
-            new MaterialWorkbenchScreen(screen), screen);
+            new MaterialsSettingsScreen(screen), screen);
     }
 
     private static Text qualityText() {
