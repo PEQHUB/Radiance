@@ -88,7 +88,6 @@ public class BlockModelBridge {
     private static final byte TINT_WATER = 2;
     private static final byte TINT_FIXED = 3;
     private static final byte TINT_NONE = (byte) 255;
-    private static final int TINT_FLAG_THIN_CUTOUT_PLANT = 0x80;
 
     // Direction indices matching C++ expectations (Minecraft Direction.ordinal())
     // DOWN=0, UP=1, NORTH=2, SOUTH=3, WEST=4, EAST=5, UNCULLED=6
@@ -268,11 +267,7 @@ public class BlockModelBridge {
                 entryBuf.put(entryPos + 31, (byte) 0);
             } else if (hasTintedQuad) {
                 byte tintType = classifyTintType(block, state);
-                int packedTintType = tintType & 0xFF;
-                if (isThinCutoutPlant(block)) {
-                    packedTintType |= TINT_FLAG_THIN_CUTOUT_PLANT;
-                }
-                entryBuf.put(entryPos + 28, (byte) packedTintType);
+                entryBuf.put(entryPos + 28, tintType);
                 if (tintType == TINT_FIXED) {
                     int fixedColor = getFixedTintColor(block, state);
                     entryBuf.put(entryPos + 29, (byte) ((fixedColor >> 16) & 0xFF));
@@ -283,11 +278,6 @@ public class BlockModelBridge {
                     entryBuf.put(entryPos + 30, (byte) 0);
                     entryBuf.put(entryPos + 31, (byte) 0);
                 }
-            } else if (isThinCutoutPlant(block)) {
-                entryBuf.put(entryPos + 28, (byte) (TINT_GRASS | TINT_FLAG_THIN_CUTOUT_PLANT));
-                entryBuf.put(entryPos + 29, (byte) 0);
-                entryBuf.put(entryPos + 30, (byte) 0);
-                entryBuf.put(entryPos + 31, (byte) 0);
             } else {
                 entryBuf.put(entryPos + 28, TINT_NONE);
                 entryBuf.put(entryPos + 29, (byte) 0);
@@ -372,14 +362,6 @@ public class BlockModelBridge {
         if (layer == net.minecraft.client.render.RenderLayer.getCutoutMipped()) return 2;
         if (layer == net.minecraft.client.render.RenderLayer.getTranslucent()) return 3;
         return 0;
-    }
-
-    private static boolean isThinCutoutPlant(Block block) {
-        return block == Blocks.SHORT_GRASS ||
-            block == Blocks.TALL_GRASS ||
-            block == Blocks.FERN ||
-            block == Blocks.LARGE_FERN ||
-            block == Blocks.DEAD_BUSH;
     }
 
     /**
