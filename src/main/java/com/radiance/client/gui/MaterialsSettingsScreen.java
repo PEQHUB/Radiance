@@ -10,7 +10,6 @@ import com.radiance.client.texture.LiveNormalReuploader;
 import com.radiance.client.texture.NoisePreviewGenerator;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.util.MaterialBlock;
-import com.radiance.client.util.MaterialClipboard;
 import com.radiance.client.util.MaterialData;
 import com.radiance.client.util.MaterialFileManager;
 import com.radiance.client.util.MaterialsPack;
@@ -45,11 +44,11 @@ public class MaterialsSettingsScreen extends Screen {
     private static final int DESIGN_W = 1672;
     private static final int DESIGN_H = 941;
 
-    private static final int PANEL_FILL = 0xE0161A1B;
+    private static final int PANEL_FILL = 0xEC161A1B;
     private static final int PANEL_BORDER = 0xCC353736;
     private static final int FOOTER_FILL = 0xEA101510;
-    private static final int ROW_FILL = 0x99202322;
-    private static final int ROW_DISABLED = 0x66202322;
+    private static final int ROW_FILL = 0xB0202322;
+    private static final int ROW_DISABLED = 0x80202322;
     private static final int SELECTED_ROW = 0xB036AA83;
     private static final int TEAL = 0xFF20C4B0;
     private static final int ORANGE = 0xFFF89C08;
@@ -148,6 +147,7 @@ public class MaterialsSettingsScreen extends Screen {
         searchField = new TextFieldWidget(textRenderer, sx(29), sy(91), sw(329), sh(35), Text.literal("Search materials..."));
         searchField.setMaxLength(64);
         searchField.setText(searchQuery);
+        searchField.setPlaceholder(Text.literal("Search materials..."));
         searchField.setChangedListener(q -> {
             searchQuery = q;
             listScroll = 0;
@@ -175,11 +175,11 @@ public class MaterialsSettingsScreen extends Screen {
     }
 
     private void addFooterButtons() {
-        addDrawableChild(new CButton(1095, 892, 85, 36, "Export", this::exportPack));
-        addDrawableChild(new CButton(1194, 892, 99, 36, "Save", this::applyChanges));
-        addDrawableChild(new CButton(1306, 892, 108, 36, "Save As...", this::saveSelectedMaterial));
-        addDrawableChild(new CButton(1426, 892, 112, 36, "Cancel", this::cancelChanges));
-        addDrawableChild(new CButton(1548, 892, 100, 36, "Apply", this::applyStay, () -> hasUnsavedChanges(), "No material edits to apply."));
+        addDrawableChild(new CButton(1095, 864, 85, 36, "Export", this::exportPack));
+        addDrawableChild(new CButton(1194, 864, 99, 36, "Save", this::applyChanges));
+        addDrawableChild(new CButton(1306, 864, 108, 36, "Save As...", this::saveSelectedMaterial));
+        addDrawableChild(new CButton(1426, 864, 112, 36, "Cancel", this::cancelChanges));
+        addDrawableChild(new CButton(1548, 864, 100, 36, "Apply", this::applyStay, () -> hasUnsavedChanges(), "No material edits to apply."));
     }
 
     private void addCenterControls(int ord, boolean thin, boolean autoReady) {
@@ -256,16 +256,6 @@ public class MaterialsSettingsScreen extends Screen {
                 onMaterialChanged(ord);
             }
         }, ord < MaterialBlock.COUNT ? null : UNBACKED_REASON));
-        addDrawableChild(new CButton(449, 679, 180, 28, "Reset Material", () -> resetMaterial(ord), ord < MaterialBlock.COUNT ? null : "Dynamic materials cannot be reset to enum defaults."));
-        addDrawableChild(new CButton(641, 679, 180, 28, "Copy", () -> {
-            if (ord < MaterialBlock.COUNT) MaterialClipboard.copy(ord);
-        }, ord < MaterialBlock.COUNT ? null : "Dynamic material clipboard support is not available."));
-        addDrawableChild(new CButton(833, 679, 186, 28, "Paste", () -> {
-            if (ord < MaterialBlock.COUNT && MaterialClipboard.paste(ord)) {
-                onMaterialChanged(ord);
-                rebuildSelf();
-            }
-        }, ord < MaterialBlock.COUNT ? null : "Dynamic material clipboard support is not available."));
     }
 
     private void addRightControls(int ord, boolean thin, boolean autoReady) {
@@ -289,8 +279,7 @@ public class MaterialsSettingsScreen extends Screen {
 
         addSliderCell(1066, 450, 270, 53, "Sheen", 0, 1000, Options.materialSheenWeight[ord], defaultValue(ord, MaterialBlock::getDefaultSheenWeight),
             v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSheenWeight[ord] = v; onMaterialChanged(ord); }, thinLock, null);
-        addSliderCell(1348, 450, 294, 53, "Sheen Tint", 0, 1000, Options.materialSheenTint[ord], defaultValue(ord, MaterialBlock::getDefaultSheenTint),
-            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSheenTint[ord] = v; onMaterialChanged(ord); }, thinLock, null);
+        addDisabledCell(1348, 450, 294, 53, "Sheen Tint", "", UNBACKED_REASON);
         addDisabledCell(1066, 510, 270, 35, "Sheen Roughness", "0.50", UNBACKED_REASON);
         addDisabledCell(1348, 510, 294, 35, "Sheen Tint Strength", "0.00", UNBACKED_REASON);
 
@@ -305,12 +294,7 @@ public class MaterialsSettingsScreen extends Screen {
             regeneratePreview();
             LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
         }, normalReason));
-        addSliderCell(1066, 666, 270, 35, "Detail Normal Strength", 0, 200, Options.materialNormalStrength[ord], 100,
-            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
-                Options.materialNormalStrength[ord] = v;
-                onMaterialChanged(ord);
-                regeneratePreview();
-            }, normalReason, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addDisabledCell(1066, 666, 270, 35, "Detail Normal Strength", "1.00", UNBACKED_REASON);
         addDrawableChild(new CToggle(1348, 666, 294, 35, "Invert Height", () -> (Options.materialAutoPBRFlags[ord] & 4) != 0, value -> {
             Options.materialAutoPBRFlags[ord] = (Options.materialAutoPBRFlags[ord] & ~4) | (value ? 4 : 0);
             onMaterialChanged(ord);
@@ -359,13 +343,13 @@ public class MaterialsSettingsScreen extends Screen {
     }
 
     private void drawTopChrome(DrawContext context) {
-        drawText(context, "Radiance > Surfaces > Materials", 18, 18, ORANGE);
+        drawBoldText(context, "Radiance > Surfaces > Materials", 18, 18, ORANGE);
     }
 
     private void drawPanel(DrawContext context, DRect rect, String title) {
         context.fill(rect.x, rect.y, rect.x + rect.w, rect.y + rect.h, PANEL_FILL);
         context.drawBorder(rect.x, rect.y, rect.w, rect.h, PANEL_BORDER);
-        drawText(context, title, designX(rect.dx + 17), designY(72), ORANGE);
+        drawBoldText(context, title, rect.dx + 17, 72, ORANGE);
     }
 
     private void drawStaticLabels(DrawContext context) {
@@ -385,12 +369,12 @@ public class MaterialsSettingsScreen extends Screen {
     private void drawFooter(DrawContext context) {
         DRect f = footerRect;
         context.fill(f.x, f.y, f.x + f.w, f.y + f.h, FOOTER_FILL);
-        fillDesign(context, 30, 902, 18, 18, TEAL);
-        drawText(context, "Enabled", 60, 907, TEXT_PRIMARY);
-        fillDesign(context, 146, 902, 18, 18, TEXT_DISABLED);
-        drawText(context, "Disabled", 176, 907, TEXT_PRIMARY);
-        drawQuestion(context, designX(266), designY(901), designW(20), designH(20), null);
-        drawText(context, "More info", 299, 907, TEXT_PRIMARY);
+        fillDesign(context, 30, 874, 18, 18, TEAL);
+        drawText(context, "Enabled", 60, 879, TEXT_PRIMARY);
+        fillDesign(context, 146, 874, 18, 18, TEXT_DISABLED);
+        drawText(context, "Disabled", 176, 879, TEXT_PRIMARY);
+        drawQuestion(context, designX(266), designY(873), designW(20), designH(20), null);
+        drawText(context, "More info", 299, 879, TEXT_PRIMARY);
     }
 
     private void renderMaterialList(DrawContext context, int mouseX, int mouseY) {
@@ -435,21 +419,21 @@ public class MaterialsSettingsScreen extends Screen {
         DRect r = previewStripRect;
         context.fill(r.x, r.y, r.x + r.w, r.y + r.h, 0xB9161A1B);
         context.drawBorder(r.x, r.y, r.w, r.h, PANEL_BORDER);
-        drawText(context, "AUTO-PBR TEXTURE PREVIEW", 449, 727, ORANGE);
-        drawSmallText(context, "(Read-Only)", 662, 728, TEXT_SECONDARY);
+        drawBoldText(context, "AUTO-PBR TEXTURE PREVIEW", 449, 700, ORANGE);
+        drawSmallText(context, "(Read-Only)", 662, 701, TEXT_SECONDARY);
 
         Identifier[] texIds = {PREVIEW_ALBEDO_ID, PREVIEW_NORMAL_ID, PREVIEW_ROUGHNESS_ID, PREVIEW_HEIGHT_ID, PREVIEW_NOISE_ID};
         String[] labels = {"Albedo", "Normal", "Roughness", "Height", "Noise"};
         int x = designX(449);
-        int y = designY(753);
-        int size = designW(96);
-        int gap = designW(18);
+        int y = designY(726);
+        int size = designW(88);
+        int gap = designW(22);
         for (int i = 0; i < texIds.length; i++) {
             int tx = x + i * (size + gap);
             context.drawTexture(RenderLayer::getGuiTextured, texIds[i], tx, y, 0, 0, size, size, size, size);
             context.drawBorder(tx - 1, y - 1, size + 2, size + 2, i == selectedPreviewMask ? TEAL : PANEL_BORDER);
             int labelX = tx + (size - textRenderer.getWidth(labels[i])) / 2;
-            context.drawText(textRenderer, Text.literal(labels[i]), labelX, designY(857), i == selectedPreviewMask ? TEAL : TEXT_PRIMARY, false);
+            context.drawText(textRenderer, Text.literal(labels[i]), labelX, designY(825), i == selectedPreviewMask ? TEAL : TEXT_PRIMARY, false);
         }
     }
 
@@ -466,9 +450,9 @@ public class MaterialsSettingsScreen extends Screen {
         }
         if (button == 0 && previewStripRect != null) {
             int x = designX(449);
-            int y = designY(753);
-            int size = designW(96);
-            int gap = designW(18);
+            int y = designY(726);
+            int size = designW(88);
+            int gap = designW(22);
             for (int i = 0; i < 5; i++) {
                 int tx = x + i * (size + gap);
                 if (mouseX >= tx && mouseX < tx + size && mouseY >= y && mouseY < y + size) {
@@ -610,9 +594,9 @@ public class MaterialsSettingsScreen extends Screen {
         leftPanel = rect(15, 52, 401, 743);
         centerPanel = rect(433, 52, 603, 831);
         rightPanel = rect(1052, 52, 606, 720);
-        footerRect = rect(15, 887, 1642, 45);
+        footerRect = rect(15, 859, 1642, 45);
         listRect = rect(29, 183, 349, 557);
-        previewStripRect = rect(433, 712, 603, 171);
+        previewStripRect = rect(433, 685, 603, 169);
     }
 
     private DRect rect(int x, int y, int w, int h) {
@@ -632,6 +616,14 @@ public class MaterialsSettingsScreen extends Screen {
         RadianceTheme.drawOutlinedText(ctx, textRenderer, Text.literal(text), designX(x), designY(y), color);
     }
 
+    private void drawBoldText(DrawContext ctx, String text, int x, int y, int color) {
+        int dx = designX(x);
+        int dy = designY(y);
+        Text literal = Text.literal(text);
+        RadianceTheme.drawOutlinedText(ctx, textRenderer, literal, dx, dy, color);
+        RadianceTheme.drawOutlinedText(ctx, textRenderer, literal, dx + Math.max(1, designW(1)), dy, color);
+    }
+
     private void drawSmallText(DrawContext ctx, String text, int x, int y, int color) {
         contextText(ctx, text, designX(x), designY(y), color);
     }
@@ -641,7 +633,7 @@ public class MaterialsSettingsScreen extends Screen {
     }
 
     private void drawSection(DrawContext ctx, String text, int x, int y) {
-        drawText(ctx, text, x, y, TEAL);
+        drawBoldText(ctx, text, x, y, TEAL);
     }
 
     private void drawDropdownShell(DrawContext ctx, int x, int y, int w, int h, String text, boolean enabled) {
@@ -1190,7 +1182,10 @@ public class MaterialsSettingsScreen extends Screen {
             boolean enabled = enabledSupplier.getAsBoolean();
             context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), enabled ? ROW_FILL : ROW_DISABLED);
             context.drawBorder(getX(), getY(), getWidth(), getHeight(), isHovered() && enabled ? TEAL : PANEL_BORDER);
-            Text msg = RadianceTheme.trimText(textRenderer, getMessage(), getWidth() - designW(12));
+            Text raw = getMessage();
+            String rawString = raw.getString();
+            Text display = rawString.indexOf('\u00e2') >= 0 ? Text.literal("v") : raw;
+            Text msg = RadianceTheme.trimText(textRenderer, display, getWidth() - designW(12));
             context.drawText(textRenderer, msg, getX() + (getWidth() - textRenderer.getWidth(msg)) / 2, getY() + (getHeight() - 8) / 2, enabled ? TEXT_PRIMARY : TEXT_DISABLED, false);
             if (!enabled && disabledReason != null && isMouseOver(mouseX, mouseY)) tooltipReason = disabledReason;
         }
@@ -1275,7 +1270,8 @@ public class MaterialsSettingsScreen extends Screen {
         @Override
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             String value = values.length == 0 ? "" : values[selected];
-            drawDropdownShell(context, getX(), getY(), getWidth(), getHeight(), label + ": " + value, disabledReason == null);
+            String display = "Category".equals(label) ? value : label + ": " + value;
+            drawDropdownShell(context, getX(), getY(), getWidth(), getHeight(), display, disabledReason == null);
             if (disabledReason != null) {
                 int q = designW(18);
                 int qx = getX() + getWidth() - q - designW(28);
