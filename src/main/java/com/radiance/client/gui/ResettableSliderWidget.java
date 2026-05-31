@@ -82,7 +82,7 @@ public class ResettableSliderWidget extends SliderWidget {
     public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
         RadianceTheme.drawCustomSlider(context, getX(), getY(), getWidth(), getHeight(),
             this.value, isHovered(), dragging || precisionDragging,
-            MinecraftClient.getInstance().textRenderer, getMessage(), !isDefault());
+            MinecraftClient.getInstance().textRenderer, getMessage(), !isDefault(), this.active);
     }
 
     // ── Mouse handling ──

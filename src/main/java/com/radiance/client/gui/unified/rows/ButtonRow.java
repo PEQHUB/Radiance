@@ -35,7 +35,7 @@ public class ButtonRow extends SettingsRow {
         boolean hovered = mouseX >= x && mouseX < x + width
             && mouseY >= y && mouseY < y + getHeight();
         RadianceTheme.drawCustomButton(context, x, y, width, getHeight(),
-            hovered, MinecraftClient.getInstance().textRenderer, button.getMessage());
+            hovered, MinecraftClient.getInstance().textRenderer, button.getMessage(), button.active);
     }
 
     @Override

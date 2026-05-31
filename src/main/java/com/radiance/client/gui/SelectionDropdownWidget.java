@@ -101,10 +101,11 @@ public class SelectionDropdownWidget extends ClickableWidget {
 
         int x = getX(), y = getY(), w = getWidth(), h = getHeight();
 
-        context.fill(x, y, x + w, y + h, RadianceTheme.scaleAlpha(RadianceTheme.dropdownBg, alphaMult));
+        context.fill(x, y, x + w, y + h,
+            this.active ? RadianceTheme.scaleAlpha(RadianceTheme.dropdownBg, alphaMult) : RadianceTheme.disabledBg);
         int borderColor = (this.isFocused() || open)
-                ? RadianceTheme.scaleAlpha(RadianceTheme.borderFocused, alphaMult)
-                : RadianceTheme.scaleAlpha(RadianceTheme.borderDefault, alphaMult);
+                ? RadianceTheme.scaleAlpha(this.active ? RadianceTheme.borderFocused : RadianceTheme.disabledBorder, alphaMult)
+                : RadianceTheme.scaleAlpha(this.active ? RadianceTheme.borderDefault : RadianceTheme.disabledBorder, alphaMult);
         context.drawBorder(x, y, w, h, borderColor);
 
         var tr = MinecraftClient.getInstance().textRenderer;
@@ -116,10 +117,10 @@ public class SelectionDropdownWidget extends ClickableWidget {
         Text display = RadianceTheme.trimText(tr, Text.literal(label + ": " + options[selectedIndex]),
             Math.max(24, arrowX - textX - 4));
         RadianceTheme.drawOutlinedText(context, tr, display, textX, textY,
-                RadianceTheme.textPrimary, alphaMult);
+                this.active ? RadianceTheme.textPrimary : RadianceTheme.disabledText, alphaMult);
 
         RadianceTheme.drawOutlinedText(context, tr, Text.literal(arrow), arrowX, textY,
-                RadianceTheme.textSecondary, alphaMult);
+                this.active ? RadianceTheme.textSecondary : RadianceTheme.disabledText, alphaMult);
     }
 
     public void renderDropdownOverlay(DrawContext context, int mouseX, int mouseY) {
@@ -174,6 +175,7 @@ public class SelectionDropdownWidget extends ClickableWidget {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (!this.active) return false;
         if (button != 0) return false;
 
         if (open && isInDropdownBounds(mouseX, mouseY)) {
