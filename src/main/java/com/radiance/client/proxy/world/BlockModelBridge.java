@@ -175,7 +175,7 @@ public class BlockModelBridge {
             entryBuf.put(entryPos + 7, (byte) (matOrdinal & 0xFF));
 
             // blockTypeId (uint16)
-            int blockTypeId = BlockTypeIdRegistry.getBlockTypeId(block);
+            int blockTypeId = BlockTypeIdRegistry.getPackedBlockTypeId(block);
             entryBuf.putShort(entryPos + 8, (short) blockTypeId);
 
             // isVivid (uint8)

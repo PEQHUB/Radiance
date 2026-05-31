@@ -200,6 +200,8 @@ public final class DebugInspectReporter {
         sb.append("solidBlock=").append(safeBool(() -> state.isSolidBlock(client.world, pos))).append('\n');
         sb.append("fluidState=").append(state.getFluidState()).append('\n');
         sb.append("blockTypeId=").append(BlockTypeIdRegistry.getBlockTypeId(state.getBlock())).append('\n');
+        sb.append("packedBlockTypeId=").append(BlockTypeIdRegistry.getPackedBlockTypeId(state.getBlock())).append('\n');
+        sb.append("thinCutoutPlant=").append(BlockTypeIdRegistry.isThinCutoutPlant(state.getBlock())).append('\n');
         try {
             sb.append("biome=").append(client.world.getBiome(pos).getKey()
                 .map(key -> key.getValue().toString()).orElse("unknown")).append('\n');

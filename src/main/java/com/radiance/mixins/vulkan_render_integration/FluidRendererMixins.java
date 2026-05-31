@@ -179,7 +179,7 @@ public abstract class FluidRendererMixins {
                 pbrVc.setPendingMaterialBlockType(materialOrdinal);
             }
             pbrVc.setPendingBlockTypeId(
-                com.radiance.client.material.BlockTypeIdRegistry.getBlockTypeId(fluidState.getBlockState().getBlock()));
+                com.radiance.client.material.BlockTypeIdRegistry.getPackedBlockTypeId(fluidState.getBlockState().getBlock()));
         }
 
         float red = (tintColor >> 16 & 0xFF) / 255.0F;
