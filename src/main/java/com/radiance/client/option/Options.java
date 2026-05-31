@@ -1435,6 +1435,28 @@ public class Options {
         materialAutoPBRRoughnessMin[MaterialBlock.LEAVES_MAT.ordinal()] = 53;
         materialAutoPBRRoughnessMin[MaterialBlock.OAK_PLANKS.ordinal()] = 0;
 
+        // Thin plant cards use exact alpha-cutout visibility but a constrained
+        // material path for lighting. Height/normal generation is locked later.
+        int thinPlant = MaterialBlock.THIN_PLANT_MAT.ordinal();
+        materialRoughness[thinPlant] = 92;
+        materialSubsurface[thinPlant] = 180;      // foliage fill/backlight strength
+        materialGamutBoost[thinPlant] = 85;       // conservative brightness/chroma cap
+        materialNormalStrength[thinPlant] = 100;  // plant shadow strength, not normal maps
+        materialMetallic[thinPlant] = 0;
+        materialTransmission[thinPlant] = 0;
+        materialAnisotropic[thinPlant] = 0;
+        materialCoatWeight[thinPlant] = 0;
+        materialCoatRoughness[thinPlant] = 0;
+        materialSheenWeight[thinPlant] = 0;
+        materialSheenTint[thinPlant] = 500;
+        materialAutoPBRRoughnessMin[thinPlant] = 92;
+        materialAutoPBRRoughnessMax[thinPlant] = 100;
+        materialAutoPBRFlags[thinPlant] = 0;
+        materialNoiseStrength[thinPlant] = 0;
+        materialPomMode[thinPlant] = 1;
+        materialPomDepth[thinPlant] = 0;
+        materialDisplacementSelfShadow[thinPlant] = false;
+
         // Wool: high roughness, no variance/edge, inverted roughness
         materialAutoPBRFlags[MaterialBlock.WOOL_MAT.ordinal()] = 1; // invertRoughness
         materialAutoPBRRoughnessMin[MaterialBlock.WOOL_MAT.ordinal()] = 95;
@@ -1561,6 +1583,49 @@ public class Options {
     public static final int[] materialNoiseTarget = new int[MAX_MATERIALS];
     static {
         java.util.Arrays.fill(materialNoiseTarget, 1); // default: roughness only
+        applyThinPlantMaterialLocks();
+    }
+
+    public static void applyThinPlantMaterialLocks() {
+        int thinPlant = MaterialBlock.THIN_PLANT_MAT.ordinal();
+        materialRoughness[thinPlant] = Math.max(materialRoughness[thinPlant], 60);
+        materialSubsurface[thinPlant] = clamp(materialSubsurface[thinPlant], 0, 1000);
+        materialGamutBoost[thinPlant] = clamp(materialGamutBoost[thinPlant], 40, 120);
+        materialNormalStrength[thinPlant] = clamp(materialNormalStrength[thinPlant], 0, 200);
+        materialMetallic[thinPlant] = 0;
+        materialTransmission[thinPlant] = 0;
+        materialAnisotropic[thinPlant] = 0;
+        materialCoatWeight[thinPlant] = 0;
+        materialCoatRoughness[thinPlant] = 0;
+        materialSheenWeight[thinPlant] = 0;
+        materialSheenTint[thinPlant] = 500;
+        materialAutoPBR[thinPlant] = false;
+        materialAutoPBRRoughnessMin[thinPlant] = Math.max(materialAutoPBRRoughnessMin[thinPlant], 92);
+        materialAutoPBRRoughnessMax[thinPlant] = 100;
+        materialAutoPBRFlags[thinPlant] = 0;
+        materialNormalInputType[thinPlant] = 2;
+        materialSpecularInputType[thinPlant] = 2;
+        materialCustomNormalPath[thinPlant] = "";
+        materialCustomSpecularPath[thinPlant] = "";
+        materialNoiseStrength[thinPlant] = 0;
+        materialNoiseTarget[thinPlant] = 0;
+        materialHeightFilter[thinPlant] = 0;
+        materialFilterRadius[thinPlant] = 0;
+        materialMipBias[thinPlant] = 0;
+        materialPomMode[thinPlant] = 1;
+        materialPomDepth[thinPlant] = 0;
+        materialPomClipSilhouette[thinPlant] = false;
+        materialPomAreaLightOffset[thinPlant] = false;
+        materialPomMotionVectors[thinPlant] = false;
+        materialDisplacementSelfShadow[thinPlant] = false;
+        materialHeightContrast[thinPlant] = 10;
+        materialHeightRemapMin[thinPlant] = 0;
+        materialHeightRemapMax[thinPlant] = 100;
+        materialHeightOffset[thinPlant] = 100;
+        materialNormalClamp[thinPlant] = 100;
+        materialGeometricBlend[thinPlant] = 0;
+        materialNormalDistanceFade[thinPlant] = 0;
+        materialPomAOStrength[thinPlant] = 0;
     }
 
     // Environmental settings (per dimension: overworld/nether/end)
@@ -2086,8 +2151,11 @@ public class Options {
             for (MaterialBlock mb : MaterialBlock.values()) {
                 int i = mb.ordinal();
                 String pid = mb.getId();
-                materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "true"));
+                String defaultAutoPBR = mb.isThinCutoutPlantMaterial() ? "false" : "true";
+                materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, defaultAutoPBR));
             }
+            applyThinPlantMaterialLocks();
+            markMaterialDirty();
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 

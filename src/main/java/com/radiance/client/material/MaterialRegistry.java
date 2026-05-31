@@ -133,44 +133,47 @@ public class MaterialRegistry {
     }
 
     private static void packEntry(ByteBuffer buf, int i, MaterialBlock mb) {
+        boolean thinPlantMaterial = MaterialBlock.isThinCutoutPlantMaterialOrdinal(i);
+
         // Pack 0: f0.rgb, roughness
-        buf.putFloat(Options.materialF0R[i] / 1000f);
-        buf.putFloat(Options.materialF0G[i] / 1000f);
-        buf.putFloat(Options.materialF0B[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0.04f : Options.materialF0R[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0.04f : Options.materialF0G[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0.04f : Options.materialF0B[i] / 1000f);
         buf.putFloat(Options.materialRoughness[i] / 100f);
 
         // Pack 1: metallic, transmission, ior, subsurface
-        buf.putFloat(Options.materialMetallic[i] / 1000f);
-        float transmission = Options.materialTransmission[i] == 0
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialMetallic[i] / 1000f);
+        float transmission = thinPlantMaterial ? 0.0f : (Options.materialTransmission[i] == 0
                 ? -1.0f
-                : Options.materialTransmission[i] / 1000f;
+                : Options.materialTransmission[i] / 1000f);
         buf.putFloat(transmission);
         buf.putFloat(Options.materialIOR[i] / 1000f);
         buf.putFloat(Options.materialSubsurface[i] / 1000f);
 
         // Pack 2: anisotropic, sheenWeight, sheenTint, coatWeight
-        buf.putFloat(Options.materialAnisotropic[i] / 1000f);
-        buf.putFloat(Options.materialSheenWeight[i] / 1000f);
-        buf.putFloat(Options.materialSheenTint[i] / 1000f);
-        buf.putFloat(Options.materialCoatWeight[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialAnisotropic[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialSheenWeight[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0.5f : Options.materialSheenTint[i] / 1000f);
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialCoatWeight[i] / 1000f);
 
         // Pack 3: coatRoughness, noiseScale, noiseStrength, noisePacked
-        buf.putFloat(Options.materialCoatRoughness[i] / 100f);
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialCoatRoughness[i] / 100f);
         buf.putFloat(Options.materialNoiseScale[i] / 10f);
-        buf.putFloat(Options.materialNoiseStrength[i] / 1000f);
-        int noisePacked = Options.materialNoiseOctaves[i]
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialNoiseStrength[i] / 1000f);
+        int noisePacked = thinPlantMaterial ? 0 : (Options.materialNoiseOctaves[i]
                 | (Options.materialNoiseType[i] << 4)
                 | (Options.materialNoiseSeed[i] << 9)
-                | (Options.materialNoiseWrap[i] << 20);
+                | (Options.materialNoiseWrap[i] << 20));
         buf.putInt(noisePacked);
 
         // Pack 4: displacement/height pipeline parameters (legacy field names on the native side).
+        int materialPomMode = thinPlantMaterial ? 1 : Options.materialPomMode[i];
         int pp0 = (Options.materialHeightFilter[i] & 0x7)                                // bits 0-2:  heightFilter
-                | ((Options.materialPomMode[i] & 0x3) << 3)                              // bits 3-4:  mode 0=inherit,1=off,2=custom
+                | ((materialPomMode & 0x3) << 3)                                        // bits 3-4:  mode 0=inherit,1=off,2=custom
                 | ((Options.materialHeightSource[i] & 0x7) << 6)                         // bits 6-8:  heightSource
-                | ((Options.materialFilterRadius[i] & 0xF) << 20)                        // bits 20-23: filterRadius
-                | ((Options.materialMipBias[i] & 0xF) << 24)                             // bits 24-27: mipBias
-                | ((Options.materialDisplacementSelfShadow[i] ? 1 : 0) << 28);           // bit 28: local self-shadow
+                | (((thinPlantMaterial ? 0 : Options.materialFilterRadius[i]) & 0xF) << 20) // bits 20-23: filterRadius
+                | (((thinPlantMaterial ? 0 : Options.materialMipBias[i]) & 0xF) << 24)   // bits 24-27: mipBias
+                | (((thinPlantMaterial ? 0 : (Options.materialDisplacementSelfShadow[i] ? 1 : 0)) & 0x1) << 28); // bit 28
         buf.putInt(pp0);
 
         int pp1 = (Options.materialNormalClamp[i] & 0xFF)                                // bits 0-7:  normalClamp
@@ -185,14 +188,14 @@ public class MaterialRegistry {
                 | ((Options.materialNormalDistanceFade[i] & 0xFF) << 24);                 // bits 24-31: normalDistanceFade
         buf.putInt(pp2);
 
-        buf.putFloat(Options.materialPomDepth[i] / 100f);  // pomDepth: 0-200 → 0.00-2.00 blocks
+        buf.putFloat(thinPlantMaterial ? 0f : Options.materialPomDepth[i] / 100f);  // pomDepth: 0-200 -> 0.00-2.00 blocks
 
         // Pack 5: gamutBoost, noiseMaskThreshold, noiseMaskPacked, normalStrength
         buf.putFloat(Options.materialGamutBoost[i] / 100f);
         buf.putFloat(Options.materialNoiseMaskThreshold[i] / 1000f);
-        int noiseMaskPacked = Options.materialNoiseMaskMode[i]
+        int noiseMaskPacked = thinPlantMaterial ? 0 : (Options.materialNoiseMaskMode[i]
                 | ((Options.materialNoiseMaskInvert[i] ? 1 : 0) << 4)
-                | ((Options.materialGamutBoostMode[i] & 0x1) << 7); // bit 7: gamut boost mode (0=uniform, 1=saturation)
+                | ((Options.materialGamutBoostMode[i] & 0x1) << 7)); // bit 7: gamut boost mode (0=uniform, 1=saturation)
         buf.putInt(noiseMaskPacked);
         buf.putFloat(Options.materialNormalStrength[i] / 100f);
 
@@ -207,8 +210,8 @@ public class MaterialRegistry {
         buf.putInt(255);
         buf.putInt(MaterialBlock.getMaterialClassForOrdinal(i).ordinal());
         int flags = 0;
-        if (Options.autoPBREnabled || Options.materialAutoPBR[i]) flags |= 0x8; // bit 3: AutoPBR
-        int apbFlags = Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
+        if (!thinPlantMaterial && (Options.autoPBREnabled || Options.materialAutoPBR[i])) flags |= 0x8; // bit 3: AutoPBR
+        int apbFlags = thinPlantMaterial ? 0 : Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
         flags |= (apbFlags & 0x7) << 4; // bits 4-6
         buf.putInt(flags);
 

@@ -125,6 +125,7 @@ public enum MaterialBlock {
 
     // Category 13: Leaves — plant matter with subsurface scattering
     LEAVES_MAT         ("leaves",             false, 0, 0, 0, 80, 1500, 300),
+    THIN_PLANT_MAT     ("thin_plant",         false, 0, 0, 0, 92, 1500, 180),
 
     // Category 14: Nether Blocks
     NETHERRACK         ("netherrack",         false, 0, 0, 0, 85, 1540),
@@ -254,6 +255,10 @@ public enum MaterialBlock {
 
     public MaterialCategory getCategory() { return category; }
     public MaterialClass getMaterialClass() { return materialClass; }
+    public boolean isThinCutoutPlantMaterial() { return this == THIN_PLANT_MAT; }
+    public static boolean isThinCutoutPlantMaterialOrdinal(int ordinal) {
+        return ordinal == THIN_PLANT_MAT.ordinal();
+    }
     public MaterialBlock getParentMaterial() { return parentMaterial; }
     /** True if this is a top-level material (not a child variant). */
     public boolean isParent() { return parentMaterial == null; }
@@ -861,6 +866,11 @@ public enum MaterialBlock {
         register(Blocks.CHERRY_LEAVES, LEAVES_MAT);
         register(Blocks.AZALEA_LEAVES, LEAVES_MAT);
         register(Blocks.FLOWERING_AZALEA_LEAVES, LEAVES_MAT);
+        register(Blocks.SHORT_GRASS, THIN_PLANT_MAT);
+        register(Blocks.TALL_GRASS, THIN_PLANT_MAT);
+        register(Blocks.FERN, THIN_PLANT_MAT);
+        register(Blocks.LARGE_FERN, THIN_PLANT_MAT);
+        register(Blocks.DEAD_BUSH, THIN_PLANT_MAT);
 
         // Category 14: Nether Blocks
         register(Blocks.NETHERRACK, NETHERRACK);
@@ -1002,7 +1012,7 @@ public enum MaterialBlock {
                 TERRACOTTA_MAT, GLAZED_TERRACOTTA})
             mb.category = MaterialCategory.CERAMICS;
 
-        for (MaterialBlock mb : new MaterialBlock[]{WOOL_MAT, LEAVES_MAT, CORAL_MAT, MUSHROOM_BLOCK,
+        for (MaterialBlock mb : new MaterialBlock[]{WOOL_MAT, LEAVES_MAT, THIN_PLANT_MAT, CORAL_MAT, MUSHROOM_BLOCK,
                 SPONGE_MAT, HAY_BLOCK_MAT, BONE_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT,
                 NETHER_WART_BLOCK_MAT, WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT})
             mb.category = MaterialCategory.ORGANIC;
@@ -1108,7 +1118,7 @@ public enum MaterialBlock {
         CONCRETE.materialClass = MaterialClass.CERAMIC;
 
         // Organic
-        for (MaterialBlock mb : new MaterialBlock[]{LEAVES_MAT, CORAL_MAT, MUSHROOM_BLOCK,
+        for (MaterialBlock mb : new MaterialBlock[]{LEAVES_MAT, THIN_PLANT_MAT, CORAL_MAT, MUSHROOM_BLOCK,
                 SPONGE_MAT, HAY_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT, NETHER_WART_BLOCK_MAT,
                 WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT, MELON_MAT, PUMPKIN_MAT,
                 DRIED_KELP_BLOCK_MAT, HONEYCOMB_BLOCK_MAT})

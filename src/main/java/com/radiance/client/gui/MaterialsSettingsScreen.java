@@ -285,6 +285,12 @@ public class MaterialsSettingsScreen extends Screen {
         return btn;
     }
 
+    private static void lockWidgets(ClickableWidget... widgets) {
+        for (ClickableWidget widget : widgets) {
+            if (widget != null) widget.active = false;
+        }
+    }
+
     /** Render a toggle-style button with teal ON / dim OFF. Called per-frame from render(). */
     private void renderToggleOverlay(DrawContext context, ButtonWidget btn, boolean isOn) {
         int x = btn.getX(), y = btn.getY(), w = btn.getWidth(), h = btn.getHeight();
@@ -319,6 +325,7 @@ public class MaterialsSettingsScreen extends Screen {
         final int idx = i;
         // Nullable — only set for hand-tuned enum entries (ordinal < COUNT)
         MaterialBlock block = (i < MaterialBlock.COUNT) ? MaterialBlock.values()[i] : null;
+        boolean thinPlantMaterial = MaterialBlock.isThinCutoutPlantMaterialOrdinal(i);
         // Helper: get enum default or fallback for dynamic blocks
         java.util.function.Function<java.util.function.ToIntFunction<MaterialBlock>, Integer> def =
             getter -> block != null ? getter.applyAsInt(block) : 0;
@@ -327,7 +334,7 @@ public class MaterialsSettingsScreen extends Screen {
         loadSourceAlbedo(MaterialBlock.getIdForOrdinal(i));
         regeneratePreview();
 
-        boolean autoPBRActive = Options.autoPBREnabled || Options.materialAutoPBR[i];
+        boolean autoPBRActive = !thinPlantMaterial && (Options.autoPBREnabled || Options.materialAutoPBR[i]);
 
         // ════════════════════════════════════════════════════════
         //  HEADER (full width, y=2..46)
@@ -438,6 +445,9 @@ public class MaterialsSettingsScreen extends Screen {
 
         // -- Surface --
         ly = addHeader(leftX, ly, colW, "Surface");
+        if (thinPlantMaterial) {
+            ly = addWarning(leftX, ly, colW, "Thin plant card: exact cutout; height, normals, metal, glass, and coats are shader-locked off.");
+        }
 
         ResettableSliderWidget metallic = new ResettableSliderWidget(0, 0, 150, WIDGET_H,
             0, 1000, Options.materialMetallic[i], def.apply(MaterialBlock::getDefaultMetallic),
@@ -453,6 +463,9 @@ public class MaterialsSettingsScreen extends Screen {
             0, 100, Options.materialRoughness[i], def.apply(MaterialBlock::getDefaultRoughness),
             v -> getGenericValueText(Text.literal("Roughness"), Text.literal(v + "%")),
             v -> { Options.materialRoughness[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            metallic.active = false;
+        }
         ly = addPair(leftX, ly, colW, metallic, roughness);
 
         ResettableSliderWidget ior = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
@@ -470,17 +483,31 @@ public class MaterialsSettingsScreen extends Screen {
             0, 1000, Options.materialTransmission[i], def.apply(MaterialBlock::getDefaultTransmission),
             v -> getGenericValueText(Text.literal("Transmission"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialTransmission[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            lockWidgets(ior, transmission);
+        }
         ly = addPair(leftX, ly, colW, ior, transmission);
 
         ResettableSliderWidget subsurface = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 1000, Options.materialSubsurface[i], def.apply(MaterialBlock::getDefaultSubsurface),
-            v -> getGenericValueText(Text.literal("Subsurface"), Text.literal(String.format("%.1f%%", v / 10.0))),
+            v -> getGenericValueText(Text.literal(thinPlantMaterial ? "Plant Fill" : "Subsurface"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialSubsurface[i] = v; onSliderChanged(i); });
         ResettableSliderWidget anisotropic = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 1000, Options.materialAnisotropic[i], def.apply(MaterialBlock::getDefaultAnisotropic),
             v -> getGenericValueText(Text.literal("Anisotropic"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialAnisotropic[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            anisotropic.active = false;
+        }
         ly = addPair(leftX, ly, colW, subsurface, anisotropic);
+
+        if (thinPlantMaterial) {
+            ResettableSliderWidget plantShadow = new ResettableSliderWidget(0, 0, colW, WIDGET_H,
+                0, 200, Options.materialNormalStrength[i], 100,
+                v -> getGenericValueText(Text.literal("Plant Shadow"), Text.literal(String.format("%.0f%%", v / 2.0))),
+                v -> { Options.materialNormalStrength[i] = v; onSliderChanged(i); });
+            ly = addSingle(leftX, ly, colW, plantShadow);
+        }
 
         // Material validation warnings
         List<String> warningTexts = Options.validateMaterial(i);
@@ -499,6 +526,9 @@ public class MaterialsSettingsScreen extends Screen {
             0, 100, Options.materialCoatRoughness[i], def.apply(MaterialBlock::getDefaultCoatRoughness),
             v -> getGenericValueText(Text.literal("Coat Roughness"), Text.literal(v + "%")),
             v -> { Options.materialCoatRoughness[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            lockWidgets(coatWeight, coatRoughness);
+        }
         ly = addPair(leftX, ly, colW, coatWeight, coatRoughness);
 
         ResettableSliderWidget sheenWeight = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
@@ -509,6 +539,9 @@ public class MaterialsSettingsScreen extends Screen {
             0, 1000, Options.materialSheenTint[i], def.apply(MaterialBlock::getDefaultSheenTint),
             v -> getGenericValueText(Text.literal("Sheen Tint"), Text.literal(String.format("%.1f%%", v / 10.0))),
             v -> { Options.materialSheenTint[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            lockWidgets(sheenWeight, sheenTint);
+        }
         ly = addPair(leftX, ly, colW, sheenWeight, sheenTint);
 
         // -- Advanced --
@@ -530,8 +563,11 @@ public class MaterialsSettingsScreen extends Screen {
             v -> { Options.materialF0B[i] = v; onSliderChanged(i); });
         ResettableSliderWidget gamutBoost = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
             0, 200, Options.materialGamutBoost[i], 100,
-            v -> getGenericValueText(Text.literal("Gamut"), Text.literal(String.format("\u00d7%.2f", v / 100.0))),
+            v -> getGenericValueText(Text.literal(thinPlantMaterial ? "Plant Bright" : "Gamut"), Text.literal(String.format("\u00d7%.2f", v / 100.0))),
             v -> { Options.materialGamutBoost[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            lockWidgets(f0r, f0g, f0b);
+        }
         ly = addPair(leftX, ly, colW, f0b, gamutBoost);
 
         String[] gamutModeLabels = {"Uniform", "Saturate"};
@@ -544,6 +580,9 @@ public class MaterialsSettingsScreen extends Screen {
                 b.setMessage(Text.literal("Gamut: " + gamutModeLabels[gamutModeState[0]]));
                 onSliderChanged(i);
             }).dimensions(0, 0, colW, WIDGET_H).build();
+        if (thinPlantMaterial) {
+            gamutModeBtn.active = false;
+        }
         gamutModeBtn.setPosition(leftX, ly);
         addDrawableChild(gamutModeBtn);
         ly += WIDGET_H + 2;
@@ -581,6 +620,9 @@ public class MaterialsSettingsScreen extends Screen {
                 onSliderChanged(i);
                 rebuildSelf();
             }).dimensions(0, 0, 100, WIDGET_H).build();
+        if (thinPlantMaterial) {
+            lockWidgets(noiseDropdown, noiseTargetBtn);
+        }
         cy = addPair(centerX, cy, colW, noiseDropdown, noiseTargetBtn);
 
         // Wrap + Mask
@@ -602,6 +644,9 @@ public class MaterialsSettingsScreen extends Screen {
                 btn.setMessage(Text.literal("Mask: " + maskModeLabels[next]));
                 onSliderChanged(i);
             }).dimensions(0, 0, 100, WIDGET_H).build();
+        if (thinPlantMaterial) {
+            lockWidgets(wrapBtn, maskModeBtn);
+        }
         cy = addPair(centerX, cy, colW, wrapBtn, maskModeBtn);
 
         // Str / Scale
@@ -613,6 +658,9 @@ public class MaterialsSettingsScreen extends Screen {
             1, 5000, Math.min(Options.materialNoiseScale[i], 5000), 50,
             v -> getGenericValueText(Text.literal("Scale"), Text.literal(String.format("%.1fx", v / 10.0))),
             v -> { Options.materialNoiseScale[i] = v; onSliderChanged(i); regenerateNoisePreview(); });
+        if (thinPlantMaterial) {
+            lockWidgets(noiseStrength, noiseScale);
+        }
         cy = addPair(centerX, cy, colW, noiseStrength, noiseScale);
 
         // Oct / Seed
@@ -624,6 +672,9 @@ public class MaterialsSettingsScreen extends Screen {
             0, 999, Options.materialNoiseSeed[i], 0,
             v -> getGenericValueText(Text.literal("Seed"), Text.literal(String.valueOf(v))),
             v -> { Options.materialNoiseSeed[i] = v; onSliderChanged(i); regenerateNoisePreview(); });
+        if (thinPlantMaterial) {
+            lockWidgets(noiseOctaves, noiseSeed);
+        }
         cy = addPair(centerX, cy, colW, noiseOctaves, noiseSeed);
 
         // Rot / Asp
@@ -635,6 +686,9 @@ public class MaterialsSettingsScreen extends Screen {
             10, 500, Options.materialNoiseAspect[i], 100,
             v -> getGenericValueText(Text.literal("Asp"), Text.literal(String.format("%.1fx", v / 100.0))),
             v -> { Options.materialNoiseAspect[i] = v; onSliderChanged(i); regenerateNoisePreview(); });
+        if (thinPlantMaterial) {
+            lockWidgets(noiseRotation, noiseAspect);
+        }
         cy = addPair(centerX, cy, colW, noiseRotation, noiseAspect);
 
         // Lac / Con
@@ -646,6 +700,9 @@ public class MaterialsSettingsScreen extends Screen {
             10, 200, Options.materialNoiseContrast[i], 100,
             v -> getGenericValueText(Text.literal("Con"), Text.literal(String.format("%.1f", v / 100.0))),
             v -> { Options.materialNoiseContrast[i] = v; onSliderChanged(i); regenerateNoisePreview(); });
+        if (thinPlantMaterial) {
+            lockWidgets(noiseLacunarity, noiseContrast);
+        }
         cy = addPair(centerX, cy, colW, noiseLacunarity, noiseContrast);
 
         // Conditional: Mask Threshold + Invert
@@ -661,6 +718,9 @@ public class MaterialsSettingsScreen extends Screen {
                     btn.setMessage(Text.literal("Invert: " + (Options.materialNoiseMaskInvert[i] ? "ON" : "OFF")));
                     onSliderChanged(i);
                 }).dimensions(0, 0, 100, WIDGET_H).build();
+            if (thinPlantMaterial) {
+                lockWidgets(maskThreshold, maskInvertBtn);
+            }
             cy = addPair(centerX, cy, colW, maskThreshold, maskInvertBtn);
         }
 
@@ -688,6 +748,9 @@ public class MaterialsSettingsScreen extends Screen {
                 onSliderChanged(i);
             }).dimensions(0, 0, 100, WIDGET_H).build();
         heightFilterBtn.active = Options.materialPomMode[i] == 2;
+        if (thinPlantMaterial) {
+            lockWidgets(dispModeBtn, heightFilterBtn);
+        }
         cy = addPair(centerX, cy, colW, dispModeBtn, heightFilterBtn);
 
         ResettableSliderWidget dispDepth = new ResettableSliderWidget(0, 0, 100, WIDGET_H,
@@ -695,8 +758,12 @@ public class MaterialsSettingsScreen extends Screen {
             v -> getGenericValueText(Text.literal("Depth"),
                 v == 0 ? Text.literal("Off") : Text.literal(String.format("%.2f", v / 100.0) + " blk")),
             v -> { Options.materialPomDepth[i] = v; onSliderChanged(i); });
+        if (thinPlantMaterial) {
+            dispDepth.active = false;
+            cy = addPair(centerX, cy, colW, dispDepth, null);
+        }
 
-        if (Options.materialPomMode[i] == 2) {
+        if (!thinPlantMaterial && Options.materialPomMode[i] == 2) {
             String[] srcNames = {"Luminance", "Red", "Green", "Blue", "Alpha", "MaxRGB", "MinRGB"};
             ButtonWidget heightSourceBtn = ButtonWidget.builder(
                 Text.literal("Source: " + srcNames[Math.min(Options.materialHeightSource[i], 6)]),
@@ -771,7 +838,13 @@ public class MaterialsSettingsScreen extends Screen {
             LiveNormalReuploader.scheduleGeneratedReupload(true, true);
             rebuildSelf();
         });
+        if (thinPlantMaterial) {
+            lockWidgets(perBlockAutoPBRBtn, globalAutoPBRBtn);
+        }
         ry = addPair(rightX, ry, colW, perBlockAutoPBRBtn, globalAutoPBRBtn);
+        if (thinPlantMaterial) {
+            ry = addWarning(rightX, ry, colW, "Auto-PBR normal and height generation are ignored for thin plants.");
+        }
 
         // === Roughness mask controls ===
         ry = addHeader(rightX, ry, colW, "Roughness");
@@ -825,6 +898,7 @@ public class MaterialsSettingsScreen extends Screen {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~1) | (value ? 1 : 0);
             onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, true, false);
         });
+        invertRoughBtn.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, invertRoughBtn, null);
 
         // === Normal mask controls ===
@@ -840,6 +914,7 @@ public class MaterialsSettingsScreen extends Screen {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~2) | (value ? 2 : 0);
             onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, false, true);
         });
+        invertNormalBtn.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, normalStrength, invertNormalBtn);
 
         // === Height mask controls ===
@@ -854,6 +929,7 @@ public class MaterialsSettingsScreen extends Screen {
             Options.materialAutoPBRFlags[i] = (Options.materialAutoPBRFlags[i] & ~4) | (value ? 4 : 0);
             onSliderChanged(i); regeneratePreview(); LiveNormalReuploader.scheduleGeneratedReupload(i, false, true);
         });
+        invertHeightBtn.active = autoPBRActive;
         ry = addPair(rightX, ry, colW, perHeightGamma, invertHeightBtn);
 
         // Compute preview strip Y — below the tallest column + gap

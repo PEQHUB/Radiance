@@ -223,6 +223,15 @@ public final class DebugInspectReporter {
         sb.append("materialId=").append(MaterialBlock.getIdForOrdinal(ordinal)).append('\n');
         sb.append("materialDisplayName=").append(MaterialBlock.getDisplayNameForOrdinal(ordinal)).append('\n');
         sb.append("materialClass=").append(MaterialBlock.getMaterialClassForOrdinal(ordinal)).append('\n');
+        boolean thinPlantMaterial = MaterialBlock.isThinCutoutPlantMaterialOrdinal(ordinal);
+        sb.append("thinPlantMaterial=").append(thinPlantMaterial).append('\n');
+        if (thinPlantMaterial) {
+            sb.append("thinPlantShaderLocks=displacementOff,autoPBROff,normalMapsOff,metallicOff,transmissionOff,coatOff\n");
+            sb.append("thinPlantRoughness=").append(Options.materialRoughness[ordinal]).append('\n');
+            sb.append("thinPlantFill=").append(Options.materialSubsurface[ordinal]).append('\n');
+            sb.append("thinPlantBrightness=").append(Options.materialGamutBoost[ordinal]).append('\n');
+            sb.append("thinPlantShadow=").append(Options.materialNormalStrength[ordinal]).append('\n');
+        }
         sb.append("autoPBR=").append(Options.materialAutoPBR[ordinal]).append('\n');
         sb.append("normalInputType=").append(Options.materialNormalInputType[ordinal]).append('\n');
         sb.append("displacementMode=").append(modeName(Options.materialPomMode[ordinal]))
