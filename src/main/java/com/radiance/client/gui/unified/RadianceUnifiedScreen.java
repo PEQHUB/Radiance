@@ -294,6 +294,7 @@ public class RadianceUnifiedScreen extends Screen {
         debug.addChild(new TreeNode("debug_status", "Status", new DebugPopulator(DebugPopulator.Page.STATUS)));
         debug.addChild(new TreeNode("debug_capture_logs", "Capture & Logs", new DebugPopulator(DebugPopulator.Page.CAPTURE_LOGS)));
         debug.addChild(new TreeNode("debug_gpu_profiling", "GPU / Frame Profiling", new DebugPopulator(DebugPopulator.Page.GPU_PROFILING)));
+        debug.addChild(new TreeNode("debug_dlssg_latency", "DLSS-G Latency", new DebugPopulator(DebugPopulator.Page.DLSSG_LATENCY)));
         debug.addChild(new TreeNode("debug_resources", "Resources", new DebugPopulator(DebugPopulator.Page.RESOURCES)));
         debug.addChild(new TreeNode("debug_power_actions", "Power Actions", new DebugPopulator(DebugPopulator.Page.POWER_ACTIONS)));
         debug.populator = compositePopulator(debug.children);

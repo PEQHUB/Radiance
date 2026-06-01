@@ -338,6 +338,10 @@ public class ChunkProxy {
                                           boolean important) {
         BlockPos origin = builtChunk.getOrigin();
         int ox = origin.getX(), oy = origin.getY(), oz = origin.getZ();
+        var world = MinecraftClient.getInstance().world;
+        if (world == null) {
+            return;
+        }
 
         try (MemoryStack stack = stackPush()) {
             // Extract block states: 4096 x uint16 palette indices + palette array
@@ -408,7 +412,6 @@ public class ChunkProxy {
             // Biome data: 64 x uint16 (4x4x4 grid within section)
             ByteBuffer biomeBuf = stack.malloc(64 * Short.BYTES);
             long biomeAddr = memAddress(biomeBuf);
-            var world = MinecraftClient.getInstance().world;
             var biomeRegistry = world.getRegistryManager()
                 .getOrThrow(RegistryKeys.BIOME);
             for (int by = 0; by < 4; by++) {

@@ -71,6 +71,12 @@ public class RendererProxy {
     // Native feature truth: compiled/runtime renderer reality, not just Java option intent
     public static native String nativeGetFeatureTruth();
 
+    // Color pipeline reality: swapchain format/color space, HDR mode, tonemap, saturation, sharpener
+    public static native String nativeGetColorPipelineDiagnostics();
+
+    // DLSS-G latency and Streamline input-completion diagnostics
+    public static native String nativeGetDlssgLatencyDiag();
+
     // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"
     public static native String nativeGetVmaStats();
 

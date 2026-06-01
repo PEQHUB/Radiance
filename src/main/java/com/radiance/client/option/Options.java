@@ -686,6 +686,7 @@ public class Options {
     // Frame Generation (DLSS-G)
     public static int frameGenMode = 0;          // 0=Off, 1=On, 2=Auto (dynamic MFG)
     public static int frameGenMultiplier = 1;    // 1=2x, 2=3x, 3=4x
+    public static boolean dlssgQueueParallelism = false; // Disabled until DLSS-G inputs use an independent resource ring
     public static int chunkBuildingBatchSize = 6;
     public static int chunkBuildingTotalBatches = 6;
     public static int chunkCullDistance = 24;  // 0-512 chunks, chunks beyond excluded from TLAS (0=unlimited)
@@ -1017,11 +1018,13 @@ public class Options {
         materialDirty = true;
         com.radiance.client.debug.CrashContext.recordChange("materialDirty");
         com.radiance.client.debug.RadianceLogger.logMaterialDirty("markMaterialDirty");
+        com.radiance.client.material.MaterialRegistry.markDirty();
     }
     public static void setMaterialOverridesEnabled(boolean enabled, boolean write) {
         com.radiance.client.debug.CrashContext.recordChange("materialOverridesEnabled=" + enabled);
         Options.materialOverridesEnabled = enabled;
         markMaterialDirty();
+        com.radiance.client.texture.LiveNormalReuploader.scheduleGeneratedReupload(true, true);
         if (write) { overwriteConfig(); }
     }
 
@@ -1029,6 +1032,7 @@ public class Options {
         com.radiance.client.debug.CrashContext.recordChange("autoPBREnabled=" + enabled);
         Options.autoPBREnabled = enabled;
         markMaterialDirty();
+        com.radiance.client.texture.LiveNormalReuploader.scheduleGeneratedReupload(true, true);
         if (write) { overwriteConfig(); }
     }
 
@@ -1071,6 +1075,7 @@ public class Options {
     public static final int[] materialNormalStrength = new int[MAX_MATERIALS];  // 0-200 (×0.01 = 0.00-2.00 multiplier, 100=neutral)
     public static final int[] materialAutoPBRRoughnessMin = new int[MAX_MATERIALS]; // 0-100, per-block roughness min %
     public static final int[] materialAutoPBRRoughnessMax = new int[MAX_MATERIALS]; // 0-100, per-block roughness max %
+    public static final int[] materialRoughnessBlend = new int[MAX_MATERIALS];      // 0-100, 100 = material roughness slider wins
     public static final int[] materialPercentileCenter = new int[MAX_MATERIALS];      // 0-100, what brightness = mid-roughness
     public static final int[] materialPercentileSpread = new int[MAX_MATERIALS];      // 1-100, roughness contrast width
     public static final int[] materialAutoPBRHeightGamma = new int[MAX_MATERIALS];     // 10-300, /100
@@ -1126,6 +1131,7 @@ public class Options {
             materialNormalStrength[i] = 100;
             materialAutoPBRRoughnessMin[i] = 30;
             materialAutoPBRRoughnessMax[i] = 95;
+            materialRoughnessBlend[i] = 100;
             materialPercentileCenter[i] = 50;
             materialPercentileSpread[i] = 80;
             materialAutoPBRHeightGamma[i] = 100;
@@ -1189,6 +1195,7 @@ public class Options {
             materialNormalStrength[i] = 100; // 1.0× (neutral)
             materialAutoPBRRoughnessMin[i] = 30;  // default roughness min 30%
             materialAutoPBRRoughnessMax[i] = 95;  // default roughness max 95%
+            materialRoughnessBlend[i] = 100;       // roughness slider remains authoritative by default
             materialPercentileCenter[i] = 50;      // 50% = linear midpoint
             materialPercentileSpread[i] = 80;      // 80% = moderate contrast
             materialAutoPBRHeightGamma[i] = 100;    // 1.0 = linear (no contrast adjustment)
@@ -1507,6 +1514,7 @@ public class Options {
                 materialNormalStrength[ci] = materialNormalStrength[parentOrdinal];
                 materialAutoPBRRoughnessMin[ci] = materialAutoPBRRoughnessMin[parentOrdinal];
                 materialAutoPBRRoughnessMax[ci] = materialAutoPBRRoughnessMax[parentOrdinal];
+                materialRoughnessBlend[ci] = materialRoughnessBlend[parentOrdinal];
                 materialPercentileCenter[ci] = materialPercentileCenter[parentOrdinal];
                 materialPercentileSpread[ci] = materialPercentileSpread[parentOrdinal];
                 materialAutoPBRHeightGamma[ci] = materialAutoPBRHeightGamma[parentOrdinal];
@@ -1569,7 +1577,13 @@ public class Options {
     // Global override sliders removed — per-block arrays are the sole authority.
     // (bit 0 = invertRoughness, bit 1 = invertNormal, bit 2 = invertHeight)
 
-    // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat
+    public static final int MATERIAL_SOURCE_AUTO = 0;
+    public static final int MATERIAL_SOURCE_CUSTOM = 1;
+    public static final int MATERIAL_SOURCE_FLAT = 2;
+    public static final int MATERIAL_SOURCE_GENERATED = 3;
+    public static final int MATERIAL_SOURCE_AUTHORED = 4;
+
+    // Per-material channel input type.
     public static final int[] materialNormalInputType = new int[MAX_MATERIALS];
     public static final int[] materialSpecularInputType = new int[MAX_MATERIALS];
     public static final String[] materialCustomNormalPath = new String[MAX_MATERIALS];
@@ -1602,9 +1616,10 @@ public class Options {
         materialAutoPBR[thinPlant] = false;
         materialAutoPBRRoughnessMin[thinPlant] = Math.max(materialAutoPBRRoughnessMin[thinPlant], 92);
         materialAutoPBRRoughnessMax[thinPlant] = 100;
+        materialRoughnessBlend[thinPlant] = 100;
         materialAutoPBRFlags[thinPlant] = 0;
-        materialNormalInputType[thinPlant] = 2;
-        materialSpecularInputType[thinPlant] = 2;
+        materialNormalInputType[thinPlant] = MATERIAL_SOURCE_FLAT;
+        materialSpecularInputType[thinPlant] = MATERIAL_SOURCE_FLAT;
         materialCustomNormalPath[thinPlant] = "";
         materialCustomSpecularPath[thinPlant] = "";
         materialNoiseStrength[thinPlant] = 0;
@@ -2090,12 +2105,13 @@ public class Options {
                 materialNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]))), 0, 200);
                 materialAutoPBRRoughnessMin[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]))), 0, 100);
                 materialAutoPBRRoughnessMax[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]))), 0, 100);
+                materialRoughnessBlend[i] = clamp(Integer.parseInt(props.getProperty("materialRoughnessBlend." + pid, String.valueOf(materialRoughnessBlend[i]))), 0, 100);
                 materialPercentileCenter[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]))), 0, 100);
                 materialPercentileSpread[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]))), 1, 100);
                 materialAutoPBRHeightGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]))), 10, 300);
                 materialAutoPBRFlags[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]))), 0, 7);
-                materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 2);
-                materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, 2);
+                materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, MATERIAL_SOURCE_AUTHORED);
+                materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, MATERIAL_SOURCE_AUTHORED);
                 materialCustomNormalPath[i] = props.getProperty("materialCustomNormalPath." + pid, "");
                 materialCustomSpecularPath[i] = props.getProperty("materialCustomSpecularPath." + pid, "");
                 materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 15);
@@ -2172,6 +2188,8 @@ public class Options {
             nativeSetFrameGenMode(frameGenMode, false);
             frameGenMultiplier = Integer.parseInt(props.getProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier)));
             nativeSetFrameGenMultiplier(frameGenMultiplier, false);
+            dlssgQueueParallelism = false;
+            nativeSetDlssgQueueParallelism(false, false);
 
             exposureCompensation = Integer.parseInt(props.getProperty(
                 "exposureCompensation", String.valueOf(exposureCompensation)));
@@ -2616,6 +2634,7 @@ public class Options {
             props.setProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]));
             props.setProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]));
             props.setProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]));
+            props.setProperty("materialRoughnessBlend." + pid, String.valueOf(materialRoughnessBlend[i]));
             props.setProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]));
             props.setProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]));
             props.setProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]));
@@ -2675,6 +2694,7 @@ public class Options {
         props.setProperty("vrrMode", String.valueOf(vrrMode));
         props.setProperty("frameGenMode", String.valueOf(frameGenMode));
         props.setProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier));
+        props.setProperty("dlssgQueueParallelism", String.valueOf(dlssgQueueParallelism));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
@@ -3653,6 +3673,7 @@ public class Options {
         reflexEnabled = false;
         reflexBoost = false;
         vrrMode = false;
+        dlssgQueueParallelism = false;
         chunkBuildingBatchSize = 6;
         chunkBuildingTotalBatches = 6;
         chunkCullDistance = 24;
@@ -3752,6 +3773,7 @@ public class Options {
         nativeSetReflexEnabled(reflexEnabled, false);
         nativeSetReflexBoost(reflexBoost, false);
         nativeSetVrrMode(vrrMode, false);
+        nativeSetDlssgQueueParallelism(dlssgQueueParallelism, false);
         nativeSetChunkBuildingBatchSize(chunkBuildingBatchSize, false);
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
         nativeSetChunkCullDistance(chunkCullDistance, false);
@@ -4840,6 +4862,7 @@ public class Options {
     // --- Frame Generation (DLSS-G) ---
     public native static void nativeSetFrameGenMode(int mode, boolean write);
     public native static void nativeSetFrameGenMultiplier(int multiplier, boolean write);
+    public native static void nativeSetDlssgQueueParallelism(boolean enabled, boolean write);
     public native static boolean nativeIsFrameGenSupported();
     public native static int nativeGetFrameGenMaxMultiplier();
 
@@ -4868,6 +4891,14 @@ public class Options {
     public static void setFrameGenMultiplier(int multiplier, boolean write) {
         Options.frameGenMultiplier = multiplier;
         nativeSetFrameGenMultiplier(multiplier, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setDlssgQueueParallelism(boolean enabled, boolean write) {
+        Options.dlssgQueueParallelism = false;
+        nativeSetDlssgQueueParallelism(false, write);
         if (write) {
             overwriteConfig();
         }

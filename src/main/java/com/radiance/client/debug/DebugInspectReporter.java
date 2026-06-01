@@ -233,6 +233,11 @@ public final class DebugInspectReporter {
             sb.append("thinPlantShadow=").append(Options.materialNormalStrength[ordinal]).append('\n');
         }
         sb.append("autoPBR=").append(Options.materialAutoPBR[ordinal]).append('\n');
+        sb.append("effectiveAutoPBR=")
+            .append(Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[ordinal]).append('\n');
+        sb.append("roughness=").append(Options.materialRoughness[ordinal]).append('\n');
+        sb.append("roughnessBlend=").append(Options.materialRoughnessBlend[ordinal]).append('\n');
+        sb.append("specularInputType=").append(Options.materialSpecularInputType[ordinal]).append('\n');
         sb.append("normalInputType=").append(Options.materialNormalInputType[ordinal]).append('\n');
         sb.append("displacementMode=").append(modeName(Options.materialPomMode[ordinal]))
             .append(" (").append(Options.materialPomMode[ordinal]).append(")\n");
@@ -256,7 +261,7 @@ public final class DebugInspectReporter {
             .append(", invertHeight=").append((Options.materialAutoPBRFlags[ordinal] & 4) != 0)
             .append(")\n");
         sb.append("effectiveAutoPBRFlagForShader=")
-            .append(Options.autoPBREnabled || Options.materialAutoPBR[ordinal]).append('\n');
+            .append(Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[ordinal]).append('\n');
         sb.append('\n');
     }
 
@@ -383,7 +388,9 @@ public final class DebugInspectReporter {
             return "normal_alpha:labpbr_or_generated_height";
         }
 
-        boolean shaderAutoPbr = Options.autoPBREnabled || Options.materialAutoPBR[materialOrdinal];
+        boolean shaderAutoPbr = Options.materialOverridesEnabled
+            && Options.autoPBREnabled
+            && Options.materialAutoPBR[materialOrdinal];
         if (shaderAutoPbr) {
             return "autopbr_albedo:normal_alpha_unavailable";
         }

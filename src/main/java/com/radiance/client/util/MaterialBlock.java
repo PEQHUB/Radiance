@@ -171,7 +171,8 @@ public enum MaterialBlock {
     WATER_MAT          ("water",              false, 0, 0, 0,  5, 1333),   // water IOR 1.333
     LAVA_MAT           ("lava",               false, 0, 0, 0, 90, 1500, 500),  // opaque, high subsurface
     HONEY_MAT          ("honey",              false, 0, 0, 0, 15, 1504, 300),  // viscous, IOR ~1.50
-    SLIME_MAT          ("slime_block",        false, 0, 0, 0, 30, 1500, 400);  // translucent gel
+    SLIME_MAT          ("slime_block",        false, 0, 0, 0, 30, 1500, 400),  // translucent gel
+    BAMBOO_STALK_MAT   ("bamboo_stalk",       false, 0, 0, 0, 82, 1500, 100);  // living woody culm, regular cuboid lighting
 
     public static final int COUNT = values().length;
 
@@ -704,6 +705,7 @@ public enum MaterialBlock {
         register(Blocks.BAMBOO_BUTTON, CHERRY_PLANKS);
         register(Blocks.BAMBOO_BLOCK, CHERRY_PLANKS);
         register(Blocks.STRIPPED_BAMBOO_BLOCK, CHERRY_PLANKS);
+        register(Blocks.BAMBOO, BAMBOO_STALK_MAT);
         register(Blocks.CRIMSON_PLANKS, DARK_OAK_PLANKS);
         register(Blocks.CRIMSON_STAIRS, DARK_OAK_PLANKS);
         register(Blocks.CRIMSON_SLAB, DARK_OAK_PLANKS);
@@ -866,11 +868,82 @@ public enum MaterialBlock {
         register(Blocks.CHERRY_LEAVES, LEAVES_MAT);
         register(Blocks.AZALEA_LEAVES, LEAVES_MAT);
         register(Blocks.FLOWERING_AZALEA_LEAVES, LEAVES_MAT);
-        register(Blocks.SHORT_GRASS, THIN_PLANT_MAT);
-        register(Blocks.TALL_GRASS, THIN_PLANT_MAT);
-        register(Blocks.FERN, THIN_PLANT_MAT);
-        register(Blocks.LARGE_FERN, THIN_PLANT_MAT);
-        register(Blocks.DEAD_BUSH, THIN_PLANT_MAT);
+        registerAll(THIN_PLANT_MAT,
+                Blocks.SHORT_GRASS,
+                Blocks.TALL_GRASS,
+                Blocks.FERN,
+                Blocks.LARGE_FERN,
+                Blocks.DEAD_BUSH,
+                Blocks.SUGAR_CANE,
+                Blocks.OAK_SAPLING,
+                Blocks.SPRUCE_SAPLING,
+                Blocks.BIRCH_SAPLING,
+                Blocks.JUNGLE_SAPLING,
+                Blocks.ACACIA_SAPLING,
+                Blocks.CHERRY_SAPLING,
+                Blocks.DARK_OAK_SAPLING,
+                Blocks.PALE_OAK_SAPLING,
+                Blocks.MANGROVE_PROPAGULE,
+                Blocks.BAMBOO_SAPLING,
+                Blocks.DANDELION,
+                Blocks.POPPY,
+                Blocks.BLUE_ORCHID,
+                Blocks.ALLIUM,
+                Blocks.AZURE_BLUET,
+                Blocks.RED_TULIP,
+                Blocks.ORANGE_TULIP,
+                Blocks.WHITE_TULIP,
+                Blocks.PINK_TULIP,
+                Blocks.OXEYE_DAISY,
+                Blocks.CORNFLOWER,
+                Blocks.LILY_OF_THE_VALLEY,
+                Blocks.WITHER_ROSE,
+                Blocks.TORCHFLOWER,
+                Blocks.OPEN_EYEBLOSSOM,
+                Blocks.CLOSED_EYEBLOSSOM,
+                Blocks.SUNFLOWER,
+                Blocks.LILAC,
+                Blocks.ROSE_BUSH,
+                Blocks.PEONY,
+                Blocks.PITCHER_PLANT,
+                Blocks.SPORE_BLOSSOM,
+                Blocks.BROWN_MUSHROOM,
+                Blocks.RED_MUSHROOM,
+                Blocks.AZALEA,
+                Blocks.FLOWERING_AZALEA,
+                Blocks.CRIMSON_FUNGUS,
+                Blocks.WARPED_FUNGUS,
+                Blocks.WHEAT,
+                Blocks.CARROTS,
+                Blocks.POTATOES,
+                Blocks.BEETROOTS,
+                Blocks.NETHER_WART,
+                Blocks.PUMPKIN_STEM,
+                Blocks.MELON_STEM,
+                Blocks.ATTACHED_PUMPKIN_STEM,
+                Blocks.ATTACHED_MELON_STEM,
+                Blocks.TORCHFLOWER_CROP,
+                Blocks.PITCHER_CROP,
+                Blocks.SWEET_BERRY_BUSH,
+                Blocks.VINE,
+                Blocks.CAVE_VINES,
+                Blocks.CAVE_VINES_PLANT,
+                Blocks.WEEPING_VINES,
+                Blocks.WEEPING_VINES_PLANT,
+                Blocks.TWISTING_VINES,
+                Blocks.TWISTING_VINES_PLANT,
+                Blocks.KELP,
+                Blocks.KELP_PLANT,
+                Blocks.SEAGRASS,
+                Blocks.TALL_SEAGRASS,
+                Blocks.HANGING_ROOTS,
+                Blocks.CRIMSON_ROOTS,
+                Blocks.WARPED_ROOTS,
+                Blocks.NETHER_SPROUTS,
+                Blocks.PINK_PETALS,
+                Blocks.SMALL_DRIPLEAF,
+                Blocks.BIG_DRIPLEAF,
+                Blocks.BIG_DRIPLEAF_STEM);
 
         // Category 14: Nether Blocks
         register(Blocks.NETHERRACK, NETHERRACK);
@@ -1014,7 +1087,7 @@ public enum MaterialBlock {
 
         for (MaterialBlock mb : new MaterialBlock[]{WOOL_MAT, LEAVES_MAT, THIN_PLANT_MAT, CORAL_MAT, MUSHROOM_BLOCK,
                 SPONGE_MAT, HAY_BLOCK_MAT, BONE_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT,
-                NETHER_WART_BLOCK_MAT, WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT})
+                NETHER_WART_BLOCK_MAT, WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT, BAMBOO_STALK_MAT})
             mb.category = MaterialCategory.ORGANIC;
 
         for (MaterialBlock mb : new MaterialBlock[]{WATER_MAT, LAVA_MAT, HONEY_MAT, SLIME_MAT})
@@ -1121,7 +1194,7 @@ public enum MaterialBlock {
         for (MaterialBlock mb : new MaterialBlock[]{LEAVES_MAT, THIN_PLANT_MAT, CORAL_MAT, MUSHROOM_BLOCK,
                 SPONGE_MAT, HAY_BLOCK_MAT, MOSS_BLOCK, SCULK_MAT, NETHER_WART_BLOCK_MAT,
                 WARPED_NYLIUM, CRIMSON_NYLIUM, SHROOMLIGHT_MAT, MELON_MAT, PUMPKIN_MAT,
-                DRIED_KELP_BLOCK_MAT, HONEYCOMB_BLOCK_MAT})
+                DRIED_KELP_BLOCK_MAT, HONEYCOMB_BLOCK_MAT, BAMBOO_STALK_MAT})
             mb.materialClass = MaterialClass.ORGANIC;
         BONE_BLOCK_MAT.materialClass = MaterialClass.BONE;
         WOOL_MAT.materialClass = MaterialClass.WOOL;
@@ -1146,6 +1219,12 @@ public enum MaterialBlock {
         BLOCK_MAP.put(block, materialBlock);
         if (materialBlock.primaryBlock == null) {
             materialBlock.primaryBlock = block;
+        }
+    }
+
+    private static void registerAll(MaterialBlock materialBlock, Block... blocks) {
+        for (Block block : blocks) {
+            register(block, materialBlock);
         }
     }
 

@@ -63,7 +63,13 @@ public class MaterialsSettingsScreen extends Screen {
     private static int currentBlockIndex = 0;
     private static String searchQuery = "";
     private static int selectedCategory = 0;
-    private static int selectedPreviewMask = 2; // 0=Albedo, 1=Normal, 2=Roughness, 3=Height, 4=Noise
+    private static final int PREVIEW_ALBEDO_INDEX = 0;
+    private static final int PREVIEW_ROUGHNESS_INDEX = 1;
+    private static final int PREVIEW_NORMAL_INDEX = 2;
+    private static final int PREVIEW_HEIGHT_INDEX = 3;
+    private static final int PREVIEW_AO_INDEX = 4;
+    private static final int PREVIEW_NOISE_INDEX = 5;
+    private static int selectedPreviewMask = PREVIEW_ROUGHNESS_INDEX;
     private static int listScroll = 0;
 
     private TextFieldWidget searchField;
@@ -81,11 +87,22 @@ public class MaterialsSettingsScreen extends Screen {
     private static final Identifier PREVIEW_NORMAL_ID = Identifier.of("radiance", "autopbr_preview/normal");
     private static final Identifier PREVIEW_ROUGHNESS_ID = Identifier.of("radiance", "autopbr_preview/roughness");
     private static final Identifier PREVIEW_HEIGHT_ID = Identifier.of("radiance", "autopbr_preview/height");
+    private static final Identifier PREVIEW_AO_ID = Identifier.of("radiance", "autopbr_preview/ao");
     private static final Identifier PREVIEW_NOISE_ID = Identifier.of("radiance", "autopbr_preview/noise");
+    private static final Identifier[] PREVIEW_TEXTURES = {
+        PREVIEW_ALBEDO_ID,
+        PREVIEW_ROUGHNESS_ID,
+        PREVIEW_NORMAL_ID,
+        PREVIEW_HEIGHT_ID,
+        PREVIEW_AO_ID,
+        PREVIEW_NOISE_ID
+    };
+    private static final String[] PREVIEW_LABELS = {"Albedo", "Roughness", "Normal", "Height", "AO", "Noise"};
     private static NativeImageBackedTexture previewAlbedoTex;
     private static NativeImageBackedTexture previewNormalTex;
     private static NativeImageBackedTexture previewRoughTex;
     private static NativeImageBackedTexture previewHeightTex;
+    private static NativeImageBackedTexture previewAoTex;
     private static NativeImageBackedTexture previewNoiseTex;
     private static boolean previewsRegistered = false;
 
@@ -98,9 +115,13 @@ public class MaterialsSettingsScreen extends Screen {
     private static final int[] snapCoatWeight = new int[Options.MAX_MATERIALS], snapCoatRoughness = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseScale = new int[Options.MAX_MATERIALS], snapNoiseStrength = new int[Options.MAX_MATERIALS], snapNoiseOctaves = new int[Options.MAX_MATERIALS];
     private static final int[] snapNoiseType = new int[Options.MAX_MATERIALS], snapNoiseSeed = new int[Options.MAX_MATERIALS];
+    private static final int[] snapNoiseTarget = new int[Options.MAX_MATERIALS], snapNoiseMaskMode = new int[Options.MAX_MATERIALS], snapNoiseMaskThreshold = new int[Options.MAX_MATERIALS];
+    private static final int[] snapNoiseWrap = new int[Options.MAX_MATERIALS], snapNoiseRotation = new int[Options.MAX_MATERIALS], snapNoiseAspect = new int[Options.MAX_MATERIALS];
+    private static final int[] snapNoiseLacunarity = new int[Options.MAX_MATERIALS], snapNoiseContrast = new int[Options.MAX_MATERIALS];
     private static final int[] snapGamutBoost = new int[Options.MAX_MATERIALS], snapGamutBoostMode = new int[Options.MAX_MATERIALS];
     private static final int[] snapDisplacementMode = new int[Options.MAX_MATERIALS], snapPomDepth = new int[Options.MAX_MATERIALS];
     private static final int[] snapAutoPBRRoughnessMin = new int[Options.MAX_MATERIALS], snapAutoPBRRoughnessMax = new int[Options.MAX_MATERIALS];
+    private static final int[] snapRoughnessBlend = new int[Options.MAX_MATERIALS];
     private static final int[] snapPercentileCenter = new int[Options.MAX_MATERIALS], snapPercentileSpread = new int[Options.MAX_MATERIALS];
     private static final int[] snapPerBlockAutoPBRHtGamma = new int[Options.MAX_MATERIALS], snapPerBlockAutoPBRFlags = new int[Options.MAX_MATERIALS];
     private static final int[] snapHeightFilter = new int[Options.MAX_MATERIALS], snapFilterRadius = new int[Options.MAX_MATERIALS], snapMipBias = new int[Options.MAX_MATERIALS];
@@ -108,7 +129,10 @@ public class MaterialsSettingsScreen extends Screen {
     private static final int[] snapHeightRemapMin = new int[Options.MAX_MATERIALS], snapHeightRemapMax = new int[Options.MAX_MATERIALS];
     private static final int[] snapNormalStrength = new int[Options.MAX_MATERIALS], snapNormalClamp = new int[Options.MAX_MATERIALS], snapGeometricBlend = new int[Options.MAX_MATERIALS];
     private static final int[] snapPomAoStrength = new int[Options.MAX_MATERIALS];
+    private static final int[] snapNormalInputType = new int[Options.MAX_MATERIALS], snapSpecularInputType = new int[Options.MAX_MATERIALS];
+    private static final String[] snapCustomNormalPath = new String[Options.MAX_MATERIALS], snapCustomSpecularPath = new String[Options.MAX_MATERIALS];
     private static final boolean[] snapAutoPBR = new boolean[Options.MAX_MATERIALS], snapChildOverride = new boolean[Options.MAX_MATERIALS];
+    private static final boolean[] snapNoiseMaskInvert = new boolean[Options.MAX_MATERIALS];
     private static final boolean[] snapDisplacementSelfShadow = new boolean[Options.MAX_MATERIALS];
     private static boolean snapAutoPBREnabled, snapMaterialOverridesEnabled;
 
@@ -142,7 +166,6 @@ public class MaterialsSettingsScreen extends Screen {
 
         int ord = currentOrdinal();
         boolean thin = isThin(ord);
-        boolean autoReady = autoPbrReady(ord);
 
         searchField = new TextFieldWidget(textRenderer, sx(29), sy(91), sw(329), sh(35), Text.literal("Search materials..."));
         searchField.setMaxLength(64);
@@ -155,7 +178,7 @@ public class MaterialsSettingsScreen extends Screen {
         });
         addDrawableChild(searchField);
 
-        addDrawableChild(new CButton(367, 91, 34, 35, "▽", () -> {
+        addDrawableChild(new CButton(367, 91, 34, 35, "v", () -> {
             selectedCategory = (selectedCategory + 1) % categoryCount();
             listScroll = 0;
             rebuildVisibleMaterials();
@@ -170,8 +193,8 @@ public class MaterialsSettingsScreen extends Screen {
         addDrawableChild(new CButton(29, 749, 349, 35, "Manage Materials...", this::openMaterialsFolder));
 
         addFooterButtons();
-        addCenterControls(ord, thin, autoReady);
-        addRightControls(ord, thin, autoReady);
+        addCenterControls(ord, thin);
+        addRightControls(ord, thin);
     }
 
     private void addFooterButtons() {
@@ -182,12 +205,11 @@ public class MaterialsSettingsScreen extends Screen {
         addDrawableChild(new CButton(1548, 864, 100, 36, "Apply", this::applyStay, () -> hasUnsavedChanges(), "No material edits to apply."));
     }
 
-    private void addCenterControls(int ord, boolean thin, boolean autoReady) {
+    private void addCenterControls(int ord, boolean thin) {
         addDrawableChild(new ReadOnlyField(653, 91, 164, 35, MaterialBlock.getDisplayNameForOrdinal(ord)));
         addDrawableChild(new ReadOnlyField(829, 91, 190, 35, MaterialBlock.getIdForOrdinal(ord)));
 
         String thinLock = thin ? "Thin plant cards use constrained cutout lighting; this channel is shader-locked off." : null;
-        String normalReason = normalGenerationReason(ord, thin, autoReady);
 
         addFullSlider(449, 164, 570, 42, "Roughness", 0, 100, Options.materialRoughness[ord], defaultValue(ord, MaterialBlock::getDefaultRoughness),
             v -> Text.literal(String.format("%.2f", v / 100.0)), v -> { Options.materialRoughness[ord] = v; onMaterialChanged(ord); }, null, null);
@@ -207,102 +229,397 @@ public class MaterialsSettingsScreen extends Screen {
                 onMaterialChanged(ord);
             }, thinLock, null);
 
-        addFullSlider(449, 373, 570, 42, thin ? "Plant Shadow" : "Normal Strength", 0, 200, Options.materialNormalStrength[ord], 100,
-            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
-                Options.materialNormalStrength[ord] = v;
-                onMaterialChanged(ord);
-                regeneratePreview();
-            }, thin ? null : normalReason, () -> {
-                if (!thin) LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
-            });
-        addFullSlider(449, 415, 570, 42, "Height Gamma", 10, 300, Options.materialAutoPBRHeightGamma[ord], 100,
-            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
-                Options.materialAutoPBRHeightGamma[ord] = v;
-                onMaterialChanged(ord);
-                regeneratePreview();
-            }, normalReason, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(449, 373, 278, 42, thin ? "Plant Fill" : "Subsurface", 0, 1000, Options.materialSubsurface[ord], defaultValue(ord, MaterialBlock::getDefaultSubsurface),
+            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSubsurface[ord] = v; onMaterialChanged(ord); }, null, null);
+        if (thin) {
+            addSliderCell(741, 373, 278, 42, "Plant Shadow", 0, 200, Options.materialNormalStrength[ord], 100,
+                v -> Text.literal(String.format("%.2f", v / 100.0)), v -> { Options.materialNormalStrength[ord] = v; onMaterialChanged(ord); }, null, null);
+        } else {
+            addSliderCell(741, 373, 278, 42, "Anisotropic", 0, 1000, Options.materialAnisotropic[ord], defaultValue(ord, MaterialBlock::getDefaultAnisotropic),
+                v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialAnisotropic[ord] = v; onMaterialChanged(ord); }, null, null);
+        }
+        addSliderCell(449, 415, 278, 42, "Coat", 0, 1000, Options.materialCoatWeight[ord], defaultValue(ord, MaterialBlock::getDefaultCoatWeight),
+            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialCoatWeight[ord] = v; onMaterialChanged(ord); }, thinLock, null);
+        addSliderCell(741, 415, 278, 42, "Coat Roughness", 0, 100, Options.materialCoatRoughness[ord], defaultValue(ord, MaterialBlock::getDefaultCoatRoughness),
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> { Options.materialCoatRoughness[ord] = v; onMaterialChanged(ord); }, thinLock, null);
+        addSliderCell(449, 457, 278, 42, "Sheen", 0, 1000, Options.materialSheenWeight[ord], defaultValue(ord, MaterialBlock::getDefaultSheenWeight),
+            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSheenWeight[ord] = v; onMaterialChanged(ord); }, thinLock, null);
+        addSliderCell(741, 457, 278, 42, "Sheen Tint", 0, 1000, Options.materialSheenTint[ord], defaultValue(ord, MaterialBlock::getDefaultSheenTint),
+            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSheenTint[ord] = v; onMaterialChanged(ord); }, thinLock, null);
 
-        addDrawableChild(new CDropdown(449, 482, 278, 42, "Mode", new String[]{"Inherit", "Off", "Custom"}, Math.min(Options.materialPomMode[ord], 2), v -> {
+        addDrawableChild(new CDropdown(449, 533, 278, 42, "Mode", new String[]{"Inherit", "Off", "Custom"}, Math.min(Options.materialPomMode[ord], 2), v -> {
             Options.materialPomMode[ord] = v;
             if (v == 2 && Options.materialPomDepth[ord] == 0) Options.materialPomDepth[ord] = 5;
             onMaterialChanged(ord);
             rebuildSelf();
         }, thinLock));
-        addSliderCell(741, 482, 278, 42, "Depth", 0, 50, Options.materialPomDepth[ord], 0,
+        addSliderCell(741, 533, 278, 42, "Depth", 0, 50, Options.materialPomDepth[ord], 0,
             v -> v == 0 ? Text.literal("Off") : Text.literal(String.format("%.2f blocks", v / 100.0)), v -> {
                 Options.materialPomDepth[ord] = v;
                 onMaterialChanged(ord);
             }, thinLock, null);
-        addDrawableChild(new CToggle(449, 524, 278, 42, "Depth Invert", () -> (Options.materialAutoPBRFlags[ord] & 4) != 0, value -> {
-            Options.materialAutoPBRFlags[ord] = (Options.materialAutoPBRFlags[ord] & ~4) | (value ? 4 : 0);
+        addDrawableChild(new CToggle(449, 575, 278, 35, "Self Shadow", () -> Options.materialDisplacementSelfShadow[ord], value -> {
+            Options.materialDisplacementSelfShadow[ord] = value;
             onMaterialChanged(ord);
-            regeneratePreview();
-            LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
-        }, normalReason));
-        addDrawableChild(new CToggle(741, 524, 278, 42, "Clamp Depth", () -> false, value -> {}, UNBACKED_REASON));
+        }, thinLock));
 
         String parentName = parentNameFor(ord);
-        addDrawableChild(new CDropdown(449, 595, 278, 42, "Parent Material", new String[]{parentName}, 0, v -> {}, ord < MaterialBlock.COUNT ? null : UNBACKED_REASON));
-        addDrawableChild(new CDropdown(741, 595, 278, 42, "Blend", new String[]{"Replace"}, 0, v -> {}, UNBACKED_REASON));
-        addDrawableChild(new CToggle(449, 637, 278, 42, "Inherit Surface", () -> ord < MaterialBlock.COUNT && !Options.materialChildOverride[ord], value -> {
+        String inheritanceReason = inheritanceDisabledReason(ord);
+        addDrawableChild(new CDropdown(449, 642, 278, 35, "Parent Material", new String[]{parentName}, 0, v -> {}, ord < MaterialBlock.COUNT ? null : UNBACKED_REASON));
+        addDrawableChild(new CDropdown(741, 642, 278, 35, "Blend", new String[]{"Replace"}, 0, v -> {}, UNBACKED_REASON));
+        addDrawableChild(new CToggle(449, 684, 570, 35, "Inherit From Parent", () -> ord < MaterialBlock.COUNT && !Options.materialChildOverride[ord], value -> {
             if (ord < MaterialBlock.COUNT) {
                 Options.materialChildOverride[ord] = !value;
                 onMaterialChanged(ord);
             }
-        }, ord < MaterialBlock.COUNT ? null : UNBACKED_REASON));
-        addDrawableChild(new CToggle(741, 637, 278, 42, "Inherit Displacement", () -> ord < MaterialBlock.COUNT && !Options.materialChildOverride[ord], value -> {
-            if (ord < MaterialBlock.COUNT) {
-                Options.materialChildOverride[ord] = !value;
-                onMaterialChanged(ord);
-            }
-        }, ord < MaterialBlock.COUNT ? null : UNBACKED_REASON));
+        }, inheritanceReason));
     }
 
-    private void addRightControls(int ord, boolean thin, boolean autoReady) {
-        String thinLock = thin ? "Thin plant cards use constrained cutout lighting; this channel is shader-locked off." : null;
-        String normalReason = normalGenerationReason(ord, thin, autoReady);
+    private void addRightControls(int ord, boolean thin) {
+        switch (selectedPreviewIndex()) {
+            case PREVIEW_ALBEDO_INDEX -> addAlbedoControls(ord);
+            case PREVIEW_ROUGHNESS_INDEX -> addRoughnessControls(ord, thin);
+            case PREVIEW_NORMAL_INDEX -> addNormalControls(ord, thin);
+            case PREVIEW_HEIGHT_INDEX -> addHeightControls(ord, thin);
+            case PREVIEW_AO_INDEX -> addAoControls(ord, thin);
+            case PREVIEW_NOISE_INDEX -> addNoiseControls(ord, thin);
+            default -> { }
+        }
+    }
 
-        addSliderCell(1066, 121, 270, 53, thin ? "Plant Fill" : "Subsurface", 0, 1000, Options.materialSubsurface[ord], defaultValue(ord, MaterialBlock::getDefaultSubsurface),
-            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSubsurface[ord] = v; onMaterialChanged(ord); }, null, null);
-        addSliderCell(1348, 121, 294, 53, "Anisotropic", 0, 1000, Options.materialAnisotropic[ord], defaultValue(ord, MaterialBlock::getDefaultAnisotropic),
-            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialAnisotropic[ord] = v; onMaterialChanged(ord); }, thinLock, null);
-        addDisabledCell(1066, 181, 270, 53, "Subsurface Radius", "0.00", UNBACKED_REASON);
-        addDisabledCell(1348, 181, 294, 53, "Anisotropic Rotation", "0.00", UNBACKED_REASON);
+    private void addAlbedoControls(int ord) {
+        addSliderCell(1066, 274, 576, 42, "Gamut Boost", 0, 200, Options.materialGamutBoost[ord], 100,
+            v -> Text.literal(String.format("%.2fx", v / 100.0)), v -> {
+                Options.materialGamutBoost[ord] = v;
+                onMaterialChanged(ord);
+            }, null, null);
+        addDrawableChild(new CDropdown(1066, 330, 576, 42, "Boost Mode", new String[]{"Uniform", "Saturation"}, Math.min(Options.materialGamutBoostMode[ord], 1), v -> {
+            Options.materialGamutBoostMode[ord] = v;
+            onMaterialChanged(ord);
+        }, null));
+        addDrawableChild(new CButton(1364, 548, 278, 42, "Reset", () -> resetAlbedoMask(ord)));
+    }
 
-        addSliderCell(1066, 267, 270, 53, "Coat", 0, 1000, Options.materialCoatWeight[ord], defaultValue(ord, MaterialBlock::getDefaultCoatWeight),
-            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialCoatWeight[ord] = v; onMaterialChanged(ord); }, thinLock, null);
-        addSliderCell(1348, 267, 294, 53, "Coat Roughness", 0, 100, Options.materialCoatRoughness[ord], defaultValue(ord, MaterialBlock::getDefaultCoatRoughness),
-            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> { Options.materialCoatRoughness[ord] = v; onMaterialChanged(ord); }, thinLock, null);
-        addDisabledCell(1066, 327, 270, 53, "Coat IOR", "1.500", UNBACKED_REASON);
-        addDisabledCell(1348, 327, 294, 53, "Coat Tint", "", UNBACKED_REASON);
-        addDisabledCell(1066, 387, 270, 53, "Coat Tint Strength", "0.00", UNBACKED_REASON);
+    private void addRoughnessControls(int ord, boolean thin) {
+        if (thin) {
+            addSliderCell(1066, 274, 576, 42, "Plant Roughness", 0, 100, Options.materialRoughness[ord], defaultValue(ord, MaterialBlock::getDefaultRoughness),
+                v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                    Options.materialRoughness[ord] = v;
+                    onMaterialChanged(ord);
+                }, null, null);
+            return;
+        }
+        addDrawableChild(new CDropdown(1066, 274, 576, 42, "Specular Source", sourceModeLabels(), Math.min(Options.materialSpecularInputType[ord], 4), v -> {
+            Options.materialSpecularInputType[ord] = v;
+            onRoughnessMaskChanged(ord);
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, true, false);
+            rebuildSelf();
+        }, null));
+        addDrawableChild(new CToggle(1066, 326, 576, 42, "Auto-PBR Enabled", () -> Options.materialAutoPBR[ord], value -> {
+            Options.materialAutoPBR[ord] = value;
+            onMaterialChanged(ord);
+            regeneratePreview();
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, true, true);
+            rebuildSelf();
+        }, null));
+        addSliderCell(1066, 378, 576, 42, "Roughness Min", 0, 100, Options.materialAutoPBRRoughnessMin[ord], 30,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialAutoPBRRoughnessMin[ord] = v;
+                onRoughnessMaskChanged(ord);
+            }, null, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, true, false));
+        addSliderCell(1066, 430, 576, 42, "Roughness Max", 0, 100, Options.materialAutoPBRRoughnessMax[ord], 95,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialAutoPBRRoughnessMax[ord] = v;
+                onRoughnessMaskChanged(ord);
+            }, null, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, true, false));
+        addSliderCell(1066, 482, 576, 42, "Center", 0, 100, Options.materialPercentileCenter[ord], 50,
+            v -> Text.literal(String.valueOf(v)), v -> {
+                Options.materialPercentileCenter[ord] = v;
+                onRoughnessMaskChanged(ord);
+            }, null, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, true, false));
+        addSliderCell(1066, 534, 576, 42, "Spread", 1, 100, Options.materialPercentileSpread[ord], 80,
+            v -> Text.literal(String.valueOf(v)), v -> {
+                Options.materialPercentileSpread[ord] = v;
+                onRoughnessMaskChanged(ord);
+            }, null, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, true, false));
+        addSliderCell(1066, 586, 576, 42, "Roughness Blend", 0, 100, Options.materialRoughnessBlend[ord], 100,
+            v -> Text.literal(v + "% slider"), v -> {
+                Options.materialRoughnessBlend[ord] = v;
+                onMaterialChanged(ord);
+            }, null, null);
+        addDrawableChild(new CToggle(1066, 638, 278, 42, "Invert", () -> (Options.materialAutoPBRFlags[ord] & 1) != 0, value -> {
+            Options.materialAutoPBRFlags[ord] = (Options.materialAutoPBRFlags[ord] & ~1) | (value ? 1 : 0);
+            onRoughnessMaskChanged(ord);
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, true, false);
+        }, null));
+        addDrawableChild(new CButton(1364, 638, 278, 42, "Reset", () -> resetRoughnessMask(ord)));
+    }
 
-        addSliderCell(1066, 450, 270, 53, "Sheen", 0, 1000, Options.materialSheenWeight[ord], defaultValue(ord, MaterialBlock::getDefaultSheenWeight),
-            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> { Options.materialSheenWeight[ord] = v; onMaterialChanged(ord); }, thinLock, null);
-        addDisabledCell(1348, 450, 294, 53, "Sheen Tint", "", UNBACKED_REASON);
-        addDisabledCell(1066, 510, 270, 35, "Sheen Roughness", "0.50", UNBACKED_REASON);
-        addDisabledCell(1348, 510, 294, 35, "Sheen Tint Strength", "0.00", UNBACKED_REASON);
-
-        addSliderCell(1066, 575, 270, 53, "Filter Radius", 0, 15, Options.materialFilterRadius[ord], 0,
-            v -> Text.literal(String.valueOf(v)), v -> { Options.materialFilterRadius[ord] = v; onMaterialChanged(ord); }, normalReason, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
-        addSliderCell(1348, 575, 294, 53, "Mip Bias", 0, 15, Options.materialMipBias[ord], 0,
-            v -> Text.literal(String.valueOf(v)), v -> { Options.materialMipBias[ord] = v; onMaterialChanged(ord); }, normalReason, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
-        addDrawableChild(new CToggle(1066, 630, 270, 35, "Detail Normal", () -> false, v -> {}, UNBACKED_REASON));
-        addDrawableChild(new CToggle(1348, 630, 294, 35, "Flip Green (Y)", () -> (Options.materialAutoPBRFlags[ord] & 2) != 0, value -> {
+    private void addNormalControls(int ord, boolean thin) {
+        if (thin) {
+            addSliderCell(1066, 274, 576, 42, "Plant Shadow", 0, 200, Options.materialNormalStrength[ord], 100,
+                v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                    Options.materialNormalStrength[ord] = v;
+                    onMaterialChanged(ord);
+                }, null, null);
+            addSliderCell(1066, 330, 576, 42, "Plant Fill", 0, 1000, Options.materialSubsurface[ord], defaultValue(ord, MaterialBlock::getDefaultSubsurface),
+                v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> {
+                    Options.materialSubsurface[ord] = v;
+                    onMaterialChanged(ord);
+                }, null, null);
+            return;
+        }
+        String reason = normalGenerationReason(ord, false);
+        addDrawableChild(new CDropdown(1066, 274, 576, 42, "Normal Source", sourceModeLabels(), Math.min(Options.materialNormalInputType[ord], 4), v -> {
+            Options.materialNormalInputType[ord] = v;
+            onGeneratedMaskChanged(ord);
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+            rebuildSelf();
+        }, null));
+        addDrawableChild(new CToggle(1066, 326, 576, 42, "Auto-PBR Enabled", () -> Options.materialAutoPBR[ord], value -> {
+            Options.materialAutoPBR[ord] = value;
+            onGeneratedMaskChanged(ord);
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+            rebuildSelf();
+        }, null));
+        addSliderCell(1066, 378, 576, 42, "Normal Strength", 0, 200, Options.materialNormalStrength[ord], 100,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialNormalStrength[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, reason, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1066, 430, 576, 42, "Normal Clamp", 0, 100, Options.materialNormalClamp[ord], 100,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialNormalClamp[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, reason, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1066, 482, 576, 42, "Geometric Blend", 0, 100, Options.materialGeometricBlend[ord], 0,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialGeometricBlend[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, null, null);
+        addDrawableChild(new CToggle(1066, 534, 278, 42, "Flip Green (Y)", () -> (Options.materialAutoPBRFlags[ord] & 2) != 0, value -> {
             Options.materialAutoPBRFlags[ord] = (Options.materialAutoPBRFlags[ord] & ~2) | (value ? 2 : 0);
-            onMaterialChanged(ord);
-            regeneratePreview();
+            onGeneratedMaskChanged(ord);
             LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
-        }, normalReason));
-        addDisabledCell(1066, 666, 270, 35, "Detail Normal Strength", "1.00", UNBACKED_REASON);
-        addDrawableChild(new CToggle(1348, 666, 294, 35, "Invert Height", () -> (Options.materialAutoPBRFlags[ord] & 4) != 0, value -> {
+        }, reason));
+        addDrawableChild(new CButton(1364, 586, 278, 42, "Reset", () -> resetNormalMask(ord)));
+    }
+
+    private void addHeightControls(int ord, boolean thin) {
+        String lock = thin ? "Thin plant cards force flat generated normals and bypass Auto-PBR height." : normalGenerationReason(ord, false);
+        addDrawableChild(new CDropdown(1066, 274, 576, 42, "Source", new String[]{"Luminance", "Red", "Green", "Blue", "Alpha", "Max RGB", "Min RGB", "Custom"}, Math.min(Options.materialHeightSource[ord], 7), v -> {
+            Options.materialHeightSource[ord] = v;
+            onGeneratedMaskChanged(ord);
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+        }, lock));
+        addSliderCell(1066, 330, 576, 42, "Height Gamma", 10, 300, Options.materialAutoPBRHeightGamma[ord], 100,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialAutoPBRHeightGamma[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1066, 382, 278, 42, "Remap Min", 0, 100, Options.materialHeightRemapMin[ord], 0,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialHeightRemapMin[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1364, 382, 278, 42, "Remap Max", 0, 100, Options.materialHeightRemapMax[ord], 100,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialHeightRemapMax[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1066, 434, 278, 42, "Contrast", 0, 30, Options.materialHeightContrast[ord], 10,
+            v -> Text.literal(String.format("%.1f", v / 10.0)), v -> {
+                Options.materialHeightContrast[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1364, 434, 278, 42, "Offset", 0, 200, Options.materialHeightOffset[ord], 100,
+            v -> Text.literal(String.format("%+.2f", (v - 100) / 100.0)), v -> {
+                Options.materialHeightOffset[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addDrawableChild(new CDropdown(1066, 486, 278, 42, "Filter", new String[]{"Forward", "Central", "Sobel", "Bilinear", "Bicubic"}, Math.min(Options.materialHeightFilter[ord], 4), v -> {
+            Options.materialHeightFilter[ord] = v;
+            onGeneratedMaskChanged(ord);
+            LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+        }, lock));
+        addDrawableChild(new CToggle(1364, 486, 278, 42, "Invert Height", () -> (Options.materialAutoPBRFlags[ord] & 4) != 0, value -> {
             Options.materialAutoPBRFlags[ord] = (Options.materialAutoPBRFlags[ord] & ~4) | (value ? 4 : 0);
-            onMaterialChanged(ord);
-            regeneratePreview();
+            onGeneratedMaskChanged(ord);
             LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
-        }, normalReason));
-        addDisabledCell(1066, 702, 270, 53, "UV Scale", "1.00", UNBACKED_REASON);
-        addDisabledCell(1348, 702, 294, 53, "UV Offset", "0.00", UNBACKED_REASON);
+        }, lock));
+        addDrawableChild(new CButton(1364, 548, 278, 42, "Reset", () -> resetHeightMask(ord)));
+    }
+
+    private void addAoControls(int ord, boolean thin) {
+        String lock = thin ? "Thin plant cards force flat generated normals and disable generated AO." : normalGenerationReason(ord, false);
+        addSliderCell(1066, 274, 576, 42, "AO Strength", 0, 100, Options.materialPomAOStrength[ord], 0,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialPomAOStrength[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addSliderCell(1066, 330, 576, 42, "Height Gamma", 10, 300, Options.materialAutoPBRHeightGamma[ord], 100,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialAutoPBRHeightGamma[ord] = v;
+                onGeneratedMaskChanged(ord);
+            }, lock, () -> LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true));
+        addDrawableChild(new CButton(1364, 548, 278, 42, "Reset", () -> resetAoMask(ord)));
+    }
+
+    private void addNoiseControls(int ord, boolean thin) {
+        String lock = thin ? "Thin plant cards disable procedural material noise." : null;
+        addSliderCell(1066, 274, 576, 42, "Noise Strength", 0, 1000, Options.materialNoiseStrength[ord], 0,
+            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> {
+                Options.materialNoiseStrength[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addSliderCell(1066, 330, 278, 42, "Scale", 1, 5000, Options.materialNoiseScale[ord], 50,
+            v -> Text.literal(String.format("%.1f", v / 10.0)), v -> {
+                Options.materialNoiseScale[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addSliderCell(1364, 330, 278, 42, "Octaves", 1, 8, Options.materialNoiseOctaves[ord], 2,
+            v -> Text.literal(String.valueOf(v)), v -> {
+                Options.materialNoiseOctaves[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addDrawableChild(new CDropdown(1066, 382, 576, 42, "Type", new String[]{"Simplex", "Worley F1", "Worley F2-F1", "Voronoi", "Ridged", "Turbulence", "Marble", "Wood", "Checker", "Brick", "Hex", "Scratches", "Dots", "Gradient", "Rings", "Crackle"}, Math.min(Options.materialNoiseType[ord], 15), v -> {
+            Options.materialNoiseType[ord] = v;
+            onNoiseMaskChanged(ord);
+        }, lock));
+        addSliderCell(1066, 434, 278, 42, "Seed", 0, 999, Options.materialNoiseSeed[ord], 0,
+            v -> Text.literal(String.valueOf(v)), v -> {
+                Options.materialNoiseSeed[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addSliderCell(1364, 434, 278, 42, "Contrast", 0, 200, Options.materialNoiseContrast[ord], 100,
+            v -> Text.literal(String.format("%.2f", v / 100.0)), v -> {
+                Options.materialNoiseContrast[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addSliderCell(1066, 486, 278, 42, "Rotation", 0, 3600, Options.materialNoiseRotation[ord], 0,
+            v -> Text.literal(String.format("%.1f deg", v / 10.0)), v -> {
+                Options.materialNoiseRotation[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addSliderCell(1364, 486, 278, 42, "Lacunarity", 10, 40, Options.materialNoiseLacunarity[ord], 20,
+            v -> Text.literal(String.format("%.1f", v / 10.0)), v -> {
+                Options.materialNoiseLacunarity[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addDrawableChild(new CDropdown(1066, 538, 278, 42, "Target", new String[]{"Off", "Roughness", "Normal", "Rough+Normal", "Metallic", "Rough+Metal", "Normal+Metal", "All"}, Math.min(Options.materialNoiseTarget[ord], 7), v -> {
+            Options.materialNoiseTarget[ord] = v;
+            onNoiseMaskChanged(ord);
+        }, lock));
+        addDrawableChild(new CDropdown(1364, 538, 278, 42, "Wrap", new String[]{"3D", "Surface", "Triplanar", "XZ", "XY", "YZ"}, Math.min(Options.materialNoiseWrap[ord], 5), v -> {
+            Options.materialNoiseWrap[ord] = v;
+            onNoiseMaskChanged(ord);
+        }, lock));
+        addDrawableChild(new CDropdown(1066, 590, 278, 42, "Mask", new String[]{"None", "Luminance", "Roughness", "Edge", "Normal"}, Math.min(Options.materialNoiseMaskMode[ord], 4), v -> {
+            Options.materialNoiseMaskMode[ord] = v;
+            onNoiseMaskChanged(ord);
+        }, lock));
+        addSliderCell(1364, 590, 278, 42, "Threshold", 0, 1000, Options.materialNoiseMaskThreshold[ord], 500,
+            v -> Text.literal(String.format("%.2f", v / 1000.0)), v -> {
+                Options.materialNoiseMaskThreshold[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addSliderCell(1066, 642, 278, 42, "Aspect", 10, 1000, Options.materialNoiseAspect[ord], 100,
+            v -> Text.literal(String.format("%.1fx", v / 100.0)), v -> {
+                Options.materialNoiseAspect[ord] = v;
+                onNoiseMaskChanged(ord);
+            }, lock, null);
+        addDrawableChild(new CToggle(1364, 642, 278, 42, "Invert Mask", () -> Options.materialNoiseMaskInvert[ord], value -> {
+            Options.materialNoiseMaskInvert[ord] = value;
+            onNoiseMaskChanged(ord);
+        }, lock));
+        addDrawableChild(new CButton(1364, 694, 278, 42, "Reset", () -> resetNoiseMask(ord)));
+    }
+
+    private void onRoughnessMaskChanged(int ord) {
+        onMaterialChanged(ord);
+        regeneratePreview();
+    }
+
+    private void onGeneratedMaskChanged(int ord) {
+        onMaterialChanged(ord);
+        regeneratePreview();
+    }
+
+    private void onNoiseMaskChanged(int ord) {
+        onMaterialChanged(ord);
+        regeneratePreview();
+    }
+
+    private void resetAlbedoMask(int ord) {
+        Options.materialGamutBoost[ord] = 100;
+        Options.materialGamutBoostMode[ord] = 1;
+        onMaterialChanged(ord);
+        rebuildSelf();
+    }
+
+    private void resetRoughnessMask(int ord) {
+        Options.materialAutoPBR[ord] = ord >= MaterialBlock.COUNT || !MaterialBlock.values()[ord].isThinCutoutPlantMaterial();
+        Options.materialAutoPBRRoughnessMin[ord] = 30;
+        Options.materialAutoPBRRoughnessMax[ord] = 95;
+        Options.materialRoughnessBlend[ord] = 100;
+        Options.materialSpecularInputType[ord] = Options.MATERIAL_SOURCE_AUTO;
+        Options.materialPercentileCenter[ord] = 50;
+        Options.materialPercentileSpread[ord] = 80;
+        Options.materialAutoPBRFlags[ord] &= ~1;
+        onRoughnessMaskChanged(ord);
+        LiveNormalReuploader.scheduleGeneratedReupload(ord, true, true);
+        rebuildSelf();
+    }
+
+    private void resetNormalMask(int ord) {
+        Options.materialNormalStrength[ord] = 100;
+        Options.materialNormalInputType[ord] = Options.MATERIAL_SOURCE_AUTO;
+        Options.materialNormalClamp[ord] = 100;
+        Options.materialGeometricBlend[ord] = 0;
+        Options.materialAutoPBRFlags[ord] &= ~2;
+        onGeneratedMaskChanged(ord);
+        LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+        rebuildSelf();
+    }
+
+    private void resetHeightMask(int ord) {
+        Options.materialHeightSource[ord] = 0;
+        Options.materialAutoPBRHeightGamma[ord] = 100;
+        Options.materialHeightRemapMin[ord] = 0;
+        Options.materialHeightRemapMax[ord] = 100;
+        Options.materialHeightContrast[ord] = 10;
+        Options.materialHeightOffset[ord] = 100;
+        Options.materialHeightFilter[ord] = 0;
+        Options.materialAutoPBRFlags[ord] &= ~4;
+        onGeneratedMaskChanged(ord);
+        LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+        rebuildSelf();
+    }
+
+    private void resetAoMask(int ord) {
+        Options.materialPomAOStrength[ord] = 0;
+        onGeneratedMaskChanged(ord);
+        LiveNormalReuploader.scheduleGeneratedReupload(ord, false, true);
+        rebuildSelf();
+    }
+
+    private void resetNoiseMask(int ord) {
+        Options.materialNoiseStrength[ord] = 0;
+        Options.materialNoiseScale[ord] = 50;
+        Options.materialNoiseOctaves[ord] = 2;
+        Options.materialNoiseType[ord] = 0;
+        Options.materialNoiseSeed[ord] = 0;
+        Options.materialNoiseTarget[ord] = 1;
+        Options.materialNoiseMaskMode[ord] = 0;
+        Options.materialNoiseMaskInvert[ord] = false;
+        Options.materialNoiseMaskThreshold[ord] = 500;
+        Options.materialNoiseWrap[ord] = 1;
+        Options.materialNoiseContrast[ord] = 100;
+        Options.materialNoiseRotation[ord] = 0;
+        Options.materialNoiseAspect[ord] = 100;
+        Options.materialNoiseLacunarity[ord] = 20;
+        onNoiseMaskChanged(ord);
+        rebuildSelf();
     }
 
     private void addFullSlider(int x, int y, int w, int h, String label, int min, int max, int current, int def,
@@ -331,10 +648,11 @@ public class MaterialsSettingsScreen extends Screen {
         drawTopChrome(context);
         drawPanel(context, leftPanel, "MATERIAL SELECTOR");
         drawPanel(context, centerPanel, "MATERIAL PROPERTIES");
-        drawPanel(context, rightPanel, "AUTO-PBR ADVANCED");
+        drawPanel(context, rightPanel, selectedMaskTitle());
         drawStaticLabels(context);
         renderMaterialList(context, mouseX, mouseY);
         renderPreviewStrip(context, mouseX, mouseY);
+        renderSelectedMaskPreview(context);
         drawFooter(context);
         super.render(context, mouseX, mouseY, delta);
         if (tooltipReason != null) {
@@ -357,13 +675,10 @@ public class MaterialsSettingsScreen extends Screen {
         drawText(context, "Material Name", 449, 108, TEXT_PRIMARY);
         drawSection(context, "Surface Response (Auto-PBR)", 449, 145);
         drawSmallText(context, "Index of Refraction. 1.0 is air, ~1.5 is typical for glass.", 459, 326, TEXT_DISABLED);
-        drawSection(context, "Normal & Height", 449, 354);
-        drawSection(context, "Displacement", 449, 462);
-        drawSection(context, "Material Hierarchy", 449, 575);
-        drawSection(context, "Surface Microdetail", 1066, 104);
-        drawSection(context, "Coat", 1066, 250);
-        drawSection(context, "Sheen", 1066, 433);
-        drawSection(context, "Advanced", 1066, 558);
+        drawSection(context, "Surface Microdetail", 449, 354);
+        drawSection(context, "Displacement", 449, 514);
+        drawSection(context, "Material Hierarchy", 449, 623);
+        drawSection(context, "Selected Preview", 1066, 104);
     }
 
     private void drawFooter(DrawContext context) {
@@ -419,22 +734,43 @@ public class MaterialsSettingsScreen extends Screen {
         DRect r = previewStripRect;
         context.fill(r.x, r.y, r.x + r.w, r.y + r.h, 0xB9161A1B);
         context.drawBorder(r.x, r.y, r.w, r.h, PANEL_BORDER);
-        drawBoldText(context, "AUTO-PBR TEXTURE PREVIEW", 449, 700, ORANGE);
-        drawSmallText(context, "(Read-Only)", 662, 701, TEXT_SECONDARY);
+        drawBoldText(context, "MASK PREVIEWS", 449, 737, ORANGE);
 
-        Identifier[] texIds = {PREVIEW_ALBEDO_ID, PREVIEW_NORMAL_ID, PREVIEW_ROUGHNESS_ID, PREVIEW_HEIGHT_ID, PREVIEW_NOISE_ID};
-        String[] labels = {"Albedo", "Normal", "Roughness", "Height", "Noise"};
         int x = designX(449);
-        int y = designY(726);
-        int size = designW(88);
-        int gap = designW(22);
-        for (int i = 0; i < texIds.length; i++) {
+        int y = designY(760);
+        int size = designW(64);
+        int gap = designW(27);
+        for (int i = 0; i < PREVIEW_TEXTURES.length; i++) {
             int tx = x + i * (size + gap);
-            context.drawTexture(RenderLayer::getGuiTextured, texIds[i], tx, y, 0, 0, size, size, size, size);
-            context.drawBorder(tx - 1, y - 1, size + 2, size + 2, i == selectedPreviewMask ? TEAL : PANEL_BORDER);
-            int labelX = tx + (size - textRenderer.getWidth(labels[i])) / 2;
-            context.drawText(textRenderer, Text.literal(labels[i]), labelX, designY(825), i == selectedPreviewMask ? TEAL : TEXT_PRIMARY, false);
+            context.drawTexture(RenderLayer::getGuiTextured, PREVIEW_TEXTURES[i], tx, y, 0, 0, size, size, size, size);
+            context.drawBorder(tx - 1, y - 1, size + 2, size + 2, i == selectedPreviewIndex() ? TEAL : PANEL_BORDER);
+            Text previewLabel = RadianceTheme.trimText(textRenderer, Text.literal(PREVIEW_LABELS[i]), size + gap - designW(4));
+            int labelX = tx + (size - textRenderer.getWidth(previewLabel)) / 2;
+            context.drawText(textRenderer, previewLabel, labelX, designY(833), i == selectedPreviewIndex() ? TEAL : TEXT_PRIMARY, false);
         }
+    }
+
+    private void renderSelectedMaskPreview(DrawContext context) {
+        if (!previewsRegistered) return;
+        int index = selectedPreviewIndex();
+        int x = designX(1066);
+        int y = designY(121);
+        int size = designW(132);
+        context.fill(x, y, x + size, y + size, 0xB9161A1B);
+        context.drawTexture(RenderLayer::getGuiTextured, PREVIEW_TEXTURES[index], x, y, 0, 0, size, size, size, size);
+        context.drawBorder(x - 1, y - 1, size + 2, size + 2, TEAL);
+        Text label = RadianceTheme.trimText(textRenderer, Text.literal(PREVIEW_LABELS[index]), size);
+        context.drawText(textRenderer, label, x + (size - textRenderer.getWidth(label)) / 2, y + size + designH(8), TEXT_PRIMARY, false);
+    }
+
+    private int selectedPreviewIndex() {
+        return MathHelper.clamp(selectedPreviewMask, 0, PREVIEW_LABELS.length - 1);
+    }
+
+    private String selectedMaskTitle() {
+        int index = selectedPreviewIndex();
+        if (index == PREVIEW_ALBEDO_INDEX) return "ALBEDO CONTROLS";
+        return PREVIEW_LABELS[index].toUpperCase(java.util.Locale.ROOT) + " MASK";
     }
 
     @Override
@@ -450,13 +786,14 @@ public class MaterialsSettingsScreen extends Screen {
         }
         if (button == 0 && previewStripRect != null) {
             int x = designX(449);
-            int y = designY(726);
-            int size = designW(88);
-            int gap = designW(22);
-            for (int i = 0; i < 5; i++) {
+            int y = designY(760);
+            int size = designW(64);
+            int gap = designW(27);
+            for (int i = 0; i < PREVIEW_TEXTURES.length; i++) {
                 int tx = x + i * (size + gap);
                 if (mouseX >= tx && mouseX < tx + size && mouseY >= y && mouseY < y + size) {
                     selectedPreviewMask = i;
+                    rebuildSelf();
                     return true;
                 }
             }
@@ -596,7 +933,7 @@ public class MaterialsSettingsScreen extends Screen {
         rightPanel = rect(1052, 52, 606, 720);
         footerRect = rect(15, 859, 1642, 45);
         listRect = rect(29, 183, 349, 557);
-        previewStripRect = rect(433, 685, 603, 169);
+        previewStripRect = rect(433, 725, 603, 129);
     }
 
     private DRect rect(int x, int y, int w, int h) {
@@ -639,8 +976,11 @@ public class MaterialsSettingsScreen extends Screen {
     private void drawDropdownShell(DrawContext ctx, int x, int y, int w, int h, String text, boolean enabled) {
         ctx.fill(x, y, x + w, y + h, enabled ? ROW_FILL : ROW_DISABLED);
         ctx.drawBorder(x, y, w, h, enabled ? PANEL_BORDER : 0x80353736);
-        ctx.drawText(textRenderer, Text.literal(text), x + designW(10), y + (h - 8) / 2, enabled ? TEXT_PRIMARY : TEXT_DISABLED, false);
-        ctx.drawText(textRenderer, Text.literal("▼"), x + w - designW(18), y + (h - 8) / 2, enabled ? TEXT_SECONDARY : TEXT_DISABLED, false);
+        int textX = x + designW(10);
+        int reserveRight = enabled ? designW(30) : designW(56);
+        Text display = RadianceTheme.trimText(textRenderer, Text.literal(text), Math.max(1, w - designW(10) - reserveRight));
+        ctx.drawText(textRenderer, display, textX, y + (h - 8) / 2, enabled ? TEXT_PRIMARY : TEXT_DISABLED, false);
+        ctx.drawText(textRenderer, Text.literal("v"), x + w - designW(18), y + (h - 8) / 2, enabled ? TEXT_SECONDARY : TEXT_DISABLED, false);
     }
 
     private void fillDesign(DrawContext ctx, int x, int y, int w, int h, int color) {
@@ -749,17 +1089,38 @@ public class MaterialsSettingsScreen extends Screen {
         return MaterialBlock.isThinCutoutPlantMaterialOrdinal(ord);
     }
 
-    private boolean autoPbrReady(int ord) {
-        return Options.autoPBREnabled && Options.materialAutoPBR[ord];
-    }
-
-    private String normalGenerationReason(int ord, boolean thin, boolean autoReady) {
+    private String normalGenerationReason(int ord, boolean thin) {
         if (thin) return "Thin plant cards force flat generated normals and bypass Auto-PBR height.";
+        if (!Options.materialOverridesEnabled) return "Material Overrides is disabled; the material menu is bypassed.";
         if (!Options.autoPBREnabled) return "Global Auto-PBR is disabled.";
         if (!Options.materialAutoPBR[ord]) return "Auto-PBR is disabled for this material.";
         String external = normalExternalSource(ord);
         if (external != null) return external;
         return null;
+    }
+
+    private static String[] sourceModeLabels() {
+        return new String[]{"Auto", "Custom", "Flat", "Generated", "Authored"};
+    }
+
+    private String controlTooltip(String label) {
+        return switch (label) {
+            case "Roughness Blend" -> "Blends authored/generated roughness with the material roughness slider. 100% means the slider fully controls runtime roughness.";
+            case "Specular Source" -> "Chooses where the roughness/specular map comes from: Auto, Custom file, Flat neutral map, forced generated map, or pack-authored map.";
+            case "Normal Source" -> "Chooses where the normal/height map comes from: Auto, Custom file, Flat neutral map, forced generated map, or pack-authored map.";
+            case "Auto-PBR Enabled" -> "Allows generated roughness, normal, and height masks for this material when global Auto-PBR and Material Overrides are enabled.";
+            case "Roughness Min" -> "Lower bound for generated roughness from albedo luminance.";
+            case "Roughness Max" -> "Upper bound for generated roughness from albedo luminance.";
+            case "Center" -> "Albedo luminance percentile mapped to mid roughness.";
+            case "Spread" -> "Generated roughness contrast around the center percentile.";
+            case "Invert" -> "Inverts generated roughness before runtime blending.";
+            case "Normal Strength", "Plant Shadow" -> "Normal intensity for generated maps; thin plants use this as their card shadow response.";
+            case "Plant Fill" -> "Thin plant fill-light/subsurface response.";
+            case "Plant Roughness" -> "Runtime roughness for thin plant cutout cards.";
+            case "Height Gamma" -> "Gamma curve applied to generated height from albedo.";
+            case "Flip Green (Y)" -> "Flips the generated normal map Y channel.";
+            default -> label;
+        };
     }
 
     private String normalExternalSource(int ord) {
@@ -780,6 +1141,12 @@ public class MaterialsSettingsScreen extends Screen {
         return block.isParent() ? "None" : MaterialBlock.getDisplayNameForOrdinal(block.getParentMaterial().ordinal());
     }
 
+    private String inheritanceDisabledReason(int ord) {
+        if (ord < 0 || ord >= MaterialBlock.COUNT) return UNBACKED_REASON;
+        MaterialBlock block = MaterialBlock.values()[ord];
+        return block.isParent() ? "This material has no parent to inherit from." : null;
+    }
+
     private boolean hasUnsavedChanges() {
         if (Options.autoPBREnabled != snapAutoPBREnabled || Options.materialOverridesEnabled != snapMaterialOverridesEnabled) return true;
         return diff(snapF0R, Options.materialF0R) || diff(snapF0G, Options.materialF0G) || diff(snapF0B, Options.materialF0B)
@@ -788,9 +1155,17 @@ public class MaterialsSettingsScreen extends Screen {
             || diff(snapSubsurface, Options.materialSubsurface) || diff(snapAnisotropic, Options.materialAnisotropic)
             || diff(snapSheenWeight, Options.materialSheenWeight) || diff(snapSheenTint, Options.materialSheenTint)
             || diff(snapCoatWeight, Options.materialCoatWeight) || diff(snapCoatRoughness, Options.materialCoatRoughness)
+            || diff(snapNoiseScale, Options.materialNoiseScale) || diff(snapNoiseStrength, Options.materialNoiseStrength)
+            || diff(snapNoiseOctaves, Options.materialNoiseOctaves) || diff(snapNoiseType, Options.materialNoiseType)
+            || diff(snapNoiseSeed, Options.materialNoiseSeed) || diff(snapNoiseTarget, Options.materialNoiseTarget)
+            || diff(snapNoiseMaskMode, Options.materialNoiseMaskMode) || diff(snapNoiseMaskInvert, Options.materialNoiseMaskInvert)
+            || diff(snapNoiseMaskThreshold, Options.materialNoiseMaskThreshold) || diff(snapNoiseWrap, Options.materialNoiseWrap)
+            || diff(snapNoiseRotation, Options.materialNoiseRotation) || diff(snapNoiseAspect, Options.materialNoiseAspect)
+            || diff(snapNoiseLacunarity, Options.materialNoiseLacunarity) || diff(snapNoiseContrast, Options.materialNoiseContrast)
             || diff(snapGamutBoost, Options.materialGamutBoost) || diff(snapGamutBoostMode, Options.materialGamutBoostMode)
             || diff(snapDisplacementMode, Options.materialPomMode) || diff(snapPomDepth, Options.materialPomDepth)
             || diff(snapAutoPBRRoughnessMin, Options.materialAutoPBRRoughnessMin) || diff(snapAutoPBRRoughnessMax, Options.materialAutoPBRRoughnessMax)
+            || diff(snapRoughnessBlend, Options.materialRoughnessBlend)
             || diff(snapPercentileCenter, Options.materialPercentileCenter) || diff(snapPercentileSpread, Options.materialPercentileSpread)
             || diff(snapPerBlockAutoPBRHtGamma, Options.materialAutoPBRHeightGamma) || diff(snapPerBlockAutoPBRFlags, Options.materialAutoPBRFlags)
             || diff(snapHeightFilter, Options.materialHeightFilter) || diff(snapFilterRadius, Options.materialFilterRadius)
@@ -799,6 +1174,8 @@ public class MaterialsSettingsScreen extends Screen {
             || diff(snapHeightRemapMin, Options.materialHeightRemapMin) || diff(snapHeightRemapMax, Options.materialHeightRemapMax)
             || diff(snapNormalStrength, Options.materialNormalStrength) || diff(snapNormalClamp, Options.materialNormalClamp)
             || diff(snapGeometricBlend, Options.materialGeometricBlend) || diff(snapPomAoStrength, Options.materialPomAOStrength)
+            || diff(snapNormalInputType, Options.materialNormalInputType) || diff(snapSpecularInputType, Options.materialSpecularInputType)
+            || diff(snapCustomNormalPath, Options.materialCustomNormalPath) || diff(snapCustomSpecularPath, Options.materialCustomSpecularPath)
             || diff(snapAutoPBR, Options.materialAutoPBR) || diff(snapChildOverride, Options.materialChildOverride)
             || diff(snapDisplacementSelfShadow, Options.materialDisplacementSelfShadow);
     }
@@ -810,6 +1187,15 @@ public class MaterialsSettingsScreen extends Screen {
 
     private boolean diff(boolean[] a, boolean[] b) {
         for (int i = 0; i < Math.min(a.length, b.length); i++) if (a[i] != b[i]) return true;
+        return false;
+    }
+
+    private boolean diff(String[] a, String[] b) {
+        for (int i = 0; i < Math.min(a.length, b.length); i++) {
+            String av = a[i] == null ? "" : a[i];
+            String bv = b[i] == null ? "" : b[i];
+            if (!av.equals(bv)) return true;
+        }
         return false;
     }
 
@@ -832,12 +1218,21 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(Options.materialNoiseOctaves, 0, snapNoiseOctaves, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseType, 0, snapNoiseType, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialNoiseSeed, 0, snapNoiseSeed, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseTarget, 0, snapNoiseTarget, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseMaskMode, 0, snapNoiseMaskMode, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseMaskThreshold, 0, snapNoiseMaskThreshold, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseWrap, 0, snapNoiseWrap, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseRotation, 0, snapNoiseRotation, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseAspect, 0, snapNoiseAspect, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseLacunarity, 0, snapNoiseLacunarity, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseContrast, 0, snapNoiseContrast, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGamutBoost, 0, snapGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGamutBoostMode, 0, snapGamutBoostMode, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPomMode, 0, snapDisplacementMode, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPomDepth, 0, snapPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMin, 0, snapAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRRoughnessMax, 0, snapAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialRoughnessBlend, 0, snapRoughnessBlend, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPercentileCenter, 0, snapPercentileCenter, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPercentileSpread, 0, snapPercentileSpread, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBRHeightGamma, 0, snapPerBlockAutoPBRHtGamma, 0, Options.MAX_MATERIALS);
@@ -854,8 +1249,13 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(Options.materialNormalClamp, 0, snapNormalClamp, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialGeometricBlend, 0, snapGeometricBlend, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialPomAOStrength, 0, snapPomAoStrength, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNormalInputType, 0, snapNormalInputType, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialSpecularInputType, 0, snapSpecularInputType, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialCustomNormalPath, 0, snapCustomNormalPath, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialCustomSpecularPath, 0, snapCustomSpecularPath, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialAutoPBR, 0, snapAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialChildOverride, 0, snapChildOverride, 0, Options.MAX_MATERIALS);
+        System.arraycopy(Options.materialNoiseMaskInvert, 0, snapNoiseMaskInvert, 0, Options.MAX_MATERIALS);
         System.arraycopy(Options.materialDisplacementSelfShadow, 0, snapDisplacementSelfShadow, 0, Options.MAX_MATERIALS);
         snapAutoPBREnabled = Options.autoPBREnabled;
         snapMaterialOverridesEnabled = Options.materialOverridesEnabled;
@@ -880,12 +1280,21 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(snapNoiseOctaves, 0, Options.materialNoiseOctaves, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseType, 0, Options.materialNoiseType, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapNoiseSeed, 0, Options.materialNoiseSeed, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseTarget, 0, Options.materialNoiseTarget, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseMaskMode, 0, Options.materialNoiseMaskMode, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseMaskThreshold, 0, Options.materialNoiseMaskThreshold, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseWrap, 0, Options.materialNoiseWrap, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseRotation, 0, Options.materialNoiseRotation, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseAspect, 0, Options.materialNoiseAspect, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseLacunarity, 0, Options.materialNoiseLacunarity, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseContrast, 0, Options.materialNoiseContrast, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGamutBoost, 0, Options.materialGamutBoost, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGamutBoostMode, 0, Options.materialGamutBoostMode, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapDisplacementMode, 0, Options.materialPomMode, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPomDepth, 0, Options.materialPomDepth, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMin, 0, Options.materialAutoPBRRoughnessMin, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBRRoughnessMax, 0, Options.materialAutoPBRRoughnessMax, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapRoughnessBlend, 0, Options.materialRoughnessBlend, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPercentileCenter, 0, Options.materialPercentileCenter, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPercentileSpread, 0, Options.materialPercentileSpread, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPerBlockAutoPBRHtGamma, 0, Options.materialAutoPBRHeightGamma, 0, Options.MAX_MATERIALS);
@@ -902,8 +1311,13 @@ public class MaterialsSettingsScreen extends Screen {
         System.arraycopy(snapNormalClamp, 0, Options.materialNormalClamp, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapGeometricBlend, 0, Options.materialGeometricBlend, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapPomAoStrength, 0, Options.materialPomAOStrength, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNormalInputType, 0, Options.materialNormalInputType, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapSpecularInputType, 0, Options.materialSpecularInputType, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapCustomNormalPath, 0, Options.materialCustomNormalPath, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapCustomSpecularPath, 0, Options.materialCustomSpecularPath, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapAutoPBR, 0, Options.materialAutoPBR, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapChildOverride, 0, Options.materialChildOverride, 0, Options.MAX_MATERIALS);
+        System.arraycopy(snapNoiseMaskInvert, 0, Options.materialNoiseMaskInvert, 0, Options.MAX_MATERIALS);
         System.arraycopy(snapDisplacementSelfShadow, 0, Options.materialDisplacementSelfShadow, 0, Options.MAX_MATERIALS);
         Options.autoPBREnabled = snapAutoPBREnabled;
         Options.materialOverridesEnabled = snapMaterialOverridesEnabled;
@@ -912,20 +1326,8 @@ public class MaterialsSettingsScreen extends Screen {
     }
 
     private void applyRadianceScale() {
-        var window = this.client.getWindow();
-        var accessor = (com.radiance.mixins.vulkan_render_integration.WindowAccessorMixin) (Object) window;
-        int pixelWidth = window.getWidth();
-        double radianceScale = Math.max(1.0, Math.round((double) pixelWidth / 1100.0));
-        if (GuiScaleHelper.savedScaleFactor < 0) {
-            GuiScaleHelper.savedScaleFactor = accessor.radiance$getScaleFactor();
-            GuiScaleHelper.savedScaledWidth = accessor.radiance$getScaledWidth();
-            GuiScaleHelper.savedScaledHeight = accessor.radiance$getScaledHeight();
-        }
-        accessor.radiance$setScaleFactor(radianceScale);
-        accessor.radiance$setScaledWidth((int) Math.ceil((double) pixelWidth / radianceScale));
-        accessor.radiance$setScaledHeight((int) Math.ceil((double) window.getHeight() / radianceScale));
-        this.width = accessor.radiance$getScaledWidth();
-        this.height = accessor.radiance$getScaledHeight();
+        // The material menu must not mutate Minecraft's global GUI scale.
+        // Layout scaling is handled by sx/sy/sw/sh against the current screen size.
     }
 
     private void loadSourceAlbedo(String id) {
@@ -933,12 +1335,31 @@ public class MaterialsSettingsScreen extends Screen {
             sourceAlbedo.close();
             sourceAlbedo = null;
         }
-        String[] candidates = {
-            id, id + "_top", id + "_side", id + "_front", id + "_still",
-            id + "_block", id + "_block_top", id + "_block_side",
-            "white_" + id, "oak_" + id, id + "_planks", "brain_" + id,
-            id + "_inner", id + "_block_side_inner"
-        };
+        List<String> candidates = new ArrayList<>();
+        Set<Integer> mappedSprites = BlockModelBridge.materialOrdinal2SpriteIds.get(currentOrdinal());
+        if (mappedSprites != null && !mappedSprites.isEmpty()) {
+            for (int spriteId : mappedSprites) {
+                if (spriteId < 0 || spriteId >= BlockModelBridge.sortedSpriteIds.size()) continue;
+                Identifier sprite = BlockModelBridge.sortedSpriteIds.get(spriteId);
+                if ("minecraft".equals(sprite.getNamespace())) {
+                    candidates.add(sprite.getPath());
+                }
+            }
+        }
+        candidates.add(id);
+        candidates.add(id + "_top");
+        candidates.add(id + "_side");
+        candidates.add(id + "_front");
+        candidates.add(id + "_still");
+        candidates.add(id + "_block");
+        candidates.add(id + "_block_top");
+        candidates.add(id + "_block_side");
+        candidates.add("white_" + id);
+        candidates.add("oak_" + id);
+        candidates.add(id + "_planks");
+        candidates.add("brain_" + id);
+        candidates.add(id + "_inner");
+        candidates.add(id + "_block_side_inner");
         var rm = MinecraftClient.getInstance().getResourceManager();
         for (String name : candidates) {
             try {
@@ -970,8 +1391,22 @@ public class MaterialsSettingsScreen extends Screen {
             Options.materialPercentileCenter[ord], Options.materialPercentileSpread[ord], invertRough);
         NativeImage heightImg = AutoPBRGenerator.generateHeightPreview(albedoCopy,
             Options.materialAutoPBRHeightGamma[ord], invertHeight, hp);
+        NativeImage aoImg = aoPreviewFromNormal(normalImg);
         NativeImage noiseImg = NoisePreviewGenerator.generate(160, ord);
-        uploadPreview(albedoCopy, normalImg, roughImg, heightImg, noiseImg);
+        uploadPreview(albedoCopy, normalImg, roughImg, heightImg, aoImg, noiseImg);
+    }
+
+    private NativeImage aoPreviewFromNormal(NativeImage normal) {
+        NativeImage out = new NativeImage(normal.getWidth(), normal.getHeight(), false);
+        for (int y = 0; y < normal.getHeight(); y++) {
+            for (int x = 0; x < normal.getWidth(); x++) {
+                int pixel = normal.getColorArgb(x, y);
+                int alpha = (pixel >>> 24) & 0xFF;
+                int ao = pixel & 0xFF;
+                out.setColorArgb(x, y, (alpha << 24) | (ao << 16) | (ao << 8) | ao);
+            }
+        }
+        return out;
     }
 
     private NativeImage scaledAlbedo() {
@@ -993,13 +1428,18 @@ public class MaterialsSettingsScreen extends Screen {
         return out;
     }
 
-    private void uploadPreview(NativeImage albedo, NativeImage normal, NativeImage rough, NativeImage height, NativeImage noise) {
+    private void uploadPreview(NativeImage albedo, NativeImage normal, NativeImage rough, NativeImage height, NativeImage ao, NativeImage noise) {
+        if (previewsRegistered && (previewAlbedoTex == null || previewNormalTex == null || previewRoughTex == null
+                || previewHeightTex == null || previewAoTex == null || previewNoiseTex == null)) {
+            previewsRegistered = false;
+        }
         if (!previewsRegistered) {
             var texManager = MinecraftClient.getInstance().getTextureManager();
             previewAlbedoTex = new NativeImageBackedTexture(albedo); previewAlbedoTex.upload(); texManager.registerTexture(PREVIEW_ALBEDO_ID, previewAlbedoTex);
             previewNormalTex = new NativeImageBackedTexture(normal); previewNormalTex.upload(); texManager.registerTexture(PREVIEW_NORMAL_ID, previewNormalTex);
             previewRoughTex = new NativeImageBackedTexture(rough); previewRoughTex.upload(); texManager.registerTexture(PREVIEW_ROUGHNESS_ID, previewRoughTex);
             previewHeightTex = new NativeImageBackedTexture(height); previewHeightTex.upload(); texManager.registerTexture(PREVIEW_HEIGHT_ID, previewHeightTex);
+            previewAoTex = new NativeImageBackedTexture(ao); previewAoTex.upload(); texManager.registerTexture(PREVIEW_AO_ID, previewAoTex);
             previewNoiseTex = new NativeImageBackedTexture(noise); previewNoiseTex.upload(); texManager.registerTexture(PREVIEW_NOISE_ID, previewNoiseTex);
             previewsRegistered = true;
             return;
@@ -1008,6 +1448,7 @@ public class MaterialsSettingsScreen extends Screen {
         previewNormalTex.setImage(normal); previewNormalTex.upload();
         previewRoughTex.setImage(rough); previewRoughTex.upload();
         previewHeightTex.setImage(height); previewHeightTex.upload();
+        previewAoTex.setImage(ao); previewAoTex.upload();
         previewNoiseTex.setImage(noise); previewNoiseTex.upload();
     }
 
@@ -1058,9 +1499,15 @@ public class MaterialsSettingsScreen extends Screen {
             context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), enabled ? ROW_FILL : ROW_DISABLED);
             context.drawBorder(getX(), getY(), getWidth(), getHeight(), enabled ? 0x70353736 : 0x60353736);
             int textColor = enabled ? TEXT_PRIMARY : TEXT_DISABLED;
-            context.drawText(textRenderer, Text.literal(label), getX() + designW(10), getY() + designH(9), textColor, false);
+            int q = designW(18);
+            int qx = getX() + getWidth() - q - designW(8);
+            int valueRight = disabledReason == null ? getX() + getWidth() - designW(10) : qx - designW(6);
+            int labelX = getX() + designW(10);
             Text val = formatter.apply(current());
-            context.drawText(textRenderer, val, getX() + getWidth() - designW(10) - textRenderer.getWidth(val), getY() + designH(9), textColor, false);
+            int valueX = valueRight - textRenderer.getWidth(val);
+            Text labelText = RadianceTheme.trimText(textRenderer, Text.literal(label), Math.max(1, valueX - labelX - designW(6)));
+            context.drawText(textRenderer, labelText, labelX, getY() + designH(9), textColor, false);
+            context.drawText(textRenderer, val, valueX, getY() + designH(9), textColor, false);
             int trackX = fullWidth ? designX(590) : getX() + designW(12);
             int trackW = fullWidth ? designW(345) : getWidth() - designW(56);
             int trackY = fullWidth ? getY() + (getHeight() - designH(4)) / 2 : getY() + getHeight() - designH(13);
@@ -1074,11 +1521,11 @@ public class MaterialsSettingsScreen extends Screen {
             context.fill(thumbX, trackY + designH(2) - thumbH / 2, thumbX + thumbW, trackY + designH(2) + thumbH / 2, enabled ? THUMB : TEXT_DISABLED);
             if (current() != stockDefault) context.fill(getX() + designW(4), getY() + designH(4), getX() + designW(8), getY() + getHeight() - designH(4), enabled ? ORANGE : TEXT_DISABLED);
             if (disabledReason != null) {
-                int q = designW(18);
-                int qx = getX() + getWidth() - q - designW(8);
                 int qy = getY() + (getHeight() - q) / 2;
                 drawQuestion(context, qx, qy, q, q, disabledReason);
                 if (isPointIn(mouseX, mouseY, qx, qy, q, q) || isMouseOver(mouseX, mouseY)) tooltipReason = disabledReason;
+            } else if (isMouseOver(mouseX, mouseY)) {
+                tooltipReason = controlTooltip(label);
             }
         }
 
@@ -1182,12 +1629,10 @@ public class MaterialsSettingsScreen extends Screen {
             boolean enabled = enabledSupplier.getAsBoolean();
             context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), enabled ? ROW_FILL : ROW_DISABLED);
             context.drawBorder(getX(), getY(), getWidth(), getHeight(), isHovered() && enabled ? TEAL : PANEL_BORDER);
-            Text raw = getMessage();
-            String rawString = raw.getString();
-            Text display = rawString.indexOf('\u00e2') >= 0 ? Text.literal("v") : raw;
-            Text msg = RadianceTheme.trimText(textRenderer, display, getWidth() - designW(12));
+            Text msg = RadianceTheme.trimText(textRenderer, getMessage(), getWidth() - designW(12));
             context.drawText(textRenderer, msg, getX() + (getWidth() - textRenderer.getWidth(msg)) / 2, getY() + (getHeight() - 8) / 2, enabled ? TEXT_PRIMARY : TEXT_DISABLED, false);
             if (!enabled && disabledReason != null && isMouseOver(mouseX, mouseY)) tooltipReason = disabledReason;
+            if (enabled && isMouseOver(mouseX, mouseY)) tooltipReason = controlTooltip(getMessage().getString());
         }
 
         @Override
@@ -1227,13 +1672,19 @@ public class MaterialsSettingsScreen extends Screen {
             int by = getY() + (getHeight() - box) / 2;
             context.drawBorder(bx, by, box, box, enabled ? TEXT_SECONDARY : TEXT_DISABLED);
             if (on) context.fill(bx + 3, by + 3, bx + box - 3, by + box - 3, enabled ? TEAL : TEXT_DISABLED);
-            context.drawText(textRenderer, getMessage(), bx + box + designW(8), getY() + (getHeight() - 8) / 2, enabled ? TEXT_PRIMARY : TEXT_DISABLED, false);
+            int labelX = bx + box + designW(8);
+            int labelRight = getX() + getWidth() - designW(10);
+            if (disabledReason != null) labelRight -= designW(26);
+            Text label = RadianceTheme.trimText(textRenderer, getMessage(), Math.max(1, labelRight - labelX));
+            context.drawText(textRenderer, label, labelX, getY() + (getHeight() - 8) / 2, enabled ? TEXT_PRIMARY : TEXT_DISABLED, false);
             if (disabledReason != null) {
                 int q = designW(18);
                 int qx = getX() + getWidth() - q - designW(8);
                 int qy = getY() + (getHeight() - q) / 2;
                 drawQuestion(context, qx, qy, q, q, disabledReason);
                 if (isMouseOver(mouseX, mouseY)) tooltipReason = disabledReason;
+            } else if (isMouseOver(mouseX, mouseY)) {
+                tooltipReason = controlTooltip(getMessage().getString());
             }
         }
 
@@ -1278,6 +1729,8 @@ public class MaterialsSettingsScreen extends Screen {
                 int qy = getY() + (getHeight() - q) / 2;
                 drawQuestion(context, qx, qy, q, q, disabledReason);
                 if (isMouseOver(mouseX, mouseY)) tooltipReason = disabledReason;
+            } else if (isMouseOver(mouseX, mouseY)) {
+                tooltipReason = controlTooltip(label);
             }
         }
 
@@ -1312,11 +1765,16 @@ public class MaterialsSettingsScreen extends Screen {
         protected void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
             context.fill(getX(), getY(), getX() + getWidth(), getY() + getHeight(), ROW_DISABLED);
             context.drawBorder(getX(), getY(), getWidth(), getHeight(), 0x60353736);
-            context.drawText(textRenderer, Text.literal(label), getX() + designW(10), getY() + designH(9), TEXT_DISABLED, false);
-            if (!value.isEmpty()) context.drawText(textRenderer, Text.literal(value), getX() + getWidth() - designW(35) - textRenderer.getWidth(value), getY() + designH(9), TEXT_DISABLED, false);
             int q = designW(18);
             int qx = getX() + getWidth() - q - designW(8);
             int qy = getY() + (getHeight() - q) / 2;
+            int valueRight = qx - designW(6);
+            Text valueText = RadianceTheme.trimText(textRenderer, Text.literal(value), Math.max(1, getWidth() / 2));
+            int valueX = value.isEmpty() ? valueRight : valueRight - textRenderer.getWidth(valueText);
+            int labelX = getX() + designW(10);
+            Text labelText = RadianceTheme.trimText(textRenderer, Text.literal(label), Math.max(1, valueX - labelX - designW(6)));
+            context.drawText(textRenderer, labelText, labelX, getY() + designH(9), TEXT_DISABLED, false);
+            if (!value.isEmpty()) context.drawText(textRenderer, valueText, valueX, getY() + designH(9), TEXT_DISABLED, false);
             drawQuestion(context, qx, qy, q, q, reason);
             if (isMouseOver(mouseX, mouseY)) tooltipReason = reason;
         }

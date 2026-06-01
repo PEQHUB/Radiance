@@ -228,7 +228,7 @@ public final class LiveNormalReuploader {
             if (spriteIds == null || spriteIds.isEmpty()) continue;
 
             if (ordinal < 0 || ordinal >= Options.materialAutoPBR.length) continue;
-            boolean autoPBR = Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
+            boolean autoPBR = Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
 
             for (int spriteId : spriteIds) {
                 if (spriteId < 0 || spriteId >= maxSpriteId) continue;
@@ -242,9 +242,16 @@ public final class LiveNormalReuploader {
                     boolean generatedSpecular = spriteId < TextureTracker.spriteSpecularSource.length
                         && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
                         && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM;
-                    if (Options.materialSpecularInputType[ordinal] == 0 && !transmissive && generatedSpecular) {
+                    int specularInputType = Options.materialOverridesEnabled
+                        ? Options.materialSpecularInputType[ordinal]
+                        : Options.MATERIAL_SOURCE_AUTO;
+                    boolean shouldUpdateSpecular = !transmissive
+                        && ((specularInputType == Options.MATERIAL_SOURCE_AUTO && generatedSpecular)
+                            || specularInputType == Options.MATERIAL_SOURCE_GENERATED
+                            || specularInputType == Options.MATERIAL_SOURCE_FLAT);
+                    if (shouldUpdateSpecular) {
                         NativeImage specImg;
-                        if (autoPBR) {
+                        if (autoPBR && specularInputType != Options.MATERIAL_SOURCE_FLAT) {
                             specImg = AutoPBRGenerator.generateSpecularPercentile(spriteAlbedo,
                                 Options.materialAutoPBRRoughnessMin[ordinal],
                                 Options.materialAutoPBRRoughnessMax[ordinal],
@@ -267,9 +274,15 @@ public final class LiveNormalReuploader {
                     boolean generatedNormal = spriteId < TextureTracker.spriteNormalSource.length
                         && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
                         && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM;
-                    if (Options.materialNormalInputType[ordinal] == 0 && generatedNormal) {
+                    int normalInputType = Options.materialOverridesEnabled
+                        ? Options.materialNormalInputType[ordinal]
+                        : Options.MATERIAL_SOURCE_AUTO;
+                    boolean shouldUpdateNormal = (normalInputType == Options.MATERIAL_SOURCE_AUTO && generatedNormal)
+                        || normalInputType == Options.MATERIAL_SOURCE_GENERATED
+                        || normalInputType == Options.MATERIAL_SOURCE_FLAT;
+                    if (shouldUpdateNormal) {
                         NativeImage normImg;
-                        if (autoPBR) {
+                        if (autoPBR && normalInputType != Options.MATERIAL_SOURCE_FLAT) {
                             // Neutral strength for texture array — shader applies pack5.w at runtime
                             normImg = AutoPBRGenerator.generateNormal(spriteAlbedo,
                                 100,
@@ -300,7 +313,7 @@ public final class LiveNormalReuploader {
     private static boolean isAutoPBRActiveForGLID(int albedoGLID) {
         Integer ordinal = TextureTracker.albedoGLID2BlockOrdinal.get(albedoGLID);
         if (ordinal == null) return false;
-        return Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
+        return Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[ordinal];
     }
 
     private static boolean needsGeneratedReupload(int ordinal, boolean specular, boolean normal) {
@@ -321,14 +334,24 @@ public final class LiveNormalReuploader {
 
         for (int spriteId : spriteIds) {
             if (spriteId < 0 || spriteId >= TextureTracker.MAX_TEXTURES) continue;
-            if (specular && Options.materialSpecularInputType[ordinal] == 0
+            int specularInputType = Options.materialOverridesEnabled
+                ? Options.materialSpecularInputType[ordinal]
+                : Options.MATERIAL_SOURCE_AUTO;
+            int normalInputType = Options.materialOverridesEnabled
+                ? Options.materialNormalInputType[ordinal]
+                : Options.MATERIAL_SOURCE_AUTO;
+            if (specular && ((specularInputType == Options.MATERIAL_SOURCE_AUTO
                 && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
-                && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM) {
+                && TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM)
+                || specularInputType == Options.MATERIAL_SOURCE_GENERATED
+                || specularInputType == Options.MATERIAL_SOURCE_FLAT)) {
                 return true;
             }
-            if (normal && Options.materialNormalInputType[ordinal] == 0
+            if (normal && ((normalInputType == Options.MATERIAL_SOURCE_AUTO
                 && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_PACK_AUTHORED
-                && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM) {
+                && TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM)
+                || normalInputType == Options.MATERIAL_SOURCE_GENERATED
+                || normalInputType == Options.MATERIAL_SOURCE_FLAT)) {
                 return true;
             }
         }

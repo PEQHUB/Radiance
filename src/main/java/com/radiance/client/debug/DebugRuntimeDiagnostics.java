@@ -92,6 +92,11 @@ public final class DebugRuntimeDiagnostics {
             RendererProxy::nativeGetOverlayDiag);
     }
 
+    public static Path writeDlssgLatencySnapshot() throws IOException {
+        return writeSingleNativeSnapshot("dlssg_latency_snapshot", "Radiance DLSS-G Latency Snapshot",
+            RendererProxy::nativeGetDlssgLatencyDiag);
+    }
+
     public static Path writeDebugBundle(MinecraftClient client) throws IOException {
         Path snapshot = writeRuntimeSnapshot(client);
         Path inspect = null;
@@ -201,6 +206,8 @@ public final class DebugRuntimeDiagnostics {
         sb.append("Renderer\n--------\n");
         sb.append("gpuProfile=").append(safeNative(RendererProxy::nativeGetGpuProfile)).append('\n');
         sb.append("featureTruth=").append(safeNative(RendererProxy::nativeGetFeatureTruth)).append('\n');
+        sb.append("colorPipeline=").append(safeNative(RendererProxy::nativeGetColorPipelineDiagnostics)).append('\n');
+        sb.append("dlssgLatency=").append(safeNative(RendererProxy::nativeGetDlssgLatencyDiag)).append('\n');
         sb.append("vmaStats=").append(safeNative(RendererProxy::nativeGetVmaStats)).append('\n');
         sb.append("overlayDiag=").append(safeNative(RendererProxy::nativeGetOverlayDiag)).append('\n');
         sb.append("textureReload=").append(safeNative(RendererProxy::nativeGetTextureReloadDiagnostics)).append('\n');
@@ -216,6 +223,7 @@ public final class DebugRuntimeDiagnostics {
         sb.append("upscalerMode=").append(Options.upscalerMode).append('\n');
         sb.append("frameGenMode=").append(Options.frameGenMode).append('\n');
         sb.append("frameGenMultiplier=").append(Options.frameGenMultiplier).append('\n');
+        sb.append("dlssgQueueParallelism=").append(Options.dlssgQueueParallelism).append('\n');
         sb.append("reflexEnabled=").append(Options.reflexEnabled).append('\n');
         sb.append("rayBounces=").append(Options.rayBounces).append('\n');
         sb.append("sharcEnabled=").append(Options.sharcEnabled).append('\n');
@@ -254,6 +262,8 @@ public final class DebugRuntimeDiagnostics {
             addIfExists(zip, added, snapshot, "runtime_snapshot.txt");
             addIfExists(zip, added, inspect, "debug_inspect_latest.txt");
             addIfExists(zip, added, DebugInspectReporter.latestReportPath(), "debug_inspect_latest_existing.txt");
+            addIfExists(zip, added, logsDir().resolve("dlssg_latency_snapshot_latest.txt"),
+                "radiance_logs/dlssg_latency_snapshot_latest.txt");
             addIfExists(zip, added, logsDir().resolve("crash_ring.txt"), "radiance_logs/crash_ring.txt");
             addIfExists(zip, added, logsDir().resolve("engine.log"), "radiance_logs/engine.log");
             addIfExists(zip, added, logsDir().resolve("engine.jsonl"), "radiance_logs/engine.jsonl");

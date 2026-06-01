@@ -28,6 +28,7 @@ public class DebugPopulator implements ContentPopulator {
         STATUS,
         CAPTURE_LOGS,
         GPU_PROFILING,
+        DLSSG_LATENCY,
         RESOURCES,
         POWER_ACTIONS
     }
@@ -44,6 +45,7 @@ public class DebugPopulator implements ContentPopulator {
             case STATUS -> populateStatus(panel);
             case CAPTURE_LOGS -> populateCaptureLogs(panel);
             case GPU_PROFILING -> populateGpuProfiling(panel, screen);
+            case DLSSG_LATENCY -> populateDlssgLatency(panel, screen);
             case RESOURCES -> populateResources(panel);
             case POWER_ACTIONS -> populatePowerActions(panel);
         }
@@ -60,8 +62,17 @@ public class DebugPopulator implements ContentPopulator {
         runtime.addInfo("Debug Task", DebugRuntimeSampler.status());
 
         SettingsSection renderer = panel.addSection("Renderer Status").setLinear();
+        String colorDiag = DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetColorPipelineDiagnostics);
         renderer.addInfo("GPU Profile", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetGpuProfile)));
         renderer.addInfo("Feature Truth", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetFeatureTruth)));
+        renderer.addInfo("Color Pipeline", compact(colorDiag));
+        renderer.addInfo("SDR Tone Map", field(colorDiag, "sdrTonemapMode") + " / transfer "
+            + field(colorDiag, "sdrTransferFunction"));
+        renderer.addInfo("SDR Gamut", field(colorDiag, "sdrFinalGamutMap") + " / hardClamp "
+            + field(colorDiag, "sdrHardClamp"));
+        renderer.addInfo("Swapchain", "fmt " + field(colorDiag, "swapchainFormat") + " / cs "
+            + field(colorDiag, "swapchainColorSpace"));
+        renderer.addInfo("DLSS-G Latency", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetDlssgLatencyDiag)));
         renderer.addInfo("VMA", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetVmaStats)));
         renderer.addInfo("Overlay", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetOverlayDiag)));
         renderer.addInfo("Texture Generation", String.valueOf(BlockModelBridge.getActiveTextureGeneration()));
@@ -185,6 +196,65 @@ public class DebugPopulator implements ContentPopulator {
                 DebugRuntimeDiagnostics::writeVmaSnapshot, "VMA snapshot saved")),
             button("Write Overlay Snapshot", () -> runFileAction(mc,
                 DebugRuntimeDiagnostics::writeOverlaySnapshot, "Overlay snapshot saved")));
+        snapshots.addButton(button("Write DLSS-G Snapshot", () -> runFileAction(mc,
+            DebugRuntimeDiagnostics::writeDlssgLatencySnapshot, "DLSS-G snapshot saved")));
+    }
+
+    private void populateDlssgLatency(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        String diag = DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetDlssgLatencyDiag);
+
+        SettingsSection state = panel.addSection("DLSS-G State").setLinear();
+        state.addInfo("Frame Generation", frameGenLabel());
+        state.addInfo("Supported", field(diag, "dlssgSupported"));
+        state.addInfo("Feature Loaded", field(diag, "featureLoaded"));
+        state.addInfo("Active", field(diag, "active"));
+        state.addInfo("Queue Mode", field(diag, "queueMode"));
+        state.addInfo("Queue Parallelism Guard", Options.dlssgQueueParallelism ? "unsafe-requested" : "disabled");
+        state.addInfo("Status Bits", field(diag, "lastStatus"));
+        state.addInfo("Valid Completion Slots", field(diag, "validSlots"));
+
+        SettingsSection waits = panel.addSection("Completion Waits").setLinear();
+        waits.addInfo("Captures", field(diag, "completionCaptures"));
+        waits.addInfo("Capture Failures", field(diag, "completionFailures"));
+        waits.addInfo("Null Fence / Zero Value", field(diag, "completionNullFence") + " / "
+            + field(diag, "completionZeroValue"));
+        waits.addInfo("Wait Calls", field(diag, "waitCalls"));
+        waits.addInfo("Wait Success", field(diag, "waitSuccess"));
+        waits.addInfo("Wait Failures", field(diag, "waitFailures"));
+        waits.addInfo("Wait Timeouts", field(diag, "waitTimeouts"));
+        waits.addInfo("Average Wait (us)", field(diag, "waitAvgUs"));
+        waits.addInfo("Max Wait (us)", field(diag, "waitMaxUs"));
+        waits.addInfo("Last Wait (us)", field(diag, "lastWaitUs"));
+        waits.addInfo("Pending Serial Age", field(diag, "pendingSerialAge"));
+
+        SettingsSection tags = panel.addSection("Tagged Inputs").setLinear();
+        tags.addInfo("Tag Count", field(diag, "lastTagCount"));
+        tags.addInfo("Depth", field(diag, "depthTagged") + " / "
+            + field(diag, "depthSize") + " / fmt " + field(diag, "depthFormat"));
+        tags.addInfo("Motion Vectors", field(diag, "mvTagged") + " / "
+            + field(diag, "mvSize") + " / fmt " + field(diag, "mvFormat"));
+        tags.addInfo("HUD-less Color", field(diag, "hudlessTagged") + " / "
+            + field(diag, "hudlessSize") + " / fmt " + field(diag, "hudlessFormat"));
+
+        SettingsSection raw = panel.addSection("Raw Diagnostics").setLinear();
+        raw.addInfo("Native", compact(diag, 180));
+
+        SettingsSection actions = panel.addSection("Capture Actions").setLinear();
+        actions.addTwoWidgets(
+            button("Write DLSS-G Snapshot", () -> runFileAction(mc,
+                DebugRuntimeDiagnostics::writeDlssgLatencySnapshot, "DLSS-G snapshot saved")),
+            button("Write Runtime Snapshot", () -> runFileAction(mc,
+                () -> DebugRuntimeDiagnostics.writeRuntimeSnapshot(mc), "Runtime snapshot saved")));
+        actions.addTwoWidgets(
+            button("GPU 30 Samples", () -> {
+                DebugRuntimeSampler.startGpuProfileCapture(30, mc);
+                screen.refreshContent();
+            }),
+            button("GPU 120 Samples", () -> {
+                DebugRuntimeSampler.startGpuProfileCapture(120, mc);
+                screen.refreshContent();
+            })).tooltip("Correlates DLSS-G waits with native GPU timestamp samples.");
     }
 
     private void populateResources(ContentPanelWidget panel) {
@@ -253,6 +323,12 @@ public class DebugPopulator implements ContentPopulator {
                 new UnifiedSearchOverlay.SearchEntry("RT Legacy vs Upstream", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("VMA Snapshot", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Overlay Snapshot", category, nodeId, false));
+            case DLSSG_LATENCY -> List.of(
+                new UnifiedSearchOverlay.SearchEntry("DLSS-G Latency", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("DLSS-G Queue Guard", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("DLSS-G Completion Waits", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("DLSS-G Tagged Inputs", category, nodeId, false),
+                new UnifiedSearchOverlay.SearchEntry("DLSS-G Snapshot", category, nodeId, false));
             case RESOURCES -> List.of(
                 new UnifiedSearchOverlay.SearchEntry("Texture Diagnostics", category, nodeId, false),
                 new UnifiedSearchOverlay.SearchEntry("Texture Reload Snapshot", category, nodeId, false),
@@ -289,8 +365,25 @@ public class DebugPopulator implements ContentPopulator {
     }
 
     private static String compact(String value) {
+        return compact(value, 96);
+    }
+
+    private static String compact(String value, int maxLength) {
         if (value == null || value.isBlank()) return "unavailable";
-        return value.length() <= 96 ? value : value.substring(0, 93) + "...";
+        int safeMax = Math.max(16, maxLength);
+        return value.length() <= safeMax ? value : value.substring(0, safeMax - 3) + "...";
+    }
+
+    private static String field(String diag, String key) {
+        if (diag == null || diag.isBlank() || key == null || key.isBlank()) return "n/a";
+        String prefix = key + ":";
+        for (String part : diag.split(",")) {
+            if (part.startsWith(prefix)) {
+                String value = part.substring(prefix.length());
+                return value.isBlank() ? "n/a" : value;
+            }
+        }
+        return "n/a";
     }
 
     @FunctionalInterface

@@ -223,9 +223,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
                 int ordinal = BlockModelBridge.spriteId2MaterialOrdinal.getOrDefault(i, -1);
                 boolean autoPBRHeight = ordinal >= 0
+                    && Options.materialOverridesEnabled
                     && Options.autoPBREnabled
                     && Options.materialAutoPBR[ordinal]
-                    && Options.materialNormalInputType[ordinal] == 0;
+                    && (Options.materialNormalInputType[ordinal] == Options.MATERIAL_SOURCE_AUTO
+                        || Options.materialNormalInputType[ordinal] == Options.MATERIAL_SOURCE_GENERATED);
                 byte normalSource = TextureTracker.spriteNormalSource[i];
                 boolean authoredHeight = normalSource == TextureTracker.SOURCE_PACK_AUTHORED
                     || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
@@ -350,6 +352,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
             int si = mapEntry.getKey();
             int ordinal = mapEntry.getValue();
+            if (!com.radiance.client.option.Options.materialOverridesEnabled) continue;
             if (!com.radiance.client.option.Options.autoPBREnabled) continue;
             if (!com.radiance.client.option.Options.materialAutoPBR[ordinal]) continue;
             if (com.radiance.client.option.Options.materialSpecularInputType[ordinal] != 0) continue;
@@ -393,6 +396,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
             int si = mapEntry.getKey();
             int ordinal = mapEntry.getValue();
+            if (!com.radiance.client.option.Options.materialOverridesEnabled) continue;
             if (!com.radiance.client.option.Options.autoPBREnabled) continue;
             if (!com.radiance.client.option.Options.materialAutoPBR[ordinal]) continue;
             if (com.radiance.client.option.Options.materialNormalInputType[ordinal] != 0) continue;

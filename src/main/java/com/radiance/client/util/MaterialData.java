@@ -15,7 +15,7 @@ public class MaterialData {
     private static final Gson GSON_COMPACT = new Gson();
 
     // Metadata
-    public int version = 1;
+    public int version = 2;
     public String blockId = "";
     public String displayName = "";
     public String author = "";
@@ -47,10 +47,27 @@ public class MaterialData {
     // Per-channel input types: 0=Auto, 1=Custom, 2=Flat
     public int normalInputType;
     public int specularInputType;
+    public boolean autoPBR = true;
+    public int autoPBRRoughnessMin = 30;
+    public int autoPBRRoughnessMax = 95;
+    public int roughnessBlend = 100;
+    public int percentileCenter = 50;
+    public int percentileSpread = 80;
+    public int autoPBRHeightGamma = 100;
+    public int autoPBRFlags;
     public String customNormalPath = "";
     public String customSpecularPath = "";
     // Noise target channels: bit 0=roughness, bit 1=normal, bit 2=metallic
     public int noiseTarget = 1;
+    public int noiseMaskMode;
+    public boolean noiseMaskInvert;
+    public int noiseMaskThreshold = 500;
+    public int noiseWrap = 1;
+    public int noiseRotation;
+    public int noiseAspect = 100;
+    public int noiseLacunarity = 20;
+    public int noiseContrast = 100;
+    public int gamutBoostMode = 1;
     // Shader displacement settings
     public int heightFilter;               // 0=Nearest, 1=Bilinear, 2=Smooth
     public int filterRadius;               // filter kernel radius
@@ -104,11 +121,28 @@ public class MaterialData {
         d.gamutBoost = Options.materialGamutBoost[blockIndex];
         d.pomDepth = Options.materialPomDepth[blockIndex];
         d.normalStrength = Options.materialNormalStrength[blockIndex];
+        d.autoPBR = Options.materialAutoPBR[blockIndex];
+        d.autoPBRRoughnessMin = Options.materialAutoPBRRoughnessMin[blockIndex];
+        d.autoPBRRoughnessMax = Options.materialAutoPBRRoughnessMax[blockIndex];
+        d.roughnessBlend = Options.materialRoughnessBlend[blockIndex];
+        d.percentileCenter = Options.materialPercentileCenter[blockIndex];
+        d.percentileSpread = Options.materialPercentileSpread[blockIndex];
+        d.autoPBRHeightGamma = Options.materialAutoPBRHeightGamma[blockIndex];
+        d.autoPBRFlags = Options.materialAutoPBRFlags[blockIndex];
         d.normalInputType = Options.materialNormalInputType[blockIndex];
         d.specularInputType = Options.materialSpecularInputType[blockIndex];
         d.customNormalPath = Options.materialCustomNormalPath[blockIndex];
         d.customSpecularPath = Options.materialCustomSpecularPath[blockIndex];
         d.noiseTarget = Options.materialNoiseTarget[blockIndex];
+        d.noiseMaskMode = Options.materialNoiseMaskMode[blockIndex];
+        d.noiseMaskInvert = Options.materialNoiseMaskInvert[blockIndex];
+        d.noiseMaskThreshold = Options.materialNoiseMaskThreshold[blockIndex];
+        d.noiseWrap = Options.materialNoiseWrap[blockIndex];
+        d.noiseRotation = Options.materialNoiseRotation[blockIndex];
+        d.noiseAspect = Options.materialNoiseAspect[blockIndex];
+        d.noiseLacunarity = Options.materialNoiseLacunarity[blockIndex];
+        d.noiseContrast = Options.materialNoiseContrast[blockIndex];
+        d.gamutBoostMode = Options.materialGamutBoostMode[blockIndex];
         d.heightFilter = Options.materialHeightFilter[blockIndex];
         d.filterRadius = Options.materialFilterRadius[blockIndex];
         d.mipBias = Options.materialMipBias[blockIndex];
@@ -149,6 +183,12 @@ public class MaterialData {
         d.sheenTint = block.getDefaultSheenTint();
         d.coatWeight = block.getDefaultCoatWeight();
         d.coatRoughness = block.getDefaultCoatRoughness();
+        d.autoPBR = !block.isThinCutoutPlantMaterial();
+        if (block.isThinCutoutPlantMaterial()) {
+            d.normalInputType = Options.MATERIAL_SOURCE_FLAT;
+            d.specularInputType = Options.MATERIAL_SOURCE_FLAT;
+            d.noiseTarget = 0;
+        }
         return d;
     }
 
@@ -176,11 +216,28 @@ public class MaterialData {
         Options.materialGamutBoost[blockIndex] = gamutBoost;
         Options.materialPomDepth[blockIndex] = pomDepth;
         Options.materialNormalStrength[blockIndex] = normalStrength;
+        Options.materialAutoPBR[blockIndex] = autoPBR;
+        Options.materialAutoPBRRoughnessMin[blockIndex] = autoPBRRoughnessMin;
+        Options.materialAutoPBRRoughnessMax[blockIndex] = autoPBRRoughnessMax;
+        Options.materialRoughnessBlend[blockIndex] = roughnessBlend;
+        Options.materialPercentileCenter[blockIndex] = percentileCenter;
+        Options.materialPercentileSpread[blockIndex] = percentileSpread;
+        Options.materialAutoPBRHeightGamma[blockIndex] = autoPBRHeightGamma;
+        Options.materialAutoPBRFlags[blockIndex] = autoPBRFlags;
         Options.materialNormalInputType[blockIndex] = normalInputType;
         Options.materialSpecularInputType[blockIndex] = specularInputType;
         Options.materialCustomNormalPath[blockIndex] = customNormalPath != null ? customNormalPath : "";
         Options.materialCustomSpecularPath[blockIndex] = customSpecularPath != null ? customSpecularPath : "";
         Options.materialNoiseTarget[blockIndex] = noiseTarget;
+        Options.materialNoiseMaskMode[blockIndex] = noiseMaskMode;
+        Options.materialNoiseMaskInvert[blockIndex] = noiseMaskInvert;
+        Options.materialNoiseMaskThreshold[blockIndex] = noiseMaskThreshold;
+        Options.materialNoiseWrap[blockIndex] = noiseWrap;
+        Options.materialNoiseRotation[blockIndex] = noiseRotation;
+        Options.materialNoiseAspect[blockIndex] = noiseAspect;
+        Options.materialNoiseLacunarity[blockIndex] = noiseLacunarity;
+        Options.materialNoiseContrast[blockIndex] = noiseContrast;
+        Options.materialGamutBoostMode[blockIndex] = gamutBoostMode;
         Options.materialHeightFilter[blockIndex] = heightFilter;
         Options.materialFilterRadius[blockIndex] = filterRadius;
         Options.materialMipBias[blockIndex] = mipBias;

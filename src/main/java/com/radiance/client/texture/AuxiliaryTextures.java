@@ -258,12 +258,34 @@ public enum AuxiliaryTextures {
                         }
                     }
 
+                    int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
+                    int inputType = com.radiance.client.option.Options.MATERIAL_SOURCE_AUTO;
+                    if (mbOrdinal >= 0 && com.radiance.client.option.Options.materialOverridesEnabled) {
+                        if (auxiliaryTexture == NORMAL) {
+                            inputType = com.radiance.client.option.Options.materialNormalInputType[mbOrdinal];
+                        } else if (auxiliaryTexture == SPECULAR) {
+                            inputType = com.radiance.client.option.Options.materialSpecularInputType[mbOrdinal];
+                        }
+                    }
+                    boolean forcedGeneratedSource = inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_GENERATED
+                        || inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_FLAT
+                        || inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_CUSTOM;
+                    if (success && forcedGeneratedSource) {
+                        if (auxiliaryTemplateImage != null) {
+                            auxiliaryTemplateImage.close();
+                            auxiliaryTemplateImage = null;
+                        }
+                        success = false;
+                    }
+
                     // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
                     // Must run for ALL AutoPBR blocks, even those with existing LabPBR textures,
                     // because the GPU shader always needs tight bounds for roughness derivation.
                     if (level == 0) {
-                        int lumOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                        if (lumOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled
+                        int lumOrdinal = mbOrdinal;
+                        if (lumOrdinal >= 0
+                                && com.radiance.client.option.Options.materialOverridesEnabled
+                                && com.radiance.client.option.Options.autoPBREnabled
                                 && com.radiance.client.option.Options.materialAutoPBR[lumOrdinal]) {
                             float wR = 0.2126f, wG = 0.7152f, wB = 0.0722f; // BT.709 (sRGB primaries)
                             // Use block's sprite region, not the full atlas
@@ -297,19 +319,9 @@ public enum AuxiliaryTextures {
                         if (level == 0) {
                             auxiliaryTexture.markGenerated(auxiliaryTargetId);
                         }
-                        int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
 
-                        // Check per-material input type override
-                        int inputType = 0; // 0=Auto
-                        if (mbOrdinal >= 0) {
-                            if (auxiliaryTexture == NORMAL) {
-                                inputType = com.radiance.client.option.Options.materialNormalInputType[mbOrdinal];
-                            } else if (auxiliaryTexture == SPECULAR) {
-                                inputType = com.radiance.client.option.Options.materialSpecularInputType[mbOrdinal];
-                            }
-                        }
-
-                        if (inputType == 2) {
+                        if (inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_FLAT
+                                || inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_AUTHORED) {
                             // Flat: neutral normal or zero specular
                             auxiliarySource = TextureTracker.SOURCE_FLAT;
                             if (auxiliaryTexture == NORMAL) {
@@ -317,7 +329,7 @@ public enum AuxiliaryTextures {
                             } else {
                                 auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                             }
-                        } else if (inputType == 1 && mbOrdinal >= 0) {
+                        } else if (inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_CUSTOM && mbOrdinal >= 0) {
                             // Custom: load from user-specified path
                             String customPath = (auxiliaryTexture == NORMAL)
                                 ? com.radiance.client.option.Options.materialCustomNormalPath[mbOrdinal]
@@ -349,7 +361,9 @@ public enum AuxiliaryTextures {
                         } else {
                             // Auto: existing LabPBR/auto-PBR path
                             boolean autoPBR = mbOrdinal >= 0
-                                && com.radiance.client.option.Options.autoPBREnabled && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
+                                && com.radiance.client.option.Options.materialOverridesEnabled
+                                && com.radiance.client.option.Options.autoPBREnabled
+                                && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
                             // lumMin/lumMax already computed above (before !success guard)
                             if (autoPBR && auxiliaryTexture == NORMAL) {
                                 auxiliarySource = TextureTracker.SOURCE_GENERATED;

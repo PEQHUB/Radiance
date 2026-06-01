@@ -82,12 +82,14 @@ public class MaterialRegistry {
                 boolean hasAutoPBR = (flags & 0x8) != 0;
                 int rMin = autoPBRPacked0 & 0xFF;
                 int rMax = (autoPBRPacked0 >> 8) & 0xFF;
+                int roughnessBlend = (autoPBRPacked1 >> 16) & 0xFF;
 
                 sb.append(String.format(
                     "[%d] %s: f0=(%.3f,%.3f,%.3f) roughness=%.4f metallic=%.3f transmission=%.3f ior=%.3f " +
-                    "flags=0x%s hasAutoPBR=%s lumMin=%.4f lumMax=%.4f rMin=%d rMax=%d\n",
+                    "flags=0x%s hasAutoPBR=%s lumMin=%.4f lumMax=%.4f rMin=%d rMax=%d roughnessBlend=%d overrides=%s globalAutoPBR=%s\n",
                     i, names[t], f0r, f0g, f0b, roughness, metallic, transmission, ior,
-                    Integer.toBinaryString(flags), hasAutoPBR, lumMin, lumMax, rMin, rMax
+                    Integer.toBinaryString(flags), hasAutoPBR, lumMin, lumMax, rMin, rMax, roughnessBlend,
+                    Options.materialOverridesEnabled, Options.autoPBREnabled
                 ));
             }
             java.nio.file.Files.writeString(
@@ -100,8 +102,9 @@ public class MaterialRegistry {
     }
 
     public static void uploadIfDirty() {
-        if (dirtyFrames <= 0) return;
-        dirtyFrames--;
+        if (dirtyFrames <= 0 && !Options.materialDirty) return;
+        if (dirtyFrames > 0) dirtyFrames--;
+        Options.materialDirty = false;
 
         ByteBuffer buf = MemoryUtil.memAlloc(BUFFER_SIZE);
         buf.order(ByteOrder.LITTLE_ENDIAN);
@@ -133,6 +136,10 @@ public class MaterialRegistry {
     }
 
     private static void packEntry(ByteBuffer buf, int i, MaterialBlock mb) {
+        if (!Options.materialOverridesEnabled) {
+            packDefault(buf);
+            return;
+        }
         boolean thinPlantMaterial = MaterialBlock.isThinCutoutPlantMaterialOrdinal(i);
 
         // Pack 0: f0.rgb, roughness
@@ -210,7 +217,7 @@ public class MaterialRegistry {
         buf.putInt(255);
         buf.putInt(MaterialBlock.getMaterialClassForOrdinal(i).ordinal());
         int flags = 0;
-        if (!thinPlantMaterial && (Options.autoPBREnabled || Options.materialAutoPBR[i])) flags |= 0x8; // bit 3: AutoPBR
+        if (!thinPlantMaterial && Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[i]) flags |= 0x8; // bit 3: AutoPBR
         int apbFlags = thinPlantMaterial ? 0 : Options.materialAutoPBRFlags[i]; // bit 0=invertR, bit 1=invertN, bit 2=invertH
         flags |= (apbFlags & 0x7) << 4; // bits 4-6
         buf.putInt(flags);
@@ -224,7 +231,8 @@ public class MaterialRegistry {
         int spread = Options.materialPercentileSpread[i] & 0xFF;
         buf.putInt(rMin | (rMax << 8) | (center << 16) | (spread << 24));
         int htGamma = Options.materialAutoPBRHeightGamma[i] & 0xFFFF;
-        buf.putInt(htGamma);  // bits 0-15 = heightGamma, bits 16-31 = reserved (0)
+        int roughnessBlend = Options.materialRoughnessBlend[i] & 0xFF;
+        buf.putInt(htGamma | (roughnessBlend << 16));  // bits 0-15 = heightGamma, bits 16-23 = roughnessBlend
     }
 
     private static void packDefault(ByteBuffer buf) {
@@ -285,5 +293,6 @@ public class MaterialRegistry {
 
     public static void markDirty() {
         dirtyFrames = 3;
+        Options.materialDirty = true;
     }
 }
