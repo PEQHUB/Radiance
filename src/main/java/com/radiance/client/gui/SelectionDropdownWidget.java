@@ -5,6 +5,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
 import net.minecraft.text.Text;
+import net.minecraft.util.math.MathHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,11 +18,18 @@ import java.util.function.IntConsumer;
  */
 public class SelectionDropdownWidget extends ClickableWidget {
 
+    public enum OpenDirection {
+        AUTO,
+        PREFER_UP,
+        PREFER_DOWN
+    }
+
     private static final List<SelectionDropdownWidget> ALL_DROPDOWNS = new ArrayList<>();
     private static final int ITEM_HEIGHT = 14;
 
     private final String label;
     private final String[] options;
+    private final OpenDirection openDirection;
     private int selectedIndex;
     private boolean open = false;
     private int hoveredIndex = -1;
@@ -30,9 +38,16 @@ public class SelectionDropdownWidget extends ClickableWidget {
     public SelectionDropdownWidget(int x, int y, int width, int height,
                                     String label, String[] options, int initialIndex,
                                     IntConsumer onSelect) {
+        this(x, y, width, height, label, options, initialIndex, onSelect, OpenDirection.AUTO);
+    }
+
+    public SelectionDropdownWidget(int x, int y, int width, int height,
+                                    String label, String[] options, int initialIndex,
+                                    IntConsumer onSelect, OpenDirection openDirection) {
         super(x, y, width, height, Text.empty());
         this.label = label;
         this.options = options;
+        this.openDirection = openDirection == null ? OpenDirection.AUTO : openDirection;
         this.selectedIndex = Math.max(0, Math.min(initialIndex, options.length - 1));
         this.onSelect = onSelect;
         updateMessage();
@@ -86,10 +101,27 @@ public class SelectionDropdownWidget extends ClickableWidget {
         int totalHeight = options.length * ITEM_HEIGHT + 2;
         int screenHeight = MinecraftClient.getInstance().getWindow().getScaledHeight();
         int downY = getY() + getHeight();
-        if (downY + totalHeight > screenHeight - 4) {
-            return getY() - totalHeight;
+        int upY = getY() - totalHeight;
+        int topLimit = 4;
+        int bottomLimit = screenHeight - 4;
+        boolean fitsDown = downY + totalHeight <= bottomLimit;
+        boolean fitsUp = upY >= topLimit;
+
+        if (openDirection == OpenDirection.PREFER_UP) {
+            if (fitsUp) return upY;
+            if (fitsDown) return downY;
+        } else if (openDirection == OpenDirection.PREFER_DOWN) {
+            if (fitsDown) return downY;
+            if (fitsUp) return upY;
+        } else {
+            if (fitsDown) return downY;
+            if (fitsUp) return upY;
         }
-        return downY;
+
+        int spaceUp = Math.max(0, getY() - topLimit);
+        int spaceDown = Math.max(0, bottomLimit - downY);
+        int preferredY = spaceUp >= spaceDown ? upY : downY;
+        return MathHelper.clamp(preferredY, topLimit, Math.max(topLimit, bottomLimit - totalHeight));
     }
 
     @Override
@@ -147,14 +179,16 @@ public class SelectionDropdownWidget extends ClickableWidget {
         for (int i = 0; i < options.length; i++) {
             int itemY = y + 1 + i * ITEM_HEIGHT;
             boolean hovered = mouseX >= x && mouseX < x + w && mouseY >= itemY && mouseY < itemY + ITEM_HEIGHT;
+            if (i == selectedIndex) {
+                context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgActive, alphaMult * 0.55f));
+                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
+            }
             if (hovered) {
                 hoveredIndex = i;
                 context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT,
-                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, alphaMult));
-            }
-            if (i == selectedIndex) {
-                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT,
-                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, Math.min(1.0f, alphaMult * 1.15f)));
             }
             RadianceTheme.drawOutlinedText(context, tr, Text.literal(options[i]),
                     x + 6, itemY + 3, RadianceTheme.textPrimary, alphaMult);
