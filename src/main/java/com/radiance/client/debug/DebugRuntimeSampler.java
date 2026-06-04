@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.radiance.client.autopbr.AutoPbrRuntime;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -44,7 +45,6 @@ public final class DebugRuntimeSampler {
     private static volatile String status = "Idle";
     private static volatile Path lastGpuProfilePath = null;
     private static volatile Path lastSharcProbePath = null;
-    private static volatile Path lastRtDirectLightProbePath = null;
     private static volatile Path lastRtMainTraceSweepPath = null;
     private static volatile Path lastRtMainTraceFloorSweepPath = null;
     private static volatile Path lastNsightCaptureManifestPath = null;
@@ -71,10 +71,6 @@ public final class DebugRuntimeSampler {
 
     public static Path lastSharcProbePath() {
         return lastSharcProbePath;
-    }
-
-    public static Path lastRtDirectLightProbePath() {
-        return lastRtDirectLightProbePath;
     }
 
     public static Path lastRtMainTraceSweepPath() {
@@ -143,6 +139,8 @@ public final class DebugRuntimeSampler {
         try {
             snapshot = DebugRuntimeDiagnostics.writeRuntimeSnapshot(client);
             inspect = DebugInspectReporter.captureCurrentTargetReport(client);
+            RadianceLogger.log("DebugMenu", "INFO",
+                "autoPbrRuntime=" + AutoPbrRuntime.diagnosticsSummary());
         } catch (Exception e) {
             RadianceLogger.log("DebugMenu", "WARN", "debugBundlePrepFailed=" + e.getMessage());
         }
@@ -298,91 +296,6 @@ public final class DebugRuntimeSampler {
                 RadianceLogger.log("DebugMenu", "INFO", "rtMainTraceFloorSweep=" + responsePath);
             } catch (Exception e) {
                 status = "RT floor sweep failed: " + e.getMessage();
-                client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
-                RadianceLogger.log("DebugMenu", "ERROR", status);
-            } finally {
-                BUSY.set(false);
-            }
-        });
-    }
-
-    public static void startRtDirectLightProbe(MinecraftClient client) {
-        startRtDirectLightProbe(client, false, "UpstreamReSTIR");
-    }
-
-    public static void startRtDirectLightAblationProbe(MinecraftClient client) {
-        startRtDirectLightProbe(client, true, "Legacy");
-    }
-
-    public static void startRtDirectLightCompare(MinecraftClient client) {
-        if (!BUSY.compareAndSet(false, true)) {
-            DebugRuntimeDiagnostics.toast(client, "Radiance debug task already running: " + status);
-            return;
-        }
-        status = "Closing menu for RT direct-light compare";
-        DebugRuntimeDiagnostics.toast(client, "Radiance: " + status);
-        if (client.currentScreen != null) {
-            client.setScreen(null);
-        }
-        EXECUTOR.submit(() -> {
-            try {
-                waitForGameplayCaptureSurface(client);
-                status = "Running RT direct-light compare";
-                JsonObject response = requestBridgeRtDirectLightCompare();
-                Path responsePath = writeRtDirectLightCompareResponse(response);
-                if (response.has("path")) {
-                    lastRtDirectLightProbePath = Path.of(response.get("path").getAsString());
-                    status = "RT direct-light compare saved: " + lastRtDirectLightProbePath.getFileName();
-                } else {
-                    lastRtDirectLightProbePath = responsePath;
-                    status = "RT direct-light compare response saved: " + responsePath.getFileName();
-                }
-                client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
-                RadianceLogger.log("DebugMenu", "INFO", "rtDirectLightCompare=" + responsePath);
-            } catch (Exception e) {
-                status = "RT direct-light compare failed: " + e.getMessage();
-                client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
-                RadianceLogger.log("DebugMenu", "ERROR", status);
-            } finally {
-                BUSY.set(false);
-            }
-        });
-    }
-
-    private static void startRtDirectLightProbe(MinecraftClient client, boolean ablateDirectLight, String backend) {
-        if (!BUSY.compareAndSet(false, true)) {
-            DebugRuntimeDiagnostics.toast(client, "Radiance debug task already running: " + status);
-            return;
-        }
-        status = ablateDirectLight
-            ? "Closing menu for RT direct-light ablation probe"
-            : "Closing menu for RT direct-light probe";
-        DebugRuntimeDiagnostics.toast(client, "Radiance: " + status);
-        if (client.currentScreen != null) {
-            client.setScreen(null);
-        }
-        EXECUTOR.submit(() -> {
-            try {
-                waitForGameplayCaptureSurface(client);
-                status = ablateDirectLight
-                    ? "Running RT direct-light ablation probe"
-                    : "Running RT direct-light probe";
-                JsonObject response = requestBridgeRtDirectLightProbe(ablateDirectLight, backend);
-                Path responsePath = writeRtDirectLightProbeResponse(response);
-                if (response.has("path")) {
-                    lastRtDirectLightProbePath = Path.of(response.get("path").getAsString());
-                    status = (ablateDirectLight ? "RT direct-light ablation saved: " : "RT direct-light probe saved: ")
-                        + lastRtDirectLightProbePath.getFileName();
-                } else {
-                    lastRtDirectLightProbePath = responsePath;
-                    status = (ablateDirectLight ? "RT direct-light ablation response saved: " : "RT direct-light probe response saved: ")
-                        + responsePath.getFileName();
-                }
-                client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
-                RadianceLogger.log("DebugMenu", "INFO", "rtDirectLightProbe=" + responsePath);
-            } catch (Exception e) {
-                status = (ablateDirectLight ? "RT direct-light ablation failed: " : "RT direct-light probe failed: ")
-                    + e.getMessage();
                 client.execute(() -> DebugRuntimeDiagnostics.toast(client, "Radiance: " + status));
                 RadianceLogger.log("DebugMenu", "ERROR", status);
             } finally {
@@ -558,50 +471,6 @@ public final class DebugRuntimeSampler {
         }
     }
 
-    private static JsonObject requestBridgeRtDirectLightProbe(boolean ablateDirectLight, String backend) throws IOException {
-        JsonObject req = new JsonObject();
-        req.addProperty("cmd", "rtDirectLightProbe");
-        req.addProperty("frames", 45);
-        req.addProperty("settleMs", 500);
-        req.addProperty("ablateDirectLight", ablateDirectLight);
-        req.addProperty("backend", backend);
-
-        try (Socket socket = new Socket("127.0.0.1", 19845)) {
-            socket.setSoTimeout(180_000);
-            try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
-                     StandardCharsets.UTF_8))) {
-                out.println(req);
-                String line = in.readLine();
-                if (line == null || line.isBlank()) {
-                    throw new IOException("DebugBridge returned no response");
-                }
-                return JsonParser.parseString(line).getAsJsonObject();
-            }
-        }
-    }
-
-    private static JsonObject requestBridgeRtDirectLightCompare() throws IOException {
-        JsonObject req = new JsonObject();
-        req.addProperty("cmd", "rtDirectLightCompare");
-        req.addProperty("frames", 45);
-        req.addProperty("settleMs", 500);
-
-        try (Socket socket = new Socket("127.0.0.1", 19845)) {
-            socket.setSoTimeout(240_000);
-            try (PrintWriter out = new PrintWriter(socket.getOutputStream(), true, StandardCharsets.UTF_8);
-                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream(),
-                     StandardCharsets.UTF_8))) {
-                out.println(req);
-                String line = in.readLine();
-                if (line == null || line.isBlank()) {
-                    throw new IOException("DebugBridge returned no response");
-                }
-                return JsonParser.parseString(line).getAsJsonObject();
-            }
-        }
-    }
-
     private static Path writeNsightCaptureResponse(JsonObject response) throws IOException {
         Files.createDirectories(DebugRuntimeDiagnostics.logsDir());
         Path latest = DebugRuntimeDiagnostics.logsDir().resolve("nsight_capture_context_response_latest.json");
@@ -650,27 +519,4 @@ public final class DebugRuntimeSampler {
         return latest;
     }
 
-    private static Path writeRtDirectLightProbeResponse(JsonObject response) throws IOException {
-        Files.createDirectories(DebugRuntimeDiagnostics.logsDir());
-        Path latest = DebugRuntimeDiagnostics.logsDir().resolve("rt_direct_light_probe_response_latest.json");
-        Path stamped = DebugRuntimeDiagnostics.logsDir().resolve(
-            "rt_direct_light_probe_response_" + FILE_TIME.format(Instant.now()) + ".json");
-        String body = PRETTY_GSON.toJson(response);
-        Files.writeString(latest, body, StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        Files.writeString(stamped, body, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-        return latest;
-    }
-
-    private static Path writeRtDirectLightCompareResponse(JsonObject response) throws IOException {
-        Files.createDirectories(DebugRuntimeDiagnostics.logsDir());
-        Path latest = DebugRuntimeDiagnostics.logsDir().resolve("rt_direct_light_compare_response_latest.json");
-        Path stamped = DebugRuntimeDiagnostics.logsDir().resolve(
-            "rt_direct_light_compare_response_" + FILE_TIME.format(Instant.now()) + ".json");
-        String body = PRETTY_GSON.toJson(response);
-        Files.writeString(latest, body, StandardCharsets.UTF_8,
-            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-        Files.writeString(stamped, body, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-        return latest;
-    }
 }

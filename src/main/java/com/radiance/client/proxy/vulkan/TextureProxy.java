@@ -31,9 +31,6 @@ public class TextureProxy {
         int height,
         int level);
 
-    // OMM: 0 = FULLY_OPAQUE, 1 = FULLY_TRANSPARENT, 2 = MIXED
-    public static native void setTextureAlphaClass(int id, int alphaClass);
-
     // Safely destroy a Vulkan texture — GC-defers image/sampler, frees ID for reuse
     public static native void destroyTexture(int id);
 

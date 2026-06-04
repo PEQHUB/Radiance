@@ -1,6 +1,8 @@
 package com.radiance.client.gui.unified.rows;
 
 import com.radiance.client.gui.RadianceTheme;
+import com.radiance.client.gui.MaterialDropdownWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.SettingsRow;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,7 +67,9 @@ public class TwoWidgetRow extends SettingsRow {
         boolean hovered = mouseX >= x && mouseX < x + w
             && mouseY >= y && mouseY < y + h;
 
-        if (widget instanceof SliderWidget slider) {
+        if (widget instanceof SelectionDropdownWidget || widget instanceof MaterialDropdownWidget) {
+            widget.render(ctx, mouseX, mouseY, 0);
+        } else if (widget instanceof SliderWidget slider) {
             // For SliderWidget subclasses (ResettableSliderWidget overrides renderWidget,
             // but plain SliderWidget from SimpleOption doesn't). Delegate to the widget's
             // own render which may be custom.

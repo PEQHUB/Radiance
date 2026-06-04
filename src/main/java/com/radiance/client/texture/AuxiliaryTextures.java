@@ -2,7 +2,6 @@ package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
 import com.radiance.client.proxy.vulkan.TextureProxy;
-import com.radiance.client.util.MaterialBlock;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
 import java.util.Arrays;
@@ -258,147 +257,17 @@ public enum AuxiliaryTextures {
                         }
                     }
 
-                    int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                    int inputType = com.radiance.client.option.Options.MATERIAL_SOURCE_AUTO;
-                    if (mbOrdinal >= 0 && com.radiance.client.option.Options.materialOverridesEnabled) {
-                        if (auxiliaryTexture == NORMAL) {
-                            inputType = com.radiance.client.option.Options.materialNormalInputType[mbOrdinal];
-                        } else if (auxiliaryTexture == SPECULAR) {
-                            inputType = com.radiance.client.option.Options.materialSpecularInputType[mbOrdinal];
-                        }
-                    }
-                    boolean forcedGeneratedSource = inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_GENERATED
-                        || inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_FLAT
-                        || inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_CUSTOM;
-                    if (success && forcedGeneratedSource) {
-                        if (auxiliaryTemplateImage != null) {
-                            auxiliaryTemplateImage.close();
-                            auxiliaryTemplateImage = null;
-                        }
-                        success = false;
-                    }
-
-                    // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
-                    // Must run for ALL AutoPBR blocks, even those with existing LabPBR textures,
-                    // because the GPU shader always needs tight bounds for roughness derivation.
-                    if (level == 0) {
-                        int lumOrdinal = mbOrdinal;
-                        if (lumOrdinal >= 0
-                                && com.radiance.client.option.Options.materialOverridesEnabled
-                                && com.radiance.client.option.Options.autoPBREnabled
-                                && com.radiance.client.option.Options.materialAutoPBR[lumOrdinal]) {
-                            float wR = 0.2126f, wG = 0.7152f, wB = 0.0722f; // BT.709 (sRGB primaries)
-                            // Use block's sprite region, not the full atlas
-                            int rx = offsetX + unpackSkipPixels;
-                            int ry = offsetY + unpackSkipRows;
-                            int rw = regionWidth > 0 ? regionWidth : source.getWidth();
-                            int rh = regionHeight > 0 ? regionHeight : source.getHeight();
-                            float lMin = Float.MAX_VALUE, lMax = 0f;
-                            for (int py = ry; py < ry + rh; py++) {
-                                for (int px = rx; px < rx + rw; px++) {
-                                    if (px < 0 || py < 0 || px >= source.getWidth() || py >= source.getHeight()) continue;
-                                    int pixel = source.getColorArgb(px, py);
-                                    if (((pixel >> 24) & 0xFF) == 0) continue;
-                                    float sr = ((pixel >> 16) & 0xFF) / 255f;
-                                    float sg = ((pixel >> 8) & 0xFF) / 255f;
-                                    float sb = (pixel & 0xFF) / 255f;
-                                    float lr = sr <= 0.04045f ? sr / 12.92f : (float) Math.pow((sr + 0.055) / 1.055, 2.4);
-                                    float lg = sg <= 0.04045f ? sg / 12.92f : (float) Math.pow((sg + 0.055) / 1.055, 2.4);
-                                    float lb = sb <= 0.04045f ? sb / 12.92f : (float) Math.pow((sb + 0.055) / 1.055, 2.4);
-                                    float lum = wR * lr + wG * lg + wB * lb;
-                                    lMin = Math.min(lMin, lum);
-                                    lMax = Math.max(lMax, lum);
-                                }
-                            }
-                            if (lMin >= lMax) { lMin = 0f; lMax = 1f; }
-                            com.radiance.client.material.MaterialRegistry.setLumRange(lumOrdinal, lMin, lMax);
-                        }
-                    }
-
                     if (!success) {
                         if (level == 0) {
                             auxiliaryTexture.markGenerated(auxiliaryTargetId);
                         }
 
-                        if (inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_FLAT
-                                || inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_AUTHORED) {
-                            // Flat: neutral normal or zero specular
+                        if (auxiliaryTexture == NORMAL) {
                             auxiliarySource = TextureTracker.SOURCE_FLAT;
-                            if (auxiliaryTexture == NORMAL) {
-                                auxiliaryTemplateImage = source.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
-                            } else {
-                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
-                            }
-                        } else if (inputType == com.radiance.client.option.Options.MATERIAL_SOURCE_CUSTOM && mbOrdinal >= 0) {
-                            // Custom: load from user-specified path
-                            String customPath = (auxiliaryTexture == NORMAL)
-                                ? com.radiance.client.option.Options.materialCustomNormalPath[mbOrdinal]
-                                : com.radiance.client.option.Options.materialCustomSpecularPath[mbOrdinal];
-                            if (customPath != null && !customPath.isEmpty()) {
-                                int customGlid = CustomTextureLoader.loadAndUpload(customPath, source);
-                                if (customGlid >= 0) {
-                                    auxiliarySource = TextureTracker.SOURCE_USER_CUSTOM;
-                                    if (targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES) {
-                                        auxiliaryTexture.GLIDMapping[targetId] = customGlid;
-                                    }
-                                    if (level == 0) {
-                                        auxiliaryTexture.markCustomProvided(customGlid);
-                                    }
-                                    auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
-                                        uploadedLevelsMask | levelBit);
-                                    // Track albedo GLID -> block ordinal so material editor works for custom textures
-                                    if (level == 0 && mbOrdinal >= 0) {
-                                        TextureTracker.albedoGLID2BlockOrdinal.put(targetId, mbOrdinal);
-                                    }
-                                    continue;
-                                }
-                            }
-                            // Neutral LabPBR fill for normals (R=128 X=0, G=128 Y=0, B=255 AO=1, A=0 height=0).
-                            // Zero fill causes NaN normals in shader: sqrt(1 - dot((-1,-1),(-1,-1))) = sqrt(-1).
-                            int customFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
-                            auxiliarySource = TextureTracker.SOURCE_GENERATED;
-                            auxiliaryTemplateImage = source.applyToCopy(i -> customFallback);
+                            auxiliaryTemplateImage = source.applyToCopy(i -> 0x00FF8080);
                         } else {
-                            // Auto: existing LabPBR/auto-PBR path
-                            boolean autoPBR = mbOrdinal >= 0
-                                && com.radiance.client.option.Options.materialOverridesEnabled
-                                && com.radiance.client.option.Options.autoPBREnabled
-                                && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
-                            // lumMin/lumMax already computed above (before !success guard)
-                            if (autoPBR && auxiliaryTexture == NORMAL) {
-                                auxiliarySource = TextureTracker.SOURCE_GENERATED;
-                                // Keep generating normal texture for POM height data (alpha channel)
-                                auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
-                                    com.radiance.client.option.Options.materialNormalStrength[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 2) != 0,
-                                    com.radiance.client.option.Options.materialAutoPBRHeightGamma[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0,
-                                    AutoPBRGenerator.HeightParams.fromOptions(mbOrdinal),
-                                    com.radiance.client.option.Options.materialPomAOStrength[mbOrdinal]);
-                                TextureTracker.hasHeightMap.add(targetId);
-                            } else if (autoPBR && auxiliaryTexture == SPECULAR) {
-                                auxiliarySource = TextureTracker.SOURCE_GENERATED;
-                                // GPU-side AutoPBR: roughness computed in shader, skip CPU bake
-                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
-                            } else {
-                                // Neutral LabPBR fill for normals; zero for specular
-                                int autoFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
-                                auxiliarySource = TextureTracker.SOURCE_GENERATED;
-                                auxiliaryTemplateImage = source.applyToCopy(i -> autoFallback);
-                            }
-                            // Always cache albedo and track GLIDs for block textures at mip 0,
-                            // so LiveNormalReuploader can generate Auto-PBR on demand later
-                            if (level == 0 && mbOrdinal >= 0) {
-                                TextureTracker.albedoGLID2BlockOrdinal.put(targetId, mbOrdinal);
-                                if (auxiliaryTexture == NORMAL) {
-                                    if (!TextureTracker.materialBlockAlbedoCache.containsKey(targetId)) {
-                                        TextureTracker.materialBlockAlbedoCache.put(targetId, source.applyToCopy(i -> i));
-                                    }
-                                    TextureTracker.autoPBRNormalGLIDs.add(targetId);
-                                } else if (auxiliaryTexture == SPECULAR) {
-                                    TextureTracker.autoPBRSpecularGLIDs.add(targetId);
-                                }
-                            }
+                            auxiliarySource = TextureTracker.SOURCE_FLAT;
+                            auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                         }
                     } else if (auxiliaryTexture == NORMAL) {
                         // Resource pack LabPBR normal loaded — alpha contains height data
@@ -432,31 +301,6 @@ public enum AuxiliaryTextures {
                 }
             }
 
-            // Material class mask auto-generation (Phase B): create 1x1 R8_UNORM mask
-            // for registered blocks so every texel maps to the correct MaterialClass.
-            if (level == 0
-                    && !(targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES && TextureTracker.GLID2MaskGLID[targetId] != -1)
-                    && !TextureTracker.pendingMaskGLID.containsKey(targetId)) {
-                int mbOrdinal = MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                if (mbOrdinal >= 0 && mbOrdinal < 256) {
-                    // Registered block: create per-block 1x1 mask texture
-                    int maskTexId = TextureProxy.generateTextureId();
-                    TextureProxy.prepareImage(maskTexId, 1, 1, 1,
-                        VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM);
-                    TextureProxy.setFilter(maskTexId, 0, 0); // NEAREST — no interpolation
-
-                    java.nio.ByteBuffer maskData = org.lwjgl.system.MemoryUtil.memAlloc(1);
-                    maskData.put(0, (byte) mbOrdinal);
-                    long maskPtr = org.lwjgl.system.MemoryUtil.memAddress(maskData);
-                    TextureProxy.queueUpload(maskPtr, 1, 1, maskTexId, 0, 0, 0, 0, 1, 1, 0);
-                    org.lwjgl.system.MemoryUtil.memFree(maskData);
-
-                    TextureTracker.pendingMaskGLID.put(targetId, maskTexId);
-                    TextureTracker.GLID2Texture.put(maskTexId,
-                        new TextureTracker.Texture(1, 1, 1,
-                            VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM, 0));
-                }
-            }
         }
     }
 

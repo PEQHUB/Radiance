@@ -7,9 +7,7 @@ import static org.lwjgl.system.MemoryUtil.memAddress;
 import com.mojang.blaze3d.systems.VertexSorter;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.proxy.vulkan.BufferProxy;
-import com.radiance.client.util.ChunkLightCollector;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderBuiltChunkExt;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderExt;
 import java.nio.ByteBuffer;
@@ -37,11 +35,8 @@ import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.TextureManager;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.biome.Biome;
 import org.lwjgl.system.MemoryStack;
 
 public class ChunkProxy {
@@ -58,19 +53,16 @@ public class ChunkProxy {
             return false;
         }
     };
+
     private static final Map<Integer, ChunkBuilder.BuiltChunk> rebuildQueue = new ConcurrentHashMap<>();
     private static final List<Future<?>> rebuildTasks = new ArrayList<>();
     private static final int numNormalChunkRebuildThreads =
         Math.max(2, Math.min(Runtime.getRuntime().availableProcessors() - 4, 6));
     private static final int numImportantChunkRebuildThreads = 2;
-    private static final long worldLoadSmoothDurationNanos = TimeUnit.SECONDS.toNanos(4);
-    private static final int maxImportantTasksPerFrameWarmup = 1;
-    private static final int maxImportantTasksPerFrameNormal = 1;
-    private static final double importantDistanceSqWarmup = 256.0;
-    private static final double importantDistanceSqNormal = 768.0;
-    private static volatile long smoothImportantUntilNanos = 0L;
-    private static final ExecutorService
-        importantChunkRebuildExecutor =
+    private static final int maxChunkTasksPerFrame = 64;
+    private static final int maxImportantTasksPerFrame = 1;
+    private static final double importantDistanceSq = 768.0;
+    private static final ExecutorService importantChunkRebuildExecutor =
         Executors.newFixedThreadPool(numImportantChunkRebuildThreads, r -> {
             Thread thread = new Thread(r);
             thread.setPriority(Thread.NORM_PRIORITY);
@@ -88,43 +80,10 @@ public class ChunkProxy {
         });
 
     public static native void initNative(int numChunks);
-    public static native void nativeSetWorldRegionPath(String path);
 
     public static void init(int numChunks) {
         clear();
-        resetWorldLoadSmoothing();
         initNative(numChunks);
-
-        // Serialize block model data to C++ for future C++ meshing.
-        // Must run after BakedModels are loaded (guaranteed by this point in world init).
-        if (!BlockModelBridge.isUploaded()) {
-            BlockModelBridge.serializeAndUpload();
-        }
-        // Block state registry must be uploaded every world load (not gated behind isUploaded)
-        // because the extended chunk manager needs it and it may have been cleared.
-        BlockModelBridge.serializeBlockStateRegistry();
-
-        // Pass world save path to C++ for extended render distance (Anvil region reader).
-        try {
-            var server = net.minecraft.client.MinecraftClient.getInstance().getServer();
-            if (server != null) {
-                java.nio.file.Path regionDir = server.getSavePath(net.minecraft.util.WorldSavePath.ROOT)
-                    .resolve("region");
-                nativeSetWorldRegionPath(regionDir.toAbsolutePath().toString());
-            }
-        } catch (Exception e) {
-            // Multiplayer or save not available — extended RD won't work
-        }
-    }
-
-    private static void resetWorldLoadSmoothing() {
-        smoothImportantUntilNanos = System.nanoTime() + worldLoadSmoothDurationNanos;
-        // Reset exposure adaptation timer so it adapts near-instantly as chunks load
-        try { com.radiance.client.option.Options.nativeResetExposureAdaptation(); } catch (Exception ignored) {}
-    }
-
-    private static boolean inWorldLoadSmoothingWindow() {
-        return System.nanoTime() < smoothImportantUntilNanos;
     }
 
     public static AutoCloseable scopedBlockBufferAllocatorStorage() {
@@ -162,85 +121,63 @@ public class ChunkProxy {
     }
 
     public static void rebuild(Camera camera) {
-
         BlockPos blockPos = camera.getBlockPos();
-        boolean smoothing = inWorldLoadSmoothingWindow();
-        int maxImportantTasksPerFrame = smoothing ?
-            maxImportantTasksPerFrameWarmup :
-            maxImportantTasksPerFrameNormal;
-        double importantDistanceSq = smoothing ? importantDistanceSqWarmup : importantDistanceSqNormal;
-        int importantTaskCount = 0;
+        final double bx = blockPos.getX();
+        final double by = blockPos.getY();
+        final double bz = blockPos.getZ();
 
-        int maxTotalPerFrame;
-        if (smoothing) {
-            maxTotalPerFrame = 32;
-        } else {
-            int queueDepth = 0;
-            try { queueDepth = nativeGetInputQueueSize(); } catch (Exception ignored) {}
-            maxTotalPerFrame = queueDepth < 12 ? 128
-                             : queueDepth < 36 ? 64
-                             : queueDepth < 72 ? 32
-                             : 16;
-        }
-        int totalSubmitted = 0;
-
-        final double bx = blockPos.getX(), by = blockPos.getY(), bz = blockPos.getZ();
-
-        // O(n) partial selection: pick the nearest maxTotalPerFrame chunks by squared
-        // distance, avoiding the O(n log n) full sort + sqrt/atan2 that was costing 30-40ms.
-        // Use a bounded max-heap: maintain the K nearest candidates seen so far.
-        // For each chunk, compute distSq (cheap). If heap is not full or distSq < heap max,
-        // insert and evict the farthest. Result: K nearest chunks in O(n log K) with no
-        // transcendental math. K=64, log(64)=6, so this is effectively O(n).
-        // Bounded max-heap: track K nearest chunks by squared distance.
-        // O(n log K) where K=64 — effectively O(n) vs the old O(n log n) full sort.
-        // No sqrt/atan2 — just distSq comparisons.
         java.util.PriorityQueue<double[]> nearest = new java.util.PriorityQueue<>(
-            maxTotalPerFrame + 1, (a, b) -> Double.compare(b[1], a[1])); // max-heap by distSq
+            maxChunkTasksPerFrame + 1, (a, b) -> Double.compare(b[1], a[1]));
         java.util.HashMap<Integer, ChunkBuilder.BuiltChunk> candidateMap = new java.util.HashMap<>();
 
         java.util.Iterator<ChunkBuilder.BuiltChunk> iter = rebuildQueue.values().iterator();
         while (iter.hasNext()) {
             ChunkBuilder.BuiltChunk builtChunk = iter.next();
-            if (builtChunk == null) { iter.remove(); continue; }
-            if (!builtChunk.needsRebuild()) { iter.remove(); continue; }
-            if (!builtChunk.shouldBuild()) continue; // keep — may become buildable later
+            if (builtChunk == null) {
+                iter.remove();
+                continue;
+            }
+            if (!builtChunk.needsRebuild()) {
+                iter.remove();
+                continue;
+            }
+            if (!builtChunk.shouldBuild()) {
+                continue;
+            }
+
             double cx = builtChunk.getOrigin().getX() + 8 - bx;
             double cy = builtChunk.getOrigin().getY() + 8 - by;
             double cz = builtChunk.getOrigin().getZ() + 8 - bz;
             double distSq = cx * cx + cy * cy + cz * cz;
             int key = builtChunk.index;
-            if (nearest.size() < maxTotalPerFrame) {
+            if (nearest.size() < maxChunkTasksPerFrame) {
                 nearest.add(new double[]{key, distSq});
                 candidateMap.put(key, builtChunk);
-            } else {
-                double worstDistSq = nearest.peek()[1];
-                if (distSq < worstDistSq) {
-                    double[] evicted = nearest.poll();
-                    candidateMap.remove((int) evicted[0]);
-                    nearest.add(new double[]{key, distSq});
-                    candidateMap.put(key, builtChunk);
-                }
+            } else if (distSq < nearest.peek()[1]) {
+                double[] evicted = nearest.poll();
+                candidateMap.remove((int) evicted[0]);
+                nearest.add(new double[]{key, distSq});
+                candidateMap.put(key, builtChunk);
             }
         }
 
-        // Drain heap in nearest-first order (smallest distSq first)
-        java.util.ArrayList<double[]> selected = new java.util.ArrayList<>(nearest);
-        selected.sort((a, b) -> Double.compare(a[1], b[1]));
+        ArrayList<double[]> selected = new ArrayList<>(nearest);
+        selected.sort(Comparator.comparingDouble(a -> a[1]));
 
+        int importantTaskCount = 0;
         for (double[] entry : selected) {
             ChunkBuilder.BuiltChunk builtChunk = candidateMap.get((int) entry[0]);
-            if (builtChunk == null) continue;
+            if (builtChunk == null) {
+                continue;
+            }
 
             builtChunk.cancelRebuild();
-
             BlockPos chunkCenterPos = builtChunk.getOrigin().add(8, 8, 8);
             boolean forceImportant = builtChunk.needsImportantRebuild();
-            boolean shouldPrioritize = forceImportant ||
-                chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
-
-            boolean isImportant = shouldPrioritize &&
-                (forceImportant || importantTaskCount < maxImportantTasksPerFrame);
+            boolean shouldPrioritize =
+                forceImportant || chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
+            boolean isImportant =
+                shouldPrioritize && (forceImportant || importantTaskCount < maxImportantTasksPerFrame);
 
             if (isImportant) {
                 Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
@@ -255,7 +192,6 @@ public class ChunkProxy {
             }
 
             rebuildQueue.remove(builtChunk.index);
-            totalSubmitted++;
         }
     }
 
@@ -281,8 +217,7 @@ public class ChunkProxy {
             IChunkBuilderBuiltChunkExt builtChunkExt = (IChunkBuilderBuiltChunkExt) builtChunk;
             ChunkBuilder chunkBuilder = builtChunkExt.neoVoxelRT$getChunkBuilder();
             IChunkBuilderExt chunkBuilderExt = (IChunkBuilderExt) chunkBuilder;
-            ChunkRendererRegion
-                chunkRendererRegion =
+            ChunkRendererRegion chunkRendererRegion =
                 chunkRendererRegionBuilder.build(chunkBuilderExt.neoVoxelRT$getWorld(),
                     ChunkSectionPos.from(builtChunk.getSectionPos()));
 
@@ -292,237 +227,11 @@ public class ChunkProxy {
                 return;
             }
 
-            // Fluids are deliberately kept on the vanilla SectionBuilder path.
-            // Minecraft's FluidRenderer owns the water/lava surface rules; the
-            // native block-state mesher is for dry sections only.
-            if (BlockModelBridge.isUploaded() && !containsFluid(chunkRendererRegion, builtChunk.getOrigin())) {
-                rebuildSingleCpp(chunkRendererRegion, builtChunk, important);
-                return;
-            }
-
-            // Fallback: Java meshing path
             BlockBufferAllocatorStorage storage = blockBufferAllocatorStorageThreadLocal.get();
             rebuildSingle(chunkRendererRegion, chunkBuilder, chunkBuilderExt, builtChunk, storage,
                 important);
         } catch (Exception e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static boolean containsFluid(ChunkRendererRegion region, BlockPos origin) {
-        BlockPos.Mutable mutablePos = new BlockPos.Mutable();
-        int ox = origin.getX();
-        int oy = origin.getY();
-        int oz = origin.getZ();
-
-        for (int y = 0; y < 16; y++) {
-            for (int z = 0; z < 16; z++) {
-                for (int x = 0; x < 16; x++) {
-                    mutablePos.set(ox + x, oy + y, oz + z);
-                    if (!region.getBlockState(mutablePos).getFluidState().isEmpty()) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * C++ meshing path: extract block states from ChunkRendererRegion, send to C++ for meshing.
-     * Sends ~12KB of block state data instead of ~200-500KB of pre-meshed vertices.
-     */
-    private static void rebuildSingleCpp(ChunkRendererRegion region,
-                                          ChunkBuilder.BuiltChunk builtChunk,
-                                          boolean important) {
-        BlockPos origin = builtChunk.getOrigin();
-        int ox = origin.getX(), oy = origin.getY(), oz = origin.getZ();
-        var world = MinecraftClient.getInstance().world;
-        if (world == null) {
-            return;
-        }
-
-        try (MemoryStack stack = stackPush()) {
-            // Extract block states: 4096 x uint16 palette indices + palette array
-            // For simplicity, we send pre-decoded global state IDs as uint16 (state IDs fit in 16 bits)
-            ByteBuffer statesBuf = stack.malloc(4096 * Short.BYTES);
-            long statesAddr = memAddress(statesBuf);
-
-            // Build palette on-the-fly: map unique states to indices
-            java.util.ArrayList<Integer> palette = new java.util.ArrayList<>();
-            java.util.HashMap<Integer, Integer> paletteMap = new java.util.HashMap<>();
-            boolean hasBlockEntity = false;
-
-            // Also build occlusion data for vanilla compat
-            net.minecraft.client.render.chunk.ChunkOcclusionDataBuilder occlusionBuilder =
-                new net.minecraft.client.render.chunk.ChunkOcclusionDataBuilder();
-            java.util.List<net.minecraft.block.entity.BlockEntity> blockEntities = new java.util.ArrayList<>();
-            java.util.List<net.minecraft.block.entity.BlockEntity> noCullingBlockEntities = new java.util.ArrayList<>();
-
-            BlockPos.Mutable mutablePos = new BlockPos.Mutable();
-            for (int y = 0; y < 16; y++) {
-                for (int z = 0; z < 16; z++) {
-                    for (int x = 0; x < 16; x++) {
-                        mutablePos.set(ox + x, oy + y, oz + z);
-                        BlockState state = region.getBlockState(mutablePos);
-                        int rawId = Block.getRawIdFromState(state);
-
-                        // Palette encode
-                        Integer paletteIdx = paletteMap.get(rawId);
-                        if (paletteIdx == null) {
-                            paletteIdx = palette.size();
-                            palette.add(rawId);
-                            paletteMap.put(rawId, paletteIdx);
-                        }
-                        statesBuf.putShort((y * 256 + z * 16 + x) * Short.BYTES, paletteIdx.shortValue());
-
-                        // Track occlusion
-                        if (state.isOpaqueFullCube()) {
-                            occlusionBuilder.markClosed(mutablePos);
-                        }
-
-                        // Track block entities
-                        if (state.hasBlockEntity()) {
-                            net.minecraft.block.entity.BlockEntity be = region.getBlockEntity(mutablePos);
-                            if (be != null) {
-                                blockEntities.add(be);
-                            }
-                        }
-
-                    }
-                }
-            }
-
-            // Fluid states remain in the palette. BlockModelBridge tags them so the C++
-            // mesher can emit water/lava quads with sprite IDs matching the texture arrays.
-
-            // Palette array: uint32 per entry
-            ByteBuffer paletteBuf = stack.malloc(palette.size() * Integer.BYTES);
-            long paletteAddr = memAddress(paletteBuf);
-            for (int i = 0; i < palette.size(); i++) {
-                paletteBuf.putInt(i * Integer.BYTES, palette.get(i));
-            }
-
-            // Upload biome tint table on first use (needs world reference)
-            if (!BlockModelBridge.areBiomeTintsUploaded()) {
-                BlockModelBridge.serializeBiomeTints();
-            }
-
-            // Biome data: 64 x uint16 (4x4x4 grid within section)
-            ByteBuffer biomeBuf = stack.malloc(64 * Short.BYTES);
-            long biomeAddr = memAddress(biomeBuf);
-            var biomeRegistry = world.getRegistryManager()
-                .getOrThrow(RegistryKeys.BIOME);
-            for (int by = 0; by < 4; by++) {
-                for (int bz = 0; bz < 4; bz++) {
-                    for (int bx = 0; bx < 4; bx++) {
-                        // Sample biome at center of each 4x4x4 cell
-                        mutablePos.set(ox + bx * 4 + 2, oy + by * 4 + 2, oz + bz * 4 + 2);
-                        RegistryEntry<Biome> biomeEntry = world.getBiome(mutablePos);
-                        int biomeRawId = biomeRegistry.getRawId(biomeEntry.value());
-                        biomeBuf.putShort((by * 16 + bz * 4 + bx) * Short.BYTES, (short) biomeRawId);
-                    }
-                }
-            }
-
-            // Neighbor face states: 6 directions x 256 x uint32
-            // Each face stores the 16x16 block states of the adjacent section face
-            ByteBuffer neighborBuf = stack.malloc(6 * 256 * Integer.BYTES);
-            long neighborAddr = memAddress(neighborBuf);
-            for (int dir = 0; dir < 6; dir++) {
-                for (int i = 0; i < 256; i++) {
-                    int nx, ny, nz;
-                    switch (dir) {
-                        case 0: // DOWN: z*16+x at y=-1
-                            nx = ox + (i % 16); ny = oy - 1; nz = oz + (i / 16); break;
-                        case 1: // UP: z*16+x at y=16
-                            nx = ox + (i % 16); ny = oy + 16; nz = oz + (i / 16); break;
-                        case 2: // NORTH: y*16+x at z=-1
-                            nx = ox + (i % 16); ny = oy + (i / 16); nz = oz - 1; break;
-                        case 3: // SOUTH: y*16+x at z=16
-                            nx = ox + (i % 16); ny = oy + (i / 16); nz = oz + 16; break;
-                        case 4: // WEST: y*16+z at x=-1
-                            nx = ox - 1; ny = oy + (i / 16); nz = oz + (i % 16); break;
-                        default: // EAST: y*16+z at x=16
-                            nx = ox + 16; ny = oy + (i / 16); nz = oz + (i % 16); break;
-                    }
-                    mutablePos.set(nx, ny, nz);
-                    try {
-                        BlockState neighborState = region.getBlockState(mutablePos);
-                        neighborBuf.putInt((dir * 256 + i) * Integer.BYTES,
-                            Block.getRawIdFromState(neighborState));
-                    } catch (Exception e) {
-                        neighborBuf.putInt((dir * 256 + i) * Integer.BYTES, 0); // air
-                    }
-                }
-            }
-
-            // One-block halo for native fluid meshing. Vanilla fluid corner heights can
-            // sample diagonal neighbors; six face planes are not enough at section edges.
-            ByteBuffer haloBuf = stack.malloc(18 * 18 * 18 * Integer.BYTES);
-            long haloAddr = memAddress(haloBuf);
-            for (int hy = -1; hy <= 16; hy++) {
-                for (int hz = -1; hz <= 16; hz++) {
-                    for (int hx = -1; hx <= 16; hx++) {
-                        mutablePos.set(ox + hx, oy + hy, oz + hz);
-                        int haloIndex = (hy + 1) * 18 * 18 + (hz + 1) * 18 + (hx + 1);
-                        try {
-                            BlockState haloState = region.getBlockState(mutablePos);
-                            haloBuf.putInt(haloIndex * Integer.BYTES,
-                                Block.getRawIdFromState(haloState));
-                        } catch (Exception e) {
-                            haloBuf.putInt(haloIndex * Integer.BYTES, 0);
-                        }
-                    }
-                }
-            }
-
-            // Get block atlas texture ID
-            int blockAtlasTextureId = MinecraftClient.getInstance()
-                .getTextureManager()
-                .getTexture(net.minecraft.client.texture.SpriteAtlasTexture.BLOCK_ATLAS_TEXTURE)
-                .getGlId();
-
-            // Resolve dominant biome colors for shader-side tinting (sample center of section)
-            mutablePos.set(ox + 8, oy + 8, oz + 8);
-            RegistryEntry<Biome> centerBiome = world.getBiome(mutablePos);
-            Biome biome = centerBiome.value();
-            int grassColor, foliageColor, waterColor;
-            try { grassColor = biome.getGrassColorAt(ox + 8, oz + 8); }
-            catch (Exception e) { grassColor = 0x91BD59; }
-            try { foliageColor = biome.getFoliageColor(); }
-            catch (Exception e) { foliageColor = 0x77AB2F; }
-            waterColor = biome.getWaterColor();
-
-            // Call C++ meshing path
-            rebuildSingleBlockStates(ox, oy, oz, builtChunk.index,
-                statesAddr, paletteAddr, palette.size(),
-                biomeAddr, neighborAddr, haloAddr, blockAtlasTextureId, important,
-                grassColor, foliageColor, waterColor,
-                BlockModelBridge.getActiveTextureGeneration());
-
-            // Set vanilla chunk data (occlusion, block entities)
-            final var occlusionData = occlusionBuilder.build();
-            final var finalBlockEntities = blockEntities;
-            ChunkBuilder.ChunkData chunkData = new ChunkBuilder.ChunkData() {
-                @Override
-                public List<BlockEntity> getBlockEntities() {
-                    return finalBlockEntities;
-                }
-
-                @Override
-                public boolean isVisibleThrough(Direction from, Direction to) {
-                    return occlusionData.isVisibleThrough(from, to);
-                }
-
-                @Override
-                public boolean isEmpty(RenderLayer layer) {
-                    return false;
-                }
-            };
-            builtChunk.data.set(chunkData);
-            builtChunkNum++;
         }
     }
 
@@ -536,24 +245,17 @@ public class ChunkProxy {
         ChunkSectionPos chunkSectionPos = ChunkSectionPos.from(builtChunk.getOrigin());
 
         Vec3d vec3d = chunkBuilder.getCameraPosition();
-        // TODO: cancel out the sort operation in section builder
-        VertexSorter
-            vertexSorter =
-            VertexSorter.byDistance((float) (vec3d.x - builtChunk.getOrigin()
-                    .getX()),
-                (float) (vec3d.y - builtChunk.getOrigin()
-                    .getY()),
-                (float) (vec3d.z - builtChunk.getOrigin()
-                    .getZ()));
+        VertexSorter vertexSorter =
+            VertexSorter.byDistance((float) (vec3d.x - builtChunk.getOrigin().getX()),
+                (float) (vec3d.y - builtChunk.getOrigin().getY()),
+                (float) (vec3d.z - builtChunk.getOrigin().getZ()));
 
-        ChunkLightCollector.begin();
         SectionBuilder.RenderData renderData;
         synchronized (ChunkBuilder.class) {
             renderData =
                 ((IChunkBuilderExt) chunkBuilder).neoVoxelRT$getSectionBuilder()
                     .build(chunkSectionPos, chunkRendererRegion, vertexSorter, storage);
         }
-        Map<BlockPos, ChunkLightCollector.LightEntry> collectedLights = ChunkLightCollector.end();
 
         Map<RenderLayer, BuiltBuffer> buffers = renderData.buffers;
         builtChunk.setNoCullingBlockEntities(renderData.noCullingBlockEntities);
@@ -579,7 +281,6 @@ public class ChunkProxy {
             builtChunkNum++;
 
             invalidateSingle(builtChunk.index);
-            setChunkLights(builtChunk.index, 0, 0);
         } else {
             ChunkBuilder.ChunkData chunkData = new ChunkBuilder.ChunkData() {
                 @Override
@@ -633,28 +334,21 @@ public class ChunkProxy {
                     BuiltBuffer vertexBuffer = entry.getValue();
                     BufferProxy.BufferInfo vertexBufferInfo = BufferProxy.getBufferInfo(
                         vertexBuffer.getBuffer());
-                    assert vertexBuffer.getDrawParameters()
-                        .indexCount() == vertexBuffer.getDrawParameters()
-                        .vertexCount() / 4 * 6;
+                    assert vertexBuffer.getDrawParameters().indexCount()
+                        == vertexBuffer.getDrawParameters().vertexCount() / 4 * 6;
 
-                    TextureManager
-                        textureManager =
-                        MinecraftClient.getInstance()
-                            .getTextureManager();
+                    TextureManager textureManager =
+                        MinecraftClient.getInstance().getTextureManager();
 
-                    int
-                        geometryTypeID =
-                        Constants.GeometryTypes.getGeometryType(renderLayer, true)
-                            .getValue();
-                    int
-                        geometryTextureID =
+                    int geometryTypeID =
+                        Constants.GeometryTypes.getGeometryType(renderLayer, true).getValue();
+                    int geometryTextureID =
                         textureManager.getTexture(
                                 ((RenderLayer.MultiPhase) renderLayer).phases.texture.getId()
                                     .orElse(MissingSprite.getMissingSpriteId()))
                             .getGlId();
                     int vertexFormatID = Constants.VertexFormats.getValue(
-                        vertexBuffer.getDrawParameters()
-                            .format());
+                        vertexBuffer.getDrawParameters().format());
 
                     geometryTypeBB.putInt(geometryTypeBaseAddr, geometryTypeID);
                     geometryTypeBaseAddr += Integer.BYTES;
@@ -666,20 +360,16 @@ public class ChunkProxy {
                     vertexFormatBaseAddr += Integer.BYTES;
 
                     vertexCountBB.putInt(vertexCountBaseAddr,
-                        vertexBuffer.getDrawParameters()
-                            .vertexCount());
+                        vertexBuffer.getDrawParameters().vertexCount());
                     vertexCountBaseAddr += Integer.BYTES;
 
                     verticesBB.putLong(verticesBaseAddr, vertexBufferInfo.addr());
                     verticesBaseAddr += Long.BYTES;
                 }
 
-                rebuildSingle(builtChunk.getOrigin()
-                        .getX(),
-                    builtChunk.getOrigin()
-                        .getY(),
-                    builtChunk.getOrigin()
-                        .getZ(),
+                rebuildSingle(builtChunk.getOrigin().getX(),
+                    builtChunk.getOrigin().getY(),
+                    builtChunk.getOrigin().getZ(),
                     builtChunk.index,
                     buffers.size(),
                     geometryTypeAddr,
@@ -688,34 +378,12 @@ public class ChunkProxy {
                     vertexCountAddr,
                     verticesAddr,
                     important,
-                    BlockModelBridge.getActiveTextureGeneration());
-            }
-
-            // Pack and transmit collected light sources for this chunk
-            if (!collectedLights.isEmpty()) {
-                int lightCount = collectedLights.size();
-                // 16 bytes per light: float x, float y, float z, int typeId
-                int dataSize = lightCount * 16;
-                try (MemoryStack lightStack = stackPush()) {
-                    ByteBuffer lightBuf = lightStack.malloc(dataSize);
-                    int offset = 0;
-                    for (ChunkLightCollector.LightEntry entry : collectedLights.values()) {
-                        lightBuf.putFloat(offset, entry.worldX);
-                        lightBuf.putFloat(offset + 4, entry.worldY);
-                        lightBuf.putFloat(offset + 8, entry.worldZ);
-                        lightBuf.putInt(offset + 12, entry.typeId);
-                        offset += 16;
-                    }
-                    setChunkLights(builtChunk.index, lightCount, memAddress(lightBuf));
-                }
-            } else {
-                setChunkLights(builtChunk.index, 0, 0);
+                    TextureArrayBridge.getActiveTextureGeneration());
             }
         }
 
         for (Map.Entry<RenderLayer, BuiltBuffer> entry : buffers.entrySet()) {
-            entry.getValue()
-                .close();
+            entry.getValue().close();
         }
     }
 
@@ -732,14 +400,6 @@ public class ChunkProxy {
         boolean important,
         long textureGeneration);
 
-    // Phase 2: C++ meshing path — sends block states instead of pre-meshed vertices
-    private static native void rebuildSingleBlockStates(int originX, int originY, int originZ,
-        long index, long blockStateArrayPtr, long palettePtr, int paletteSize,
-        long biomeDataPtr, long neighborFacesPtr, long haloStatesPtr,
-        int blockAtlasTextureId, boolean important,
-        int biomeGrassColor, int biomeFoliageColor, int biomeWaterColor,
-        long textureGeneration);
-
     public static native boolean isChunkReady(long index);
 
     public static boolean isChunkReady(ChunkBuilder.BuiltChunk builtChunk) {
@@ -747,8 +407,4 @@ public class ChunkProxy {
     }
 
     public static native void invalidateSingle(long index);
-
-    private static native void setChunkLights(long chunkIndex, int lightCount, long lightDataPtr);
-
-    public static native int nativeGetInputQueueSize();
 }

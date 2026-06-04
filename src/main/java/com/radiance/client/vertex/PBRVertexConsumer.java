@@ -1,9 +1,11 @@
 package com.radiance.client.vertex;
 
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALBEDO_EMISSION;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_BLOCK_GEOMETRY;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_EMISSIVE_BLOCK_TYPE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_COLOR_LAYER;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAGS;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_FLUID_GEOMETRY;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_COORD_SHIFT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_COLOR_LAYER;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_GLINT;
@@ -21,6 +23,7 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POST_BASE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_ID;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_UV;
 
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import java.nio.ByteOrder;
 import java.util.stream.Collectors;
 import net.minecraft.client.MinecraftClient;
@@ -29,7 +32,9 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormatElement;
+import net.minecraft.client.render.model.BakedQuad;
 import net.minecraft.client.texture.MissingSprite;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
@@ -43,6 +48,8 @@ import org.lwjgl.system.MemoryUtil;
 public class PBRVertexConsumer implements VertexConsumer {
 
     private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+    private static final int PBR_GEOMETRY_FLAG_MASK =
+        PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY;
 
     private final BufferAllocator allocator;
     private final VertexFormat format;
@@ -62,23 +69,13 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float baseZ = 0;
     private float pendingEmission = 0.0f;
     private int pendingEmissiveBlockType = 255; // 255 = no type
-    private int pendingMaterialBlockType = 255;    // 255 = no material type
-    private boolean pendingVividColor = false;     // vivid color expansion flag (bit 16 of emissiveBlockType)
-    private int pendingBlockTypeId = 0;            // unique per-block ID for greedy mesher (bits 17-31)
-
-    // Thread-local for item rendering: set before item model emits quads, cleared after.
-    // Applies material block type to all quads emitted by the item model.
-    private static final ThreadLocal<Integer> itemMaterialBlockType = ThreadLocal.withInitial(() -> 255);
-
-    public static void setItemMaterialBlockType(int ordinal) { itemMaterialBlockType.set(ordinal); }
-    public static void clearItemMaterialBlockType() { itemMaterialBlockType.set(255); }
-
-    // Thread-local for entity rendering: set before entity render dispatch, cleared after.
-    // Priority: block material > item material > entity material (prevents dropped blocks getting mob roughness).
-    private static final ThreadLocal<Integer> entityMaterialType = ThreadLocal.withInitial(() -> 255);
-
-    public static void setEntityMaterialType(int ordinal) { entityMaterialType.set(ordinal); }
-    public static void clearEntityMaterialType() { entityMaterialType.set(255); }
+    private int pendingTextureOverride = -1;
+    private int pendingVertexFlags = 0;
+    private boolean pendingSpriteUvRemap = false;
+    private float pendingSpriteMinU = 0.0f;
+    private float pendingSpriteMaxU = 1.0f;
+    private float pendingSpriteMinV = 0.0f;
+    private float pendingSpriteMaxV = 1.0f;
 
     public PBRVertexConsumer(BufferAllocator allocator, RenderLayer renderLayer) {
         this(allocator, VertexFormat.DrawMode.QUADS, PBRVertexFormats.PBR_TRIANGLE, renderLayer);
@@ -198,19 +195,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         vertexPointer = ptr;
         MemoryUtil.memSet(ptr, 0, vertexSizeByte);
 
-        if (this.textureID != 0) {
-            int off = this.offsetsByElementId[PBR_TEXTURE_ID.id()];
-            if (off >= 0) {
-                putInt(ptr + off, this.textureID);
-            }
-        }
-
-        int offBase = this.offsetsByElementId[PBR_POST_BASE.id()];
-        if (offBase >= 0) {
-            MemoryUtil.memPutFloat(ptr + offBase, baseX);
-            MemoryUtil.memPutFloat(ptr + offBase + 4L, baseY);
-            MemoryUtil.memPutFloat(ptr + offBase + 8L, baseZ);
-        }
+        initializeVertexState(ptr);
 
         return ptr;
     }
@@ -224,19 +209,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         vertexPointer = ptr;
         MemoryUtil.memSet(ptr, 0, vertexSizeByte);
 
-        if (this.textureID != 0) {
-            int off = this.offsetsByElementId[PBR_TEXTURE_ID.id()];
-            if (off >= 0) {
-                putInt(ptr + off, this.textureID);
-            }
-        }
-
-        int offBase = this.offsetsByElementId[PBR_POST_BASE.id()];
-        if (offBase >= 0) {
-            MemoryUtil.memPutFloat(ptr + offBase, baseX);
-            MemoryUtil.memPutFloat(ptr + offBase + 4L, baseY);
-            MemoryUtil.memPutFloat(ptr + offBase + 8L, baseZ);
-        }
+        initializeVertexState(ptr);
 
         if (glintTextureID != 0) {
             int off = this.offsetsByElementId[PBR_GLINT_TEXTURE.id()];
@@ -246,6 +219,32 @@ public class PBRVertexConsumer implements VertexConsumer {
         }
 
         return ptr;
+    }
+
+    private void initializeVertexState(long ptr) {
+        int activeTextureID = this.pendingTextureOverride >= 0
+            ? this.pendingTextureOverride
+            : this.textureID;
+        if (activeTextureID != 0) {
+            int off = this.offsetsByElementId[PBR_TEXTURE_ID.id()];
+            if (off >= 0) {
+                putInt(ptr + off, activeTextureID);
+            }
+        }
+
+        if (this.pendingVertexFlags != 0) {
+            int off = this.offsetsByElementId[PBR_FLAGS.id()];
+            if (off >= 0) {
+                putInt(ptr + off, this.pendingVertexFlags);
+            }
+        }
+
+        int offBase = this.offsetsByElementId[PBR_POST_BASE.id()];
+        if (offBase >= 0) {
+            MemoryUtil.memPutFloat(ptr + offBase, baseX);
+            MemoryUtil.memPutFloat(ptr + offBase + 4L, baseY);
+            MemoryUtil.memPutFloat(ptr + offBase + 8L, baseZ);
+        }
     }
 
     long beginElement(VertexFormatElement element) {
@@ -308,18 +307,8 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
         }
-        // Pack emissiveBlockType (bits 0-7) + materialBlockType+1 (bits 8-15) + vivid (bit 16) + blockTypeId (bits 17-31)
-        // Material uses ordinal+1 so that 0 = "no material" (default for untagged vertices)
-        // blockTypeId in bits 17-31: unique per-block ID for greedy mesher merge prevention
-        int effectiveMaterial = (pendingMaterialBlockType != 255) ? pendingMaterialBlockType
-            : (itemMaterialBlockType.get() != 255) ? itemMaterialBlockType.get()
-            : entityMaterialType.get();
-        if (pendingEmissiveBlockType != 255 || effectiveMaterial != 255 || pendingVividColor || pendingBlockTypeId > 0) {
-            int materialVal = (effectiveMaterial != 255) ? (effectiveMaterial + 1) : 0;
-            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8)
-                       | (pendingVividColor ? 0x10000 : 0)
-                       | ((pendingBlockTypeId & 0x7FFF) << 17);
-            emissiveBlockType(packed);
+        if (pendingEmissiveBlockType != 255) {
+            emissiveBlockType(pendingEmissiveBlockType & 0xFF);
         }
 
         return this;
@@ -345,11 +334,8 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
         }
-        if (pendingEmissiveBlockType != 255 || pendingMaterialBlockType != 255 || pendingVividColor) {
-            int materialVal = (pendingMaterialBlockType != 255) ? (pendingMaterialBlockType + 1) : 0;
-            int packed = (pendingEmissiveBlockType & 0xFF) | ((materialVal & 0xFF) << 8)
-                       | (pendingVividColor ? 0x10000 : 0);
-            emissiveBlockType(packed);
+        if (pendingEmissiveBlockType != 255) {
+            emissiveBlockType(pendingEmissiveBlockType & 0xFF);
         }
 
         return this;
@@ -375,6 +361,10 @@ public class PBRVertexConsumer implements VertexConsumer {
 
         long p = beginElement(PBR_TEXTURE_UV);
         if (p != -1L) {
+            if (pendingSpriteUvRemap) {
+                u = localSpriteUvForTest(u, pendingSpriteMinU, pendingSpriteMaxU);
+                v = localSpriteUvForTest(v, pendingSpriteMinV, pendingSpriteMaxV);
+            }
             MemoryUtil.memPutFloat(p, u);
             MemoryUtil.memPutFloat(p + 4L, v);
         }
@@ -425,23 +415,11 @@ public class PBRVertexConsumer implements VertexConsumer {
     }
 
     public void setPendingEmission(float emission) {
-        this.pendingEmission = emission;  // Allow negative (area light sign convention)
+        this.pendingEmission = Math.max(0.0f, emission);
     }
 
     public void setPendingEmissiveBlockType(int ordinal) {
         this.pendingEmissiveBlockType = ordinal;
-    }
-
-    public void setPendingMaterialBlockType(int ordinal) {
-        this.pendingMaterialBlockType = ordinal;
-    }
-
-    public void setPendingBlockTypeId(int id) {
-        this.pendingBlockTypeId = id;
-    }
-
-    public void setPendingVividColor(boolean vivid) {
-        this.pendingVividColor = vivid;
     }
 
     public VertexConsumer emissiveBlockType(int type) {
@@ -454,6 +432,99 @@ public class PBRVertexConsumer implements VertexConsumer {
 
     public int getTextureID() {
         return this.textureID;
+    }
+
+    public void setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags) {
+        Identifier id = sprite == null || sprite.getContents() == null
+            ? null
+            : sprite.getContents().getId();
+        int spriteId = id == null ? -1 : TextureArrayBridge.resolveSpriteId(id.toString());
+        this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
+        if (spriteId >= 0 && sprite != null) {
+            this.pendingTextureOverride = spriteId;
+            this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
+            this.pendingSpriteUvRemap = true;
+            this.pendingSpriteMinU = sprite.getMinU();
+            this.pendingSpriteMaxU = sprite.getMaxU();
+            this.pendingSpriteMinV = sprite.getMinV();
+            this.pendingSpriteMaxV = sprite.getMaxV();
+        } else {
+            this.pendingTextureOverride = -1;
+            this.pendingSpriteUvRemap = false;
+        }
+    }
+
+    public void setPendingTextureSpriteId(int spriteId, int geometryFlags) {
+        this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
+        if (spriteId >= 0) {
+            this.pendingTextureOverride = spriteId;
+            this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
+            this.pendingSpriteUvRemap = false;
+        } else {
+            this.pendingTextureOverride = -1;
+            this.pendingSpriteUvRemap = false;
+        }
+    }
+
+    public void clearPendingTextureSprite() {
+        this.pendingTextureOverride = -1;
+        this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
+        this.pendingSpriteUvRemap = false;
+    }
+
+    public static float localSpriteUvForTest(float atlasUv, float min, float max) {
+        if (!Float.isFinite(atlasUv) || !Float.isFinite(min) || !Float.isFinite(max)) {
+            return atlasUv;
+        }
+        float span = max - min;
+        if (!Float.isFinite(span) || Math.abs(span) < 1.0e-8f) {
+            return atlasUv;
+        }
+        float local = (atlasUv - min) / span;
+        if (local < 0.0f) return 0.0f;
+        if (local > 1.0f) return 1.0f;
+        return local;
+    }
+
+    @Override
+    public void quad(MatrixStack.Entry matrixEntry,
+        BakedQuad quad,
+        float[] brightnesses,
+        float red,
+        float green,
+        float blue,
+        float alpha,
+        int[] lights,
+        int overlay,
+        boolean useQuadColorData) {
+        int previousTextureOverride = this.pendingTextureOverride;
+        int previousVertexFlags = this.pendingVertexFlags;
+        boolean previousSpriteUvRemap = this.pendingSpriteUvRemap;
+        float previousSpriteMinU = this.pendingSpriteMinU;
+        float previousSpriteMaxU = this.pendingSpriteMaxU;
+        float previousSpriteMinV = this.pendingSpriteMinV;
+        float previousSpriteMaxV = this.pendingSpriteMaxV;
+        try {
+            setPendingTextureSprite(quad.getSprite(), PBR_FLAG_BLOCK_GEOMETRY);
+            VertexConsumer.super.quad(matrixEntry,
+                quad,
+                brightnesses,
+                red,
+                green,
+                blue,
+                alpha,
+                lights,
+                overlay,
+                useQuadColorData);
+        } finally {
+            this.pendingTextureOverride = previousTextureOverride;
+            this.pendingVertexFlags = previousVertexFlags;
+            this.pendingSpriteUvRemap = previousSpriteUvRemap;
+            this.pendingSpriteMinU = previousSpriteMinU;
+            this.pendingSpriteMaxU = previousSpriteMaxU;
+            this.pendingSpriteMinV = previousSpriteMinV;
+            this.pendingSpriteMaxV = previousSpriteMaxV;
+        }
     }
 
     public static class GLint implements VertexConsumer {

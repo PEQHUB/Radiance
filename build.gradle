@@ -147,6 +147,26 @@ tasks.named("remapSourcesJar") {
     archiveFileName.set("${project.archives_base_name}-${project.version}-fabric-${project.minecraft_version}-sources.jar")
 }
 
+tasks.register("materialLabSelfTest", JavaExec) {
+    group = "verification"
+    description = "Runs strict Material Lab recipe and texture-rule ABI checks"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = "com.radiance.client.autopbr.MaterialLabSelfTest"
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.register("autopbrGraphSelfTest") {
+    group = "verification"
+    description = "Deprecated alias for materialLabSelfTest"
+    dependsOn tasks.named("materialLabSelfTest")
+}
+
+tasks.named("check") {
+    dependsOn tasks.named("materialLabSelfTest")
+}
+
 // configure the maven publication
 publishing {
     publications {

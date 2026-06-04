@@ -91,6 +91,7 @@ public final class RadianceTheme {
     private static boolean fadingOut = false;
     public static final long FADE_OUT_MS = 100;
     public static final long FADE_IN_MS = 150;
+    private static final float SLIDER_FOCUS_MIN_ALPHA = 0.55f;
 
     // ── Peek mode (Tab key full hide) ──
     public static boolean peekActive = false;
@@ -235,14 +236,14 @@ public final class RadianceTheme {
 
         long elapsed = System.currentTimeMillis() - fadeStartMs;
         if (fadingOut || activeSlider != null) {
-            // Fade out to a floor (never fully invisible so user retains context)
+            // Fade out to a readable floor so material/settings context is retained.
             float t = Math.min(1f, elapsed / (float) FADE_OUT_MS);
-            return 0.15f + (1f - 0.15f) * (1f - t);
+            return SLIDER_FOCUS_MIN_ALPHA + (1f - SLIDER_FOCUS_MIN_ALPHA) * (1f - t);
         } else {
             // Fading back in from floor
             float t = Math.min(1f, elapsed / (float) FADE_IN_MS);
             if (t >= 1f) fadeStartMs = 0; // Animation complete
-            return 0.15f + (1f - 0.15f) * t;
+            return SLIDER_FOCUS_MIN_ALPHA + (1f - SLIDER_FOCUS_MIN_ALPHA) * t;
         }
     }
 
@@ -532,13 +533,25 @@ public final class RadianceTheme {
         int thumbColor = active ? sliderFill : (hovered ? scaleAlpha(sliderThumb, 0.9f) : sliderThumb);
         ctx.fill(thumbX, thumbY, thumbX + thumbW, thumbY + thumbH, thumbColor);
 
-        // Label centered on widget
-        int maxTextW = Math.max(24, w - 10);
-        Text drawMessage = trimText(renderer, message, maxTextW);
-        int textW = renderer.getWidth(drawMessage);
         int labelColor = modified ? modifiedDot : textPrimary;
-        drawOutlinedText(ctx, renderer, drawMessage,
-                x + (w - textW) / 2, y + (h - 8) / 2, labelColor);
+        String raw = message == null ? "" : message.getString();
+        int split = raw.lastIndexOf(": ");
+        if (split > 0 && w >= 110) {
+            String label = raw.substring(0, split);
+            String valueText = raw.substring(split + 2);
+            int valueW = Math.min(Math.max(32, renderer.getWidth(valueText) + 4), Math.max(36, w / 2));
+            Text labelText = trimText(renderer, Text.literal(label), Math.max(24, w - valueW - 16));
+            Text valueMessage = trimText(renderer, Text.literal(valueText), valueW);
+            drawOutlinedText(ctx, renderer, labelText, x + 6, y + (h - 8) / 2, labelColor);
+            drawOutlinedText(ctx, renderer, valueMessage,
+                x + w - 6 - renderer.getWidth(valueMessage), y + (h - 8) / 2, textPrimary);
+        } else {
+            int maxTextW = Math.max(24, w - 10);
+            Text drawMessage = trimText(renderer, message, maxTextW);
+            int textW = renderer.getWidth(drawMessage);
+            drawOutlinedText(ctx, renderer, drawMessage,
+                    x + (w - textW) / 2, y + (h - 8) / 2, labelColor);
+        }
     }
 
     /**

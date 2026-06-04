@@ -14,25 +14,6 @@ public class SimpleLightingPopulator implements ContentPopulator {
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
         var gameOptions = MinecraftClient.getInstance().options;
 
-        SettingsSection section = panel.addSection("options.video.category.lighting");
-
-        // Area lights toggle
-        SimpleOption<Boolean> areaLights = SimpleOption.ofBoolean(
-            Options.AREA_LIGHTS_ENABLED_KEY, Options.areaLightsEnabled,
-            value -> {
-                Options.setAreaLightsEnabled(value, true);
-                screen.refreshContent();
-            });
-        section.addToggle(areaLights.createWidget(gameOptions))
-              .tooltip("Enable physical area lights from emissive blocks (torches, lava, glowstone).");
-
-        if (Options.areaLightsEnabled) {
-            section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
-                0, 500, Options.areaLightIntensityPercent, 100,
-                v -> getGenericValueText(Text.translatable(Options.AREA_LIGHT_INTENSITY_KEY), Text.literal(v + "%")),
-                v -> Options.setAreaLightIntensityPercent(v, true)));
-        }
-
         // Exposure
         SettingsSection exposure = panel.addSection("options.video.category.exposure");
 
@@ -66,8 +47,6 @@ public class SimpleLightingPopulator implements ContentPopulator {
     @Override
     public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
         return java.util.List.of(
-            new UnifiedSearchOverlay.SearchEntry("Area Lights", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Area Light Intensity", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Manual Exposure", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Exposure Compensation", category, nodeId, false)
         );

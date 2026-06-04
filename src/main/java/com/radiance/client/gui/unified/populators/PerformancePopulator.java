@@ -86,19 +86,6 @@ public class PerformancePopulator implements ContentPopulator {
         renderDist.addTwoWidgets(chunkCullDistance.createWidget(gameOptions), null)
             .tooltip("Cull Distance controls maximum ray-traced chunk visibility.");
 
-        SimpleOption<Integer> chunkLodDistance = new SimpleOption<>(
-            Options.CHUNK_LOD_DISTANCE_KEY,
-            SimpleOption.emptyTooltip(),
-            (optionText, value) -> getGenericValueText(optionText,
-                Text.literal(value == 0 ? "All Full Quality" : value + " chunks")),
-            new SimpleOption.ValidatingIntSliderCallbacks(0, 512),
-            Codec.intRange(0, 512),
-            Options.chunkLodDistance,
-            value -> Options.setChunkLodDistance(value, true));
-
-        renderDist.addTwoWidgets(chunkLodDistance.createWidget(gameOptions), null)
-            .tooltip("Chunks beyond this distance use compact 32-byte vertices. 0 = all full quality.");
-
         SettingsSection terrain = panel.addSection("Chunk Building");
 
         SimpleOption<Integer> chunkBatchSize = new SimpleOption<>(

@@ -313,19 +313,6 @@ public class EntityProxy {
             double entityPosZ = MathHelper.lerp(tickDelta, entity.lastRenderZ,
                 entity.getZ());
 
-            // Tag material block type for item entities (dropped items, item frames)
-            if (entity instanceof net.minecraft.entity.ItemEntity itemEntity) {
-                net.minecraft.item.ItemStack stack = itemEntity.getStack();
-                if (!stack.isEmpty() && stack.getItem() instanceof net.minecraft.item.BlockItem blockItem) {
-                    com.radiance.client.util.MaterialBlock mb = com.radiance.client.util.MaterialBlock.fromBlock(blockItem.getBlock());
-                    if (mb != null) PBRVertexConsumer.setItemMaterialBlockType(mb.ordinal());
-                }
-            }
-
-            // Tag entity material type for PBR rendering
-            int entityMatOrd = com.radiance.client.material.EntityMaterial.getOrdinalForEntity(entity);
-            if (entityMatOrd >= 0) PBRVertexConsumer.setEntityMaterialType(entityMatOrd);
-
             boolean isPlayerEntity = entity.equals(camera.getFocusedEntity());
             boolean fpvActive = isPlayerEntity && FirstPersonView.isActive();
 
@@ -366,7 +353,6 @@ public class EntityProxy {
                 } finally {
                     FirstPersonView.renderingBodyPass = false;
                     FirstPersonView.fpvItemProvider = null;
-                    PBRVertexConsumer.clearItemMaterialBlockType();
                 }
 
                 processWorldEntityRenderData(entityStorageVertexConsumerProvider,
@@ -387,7 +373,6 @@ public class EntityProxy {
                         matrixStack, headProvider, entityLight);
                 } finally {
                     FirstPersonView.renderingHeadPass = false;
-                    PBRVertexConsumer.clearItemMaterialBlockType();
                 }
 
                 processWorldEntityRenderData(headProvider,
@@ -410,7 +395,6 @@ public class EntityProxy {
                         matrixStack, vertexConsumerProvider,
                         entityRenderDispatcher.getLight(entity, tickDelta));
                 } finally {
-                    PBRVertexConsumer.clearItemMaterialBlockType();
                 }
 
                 if (isPlayerEntity) {
@@ -427,9 +411,6 @@ public class EntityProxy {
                         true, entityRenderDataList);
                 }
             }
-
-            // Clear entity material type after all render paths
-            PBRVertexConsumer.clearEntityMaterialType();
         }
 
         queueBuild(entityStorageVertexConsumerProviders, entityRenderDataList);

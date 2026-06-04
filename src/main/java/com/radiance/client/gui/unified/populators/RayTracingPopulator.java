@@ -42,12 +42,6 @@ public class RayTracingPopulator implements ContentPopulator {
         section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions))
               .tooltip("Multi-Scatter GGX adds energy-conserving multiple bounces in microfacet BRDF. EON uses the Estevez-Kulla-Conty diffuse model.");
 
-        SimpleOption<Boolean> noiseLOD = SimpleOption.ofBoolean(
-            "options.video.noise_lod", Options.noiseLOD,
-            value -> Options.setNoiseLOD(value, true));
-        section.addToggle(noiseLOD.createWidget(gameOptions))
-              .tooltip("Reduces procedural noise quality at distance for better performance.");
-
         // SER (Shader Execution Reordering)
         SimpleOption<Boolean> serEnabled = SimpleOption.ofBoolean(
             "options.video.ser_enabled", Options.serEnabled,
@@ -74,7 +68,6 @@ public class RayTracingPopulator implements ContentPopulator {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("Ray Bounces", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("Simplified Indirect", category, nodeId, true),
-            new UnifiedSearchOverlay.SearchEntry("Noise LOD", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SER Enabled", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SER Hints", category, nodeId, true)
         );

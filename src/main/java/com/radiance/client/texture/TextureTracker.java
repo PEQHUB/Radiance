@@ -36,7 +36,7 @@ public class TextureTracker {
     public static void setTextureArrayAnimationUpdatesEnabled(boolean enabled) {
         textureArrayAnimationUpdatesEnabled = enabled;
         try {
-            com.radiance.client.proxy.world.BlockModelBridge.nativeSetTextureArrayAnimationEnabled(enabled);
+            com.radiance.client.proxy.vulkan.TextureArrayBridge.nativeSetTextureArrayAnimationEnabled(enabled);
         } catch (UnsatisfiedLinkError ignored) {
             // Native not loaded yet
         }
@@ -49,57 +49,23 @@ public class TextureTracker {
     public static int[] GLID2SpecularGLID = new int[MAX_TEXTURES];
     public static int[] GLID2NormalGLID = new int[MAX_TEXTURES];
     public static int[] GLID2FlagGLID = new int[MAX_TEXTURES];
-    // Material class mask: albedo GLID → R8_UNORM mask texture ID (per-texel class index)
-    public static int[] GLID2MaskGLID = new int[MAX_TEXTURES];
-    // Pending mask registrations: flushed after performQueuedUpload() to ensure texture data
-    // is uploaded before the descriptor is referenced. Without this, the mask texture is in
-    // UNDEFINED layout when the shader first reads it → garbage material index → flickering.
-    public static Map<Integer, Integer> pendingMaskGLID = new ConcurrentHashMap<>();
-
     static {
         Arrays.fill(GLID2SpecularGLID, -1);
         Arrays.fill(GLID2NormalGLID, -1);
         Arrays.fill(GLID2FlagGLID, -1);
-        Arrays.fill(GLID2MaskGLID, -1);
     }
 
-    /**
-     * Flush pending mask texture registrations into the active GLID2MaskGLID map.
-     * Called from BufferProxy after performQueuedUpload() completes, ensuring the
-     * texture data is resident before the mask ID appears in the TextureMapping SSBO.
-     */
-    public static void flushPendingMasks() {
-        if (!pendingMaskGLID.isEmpty()) {
-            for (var entry : pendingMaskGLID.entrySet()) {
-                int key = entry.getKey();
-                if (key >= 0 && key < MAX_TEXTURES) GLID2MaskGLID[key] = entry.getValue();
-            }
-            pendingMaskGLID.clear();
-        }
-    }
-    // Albedo GLIDs whose normal map contains valid height data (for POM)
+    // Albedo GLIDs whose normal map contains valid height data for height-field displacement.
     public static Set<Integer> hasHeightMap = ConcurrentHashMap.newKeySet();
 
-    // Shared singleton fallback mask texture (1x1 R8_UNORM, value=255).
-    // Reused for ALL unregistered block textures — zero descriptor bloat.
-    public static volatile int fallbackMaskGLID = -1;
-
-    // Fallback luminance range for unregistered textures (mbOrdinal == -1)
-    public static Map<Integer, float[]> fallbackLumRange = new ConcurrentHashMap<>();
-
     // Albedo NativeImage copies keyed by albedo GLID — for legacy atlas live re-upload
-    public static Map<Integer, NativeImage> materialBlockAlbedoCache = new ConcurrentHashMap<>();
     // Per-sprite albedo NativeImage copies keyed by sprite ID — for texture array live re-upload
     // Populated in SpriteAtlasTextureMixins with sprite-sized (not atlas-sized) images
     public static Map<Integer, NativeImage> spriteAlbedoCache = new ConcurrentHashMap<>();
+    public static Map<Integer, NativeImage> spriteSpecularCache = new ConcurrentHashMap<>();
+    public static Map<Integer, NativeImage> spriteNormalCache = new ConcurrentHashMap<>();
+    public static Map<Integer, NativeImage> spriteFlagCache = new ConcurrentHashMap<>();
     public static volatile int currentSpriteLayerSize = 0;
-    // Albedo GLID → MaterialBlock ordinal (for per-block Auto-PBR toggle check)
-    public static Map<Integer, Integer> albedoGLID2BlockOrdinal = new ConcurrentHashMap<>();
-    // Albedo GLIDs whose normal slot exists and can be auto-PBR re-uploaded
-    public static Set<Integer> autoPBRNormalGLIDs = ConcurrentHashMap.newKeySet();
-    // Albedo GLIDs whose specular slot exists and can be auto-PBR re-uploaded
-    public static Set<Integer> autoPBRSpecularGLIDs = ConcurrentHashMap.newKeySet();
-
     // Auxiliary texture provenance keyed by auxiliary GLID. This survives the legacy upload
     // path and lets the texture-array stitch preserve authored LabPBR channels.
     public static Set<Integer> packProvidedSpecularGLIDs = ConcurrentHashMap.newKeySet();
@@ -125,17 +91,12 @@ public class TextureTracker {
         Arrays.fill(GLID2SpecularGLID, -1);
         Arrays.fill(GLID2NormalGLID, -1);
         Arrays.fill(GLID2FlagGLID, -1);
-        Arrays.fill(GLID2MaskGLID, -1);
-        pendingMaskGLID.clear();
         hasHeightMap.clear();
-        fallbackLumRange.clear();
-        LiveNormalReuploader.cancelPendingReupload();
-        closeAndClearImageCache(materialBlockAlbedoCache);
         closeAndClearImageCache(spriteAlbedoCache);
+        closeAndClearImageCache(spriteSpecularCache);
+        closeAndClearImageCache(spriteNormalCache);
+        closeAndClearImageCache(spriteFlagCache);
         currentSpriteLayerSize = 0;
-        albedoGLID2BlockOrdinal.clear();
-        autoPBRNormalGLIDs.clear();
-        autoPBRSpecularGLIDs.clear();
         packProvidedSpecularGLIDs.clear();
         packProvidedNormalGLIDs.clear();
         customSpecularGLIDs.clear();
@@ -147,8 +108,10 @@ public class TextureTracker {
     }
 
     public static void clearSpriteAlbedoCache() {
-        LiveNormalReuploader.cancelPendingReupload();
         closeAndClearImageCache(spriteAlbedoCache);
+        closeAndClearImageCache(spriteSpecularCache);
+        closeAndClearImageCache(spriteNormalCache);
+        closeAndClearImageCache(spriteFlagCache);
     }
 
     public static void closeAndClearImageCache(Map<Integer, NativeImage> cache) {

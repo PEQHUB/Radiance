@@ -13,27 +13,21 @@ import net.minecraft.text.Text;
 
 /**
  * Materials settings populator.
- * The materials editor is the most complex screen (block selector, sphere preview,
- * 13 sliders, presets, copy/paste, snapshot/restore). For now, launch old screens.
- * TODO: Migrate to inline materials editor in a future pass.
  */
 public class MaterialsPopulator implements ContentPopulator {
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
         var gameOptions = MinecraftClient.getInstance().options;
 
-        SettingsSection section = panel.addSection(Text.literal("Materials"));
+        SettingsSection section = panel.addSection(Text.literal("Material Lab"));
 
-        SimpleOption<Boolean> overridesEnabled = SimpleOption.ofBoolean(
-            "options.video.materials.overridesEnabled", Options.materialOverridesEnabled,
-            value -> Options.setMaterialOverridesEnabled(value, true));
         SimpleOption<Boolean> autoPBR = SimpleOption.ofBoolean(
             "options.video.materials.autoPBR", Options.autoPBREnabled,
             value -> Options.setAutoPBREnabled(value, true));
-        section.addTwoWidgets(overridesEnabled.createWidget(gameOptions), autoPBR.createWidget(gameOptions));
-        section.tooltip("Material Overrides applies per-block PBR properties. AutoPBR generates roughness/metalness from textures.");
+        section.addTwoWidgets(autoPBR.createWidget(gameOptions), null);
+        section.tooltip("Material Lab is texture-primary. Blocks are discovery context, not material categories.");
 
-        SettingsSection displacement = panel.addSection(Text.literal("Surface Displacement"));
+        SettingsSection displacement = panel.addSection(Text.literal("Geometry Displacement"));
         SimpleOption<Boolean> displacementEnabled = SimpleOption.ofBoolean(
             "options.video.materials.displacementEnabled",
             Options.displacementEnabled,
@@ -50,7 +44,7 @@ public class MaterialsPopulator implements ContentPopulator {
         }).dimensions(0, 0, 150, 20).build();
         quality.active = Options.displacementEnabled;
         displacement.addTwoWidgets(displacementEnabled.createWidget(gameOptions), quality)
-            .tooltip("Global material displacement budget. Individual materials can inherit, disable, or override depth in the editor.");
+            .tooltip("Authored normal-alpha height maps displace cube faces. Quality controls the shader DDA step budget.");
 
         ResettableSliderWidget depthCap = new ResettableSliderWidget(0, 0, 150, 20,
             1, 50, Options.displacementDepthCapPercent, 5,
@@ -77,12 +71,11 @@ public class MaterialsPopulator implements ContentPopulator {
     @Override
     public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
         return java.util.List.of(
-            new UnifiedSearchOverlay.SearchEntry("Material Overrides", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("AutoPBR", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Surface Displacement", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Material Lab", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Geometry Displacement", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Displacement Quality", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Depth Cap", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Materials Editor", category, nodeId, false)
+            new UnifiedSearchOverlay.SearchEntry("Material Lab Browser", category, nodeId, false)
         );
     }
 }

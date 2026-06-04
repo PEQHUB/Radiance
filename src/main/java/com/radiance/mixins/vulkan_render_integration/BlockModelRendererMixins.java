@@ -1,12 +1,6 @@
 package com.radiance.mixins.vulkan_render_integration;
 
-import com.radiance.client.option.Options;
-import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.client.util.EmissiveBlock;
-import com.radiance.client.util.MaterialBlock;
-import com.radiance.client.util.VividColorBlock;
-import com.radiance.client.util.LightSourceDef;
-import com.radiance.client.util.LightSourceRegistry;
 import com.radiance.client.vertex.PBRVertexConsumer;
 
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IBlockColorsExt;
@@ -95,66 +89,14 @@ public class BlockModelRendererMixins {
             emissionNits = 0.0f;
         }
 
-        // Look up light source definition for this block (used for area light mode below)
-        LightSourceDef lightDef = LightSourceRegistry.getLightSource(state);
-
         PBRVertexConsumer pbrVertexConsumer = null;
         if (vertexConsumer instanceof PBRVertexConsumer pbr) {
             pbrVertexConsumer = pbr;
-
-            // --- Mutual exclusion: resolve effective light mode ---
-            int effectiveMode;
-
-            if (lightDef != null && lightDef.typeId >= 0 && lightDef.typeId < Options.AREA_LIGHT_TYPE_COUNT) {
-                int configuredMode = Options.blockLightMode[lightDef.typeId];
-                if (configuredMode == Options.LIGHT_MODE_FORCE_AREA) {
-                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
-                } else if (configuredMode == Options.LIGHT_MODE_FORCE_EMISSIVE) {
-                    effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
-                } else {
-                    // Auto: area lights on → route to ReSTIR; off → emissive bounce lighting
-                    effectiveMode = Options.areaLightsEnabled
-                        ? Options.LIGHT_MODE_FORCE_AREA
-                        : Options.LIGHT_MODE_FORCE_EMISSIVE;
-                }
-            } else {
-                // No area light available — emissive only
-                effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
-            }
-
-            // Write emissive block type ordinal for UBO multiplier lookup
             if (eb != null) {
                 pbrVertexConsumer.setPendingEmissiveBlockType(eb.ordinal());
             }
-
-            // Tag material blocks for physically accurate material override (enum + dynamic)
-            int materialOrdinal = MaterialBlock.getOrdinalForBlock(state.getBlock());
-            if (materialOrdinal >= 0) {
-                pbrVertexConsumer.setPendingMaterialBlockType(materialOrdinal);
-            }
-
-            // Unique block type ID for greedy mesher merge prevention (bits 17-31 of emissiveBlockType)
-            pbrVertexConsumer.setPendingBlockTypeId(
-                com.radiance.client.material.BlockTypeIdRegistry.getPackedBlockTypeId(state.getBlock()));
-
-            // Tag vivid color blocks for chroma expansion (bit 16 of emissiveBlockType)
-            pbrVertexConsumer.setPendingVividColor(VividColorBlock.isVivid(state.getBlock()));
-
-            // Apply based on effective mode
-            if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA && lightDef != null) {
-                // AREA LIGHT MODE: negative emission = signal to shader to suppress bounce
-                // abs(value) used for primary-hit self-glow and bloom
-                pbrVertexConsumer.setPendingEmission(-Math.max(emissionNits, 0.001f));
-                if (ChunkLightCollector.isActive()) {
-                    ChunkLightCollector.addLight(pos, lightDef);
-                }
-            } else {
-                // EMISSIVE MODE: positive emission in nits, no area light collection
-                pbrVertexConsumer.setPendingEmission(emissionNits);
-                // Area light NOT added to collector — emissive path handles illumination
-            }
+            pbrVertexConsumer.setPendingEmission(emissionNits);
         }
-
         float[] brightness = BRIGHTNESS_BUFFER.get();
         brightness[0] = brightness0;
         brightness[1] = brightness1;
@@ -182,9 +124,6 @@ public class BlockModelRendererMixins {
             if (pbrVertexConsumer != null) {
                 pbrVertexConsumer.setPendingEmission(0.0F);
                 pbrVertexConsumer.setPendingEmissiveBlockType(255);
-                pbrVertexConsumer.setPendingMaterialBlockType(255);
-                pbrVertexConsumer.setPendingVividColor(false);
-                pbrVertexConsumer.setPendingBlockTypeId(0);
             }
         }
 

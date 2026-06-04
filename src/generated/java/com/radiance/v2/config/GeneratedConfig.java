@@ -18,27 +18,14 @@ public class GeneratedConfig {
     public static int upscalerQuality = 2;  // Upscaler quality preset (affects internal resolution)
     public static int upscalerResOverride = 99;  // Manual resolution scale override (only when quality = Custom)
     // --- rayTracing ---
-    public static boolean areaLightsEnabled = false;  // Enable area light evaluation in RT shaders
     public static boolean eonDiffuse = true;  // EON diffuse BRDF (replaces Lambertian)
-    public static boolean greedyMeshingEnabled = false;  // Disabled: unsafe across native block and Java atlas geometry
     public static boolean multiScatterGGX = true;  // Multi-scatter GGX energy compensation (Kulla-Conty)
-    public static boolean noiseLOD = true;  // Noise-based LOD for distant surfaces
-    public static int ommBakerLevel = 4;  // OMM subdivision level (higher = more precise, more memory)
-    public static boolean ommEnabled = false;  // Opacity Micro-Maps for alpha-tested geometry
-    public static boolean pomEnabled = false;  // Enable parallax occlusion mapping
-    public static float pomFadeDistance = 64.0f;  // POM fade distance in blocks
-    public static float pomHeightScale = 0.15f;  // Parallax occlusion mapping height scale
-    public static int pomRefinement = 4;  // POM binary search refinement steps
-    public static int pomSteps = 32;  // POM max ray march steps
+    public static boolean pomEnabled = false;  // Enable height-field geometry displacement
+    public static float pomFadeDistance = 64.0f;  // Height-field fade distance in blocks
+    public static float pomHeightScale = 0.15f;  // Height-field depth scale
+    public static int pomRefinement = 4;  // Height-field surface refinement steps
+    public static int pomSteps = 32;  // Height-field primary trace steps
     public static int rayBounces = 12;  // Maximum ray bounce depth
-    public static boolean restirBounceEnabled = true;  // ReSTIR bounce light resampling
-    public static int restirCandidates = 8;  // RIS candidate count for ReSTIR
-    public static boolean restirEnabled = true;  // ReSTIR Direct Illumination
-    public static boolean restirSimplifiedBRDF = false;  // Simplified BRDF for ReSTIR evaluation
-    public static int restirSpatialRadius = 16;  // Spatial reuse radius in pixels for ReSTIR DI
-    public static int restirSpatialTaps = 3;  // Number of spatial neighbor taps for ReSTIR DI
-    public static int restirTemporalMClamp = 20;  // Temporal M-clamping for ReSTIR
-    public static int restirWClamp = 100;  // W-clamping for ReSTIR
     public static boolean serEnabled = true;  // Shader Execution Reordering (NV hardware feature)
     public static boolean serHintsEnabled = true;  // SER coherence hints for material sorting
     public static float shadowSoftness = 0.5f;  // Shadow penumbra softness
@@ -58,7 +45,6 @@ public class GeneratedConfig {
     // --- toneMapping ---
     public static int Lwhite = 40;  // White point luminance for Reinhard-style operators
     public static int casSharpness = 50;  // CAS/RCAS sharpening intensity
-    public static int colorExpansion = 100;  // Gamut expansion strength
     public static boolean psychoEnabled = true;  // Enable PsychoV psychophysical tone mapping
     public static int psychoPeakSDR = 100;  // PsychoV SDR peak brightness multiplier
     public static int saturation = 100;  // Post-tonemap color saturation
@@ -101,15 +87,10 @@ public class GeneratedConfig {
     public static float offlineFocalDistance = 10.0f;  // Depth-of-field focal distance in blocks
     // --- displacement ---
     public static int displacementQuality = 0;  // Displacement mapping quality (0=off, 1=DDA, 2=Tessellation, 3=Hybrid, 4=CLAS)
-    public static float tessFarDist = 64.0f;  // Distance for quarter tessellation (blocks)
-    public static int tessMaxLevel = 4;  // Maximum tessellation subdivision level
-    public static float tessMidDist = 16.0f;  // Distance for half tessellation (blocks)
-    public static float tessNearDist = 4.0f;  // Distance for full tessellation (blocks)
     // --- chunks ---
     public static int chunkBuildingBatchSize = 6;  // Chunks per BLAS build batch
     public static int chunkBuildingTotalBatches = 6;  // Maximum concurrent BLAS build batches
     public static float chunkCullDistance = 384.0f;  // Distance beyond which chunks are culled from TLAS
-    public static float chunkLodDistance = 160.0f;  // Distance at which chunks switch to lower LOD
     // --- debug ---
     public static int diagFlags = 0;  // Per-subsystem diagnostic flags bitmask
     public static int diagLevel = 0;  // Diagnostic verbosity tier (0=silent, 1=operational, 2=diagnostic, 3=forensic)
@@ -125,27 +106,14 @@ public class GeneratedConfig {
         upscalerMode = Integer.parseInt(props.getProperty("upscalerMode", String.valueOf(0)));
         upscalerQuality = Integer.parseInt(props.getProperty("upscalerQuality", String.valueOf(2)));
         upscalerResOverride = Integer.parseInt(props.getProperty("upscalerResOverride", String.valueOf(99)));
-        areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(false)));
         eonDiffuse = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(true)));
-        greedyMeshingEnabled = false;
         multiScatterGGX = Boolean.parseBoolean(props.getProperty("multiScatterGGX", String.valueOf(true)));
-        noiseLOD = Boolean.parseBoolean(props.getProperty("noiseLOD", String.valueOf(true)));
-        ommBakerLevel = Integer.parseInt(props.getProperty("ommBakerLevel", String.valueOf(4)));
-        ommEnabled = Boolean.parseBoolean(props.getProperty("ommEnabled", String.valueOf(false)));
         pomEnabled = Boolean.parseBoolean(props.getProperty("pomEnabled", String.valueOf(false)));
         pomFadeDistance = Float.parseFloat(props.getProperty("pomFadeDistance", String.valueOf(64.0f)));
         pomHeightScale = Float.parseFloat(props.getProperty("pomHeightScale", String.valueOf(0.15f)));
         pomRefinement = Integer.parseInt(props.getProperty("pomRefinement", String.valueOf(4)));
         pomSteps = Integer.parseInt(props.getProperty("pomSteps", String.valueOf(32)));
         rayBounces = Integer.parseInt(props.getProperty("rayBounces", String.valueOf(12)));
-        restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(true)));
-        restirCandidates = Integer.parseInt(props.getProperty("restirCandidates", String.valueOf(8)));
-        restirEnabled = Boolean.parseBoolean(props.getProperty("restirEnabled", String.valueOf(true)));
-        restirSimplifiedBRDF = Boolean.parseBoolean(props.getProperty("restirSimplifiedBRDF", String.valueOf(false)));
-        restirSpatialRadius = Integer.parseInt(props.getProperty("restirSpatialRadius", String.valueOf(16)));
-        restirSpatialTaps = Integer.parseInt(props.getProperty("restirSpatialTaps", String.valueOf(3)));
-        restirTemporalMClamp = Integer.parseInt(props.getProperty("restirTemporalMClamp", String.valueOf(20)));
-        restirWClamp = Integer.parseInt(props.getProperty("restirWClamp", String.valueOf(100)));
         serEnabled = Boolean.parseBoolean(props.getProperty("serEnabled", String.valueOf(true)));
         serHintsEnabled = Boolean.parseBoolean(props.getProperty("serHintsEnabled", String.valueOf(true)));
         shadowSoftness = Float.parseFloat(props.getProperty("shadowSoftness", String.valueOf(0.5f)));
@@ -163,7 +131,6 @@ public class GeneratedConfig {
         sceneChangeThreshold = Integer.parseInt(props.getProperty("sceneChangeThreshold", String.valueOf(50)));
         Lwhite = Integer.parseInt(props.getProperty("Lwhite", String.valueOf(40)));
         casSharpness = Integer.parseInt(props.getProperty("casSharpness", String.valueOf(50)));
-        colorExpansion = Integer.parseInt(props.getProperty("colorExpansion", String.valueOf(100)));
         psychoEnabled = Boolean.parseBoolean(props.getProperty("psychoEnabled", String.valueOf(true)));
         psychoPeakSDR = Integer.parseInt(props.getProperty("psychoPeakSDR", String.valueOf(100)));
         saturation = Integer.parseInt(props.getProperty("saturation", String.valueOf(100)));
@@ -201,14 +168,9 @@ public class GeneratedConfig {
         offlineDlssEpochLength = Integer.parseInt(props.getProperty("offlineDlssEpochLength", String.valueOf(32)));
         offlineFocalDistance = Float.parseFloat(props.getProperty("offlineFocalDistance", String.valueOf(10.0f)));
         displacementQuality = Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(0)));
-        tessFarDist = Float.parseFloat(props.getProperty("tessFarDist", String.valueOf(64.0f)));
-        tessMaxLevel = Integer.parseInt(props.getProperty("tessMaxLevel", String.valueOf(4)));
-        tessMidDist = Float.parseFloat(props.getProperty("tessMidDist", String.valueOf(16.0f)));
-        tessNearDist = Float.parseFloat(props.getProperty("tessNearDist", String.valueOf(4.0f)));
         chunkBuildingBatchSize = Integer.parseInt(props.getProperty("chunkBuildingBatchSize", String.valueOf(6)));
         chunkBuildingTotalBatches = Integer.parseInt(props.getProperty("chunkBuildingTotalBatches", String.valueOf(6)));
         chunkCullDistance = Float.parseFloat(props.getProperty("chunkCullDistance", String.valueOf(384.0f)));
-        chunkLodDistance = Float.parseFloat(props.getProperty("chunkLodDistance", String.valueOf(160.0f)));
         diagFlags = Integer.parseInt(props.getProperty("diagFlags", String.valueOf(0)));
         diagLevel = Integer.parseInt(props.getProperty("diagLevel", String.valueOf(0)));
         gpuDiagnostics = Boolean.parseBoolean(props.getProperty("gpuDiagnostics", String.valueOf(false)));
@@ -224,27 +186,14 @@ public class GeneratedConfig {
         props.setProperty("upscalerMode", String.valueOf(upscalerMode));
         props.setProperty("upscalerQuality", String.valueOf(upscalerQuality));
         props.setProperty("upscalerResOverride", String.valueOf(upscalerResOverride));
-        props.setProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled));
         props.setProperty("eonDiffuse", String.valueOf(eonDiffuse));
-        props.setProperty("greedyMeshingEnabled", String.valueOf(greedyMeshingEnabled));
         props.setProperty("multiScatterGGX", String.valueOf(multiScatterGGX));
-        props.setProperty("noiseLOD", String.valueOf(noiseLOD));
-        props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
-        props.setProperty("ommEnabled", String.valueOf(ommEnabled));
         props.setProperty("pomEnabled", String.valueOf(pomEnabled));
         props.setProperty("pomFadeDistance", String.valueOf(pomFadeDistance));
         props.setProperty("pomHeightScale", String.valueOf(pomHeightScale));
         props.setProperty("pomRefinement", String.valueOf(pomRefinement));
         props.setProperty("pomSteps", String.valueOf(pomSteps));
         props.setProperty("rayBounces", String.valueOf(rayBounces));
-        props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
-        props.setProperty("restirCandidates", String.valueOf(restirCandidates));
-        props.setProperty("restirEnabled", String.valueOf(restirEnabled));
-        props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
-        props.setProperty("restirSpatialRadius", String.valueOf(restirSpatialRadius));
-        props.setProperty("restirSpatialTaps", String.valueOf(restirSpatialTaps));
-        props.setProperty("restirTemporalMClamp", String.valueOf(restirTemporalMClamp));
-        props.setProperty("restirWClamp", String.valueOf(restirWClamp));
         props.setProperty("serEnabled", String.valueOf(serEnabled));
         props.setProperty("serHintsEnabled", String.valueOf(serHintsEnabled));
         props.setProperty("shadowSoftness", String.valueOf(shadowSoftness));
@@ -262,7 +211,6 @@ public class GeneratedConfig {
         props.setProperty("sceneChangeThreshold", String.valueOf(sceneChangeThreshold));
         props.setProperty("Lwhite", String.valueOf(Lwhite));
         props.setProperty("casSharpness", String.valueOf(casSharpness));
-        props.setProperty("colorExpansion", String.valueOf(colorExpansion));
         props.setProperty("psychoEnabled", String.valueOf(psychoEnabled));
         props.setProperty("psychoPeakSDR", String.valueOf(psychoPeakSDR));
         props.setProperty("saturation", String.valueOf(saturation));
@@ -300,14 +248,9 @@ public class GeneratedConfig {
         props.setProperty("offlineDlssEpochLength", String.valueOf(offlineDlssEpochLength));
         props.setProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance));
         props.setProperty("displacementQuality", String.valueOf(displacementQuality));
-        props.setProperty("tessFarDist", String.valueOf(tessFarDist));
-        props.setProperty("tessMaxLevel", String.valueOf(tessMaxLevel));
-        props.setProperty("tessMidDist", String.valueOf(tessMidDist));
-        props.setProperty("tessNearDist", String.valueOf(tessNearDist));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
-        props.setProperty("chunkLodDistance", String.valueOf(chunkLodDistance));
         props.setProperty("diagFlags", String.valueOf(diagFlags));
         props.setProperty("diagLevel", String.valueOf(diagLevel));
         props.setProperty("gpuDiagnostics", String.valueOf(gpuDiagnostics));
@@ -323,27 +266,14 @@ public class GeneratedConfig {
         nativeSetUpscalerMode(upscalerMode, false);
         nativeSetUpscalerQuality(upscalerQuality, false);
         nativeSetUpscalerResOverride(upscalerResOverride, false);
-        nativeSetAreaLightsEnabled(areaLightsEnabled, false);
         nativeSetEonDiffuse(eonDiffuse, false);
-        nativeSetGreedyMeshingEnabled(false, false);
         nativeSetMultiScatterGGX(multiScatterGGX, false);
-        nativeSetNoiseLOD(noiseLOD, false);
-        nativeSetOmmBakerLevel(ommBakerLevel, false);
-        nativeSetOmmEnabled(ommEnabled, false);
         nativeSetPomEnabled(pomEnabled, false);
         nativeSetPomFadeDistance(pomFadeDistance, false);
         nativeSetPomHeightScale(pomHeightScale, false);
         nativeSetPomRefinement(pomRefinement, false);
         nativeSetPomSteps(pomSteps, false);
         nativeSetRayBounces(rayBounces, false);
-        nativeSetRestirBounceEnabled(restirBounceEnabled, false);
-        nativeSetRestirCandidates(restirCandidates, false);
-        nativeSetRestirEnabled(restirEnabled, false);
-        nativeSetRestirSimplifiedBRDF(restirSimplifiedBRDF, false);
-        nativeSetRestirSpatialRadius(restirSpatialRadius, false);
-        nativeSetRestirSpatialTaps(restirSpatialTaps, false);
-        nativeSetRestirTemporalMClamp(restirTemporalMClamp, false);
-        nativeSetRestirWClamp(restirWClamp, false);
         nativeSetSerEnabled(serEnabled, false);
         nativeSetSerHintsEnabled(serHintsEnabled, false);
         nativeSetShadowSoftness(shadowSoftness, false);
@@ -361,7 +291,6 @@ public class GeneratedConfig {
         nativeSetSceneChangeThreshold(sceneChangeThreshold, false);
         nativeSetLwhite(Lwhite, false);
         nativeSetCasSharpness(casSharpness, false);
-        nativeSetColorExpansion(colorExpansion, false);
         nativeSetPsychoEnabled(psychoEnabled, false);
         nativeSetPsychoPeakSDR(psychoPeakSDR, false);
         nativeSetSaturation(saturation, false);
@@ -399,14 +328,9 @@ public class GeneratedConfig {
         nativeSetOfflineDlssEpochLength(offlineDlssEpochLength, false);
         nativeSetOfflineFocalDistance(offlineFocalDistance, false);
         nativeSetDisplacementQuality(displacementQuality, false);
-        nativeSetTessFarDist(tessFarDist, false);
-        nativeSetTessMaxLevel(tessMaxLevel, false);
-        nativeSetTessMidDist(tessMidDist, false);
-        nativeSetTessNearDist(tessNearDist, false);
         nativeSetChunkBuildingBatchSize(chunkBuildingBatchSize, false);
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
         nativeSetChunkCullDistance(chunkCullDistance, false);
-        nativeSetChunkLodDistance(chunkLodDistance, false);
         nativeSetDiagFlags(diagFlags, false);
         nativeSetDiagLevel(diagLevel, false);
         nativeSetGpuDiagnostics(gpuDiagnostics, false);
@@ -421,27 +345,14 @@ public class GeneratedConfig {
     public static native void nativeSetUpscalerMode(int value, boolean write);
     public static native void nativeSetUpscalerQuality(int value, boolean write);
     public static native void nativeSetUpscalerResOverride(int value, boolean write);
-    public static native void nativeSetAreaLightsEnabled(boolean value, boolean write);
     public static native void nativeSetEonDiffuse(boolean value, boolean write);
-    public static native void nativeSetGreedyMeshingEnabled(boolean value, boolean write);
     public static native void nativeSetMultiScatterGGX(boolean value, boolean write);
-    public static native void nativeSetNoiseLOD(boolean value, boolean write);
-    public static native void nativeSetOmmBakerLevel(int value, boolean write);
-    public static native void nativeSetOmmEnabled(boolean value, boolean write);
     public static native void nativeSetPomEnabled(boolean value, boolean write);
     public static native void nativeSetPomFadeDistance(float value, boolean write);
     public static native void nativeSetPomHeightScale(float value, boolean write);
     public static native void nativeSetPomRefinement(int value, boolean write);
     public static native void nativeSetPomSteps(int value, boolean write);
     public static native void nativeSetRayBounces(int value, boolean write);
-    public static native void nativeSetRestirBounceEnabled(boolean value, boolean write);
-    public static native void nativeSetRestirCandidates(int value, boolean write);
-    public static native void nativeSetRestirEnabled(boolean value, boolean write);
-    public static native void nativeSetRestirSimplifiedBRDF(boolean value, boolean write);
-    public static native void nativeSetRestirSpatialRadius(int value, boolean write);
-    public static native void nativeSetRestirSpatialTaps(int value, boolean write);
-    public static native void nativeSetRestirTemporalMClamp(int value, boolean write);
-    public static native void nativeSetRestirWClamp(int value, boolean write);
     public static native void nativeSetSerEnabled(boolean value, boolean write);
     public static native void nativeSetSerHintsEnabled(boolean value, boolean write);
     public static native void nativeSetShadowSoftness(float value, boolean write);
@@ -459,7 +370,6 @@ public class GeneratedConfig {
     public static native void nativeSetSceneChangeThreshold(int value, boolean write);
     public static native void nativeSetLwhite(int value, boolean write);
     public static native void nativeSetCasSharpness(int value, boolean write);
-    public static native void nativeSetColorExpansion(int value, boolean write);
     public static native void nativeSetPsychoEnabled(boolean value, boolean write);
     public static native void nativeSetPsychoPeakSDR(int value, boolean write);
     public static native void nativeSetSaturation(int value, boolean write);
@@ -497,14 +407,9 @@ public class GeneratedConfig {
     public static native void nativeSetOfflineDlssEpochLength(int value, boolean write);
     public static native void nativeSetOfflineFocalDistance(float value, boolean write);
     public static native void nativeSetDisplacementQuality(int value, boolean write);
-    public static native void nativeSetTessFarDist(float value, boolean write);
-    public static native void nativeSetTessMaxLevel(int value, boolean write);
-    public static native void nativeSetTessMidDist(float value, boolean write);
-    public static native void nativeSetTessNearDist(float value, boolean write);
     public static native void nativeSetChunkBuildingBatchSize(int value, boolean write);
     public static native void nativeSetChunkBuildingTotalBatches(int value, boolean write);
     public static native void nativeSetChunkCullDistance(float value, boolean write);
-    public static native void nativeSetChunkLodDistance(float value, boolean write);
     public static native void nativeSetDiagFlags(int value, boolean write);
     public static native void nativeSetDiagLevel(int value, boolean write);
     public static native void nativeSetGpuDiagnostics(boolean value, boolean write);

@@ -255,8 +255,7 @@ public class RadianceUnifiedScreen extends Screen {
 
         // ▼ Surfaces
         TreeNode surfaces = new TreeNode("surfaces", "Surfaces");
-        surfaces.addChild(new TreeNode("materials", "Materials", new MaterialsPopulator()));
-        surfaces.addChild(new TreeNode("entity_materials", "Entity Materials", new EntityMaterialPopulator()));
+        surfaces.addChild(new TreeNode("materials", "Material Lab", new MaterialsPopulator()));
         surfaces.addChild(new TreeNode("emission", "Emission", new UnifiedEmissionPopulator()));
         surfaces.populator = compositePopulator(surfaces.children);
         tree.addRoot(surfaces);
@@ -264,7 +263,6 @@ public class RadianceUnifiedScreen extends Screen {
         // ▼ Lighting
         TreeNode lighting = new TreeNode("lighting", "Lighting");
         lighting.addChild(new TreeNode("exposure", "Exposure", new ExposurePopulator()));
-        lighting.addChild(new TreeNode("area_lights", "Area Lights", new AreaLightPopulator()));
         lighting.addChild(new TreeNode("tone_mapping", "Tone Mapping / HDR",
             compositeOf(new PsychoVPopulator(), new HdrSaturationPopulator())));
         lighting.populator = compositePopulator(lighting.children);

@@ -1,8 +1,9 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
+import com.radiance.client.autopbr.AutoPbrRuntime;
 import com.radiance.client.option.Options;
-import com.radiance.client.proxy.world.BlockModelBridge;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
@@ -76,7 +77,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         List<Map.Entry<Identifier, Sprite>> sorted = new ArrayList<>(regions.entrySet());
         sorted.sort(Comparator.comparing(e -> e.getKey().toString()));
 
-        // Build the sorted identifier list for BlockModelBridge.serializeQuad() to use
+        // Build the sorted identifier list for TextureArrayBridge.serializeQuad() to use
         List<Identifier> sortedIds = new ArrayList<>(sorted.size());
         for (var entry : sorted) {
             sortedIds.add(entry.getKey());
@@ -102,41 +103,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             return;
         }
 
-        BlockModelBridge.sortedSpriteIds = sortedIds;
-        BlockModelBridge.markForReupload(); // Force model table re-serialization with new IDs
-        BlockModelBridge.incrementTextureGeneration(); // Tag new chunk builds with this generation
-
-        // ---- Step 1B: Build spriteId ↔ materialOrdinal mapping for CPU Auto-PBR ----
-        BlockModelBridge.spriteId2MaterialOrdinal.clear();
-        BlockModelBridge.materialOrdinal2SpriteIds.clear();
-        for (int i = 0; i < sortedIds.size(); i++) {
-            int ord = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(sortedIds.get(i).getPath());
-            if (ord >= 0) {
-                BlockModelBridge.spriteId2MaterialOrdinal.put(i, ord);
-                BlockModelBridge.materialOrdinal2SpriteIds
-                    .computeIfAbsent(ord, k -> new java.util.HashSet<>()).add(i);
-            }
-        }
-        LOGGER.info("[TextureSystem] Mapped {} sprites to {} materials",
-            BlockModelBridge.spriteId2MaterialOrdinal.size(),
-            BlockModelBridge.materialOrdinal2SpriteIds.size());
-
-        // ---- Step 1C: Cache per-sprite albedo images for LiveNormalReuploader ----
-        // The atlas-level albedo cache (materialBlockAlbedoCache) is atlas-sized and keyed by
-        // atlas GLID — useless for texture array live re-upload which needs sprite-sized images.
-        // Cache a copy of each material block sprite's NativeImage keyed by spriteId.
-        TextureTracker.clearSpriteAlbedoCache();
-        for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
-            int si = mapEntry.getKey();
-            if (si >= sorted.size()) continue;
-            Sprite sp = sorted.get(si).getValue();
-            NativeImage img = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
-            if (img == null) continue;
-            TextureTracker.spriteAlbedoCache.put(si, img.applyToCopy(i -> i));
-        }
-        LOGGER.info("[TextureSystem] Cached {} sprite albedos for live re-upload",
-            TextureTracker.spriteAlbedoCache.size());
-
+        TextureArrayBridge.setSortedSpriteIds(sortedIds);
+        TextureArrayBridge.incrementTextureGeneration();
         // Detect sprite size (all block sprites should be uniform)
         int spriteSize = 0;
         for (var entry : sorted) {
@@ -148,6 +116,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
         int count = sorted.size();
         int bytesPerSprite = spriteSize * spriteSize * 4; // RGBA8
+        TextureTracker.currentSpriteLayerSize = spriteSize;
 
         TextureTracker.resetSpriteAuxSources(count);
         for (int i = 0; i < count; i++) {
@@ -221,26 +190,19 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 INativeImageExt auxExt = (INativeImageExt) (Object) img;
                 NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
                 NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
-                int ordinal = BlockModelBridge.spriteId2MaterialOrdinal.getOrDefault(i, -1);
-                boolean autoPBRHeight = ordinal >= 0
-                    && Options.materialOverridesEnabled
-                    && Options.autoPBREnabled
-                    && Options.materialAutoPBR[ordinal]
-                    && (Options.materialNormalInputType[ordinal] == Options.MATERIAL_SOURCE_AUTO
-                        || Options.materialNormalInputType[ordinal] == Options.MATERIAL_SOURCE_GENERATED);
                 byte normalSource = TextureTracker.spriteNormalSource[i];
                 boolean authoredHeight = normalSource == TextureTracker.SOURCE_PACK_AUTHORED
                     || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
                 if (specImg != null) flags |= TextureTracker.SPRITE_FLAG_HAS_SPECULAR;
-                if (normalImg != null || autoPBRHeight) flags |= TextureTracker.SPRITE_FLAG_HAS_NORMAL;
-                if ((normalImg != null && authoredHeight) || autoPBRHeight) {
+                if (normalImg != null) flags |= TextureTracker.SPRITE_FLAG_HAS_NORMAL;
+                if (normalImg != null && authoredHeight) {
                     flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
                 }
             }
             metaBuf.putShort(off + 14, (short) flags);
         }
 
-        BlockModelBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
+        TextureArrayBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
         LOGGER.info("[TextureSystem] Sent sprite table: {} entries", count);
 
         // ---- Step 4: Build pixel bulk buffer (frame 0 for each sprite, RGBA8) ----
@@ -259,6 +221,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             int h = contents.getHeight();
 
             if (img != null && w == spriteSize && h == spriteSize) {
+                TextureTracker.spriteAlbedoCache.put(i, copySpriteImage(img, w, h, spriteSize));
                 // Raw copy frame 0 from NativeImage (RGBA8 bytes)
                 long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
                     (Object) img).neoVoxelRT$getPointer();
@@ -266,6 +229,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 memCopy(srcPtr, dstPtr, bytesPerSprite);
                 uploaded++;
             } else if (img != null) {
+                TextureTracker.spriteAlbedoCache.put(i, copySpriteImage(img, w, h, spriteSize));
                 // Size mismatch — extract per-pixel with conversion
                 long dstBase = memAddress(pixelBuf) + (long) i * bytesPerSprite;
                 extractPixelsManual(img, w, h, spriteSize, dstBase);
@@ -277,14 +241,16 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             if (imgH > h) animatedCount++;
         }
 
-        BlockModelBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), count * bytesPerSprite);
+        TextureArrayBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), count * bytesPerSprite);
         LOGGER.info("[TextureSystem] Sent {} sprite pixels ({} KB), {} animated",
             uploaded, (count * bytesPerSprite) / 1024, animatedCount);
 
-        // ---- Step 4B: Build specular + normal pixel buffers for texture arrays ----
+        // ---- Step 4B: Build specular + normal + flag pixel buffers for texture arrays ----
         ByteBuffer specPixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
             .order(ByteOrder.nativeOrder());
         ByteBuffer normalPixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
+            .order(ByteOrder.nativeOrder());
+        ByteBuffer flagPixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
             .order(ByteOrder.nativeOrder());
 
         // Fill normal default: (128, 128, 255, 255) = flat normal, AO=1.0, height=1.0
@@ -300,7 +266,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
         // Specular default is all zeros (roughness=1.0, F0=0.02) — already zeroed by allocateDirect
 
-        int specCount = 0, normalCount = 0;
+        int specCount = 0, normalCount = 0, flagCount = 0;
         for (int i = 0; i < count; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
@@ -314,6 +280,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             // Specular (_s) texture
             NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
             if (specImg != null) {
+                TextureTracker.spriteSpecularCache.put(i,
+                    copySpriteImage(specImg, specImg.getWidth(), specImg.getHeight(), spriteSize));
                 long dstPtr = memAddress(specPixelBuf) + (long) i * bytesPerSprite;
                 int specW = specImg.getWidth();
                 int specH = specImg.getHeight();
@@ -330,6 +298,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             // Normal (_n) texture
             NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
             if (normalImg != null) {
+                TextureTracker.spriteNormalCache.put(i,
+                    copySpriteImage(normalImg, normalImg.getWidth(), normalImg.getHeight(), spriteSize));
                 long dstPtr = memAddress(normalPixelBuf) + (long) i * bytesPerSprite;
                 int normW = normalImg.getWidth();
                 int normH = normalImg.getHeight();
@@ -342,102 +312,29 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 }
                 normalCount++;
             }
+
+            NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
+            if (flagImg != null) {
+                TextureTracker.spriteFlagCache.put(i,
+                    copySpriteImage(flagImg, flagImg.getWidth(), flagImg.getHeight(), spriteSize));
+                long dstPtr = memAddress(flagPixelBuf) + (long) i * bytesPerSprite;
+                int flagW = flagImg.getWidth();
+                int flagH = flagImg.getHeight();
+                if (flagW == spriteSize && flagH == spriteSize) {
+                    long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                        (Object) flagImg).neoVoxelRT$getPointer();
+                    memCopy(srcPtr, dstPtr, bytesPerSprite);
+                } else {
+                    extractPixelsManual(flagImg, flagW, flagH, spriteSize, dstPtr);
+                }
+                flagCount++;
+            }
         }
 
-        // ---- Step 4C: CPU-bake Auto-PBR specular for registered material blocks ----
-        // Overwrite zeroed (generated) specular data with real roughness computed from albedo luminance.
-        // Do NOT overwrite pack-authored specular textures — those contain hand-tuned metal indices
-        // and F0 values that the CPU bake would destroy (hardcoding green=10, F0≈0.039).
-        int bakedCount = 0;
-        for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
-            int si = mapEntry.getKey();
-            int ordinal = mapEntry.getValue();
-            if (!com.radiance.client.option.Options.materialOverridesEnabled) continue;
-            if (!com.radiance.client.option.Options.autoPBREnabled) continue;
-            if (!com.radiance.client.option.Options.materialAutoPBR[ordinal]) continue;
-            if (com.radiance.client.option.Options.materialSpecularInputType[ordinal] != 0) continue;
-            // Skip transmissive blocks — roughness handled by material class slider
-            if (com.radiance.client.option.Options.materialTransmission[ordinal] > 0) continue;
-            if (si >= count) continue;
-            // Skip blocks with pack-authored specular — CPU bake would overwrite metal indices
-            if (com.radiance.client.texture.TextureTracker.spriteSpecularSource[si]
-                    == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED) continue;
-
-            Sprite sp = sorted.get(si).getValue();
-            NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
-            if (albedo == null) continue;
-            int sw = sp.getContents().getWidth();
-            int sh = sp.getContents().getHeight();
-            if (sw != spriteSize || sh != spriteSize) continue;
-
-            NativeImage specBaked = com.radiance.client.texture.AutoPBRGenerator.generateSpecularPercentile(
-                albedo,
-                com.radiance.client.option.Options.materialAutoPBRRoughnessMin[ordinal],
-                com.radiance.client.option.Options.materialAutoPBRRoughnessMax[ordinal],
-                com.radiance.client.option.Options.materialPercentileCenter[ordinal],
-                com.radiance.client.option.Options.materialPercentileSpread[ordinal],
-                (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 1) != 0);
-
-            long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                (Object) specBaked).neoVoxelRT$getPointer();
-            long dstPtr = memAddress(specPixelBuf) + (long) si * bytesPerSprite;
-            memCopy(srcPtr, dstPtr, bytesPerSprite);
-            specBaked.close();
-            bakedCount++;
-        }
-        if (bakedCount > 0) {
-            LOGGER.info("[TextureSystem] CPU-baked {} Auto-PBR specular sprites", bakedCount);
-        }
-
-        // ---- Step 4D: Re-bake Auto-PBR normals with neutral strength for texture arrays ----
-        // The shader applies runtime normal strength (pack5.w), so baked normals must use
-        // strength=1.0 (100) to avoid double-application. Preserves invertNormal/invertHeight.
-        int normalBakedCount = 0;
-        for (var mapEntry : BlockModelBridge.spriteId2MaterialOrdinal.entrySet()) {
-            int si = mapEntry.getKey();
-            int ordinal = mapEntry.getValue();
-            if (!com.radiance.client.option.Options.materialOverridesEnabled) continue;
-            if (!com.radiance.client.option.Options.autoPBREnabled) continue;
-            if (!com.radiance.client.option.Options.materialAutoPBR[ordinal]) continue;
-            if (com.radiance.client.option.Options.materialNormalInputType[ordinal] != 0) continue;
-        if (si >= count) continue;
-        // Skip blocks with pack-authored normals — CPU bake would overwrite hand-tuned normals
-        if (com.radiance.client.texture.TextureTracker.spriteNormalSource[si]
-                == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED
-            || com.radiance.client.texture.TextureTracker.spriteNormalSource[si]
-                == com.radiance.client.texture.TextureTracker.SOURCE_USER_CUSTOM) continue;
-
-        Sprite sp = sorted.get(si).getValue();
-        NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();
-        if (albedo == null) continue;
-        int sw = sp.getContents().getWidth();
-        int sh = sp.getContents().getHeight();
-        if (sw != spriteSize || sh != spriteSize) continue;
-
-        NativeImage normalBaked = com.radiance.client.texture.AutoPBRGenerator.generateNormal(
-                albedo,
-                100, // neutral strength — shader applies runtime value from pack5.w
-                (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 2) != 0,
-                com.radiance.client.option.Options.materialAutoPBRHeightGamma[ordinal],
-                (com.radiance.client.option.Options.materialAutoPBRFlags[ordinal] & 4) != 0,
-                com.radiance.client.texture.AutoPBRGenerator.HeightParams.fromOptions(ordinal),
-                com.radiance.client.option.Options.materialPomAOStrength[ordinal]);
-
-            long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                (Object) normalBaked).neoVoxelRT$getPointer();
-            long dstPtr = memAddress(normalPixelBuf) + (long) si * bytesPerSprite;
-            memCopy(srcPtr, dstPtr, bytesPerSprite);
-            normalBaked.close();
-            normalBakedCount++;
-        }
-        if (normalBakedCount > 0) {
-            LOGGER.info("[TextureSystem] CPU-baked {} Auto-PBR normal sprites (neutral strength)", normalBakedCount);
-        }
-
-        BlockModelBridge.nativeReceiveSpriteAuxPixels(
-            memAddress(specPixelBuf), memAddress(normalPixelBuf), count * bytesPerSprite);
-        LOGGER.info("[TextureSystem] Sent aux pixels: {} specular, {} normal ({} KB each)",
-            specCount, normalCount, (count * bytesPerSprite) / 1024);
+        TextureArrayBridge.nativeReceiveSpriteAuxPixels(
+            memAddress(specPixelBuf), memAddress(normalPixelBuf), memAddress(flagPixelBuf), count * bytesPerSprite);
+        LOGGER.info("[TextureSystem] Sent aux pixels: {} specular, {} normal, {} flags ({} KB each)",
+            specCount, normalCount, flagCount, (count * bytesPerSprite) / 1024);
 
         // ---- Step 5: Build animation frame data ----
         // Format: [spriteId(u16), frameIndex(u16), pixels(w*h*4)] repeated
@@ -501,17 +398,21 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 }
             }
 
-            BlockModelBridge.nativeReceiveAnimationFrames(memAddress(animBuf), animOffset);
+            TextureArrayBridge.nativeReceiveAnimationFrames(memAddress(animBuf), animOffset);
             LOGGER.info("[TextureSystem] Sent {} bytes of animation data", animOffset);
         } else {
             // No animations — send empty
-            BlockModelBridge.nativeReceiveAnimationFrames(0, 0);
+            TextureArrayBridge.nativeReceiveAnimationFrames(0, 0);
         }
 
         // ---- Step 6: Finalize ----
-        BlockModelBridge.nativeTextureFinalize();
-        BlockModelBridge.publishTextureGeneration();
+        TextureArrayBridge.nativeTextureFinalize();
+        TextureArrayBridge.publishTextureGeneration();
         MinecraftClient mc = MinecraftClient.getInstance();
+        AutoPbrRuntime.RehydrateReport autoPbrReport = AutoPbrRuntime.rehydrateSavedSidecars(mc);
+        if (autoPbrReport.discovered() > 0) {
+            LOGGER.info("[TextureSystem] Material Lab recipes applied after finalize: {}", autoPbrReport);
+        }
         if (mc != null && mc.world != null && mc.worldRenderer != null) {
             try {
                 Options.nativeRebuildChunks();
@@ -540,5 +441,17 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 org.lwjgl.system.MemoryUtil.memPutByte(dstPtr + offset + 3, (byte) ((argb >> 24) & 0xFF)); // A
             }
         }
+    }
+
+    private static NativeImage copySpriteImage(NativeImage img, int srcW, int srcH, int dstSize) {
+        NativeImage copy = new NativeImage(NativeImage.Format.RGBA, dstSize, dstSize, false);
+        int copyW = Math.min(srcW, dstSize);
+        int copyH = Math.min(srcH, dstSize);
+        for (int y = 0; y < copyH; y++) {
+            for (int x = 0; x < copyW; x++) {
+                copy.setColorArgb(x, y, img.getColorArgb(x, y));
+            }
+        }
+        return copy;
     }
 }

@@ -1,12 +1,12 @@
 package com.radiance.client.debug;
 
 import com.radiance.client.RadianceClient;
-import com.radiance.client.material.BlockTypeIdRegistry;
+import com.radiance.client.autopbr.AutoPbrRuntime;
+import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.RendererProxy;
-import com.radiance.client.proxy.world.BlockModelBridge;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
-import com.radiance.client.util.MaterialBlock;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,7 +41,7 @@ import net.minecraft.util.math.random.Random;
  *
  * Pressing the bound key writes a stable report for the current crosshair target,
  * so visual bugs can be tied to exact block state, material settings, sprite IDs,
- * native sprite-entry data, and the shader's inferred height-source path.
+ * native sprite-entry data, and the inferred shader height-field path.
  */
 public final class DebugInspectReporter {
     private static final DateTimeFormatter FILE_TIME =
@@ -173,12 +173,15 @@ public final class DebugInspectReporter {
         sb.append("depthCapBlocks=").append(fmt(Options.displacementDepthCapPercent / 100.0)).append('\n');
         sb.append("quality=").append(Options.displacementQuality)
             .append(" (").append(Options.displacementQualityName(Options.displacementQuality)).append(")\n");
-        sb.append("primarySteps=").append(Options.displacementSteps).append('\n');
-        sb.append("refinement=").append(Options.displacementRefinement).append('\n');
-        sb.append("secondarySteps=").append(Math.max(8, Options.displacementSteps / 2)).append('\n');
+        sb.append("proxyGeometry=disabled\n");
+        sb.append("shaderDDA=enabled_when_renderer_variant_allows\n");
         sb.append("fadeDistanceBlocks=").append(Options.displacementFadeDistance).append('\n');
-        sb.append("autoPBREnabled=").append(Options.autoPBREnabled).append('\n');
-        sb.append("materialOverridesEnabled=").append(Options.materialOverridesEnabled).append('\n');
+        sb.append("heightSource=authored_normal_alpha_only\n");
+        sb.append("displacementPath=shader_height_field\n");
+        sb.append("generatedDisplacement=removed\n");
+        sb.append("lastSidecarRehydrate=").append(AutoPbrRuntime.lastRehydrateReport()).append('\n');
+        sb.append("spriteProvenanceCounts=").append(AutoPbrRuntime.spriteProvenanceCounts()).append('\n');
+        sb.append("textureRuleSource=Material Lab recipes and default texture rules\n");
         sb.append('\n');
     }
 
@@ -199,9 +202,6 @@ public final class DebugInspectReporter {
         sb.append("opaqueFullCube=").append(safeBool(() -> state.isOpaqueFullCube())).append('\n');
         sb.append("solidBlock=").append(safeBool(() -> state.isSolidBlock(client.world, pos))).append('\n');
         sb.append("fluidState=").append(state.getFluidState()).append('\n');
-        sb.append("blockTypeId=").append(BlockTypeIdRegistry.getBlockTypeId(state.getBlock())).append('\n');
-        sb.append("packedBlockTypeId=").append(BlockTypeIdRegistry.getPackedBlockTypeId(state.getBlock())).append('\n');
-        sb.append("thinCutoutPlant=").append(BlockTypeIdRegistry.isThinCutoutPlant(state.getBlock())).append('\n');
         try {
             sb.append("biome=").append(client.world.getBiome(pos).getKey()
                 .map(key -> key.getValue().toString()).orElse("unknown")).append('\n');
@@ -212,59 +212,14 @@ public final class DebugInspectReporter {
     }
 
     private static void appendMaterial(StringBuilder sb, BlockState state) {
-        int ordinal = MaterialBlock.getOrdinalForBlock(state.getBlock());
-        sb.append("Material\n");
-        sb.append("--------\n");
-        sb.append("blockMaterialOrdinal=").append(ordinal).append('\n');
-        if (ordinal < 0 || ordinal >= Options.MAX_MATERIALS) {
-            sb.append("materialStatus=unmapped\n\n");
-            return;
-        }
-        sb.append("materialId=").append(MaterialBlock.getIdForOrdinal(ordinal)).append('\n');
-        sb.append("materialDisplayName=").append(MaterialBlock.getDisplayNameForOrdinal(ordinal)).append('\n');
-        sb.append("materialClass=").append(MaterialBlock.getMaterialClassForOrdinal(ordinal)).append('\n');
-        boolean thinPlantMaterial = MaterialBlock.isThinCutoutPlantMaterialOrdinal(ordinal);
-        sb.append("thinPlantMaterial=").append(thinPlantMaterial).append('\n');
-        if (thinPlantMaterial) {
-            sb.append("thinPlantShaderLocks=displacementOff,autoPBROff,normalMapsOff,metallicOff,transmissionOff,coatOff\n");
-            sb.append("thinPlantRoughness=").append(Options.materialRoughness[ordinal]).append('\n');
-            sb.append("thinPlantFill=").append(Options.materialSubsurface[ordinal]).append('\n');
-            sb.append("thinPlantBrightness=").append(Options.materialGamutBoost[ordinal]).append('\n');
-            sb.append("thinPlantShadow=").append(Options.materialNormalStrength[ordinal]).append('\n');
-        }
-        sb.append("autoPBR=").append(Options.materialAutoPBR[ordinal]).append('\n');
-        sb.append("effectiveAutoPBR=")
-            .append(Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[ordinal]).append('\n');
-        sb.append("roughness=").append(Options.materialRoughness[ordinal]).append('\n');
-        sb.append("roughnessBlend=").append(Options.materialRoughnessBlend[ordinal]).append('\n');
-        sb.append("specularInputType=").append(Options.materialSpecularInputType[ordinal]).append('\n');
-        sb.append("normalInputType=").append(Options.materialNormalInputType[ordinal]).append('\n');
-        sb.append("displacementMode=").append(modeName(Options.materialPomMode[ordinal]))
-            .append(" (").append(Options.materialPomMode[ordinal]).append(")\n");
-        sb.append("displacementDepthOverrideBlocks=")
-            .append(fmt(Options.materialPomDepth[ordinal] / 100.0)).append('\n');
-        sb.append("heightSource=").append(heightSourceName(Options.materialHeightSource[ordinal]))
-            .append(" (").append(Options.materialHeightSource[ordinal]).append(")\n");
-        sb.append("heightFilter=").append(filterName(Options.materialHeightFilter[ordinal]))
-            .append(" (").append(Options.materialHeightFilter[ordinal]).append(")\n");
-        sb.append("filterRadius=").append(Options.materialFilterRadius[ordinal]).append('\n');
-        sb.append("mipBias=").append(Options.materialMipBias[ordinal]).append('\n');
-        sb.append("heightRemapMin=").append(Options.materialHeightRemapMin[ordinal]).append('\n');
-        sb.append("heightRemapMax=").append(Options.materialHeightRemapMax[ordinal]).append('\n');
-        sb.append("heightContrast=").append(Options.materialHeightContrast[ordinal]).append('\n');
-        sb.append("heightOffset=").append(Options.materialHeightOffset[ordinal]).append('\n');
-        sb.append("selfShadow=").append(Options.materialDisplacementSelfShadow[ordinal]).append('\n');
-        sb.append("autoPBRHeightGamma=").append(Options.materialAutoPBRHeightGamma[ordinal]).append('\n');
-        sb.append("autoPBRFlags=").append(Options.materialAutoPBRFlags[ordinal])
-            .append(" (invertRoughness=").append((Options.materialAutoPBRFlags[ordinal] & 1) != 0)
-            .append(", invertNormal=").append((Options.materialAutoPBRFlags[ordinal] & 2) != 0)
-            .append(", invertHeight=").append((Options.materialAutoPBRFlags[ordinal] & 4) != 0)
-            .append(")\n");
-        sb.append("effectiveAutoPBRFlagForShader=")
-            .append(Options.materialOverridesEnabled && Options.autoPBREnabled && Options.materialAutoPBR[ordinal]).append('\n');
+        sb.append("Material Lab\n");
+        sb.append("------------\n");
+        sb.append("ruleIdentity=texture_sprite\n");
+        sb.append("categoryMaterials=removed\n");
+        sb.append("authoredPbrPriority=_s/_n/_f_first\n");
+        sb.append("generatedHeightDisplacement=removed\n");
         sb.append('\n');
     }
-
     private static void appendModelQuads(StringBuilder sb, MinecraftClient client, BlockState state,
                                          Direction hitSide, Map<Integer, SpriteCsvRow> spriteRows) {
         sb.append("Model Quads\n");
@@ -304,12 +259,7 @@ public final class DebugInspectReporter {
                                    BakedQuad quad, Map<Integer, SpriteCsvRow> spriteRows) {
         Sprite sprite = quad.getSprite();
         Identifier spriteId = sprite == null ? null : sprite.getContents().getId();
-        int spriteIndex = spriteId == null ? -1 : BlockModelBridge.sortedSpriteIds.indexOf(spriteId);
-        int blockMaterial = MaterialBlock.getOrdinalForBlock(state.getBlock());
-        int textureMaterial = spriteId == null ? -1 : MaterialBlock.getOrdinalForTexture(spriteId.getPath());
-        int mappedMaterial = spriteIndex >= 0
-            ? BlockModelBridge.spriteId2MaterialOrdinal.getOrDefault(spriteIndex, -1)
-            : -1;
+        int spriteIndex = spriteId == null ? -1 : TextureArrayBridge.sortedSpriteIds.indexOf(spriteId);
         SpriteCsvRow row = spriteRows.get(spriteIndex);
 
         sb.append("  quad cullFace=").append(cullFace == null ? "unculled" : cullFace.asString());
@@ -318,14 +268,23 @@ public final class DebugInspectReporter {
         sb.append(" hasTint=").append(quad.hasTint());
         sb.append(" shade=").append(quad.hasShade()).append('\n');
         sb.append("    sprite=").append(spriteId == null ? "null" : spriteId).append('\n');
-        sb.append("    spriteIndex=").append(spriteIndex)
-            .append(" blockMaterial=").append(materialName(blockMaterial))
-            .append(" textureMaterial=").append(materialName(textureMaterial))
-            .append(" mappedMaterial=").append(materialName(mappedMaterial)).append('\n');
+        sb.append("    spriteIndex=").append(spriteIndex).append('\n');
         appendQuadUvBounds(sb, quad);
         if (spriteIndex >= 0) {
             sb.append("    javaAux normalSource=").append(sourceName(TextureTracker.spriteNormalSource, spriteIndex))
                 .append(" specularSource=").append(sourceName(TextureTracker.spriteSpecularSource, spriteIndex))
+                .append('\n');
+            sb.append("    javaSpriteProvenance=")
+                .append(AutoPbrTextureCatalog.spriteProvenance(spriteIndex).compact())
+                .append('\n');
+            sb.append("    javaSpriteSourceFlags=0x")
+                .append(Integer.toHexString(AutoPbrTextureCatalog.spriteSourceFlags(spriteIndex)))
+                .append('\n');
+            sb.append("    autoPbrTextureRule=")
+                .append(AutoPbrRuntime.textureRuleSummary(spriteIndex))
+                .append('\n');
+            sb.append("    javaDisplacementEligibility=")
+                .append(AutoPbrTextureCatalog.displacementEligibility(spriteIndex).compact())
                 .append('\n');
         }
         if (row == null) {
@@ -335,8 +294,9 @@ public final class DebugInspectReporter {
                 .append(" hasHeight=").append((row.flags & SPRITE_FLAG_HAS_HEIGHT) != 0)
                 .append(" specLayer=").append(row.specLayer)
                 .append(" normalLayer=").append(row.normalLayer)
-                .append(" maskLayer=").append(row.maskLayer)
-                .append(" heightRange=").append(fmt(row.heightRange))
+                .append(" overlaySprite=").append(row.overlaySprite)
+                .append(" heightRangePacked=").append(row.heightRangePacked)
+                .append(" heightRangeAlpha=").append(formatHeightRange(row.heightRangePacked))
                 .append(" atlas=").append(row.atlasX).append(',').append(row.atlasY)
                 .append(" size=").append(row.width).append('x').append(row.height)
                 .append(" frames=").append(row.frames)
@@ -347,7 +307,10 @@ public final class DebugInspectReporter {
                 .append('\n');
         }
         sb.append("    inferredShaderHeightSource=")
-            .append(inferShaderHeightSource(blockMaterial, spriteIndex, row))
+            .append(inferShaderHeightSource(state, spriteIndex, row))
+            .append('\n');
+        sb.append("    shaderDisplacementGates=")
+            .append(displacementGateSummary(state, spriteIndex, row))
             .append('\n');
     }
 
@@ -372,29 +335,53 @@ public final class DebugInspectReporter {
             .append("]\n");
     }
 
-    private static String inferShaderHeightSource(int materialOrdinal, int spriteIndex, SpriteCsvRow row) {
+    private static String inferShaderHeightSource(BlockState state, int spriteIndex, SpriteCsvRow row) {
         if (!Options.displacementEnabled) return "flat:global_disabled";
         if (Options.displacementDepthCapPercent <= 0) return "flat:zero_global_depth";
-        if (materialOrdinal < 0 || materialOrdinal >= Options.MAX_MATERIALS) return "flat:no_material";
-        int mode = Options.materialPomMode[materialOrdinal];
-        if (mode == 1) return "flat:material_off";
-        if (mode == 2 && Options.materialPomDepth[materialOrdinal] <= 0) return "flat:custom_zero_depth";
+        if (state.getFluidState() != null && !state.getFluidState().isEmpty()) return "flat:fluid_geometry";
+        if (state.getRenderType() != BlockRenderType.MODEL) return "flat:not_model_geometry";
+        AutoPbrTextureCatalog.DisplacementEligibility javaEligibility =
+            AutoPbrTextureCatalog.displacementEligibility(spriteIndex);
+        if (!javaEligibility.eligible()) return "flat:java_" + javaEligibility.reason();
         if (row == null) return "flat:no_native_sprite_entry";
 
-        boolean hasNativeHeight = row.normalLayer >= 0
-            && (row.flags & SPRITE_FLAG_HAS_HEIGHT) != 0
-            && row.maskLayer >= 0;
-        if (hasNativeHeight) {
-            return "normal_alpha:labpbr_or_generated_height";
-        }
+        if (row.normalLayer < 0) return "flat:no_normal_layer";
+        if ((row.flags & SPRITE_FLAG_HAS_HEIGHT) == 0) return "flat:no_height_flag";
+        int normalSource = spriteNormalSource(row);
+        boolean authored = normalSource == TextureTracker.SOURCE_PACK_AUTHORED
+            || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
+        if (!authored) return "flat:normal_source_" + sourceName(normalSource);
 
-        boolean shaderAutoPbr = Options.materialOverridesEnabled
-            && Options.autoPBREnabled
-            && Options.materialAutoPBR[materialOrdinal];
-        if (shaderAutoPbr) {
-            return "autopbr_albedo:normal_alpha_unavailable";
+        StringBuilder status = new StringBuilder("shader_pixel:authored_normal_alpha");
+        if (row.heightRangePacked < 0) {
+            status.append(":uniform_or_unreported_alpha_range");
+        } else {
+            status.append(":range=").append(formatHeightRange(row.heightRangePacked));
         }
-        return "flat:no_normal_alpha_and_autopbr_disabled";
+        return status.toString();
+    }
+
+    private static String displacementGateSummary(BlockState state, int spriteIndex, SpriteCsvRow row) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("global=").append(Options.displacementEnabled);
+        sb.append(" depthCapBlocks=").append(fmt(Options.displacementDepthCapPercent / 100.0));
+        sb.append(" renderType=").append(state.getRenderType());
+        sb.append(" fluid=").append(state.getFluidState() != null && !state.getFluidState().isEmpty());
+        sb.append(" java=").append(AutoPbrTextureCatalog.displacementEligibility(spriteIndex).reason());
+        if (row == null) {
+            sb.append(" native=no_sprite_entry");
+        } else {
+            sb.append(" nativeNormalLayer=").append(row.normalLayer);
+            sb.append(" nativeHasHeight=").append((row.flags & SPRITE_FLAG_HAS_HEIGHT) != 0);
+            sb.append(" nativeNormalSource=").append(sourceName(spriteNormalSource(row)));
+            sb.append(" nativeHeightRange=").append(formatHeightRange(row.heightRangePacked));
+        }
+        sb.append(" remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance");
+        return sb.toString();
+    }
+
+    private static int spriteNormalSource(SpriteCsvRow row) {
+        return (row.flags >> 5) & 0x3;
     }
 
     private static String requestNativeTextureDump() {
@@ -424,7 +411,7 @@ public final class DebugInspectReporter {
                 String line = lines.get(i);
                 if (line.isBlank()) continue;
                 String[] p = line.split(",", -1);
-                if (p.length < 15) continue;
+                if (p.length < 14) continue;
                 int spriteId = parseInt(p[0], -1);
                 if (spriteId < 0) continue;
                 rows.put(spriteId, new SpriteCsvRow(
@@ -437,7 +424,7 @@ public final class DebugInspectReporter {
                     parseInt(p[7], -1),
                     parseInt(p[8], -1),
                     parseInt(p[9], -1),
-                    parseDouble(p[10], -1.0),
+                    parseInt(p[10], -1),
                     p[11],
                     p[12],
                     p[13]));
@@ -482,52 +469,26 @@ public final class DebugInspectReporter {
         }
     }
 
-    private static String materialName(int ordinal) {
-        if (ordinal < 0 || ordinal >= Options.MAX_MATERIALS) return "none(" + ordinal + ")";
-        return MaterialBlock.getIdForOrdinal(ordinal) + "(" + ordinal + ")";
-    }
-
-    private static String modeName(int mode) {
-        return switch (mode) {
-            case 0 -> "Inherit";
-            case 1 -> "Off";
-            case 2 -> "Custom";
-            default -> "Unknown";
-        };
-    }
-
-    private static String heightSourceName(int source) {
-        return switch (source) {
-            case 0 -> "Luminance";
-            case 1 -> "Red";
-            case 2 -> "Green";
-            case 3 -> "Blue";
-            case 4 -> "Alpha";
-            case 5 -> "MaxRGB";
-            case 6 -> "MinRGB";
-            case 7 -> "Custom";
-            default -> "Unknown";
-        };
-    }
-
-    private static String filterName(int filter) {
-        return switch (filter) {
-            case 0 -> "Nearest";
-            case 1 -> "Bilinear";
-            case 2 -> "Smooth";
-            default -> "Unknown";
-        };
-    }
-
     private static String sourceName(byte[] sources, int index) {
         if (index < 0 || index >= sources.length) return "out_of_range";
-        return switch (sources[index]) {
+        return sourceName(sources[index]);
+    }
+
+    private static String sourceName(int source) {
+        return switch (source) {
             case TextureTracker.SOURCE_GENERATED -> "generated";
             case TextureTracker.SOURCE_PACK_AUTHORED -> "pack_authored";
             case TextureTracker.SOURCE_USER_CUSTOM -> "user_custom";
             case TextureTracker.SOURCE_FLAT -> "flat";
-            default -> "unknown_" + sources[index];
+            default -> "unknown_" + source;
         };
+    }
+
+    private static String formatHeightRange(int packed) {
+        if (packed < 0) return "none";
+        int minAlpha = packed & 0xFF;
+        int maxAlpha = (packed >>> 8) & 0xFF;
+        return minAlpha + ".." + maxAlpha;
     }
 
     private static String formatVec(Vec3d vec) {
@@ -546,17 +507,9 @@ public final class DebugInspectReporter {
         }
     }
 
-    private static double parseDouble(String value, double fallback) {
-        try {
-            return Double.parseDouble(value.trim());
-        } catch (Exception ignored) {
-            return fallback;
-        }
-    }
-
     private record SpriteCsvRow(int atlasX, int atlasY, int width, int height, int frames,
-                                int flags, int specLayer, int normalLayer, int maskLayer,
-                                double heightRange, String albedoHash, String specHash,
+                                int flags, int specLayer, int normalLayer, int overlaySprite,
+                                int heightRangePacked, String albedoHash, String specHash,
                                 String normalHash) {
     }
 

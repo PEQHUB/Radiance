@@ -34,7 +34,6 @@
     "vulkan_render_integration.CameraAccessorMixin",
     "vulkan_render_integration.BlockColorsMixins",
     "vulkan_render_integration.BlockModelRendererMixins",
-    "vulkan_render_integration.BlockShouldDrawSideMixin",
     "vulkan_render_integration.BufferRendererMixins",
     "vulkan_render_integration.BuiltBufferMixins",
     "vulkan_render_integration.BuiltChunkStorageMixins",

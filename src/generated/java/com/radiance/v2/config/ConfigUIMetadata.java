@@ -46,66 +46,30 @@ public class ConfigUIMetadata {
         ALL.add(new OptionMeta("upscalerResOverride", "options.video.category.upscaler", ControlType.SLIDER,
             "Manual resolution scale override (only when quality = Custom)", RestartScope.PIPELINE,
             33, 100, 1, null, false));
-        ALL.add(new OptionMeta("areaLightsEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "Enable area light evaluation in RT shaders", RestartScope.NONE,
-            0, 0, 0, null, false));
         ALL.add(new OptionMeta("eonDiffuse", "options.video.category.ray_tracing", ControlType.TOGGLE,
             "EON diffuse BRDF (replaces Lambertian)", RestartScope.NONE,
             0, 0, 0, null, false));
         ALL.add(new OptionMeta("multiScatterGGX", "options.video.category.ray_tracing", ControlType.TOGGLE,
             "Multi-scatter GGX energy compensation (Kulla-Conty)", RestartScope.NONE,
             0, 0, 0, null, false));
-        ALL.add(new OptionMeta("noiseLOD", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "Noise-based LOD for distant surfaces", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("ommBakerLevel", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "OMM subdivision level (higher = more precise, more memory)", RestartScope.RENDERER,
-            1, 8, 1, null, false));
-        ALL.add(new OptionMeta("ommEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "Opacity Micro-Maps for alpha-tested geometry", RestartScope.RENDERER,
-            0, 0, 0, null, true));
         ALL.add(new OptionMeta("pomEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "Enable parallax occlusion mapping", RestartScope.NONE,
+            "Enable height-field geometry displacement", RestartScope.NONE,
             0, 0, 0, null, false));
         ALL.add(new OptionMeta("pomFadeDistance", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "POM fade distance in blocks", RestartScope.NONE,
+            "Height-field fade distance in blocks", RestartScope.NONE,
             8.0, 256.0, 8.0, null, false));
         ALL.add(new OptionMeta("pomHeightScale", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "Parallax occlusion mapping height scale", RestartScope.NONE,
+            "Height-field depth scale", RestartScope.NONE,
             0.0, 1.0, 0.01, null, false));
         ALL.add(new OptionMeta("pomRefinement", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "POM binary search refinement steps", RestartScope.NONE,
+            "Height-field surface refinement steps", RestartScope.NONE,
             0, 16, 1, null, false));
         ALL.add(new OptionMeta("pomSteps", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "POM max ray march steps", RestartScope.NONE,
+            "Height-field primary trace steps", RestartScope.NONE,
             4, 128, 4, null, false));
         ALL.add(new OptionMeta("rayBounces", "options.video.category.ray_tracing", ControlType.SLIDER,
             "Maximum ray bounce depth", RestartScope.NONE,
             1, 12, 1, null, false));
-        ALL.add(new OptionMeta("restirBounceEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "ReSTIR bounce light resampling", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("restirCandidates", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "RIS candidate count for ReSTIR", RestartScope.NONE,
-            1, 32, 1, null, false));
-        ALL.add(new OptionMeta("restirEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "ReSTIR Direct Illumination", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("restirSimplifiedBRDF", "options.video.category.ray_tracing", ControlType.TOGGLE,
-            "Simplified BRDF for ReSTIR evaluation", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("restirSpatialRadius", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "Spatial reuse radius in pixels for ReSTIR DI", RestartScope.NONE,
-            1, 64, 1, null, false));
-        ALL.add(new OptionMeta("restirSpatialTaps", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "Number of spatial neighbor taps for ReSTIR DI", RestartScope.NONE,
-            0, 8, 1, null, false));
-        ALL.add(new OptionMeta("restirTemporalMClamp", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "Temporal M-clamping for ReSTIR", RestartScope.NONE,
-            0, 100, 1, null, false));
-        ALL.add(new OptionMeta("restirWClamp", "options.video.category.ray_tracing", ControlType.SLIDER,
-            "W-clamping for ReSTIR", RestartScope.NONE,
-            0, 1000, 10, null, false));
         ALL.add(new OptionMeta("serEnabled", "options.video.category.ray_tracing", ControlType.TOGGLE,
             "Shader Execution Reordering (NV hardware feature)", RestartScope.NONE,
             0, 0, 0, null, false));
@@ -157,9 +121,6 @@ public class ConfigUIMetadata {
         ALL.add(new OptionMeta("casSharpness", "options.video.category.tonemapping", ControlType.SLIDER,
             "CAS/RCAS sharpening intensity", RestartScope.NONE,
             0.0, 1.0, 0.01, null, false));
-        ALL.add(new OptionMeta("colorExpansion", "options.video.category.tonemapping", ControlType.SLIDER,
-            "Gamut expansion strength", RestartScope.NONE,
-            0.0, 2.0, 0.01, null, false));
         ALL.add(new OptionMeta("psychoEnabled", "options.video.category.tonemapping", ControlType.TOGGLE,
             "Enable PsychoV psychophysical tone mapping", RestartScope.NONE,
             0, 0, 0, null, false));
@@ -271,18 +232,6 @@ public class ConfigUIMetadata {
         ALL.add(new OptionMeta("displacementQuality", "options.video.category.displacement", ControlType.SLIDER,
             "Displacement mapping quality (0=off, 1=DDA, 2=Tessellation, 3=Hybrid, 4=CLAS)", RestartScope.NONE,
             0, 4, 1, null, false));
-        ALL.add(new OptionMeta("tessFarDist", "options.video.category.displacement", ControlType.SLIDER,
-            "Distance for quarter tessellation (blocks)", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("tessMaxLevel", "options.video.category.displacement", ControlType.SLIDER,
-            "Maximum tessellation subdivision level", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("tessMidDist", "options.video.category.displacement", ControlType.SLIDER,
-            "Distance for half tessellation (blocks)", RestartScope.NONE,
-            0, 0, 0, null, false));
-        ALL.add(new OptionMeta("tessNearDist", "options.video.category.displacement", ControlType.SLIDER,
-            "Distance for full tessellation (blocks)", RestartScope.NONE,
-            0, 0, 0, null, false));
         ALL.add(new OptionMeta("chunkBuildingBatchSize", "options.video.category.chunks", ControlType.SLIDER,
             "Chunks per BLAS build batch", RestartScope.NONE,
             1, 32, 1, null, false));
@@ -292,9 +241,6 @@ public class ConfigUIMetadata {
         ALL.add(new OptionMeta("chunkCullDistance", "options.video.category.chunks", ControlType.SLIDER,
             "Distance beyond which chunks are culled from TLAS", RestartScope.NONE,
             64.0, 2048.0, 16.0, null, false));
-        ALL.add(new OptionMeta("chunkLodDistance", "options.video.category.chunks", ControlType.SLIDER,
-            "Distance at which chunks switch to lower LOD", RestartScope.NONE,
-            32.0, 512.0, 16.0, null, false));
         ALL.add(new OptionMeta("diagFlags", "options.video.category.debug", ControlType.SLIDER,
             "Per-subsystem diagnostic flags bitmask", RestartScope.NONE,
             0, 255, 1, null, false));

@@ -2,7 +2,6 @@ package com.radiance.client.debug;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.option.Options;
-import com.radiance.client.util.MaterialBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.BlockPos;
 
@@ -123,7 +122,6 @@ public final class CrashContext {
 
             // Global settings
             sb.append("--- Global Settings ---\n");
-            sb.append("materialOverridesEnabled=").append(Options.materialOverridesEnabled).append("\n");
             sb.append("autoPBREnabled=").append(Options.autoPBREnabled).append("\n");
             sb.append("rayBounces=").append(Options.rayBounces).append("\n");
             sb.append("upscalerResOverride=").append(Options.upscalerResOverride).append("\n");
@@ -142,29 +140,8 @@ public final class CrashContext {
             sb.append("chunkBuildingTotalBatches=").append(Options.chunkBuildingTotalBatches).append("\n");
             sb.append("\n");
 
-            // Per-block materials with non-default displacement or transmission (most crash-relevant)
-            sb.append("--- Per-Block Materials (non-default Displacement/Transmission) ---\n");
-            for (MaterialBlock mb : MaterialBlock.values()) {
-                int i = mb.ordinal();
-                boolean hasDisplacement = Options.materialPomMode[i] != 0
-                    || Options.materialPomDepth[i] > 0
-                    || Options.materialDisplacementSelfShadow[i];
-                boolean hasTrans = Options.materialTransmission[i] > 0;
-                boolean hasAutoPBR = Options.materialAutoPBR[i];
-                if (hasDisplacement || hasTrans) {
-                    sb.append("  ").append(mb.getId()).append(": ");
-                    sb.append("roughness=").append(Options.materialRoughness[i]);
-                    sb.append(" transmission=").append(Options.materialTransmission[i]);
-                    sb.append(" dispMode=").append(Options.materialPomMode[i]);
-                    sb.append(" dispDepth=").append(Options.materialPomDepth[i]);
-                    sb.append(" heightSource=").append(Options.materialHeightSource[i]);
-                    sb.append(" selfShadow=").append(Options.materialDisplacementSelfShadow[i]);
-                    sb.append(" normalStr=").append(Options.materialNormalStrength[i]);
-                    sb.append(" autoPBR=").append(hasAutoPBR);
-                    sb.append(" flags=").append(Options.materialAutoPBRFlags[i]);
-                    sb.append("\n");
-                }
-            }
+            sb.append("--- Material Lab ---\n");
+            sb.append("  mode=texture-primary\n");
             sb.append("\n=== End ===\n");
 
             Files.writeString(outFile, sb.toString(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);

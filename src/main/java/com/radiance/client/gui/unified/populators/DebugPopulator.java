@@ -4,7 +4,6 @@ import com.radiance.client.debug.DebugInspectReporter;
 import com.radiance.client.debug.DebugRuntimeDiagnostics;
 import com.radiance.client.debug.DebugRuntimeSampler;
 import com.radiance.client.gui.KeyBindButton;
-import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.ContentPanelWidget;
 import com.radiance.client.gui.unified.ContentPopulator;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
@@ -14,7 +13,7 @@ import com.radiance.client.gui.unified.rows.KeyBindRow;
 import com.radiance.client.input.KeyInputHandler;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.RendererProxy;
-import com.radiance.client.proxy.world.BlockModelBridge;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -75,14 +74,14 @@ public class DebugPopulator implements ContentPopulator {
         renderer.addInfo("DLSS-G Latency", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetDlssgLatencyDiag)));
         renderer.addInfo("VMA", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetVmaStats)));
         renderer.addInfo("Overlay", compact(DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetOverlayDiag)));
-        renderer.addInfo("Texture Generation", String.valueOf(BlockModelBridge.getActiveTextureGeneration()));
-        renderer.addInfo("Sprite Count", String.valueOf(BlockModelBridge.sortedSpriteIds.size()));
+        renderer.addInfo("Texture Generation", String.valueOf(TextureArrayBridge.getActiveTextureGeneration()));
+        renderer.addInfo("Sprite Count", String.valueOf(TextureArrayBridge.sortedSpriteIds.size()));
 
         SettingsSection options = panel.addSection("Debug Options").setLinear();
         options.addInfo("Java Logging", String.valueOf(Options.loggingEnabled));
         options.addInfo("GPU Debug Labels", String.valueOf(Options.gpuDebugLabels));
         options.addInfo("GPU Profiler Toggle", String.valueOf(DebugRuntimeSampler.isGpuProfilerEnabled()));
-        options.addInfo("Displacement", Options.displacementEnabled + " / "
+        options.addInfo("Geometry Displacement", Options.displacementEnabled + " / "
             + Options.displacementQualityName(Options.displacementQuality));
         options.addInfo("Frame Generation", frameGenLabel());
 
@@ -134,8 +133,6 @@ public class DebugPopulator implements ContentPopulator {
         profiler.addInfo("Last GPU Profile", last == null ? "None" : last.toString());
         Path lastSharcProbe = DebugRuntimeSampler.lastSharcProbePath();
         profiler.addInfo("Last SHARC Probe", lastSharcProbe == null ? "None" : lastSharcProbe.toString());
-        Path lastRtDirectLightProbe = DebugRuntimeSampler.lastRtDirectLightProbePath();
-        profiler.addInfo("Last RT Direct-Light Probe", lastRtDirectLightProbe == null ? "None" : lastRtDirectLightProbe.toString());
         Path lastRtSweep = DebugRuntimeSampler.lastRtMainTraceSweepPath();
         profiler.addInfo("Last RT Sweep", lastRtSweep == null ? "None" : lastRtSweep.toString());
         Path lastRtFloorSweep = DebugRuntimeSampler.lastRtMainTraceFloorSweepPath();
@@ -167,28 +164,6 @@ public class DebugPopulator implements ContentPopulator {
             DebugRuntimeSampler.startRtMainTraceFloorSweep(mc);
             screen.refreshContent();
         })).tooltip("Closes this menu, toggles transient RT.MainTrace floor diagnostics, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
-
-        SettingsSection directLight = panel.addSection("RT Upstream / Direct Light").setLinear();
-        SelectionDropdownWidget directLightBackend = new SelectionDropdownWidget(
-            0, 0, 170, 20, "Backend",
-            Options.DIRECT_LIGHT_BACKEND_NAMES,
-            Options.directLightBackend,
-            value -> {
-                Options.setDirectLightBackend(value, false);
-                screen.refreshContent();
-            });
-        directLight.addTwoWidgets(directLightBackend, button("Run Upstream Readiness", () -> {
-            DebugRuntimeSampler.startRtDirectLightProbe(mc);
-            screen.refreshContent();
-        })).tooltip("Checks upstream RT asset/pass readiness and writes C:\\RadSER\\results\\rtxdi. Legacy remains the startup-safe path.");
-        directLight.addButton(button("Run Direct-Light Ablation", () -> {
-            DebugRuntimeSampler.startRtDirectLightAblationProbe(mc);
-            screen.refreshContent();
-        })).tooltip("Debug-only darkening probe: disables sampled direct lighting in RT.MainTrace to measure the maximum removable direct-light cost.");
-        directLight.addButton(button("Run Legacy vs Upstream", () -> {
-            DebugRuntimeSampler.startRtDirectLightCompare(mc);
-            screen.refreshContent();
-        })).tooltip("Runs Legacy and the current UpstreamReSTIR path back-to-back, restores settings, and marks the result readiness-only until the upstream executor is active.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.addTwoWidgets(
@@ -260,8 +235,8 @@ public class DebugPopulator implements ContentPopulator {
     private void populateResources(ContentPanelWidget panel) {
         MinecraftClient mc = MinecraftClient.getInstance();
         SettingsSection textures = panel.addSection("Texture Resources").setLinear();
-        textures.addInfo("Java Texture Generation", String.valueOf(BlockModelBridge.getActiveTextureGeneration()));
-        textures.addInfo("Java Sprite Count", String.valueOf(BlockModelBridge.sortedSpriteIds.size()));
+        textures.addInfo("Java Texture Generation", String.valueOf(TextureArrayBridge.getActiveTextureGeneration()));
+        textures.addInfo("Java Sprite Count", String.valueOf(TextureArrayBridge.sortedSpriteIds.size()));
         textures.addInfo("Texture CSV Exists", String.valueOf(Files.exists(DebugRuntimeDiagnostics.TEXTURE_FULL_CSV)));
         textures.addButton(button("Write Texture Reload Snapshot", () -> runFileAction(mc,
             DebugRuntimeDiagnostics::writeTextureReloadSnapshot, "Texture reload snapshot saved")))
