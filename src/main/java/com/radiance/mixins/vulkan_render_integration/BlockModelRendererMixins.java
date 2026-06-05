@@ -92,6 +92,7 @@ public class BlockModelRendererMixins {
         PBRVertexConsumer pbrVertexConsumer = null;
         if (vertexConsumer instanceof PBRVertexConsumer pbr) {
             pbrVertexConsumer = pbr;
+            pbrVertexConsumer.setBase(pos.getX(), pos.getY(), pos.getZ());
             if (eb != null) {
                 pbrVertexConsumer.setPendingEmissiveBlockType(eb.ordinal());
             }
@@ -122,6 +123,7 @@ public class BlockModelRendererMixins {
                 true);
         } finally {
             if (pbrVertexConsumer != null) {
+                pbrVertexConsumer.setBase(0.0F, 0.0F, 0.0F);
                 pbrVertexConsumer.setPendingEmission(0.0F);
                 pbrVertexConsumer.setPendingEmissiveBlockType(255);
             }
