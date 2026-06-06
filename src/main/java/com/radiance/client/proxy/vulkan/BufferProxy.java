@@ -391,6 +391,7 @@ public class BufferProxy {
             int size = 304;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
+            memSet(addr, 0, size);
             int baseAddr = 0;
 
             bb.putFloat(baseAddr, baseColorR);
@@ -439,19 +440,56 @@ public class BufferProxy {
 
             bb.putFloat(baseAddr, rainGradient);
             baseAddr += Float.BYTES;
-            baseAddr += Float.BYTES; // hdrRadianceScale
+            bb.putFloat(baseAddr, 1.0f); // hdrRadianceScale
+            baseAddr += Float.BYTES;
             bb.putFloat(baseAddr, thunderGradient);
             baseAddr += Float.BYTES;
-            baseAddr += Float.BYTES; // pad2
+            bb.putFloat(baseAddr, Options.wetSurfaceStrengthPercent / 100.0f);
+            baseAddr += Float.BYTES;
 
             // AtmosphereParams
-            baseAddr += Float.BYTES * 4 * 3; // skip
+            bb.putFloat(baseAddr, 6360000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 6460000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 8000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 1200.0f);
+            baseAddr += Float.BYTES;
 
-            baseAddr += Float.BYTES * 3; // sunRadiance
+            bb.putFloat(baseAddr, 5.802e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 13.558e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 33.100e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.80f);
+            baseAddr += Float.BYTES;
+
+            bb.putFloat(baseAddr, 21.000e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 21.000e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 21.000e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.02f);
+            baseAddr += Float.BYTES;
+
+            bb.putFloat(baseAddr, 100000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 100000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 100000.0f);
+            baseAddr += Float.BYTES;
             bb.putInt(baseAddr, sunTextureID);
             baseAddr += Integer.BYTES; // sunTextureID
 
-            baseAddr += Float.BYTES * 3; // moonRadiance
+            bb.putFloat(baseAddr, 0.05f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.06f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.12f);
+            baseAddr += Float.BYTES;
             bb.putInt(baseAddr, moonTextureID);
             baseAddr += Integer.BYTES; // moonTextureID
 

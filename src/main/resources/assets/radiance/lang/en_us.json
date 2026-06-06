@@ -2,6 +2,7 @@
   "options.video.category.gameplay": "Game Play",
   "options.video.category.window": "Display",
   "options.video.category.ray_tracing": "Ray Tracing",
+  "options.video.category.shader_packs": "Shader Packs",
   "options.video.category.upscaler": "Upscaler",
   "options.video.category.terrain": "Terrain Build",
   "options.video.category.pipeline": "Pipeline Setup",
@@ -12,6 +13,7 @@
   "options.video.simplified_indirect": "Simplified Indirect Lighting",
   "options.video.multi_scatter_ggx": "Multi-Scatter GGX",
   "options.video.eon_diffuse": "EON Diffuse",
+  "options.video.diffuse_model": "Diffuse Model",
   "options.video.category.sharc": "SHARC Radiance Cache",
   "options.video.sharc_enabled": "SHARC Enabled",
   "options.video.sharc_scene_scale": "Grid Scene Scale",
@@ -24,6 +26,22 @@
   "options.video.sharc_capacity_exponent": "Cache Capacity",
   "options.video.sharc_quality_preset": "Quality Preset",
   "options.video.sharc_query_mode": "Query Mode",
+  "options.video.shader_pack": "Shader Pack",
+  "options.video.shader_pack.status": "Shader Pack Status",
+  "options.video.shader_pack.settings": "Pack Settings",
+  "options.video.shader_pack.reload": "Reload Packs",
+  "options.video.shader_pack.selected_path": "Selected Path",
+  "options.video.shader_pack.available_packs": "Available Packs",
+  "options.video.shader_pack.expected_builtin": "Expected Built-In",
+  "options.video.shader_pack.none_found": "None found",
+  "options.video.shader_pack.runtime_status": "Runtime Status",
+  "options.video.shader_pack.current_path": "Current: %s",
+  "options.video.shader_pack.status.ready": "Ready",
+  "options.video.shader_pack.status.fixed_fallback": "Fixed fallback",
+  "options.video.shader_pack.status.partial_adapter": "Partial adapter",
+  "options.video.shader_pack.status.pack_executor": "Pack executor",
+  "options.video.shader_pack.status.missing": "Missing; native fallback will use Vanilla PT",
+  "options.video.shader_pack.status.invalid": "Invalid path; native fallback will use Vanilla PT",
   "options.video.output_scale_2x": "4xSSAA",
   "options.video.output_scale_2x.tooltip": "Renders at 2x resolution for better visuals, then downscales via Lanczos 3. May cause artifacts with certain DLSS upscale ratios (Performance/UltraPerformance). Use Quality or Native mode for best results.",
   "options.video.chunk_building_batch_size": "Amount of chunks to build in a single submit",
@@ -44,6 +62,7 @@
   "render_pipeline.module.ray_tracing.name": "Ray Tracing",
   "render_pipeline.module.ray_tracing.attribute.num_ray_bounces": "Num Ray Bounces",
   "render_pipeline.module.ray_tracing.attribute.use_jitter": "Use Jitter",
+  "render_pipeline.module.ray_tracing.attribute.shader_pack_path": "Shader Pack Path",
   "render_pipeline.module.temporal_accumulation.name": "Temporal Accumulation",
   "render_pipeline.module.tone_mapping.name": "Tone Mapping",
   "render_pipeline.module.tone_mapping.attribute.middle_grey": "Middle Grey",
@@ -68,6 +87,10 @@
   "render_pipeline.module.temporal_accumulation.attribute.depth_threshold": "Depth Threshold",
   "render_pipeline.module.temporal_accumulation.attribute.depth_scale": "Depth Scale",
   "module_attribute_screen.no_attributes": "No Attributes",
+  "shader_pack_settings_screen.title": "Shader Pack Settings",
+  "shader_pack_settings_screen.no_attributes": "No pack-owned settings for the active shader pack.",
+  "render_pipeline.true": "On",
+  "render_pipeline.false": "Off",
 
   "radiance.settings.title": "Radiance Settings",
   "radiance.settings.camera_controls.title": "Camera Controls",
@@ -302,33 +325,14 @@
   ,"options.video.environment.cloud_brightness": "Cloud Brightness"
   ,"options.video.environment.cloud_alpha": "Cloud Alpha"
   ,"options.video.environment.cloud_height_offset": "Cloud Height Offset"
-  ,"options.video.environment.clouds.volumetric.category": "Volumetric (Fancy)"
-  ,"options.video.environment.cloud_puffiness": "Cloud Puffiness"
-  ,"options.video.environment.cloud_detail_scale": "Cloud Detail Scale"
-  ,"options.video.environment.cloud_detail_strength": "Cloud Detail Strength"
-  ,"options.video.environment.cloud_shadow_strength": "Cloud Shadow Strength"
-  ,"options.video.environment.cloud_thickness": "Cloud Thickness"
-  ,"options.video.environment.cloud_density": "Cloud Density"
-  ,"options.video.environment.cloud_shadow_noise": "Noise Affects Shadows"
-  ,"options.video.environment.clouds.volumetric_module.category": "Volumetric Cloud Module"
-  ,"options.video.environment.vol_cloud_quality": "Cloud Quality"
-  ,"options.video.environment.vol_cloud_coverage": "Cloud Coverage"
-  ,"options.video.environment.vol_cloud_type": "Cloud Type"
-  ,"options.video.environment.vol_cloud_wind_speed": "Wind Speed"
-  ,"options.video.environment.vol_cloud_altitude": "Cloud Altitude"
-  ,"options.video.environment.vol_cloud_thickness": "Cloud Layer Thickness"
-  ,"options.video.environment.vol_cloud_density": "Cloud Density"
-  ,"options.video.environment.vol_cloud_detail": "Detail Erosion"
-  ,"options.video.environment.vol_cloud_scatter": "Scatter Bounces"
-  ,"options.video.environment.vol_cloud_ambient": "Ambient AO"
-  ,"options.video.environment.vol_cloud_temporal": "Temporal Blend"
-  ,"options.video.environment.vol_cloud_noise_scale": "Noise Scale"
-  ,"options.video.environment.vol_cloud_weather_scale": "Weather Scale"
-  ,"options.video.environment.vol_cloud_noise_res": "Noise Res"
+  ,"options.video.environment.clouds.legacy_layer.category": "Legacy Cloud Layer"
+  ,"options.video.environment.clouds.shader_pack.category": "Shader Pack Clouds"
+  ,"options.video.environment.volumetric_lighting.category": "Volumetric Lighting"
   ,"options.video.environment.water_tint_r": "Water Tint Red"
   ,"options.video.environment.water_tint_g": "Water Tint Green"
   ,"options.video.environment.water_tint_b": "Water Tint Blue"
   ,"options.video.environment.water_fog_strength": "Water Fog Strength"
+  ,"options.video.environment.water.shader_pack.category": "Shader Pack Water"
   ,"options.video.environment.sun_size": "Sun Size"
   ,"options.video.environment.sun_intensity": "Sun Intensity"
   ,"options.video.environment.moon_size": "Moon Size"
@@ -468,14 +472,4 @@
   ,"options.video.fpv_offset_forward": "Forward"
   ,"options.video.fpv_offset_vertical": "Vertical"
   ,"options.video.fpv_offset_lateral": "Lateral"
-  ,"options.video.environment.clouds.volumetric_module.category": "Volumetric Cloud Module"
-  ,"options.video.environment.vol_cloud_quality": "Cloud Quality"
-  ,"options.video.environment.vol_cloud_coverage": "Coverage"
-  ,"options.video.environment.vol_cloud_type": "Cloud Type"
-  ,"options.video.environment.vol_cloud_wind_speed": "Wind Speed"
-  ,"options.video.environment.vol_cloud_altitude": "Altitude"
-  ,"options.video.environment.vol_cloud_thickness": "Thickness"
-  ,"options.video.environment.vol_cloud_density": "Density"
-  ,"options.video.environment.vol_cloud_detail": "Detail Erosion"
-  ,"options.video.environment.vol_cloud_scatter": "Scatter Bounces"
 }

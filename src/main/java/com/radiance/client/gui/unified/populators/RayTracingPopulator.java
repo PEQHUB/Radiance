@@ -3,6 +3,7 @@ package com.radiance.client.gui.unified.populators;
 import static net.minecraft.client.option.GameOptions.getGenericValueText;
 
 import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.*;
 import com.radiance.client.option.Options;
 import net.minecraft.client.MinecraftClient;
@@ -36,11 +37,13 @@ public class RayTracingPopulator implements ContentPopulator {
             Options.MULTI_SCATTER_GGX_KEY, Options.multiScatterGGX,
             value -> Options.setMultiScatterGGX(value, true));
 
-        SimpleOption<Boolean> eonDiffuse = SimpleOption.ofBoolean(
-            Options.EON_DIFFUSE_KEY, Options.eonDiffuse,
-            value -> Options.setEonDiffuse(value, true));
-        section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions))
-              .tooltip("Multi-Scatter GGX adds energy-conserving multiple bounces in microfacet BRDF. EON uses the Estevez-Kulla-Conty diffuse model.");
+        SelectionDropdownWidget diffuseModel = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Diffuse",
+            new String[]{"EON", "VMF (Experimental)"},
+            Options.diffuseModel == Options.DIFFUSE_MODEL_VMF ? 1 : 0,
+            value -> Options.setDiffuseModel(value == 1 ? Options.DIFFUSE_MODEL_VMF : Options.DIFFUSE_MODEL_EON, true));
+        section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), diffuseModel)
+              .tooltip("Multi-Scatter GGX adds energy-conserving multiple bounces in microfacet BRDF. Diffuse selects the rough diffuse model.");
 
         // SER (Shader Execution Reordering)
         SimpleOption<Boolean> serEnabled = SimpleOption.ofBoolean(
@@ -68,6 +71,7 @@ public class RayTracingPopulator implements ContentPopulator {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("Ray Bounces", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("Simplified Indirect", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Diffuse Model", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SER Enabled", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SER Hints", category, nodeId, true)
         );

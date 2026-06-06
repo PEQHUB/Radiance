@@ -96,6 +96,9 @@ public class ResettableSliderWidget extends SliderWidget {
             mc.setScreen(new NumericSliderInputScreen(parent, this.getMessage(), current(), min, max, value -> {
                 setCurrentValue(value);
                 onChange.accept(value);
+                if (onRelease != null) {
+                    onRelease.run();
+                }
             }));
             return true;
         }
@@ -107,6 +110,9 @@ public class ResettableSliderWidget extends SliderWidget {
             this.value = MathHelper.clamp(this.value, 0.0, 1.0);
             updateMessage();
             applyValue();
+            if (onRelease != null) {
+                onRelease.run();
+            }
             return true;
         }
 

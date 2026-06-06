@@ -20,7 +20,7 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 23;
+    public static final int CURRENT_OPTIONS_VERSION = 24;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 0;
     public static final int SATURATION_DEFAULT_PERCENT = 100;
 
@@ -31,6 +31,7 @@ public class Options {
     public static final String CATEGORY_GAMEPLAY = "options.video.category.gameplay";
     public static final String CATEGORY_WINDOW = "options.video.category.window";
     public static final String CATEGORY_RAY_TRACING = "options.video.category.ray_tracing";
+    public static final String CATEGORY_SHADER_PACKS = "options.video.category.shader_packs";
     public static final String CATEGORY_UPSCALER = "options.video.category.upscaler";
     public static final String CATEGORY_TONEMAPPING = "options.video.category.tonemapping";
     public static final String CATEGORY_CAMERA_CONTROLS = "options.video.category.camera_controls";
@@ -185,6 +186,7 @@ public class Options {
     public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
     public static final String MULTI_SCATTER_GGX_KEY = "options.video.multi_scatter_ggx";
     public static final String EON_DIFFUSE_KEY = "options.video.eon_diffuse";
+    public static final String DIFFUSE_MODEL_KEY = "options.video.diffuse_model";
     public static final String SHARC_ENABLED_KEY = "options.video.sharc_enabled";
     public static final String SHARC_SCENE_SCALE_KEY = "options.video.sharc_scene_scale";
     public static final String SHARC_ROUGHNESS_THRESHOLD_KEY = "options.video.sharc_roughness_threshold";
@@ -197,6 +199,8 @@ public class Options {
     public static final String SHARC_QUALITY_PRESET_KEY = "options.video.sharc_quality_preset";
     public static final String SHARC_QUERY_MODE_KEY = "options.video.sharc_query_mode";
     public static final String CATEGORY_SHARC = "options.video.category.sharc";
+    public static final String SHADER_PACK_KEY = "options.video.shader_pack";
+    public static final String SHADER_PACK_STATUS_KEY = "options.video.shader_pack.status";
     // Terrain
     public static final String CHUNK_BUILDING_BATCH_SIZE_KEY = "options.video.chunk_building_batch_size";
     public static final String CHUNK_BUILDING_TOTAL_BATCHES_KEY = "options.video.chunk_building_total_batches";
@@ -218,10 +222,15 @@ public class Options {
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
     public static int upscalerResOverride = 99; // 1-100%
     public static boolean dlssDEnabled = true;
-    public static int rayBounces = 12;
+    public static int rayBounces = 2;
     public static boolean simplifiedIndirect = false;
     public static boolean multiScatterGGX = true;  // Kulla-Conty multi-scatter GGX energy compensation
     public static boolean eonDiffuse = true;        // EON energy-preserving rough diffuse BRDF
+    public static final int DIFFUSE_MODEL_EON = 0;
+    public static final int DIFFUSE_MODEL_VMF = 1;
+    public static final int DIFFUSE_MODEL_LEGACY = 2;
+    public static int diffuseModel = DIFFUSE_MODEL_EON;
+    public static String shaderPackPath = Pipeline.VANILLA_RAY_TRACING_SHADER_PACK_PATH;
 
     // Window persistence
     public static int windowPosX = -1;  // -1 = not set (use OS default)
@@ -322,7 +331,6 @@ public class Options {
      */
     public static int countNonDefaultAdvancedSettings() {
         int count = 0;
-        // ReSTIR tuning
         // SHARC individual params (only if preset is Custom)
         if (sharcQualityPreset == 5) {
             if (sharcSceneScaleTenths != 40) count++;
@@ -345,17 +353,14 @@ public class Options {
         if (darkAdaptSpeedTenths != 20) count++;
         if (sceneChangeThresholdTenths != 50) count++;
         if (centerWeightPercent != 0) count++;
-        // Multi-scatter / EON (default is true)
+        // Multi-scatter / diffuse model (defaults: multi-scatter on, EON diffuse)
         if (!multiScatterGGX) count++;
-        if (!eonDiffuse) count++;
+        if (diffuseModel != DIFFUSE_MODEL_EON) count++;
         // Material-owned shader displacement (default disabled)
         if (displacementEnabled) count++;
         // SER (default enabled)
         if (!serEnabled) count++;
         if (!serHintsEnabled) count++;
-        // Volumetric cloud module (non-default tuning)
-        if (volCloudQuality != 3) count++;
-        if (volCloudScatterOctaves != 3) count++;
         return count;
     }
 
@@ -803,6 +808,14 @@ public class Options {
     }
 
     public static boolean autoPBREnabled = true;
+    public static boolean materialCompatEnabled = true;
+    public static boolean materialCompatCtmEnabled = true;
+    public static boolean materialCompatRandomEnabled = true;
+    public static boolean materialCompatNaturalEnabled = true;
+    public static boolean materialCompatColorsEnabled = true;
+    public static boolean materialCompatOverlaysEnabled = true;
+    public static boolean materialCompatLegacyMcPatcherEnabled = true;
+    public static boolean materialCompatPhysicalEmissiveEnabled = true;
 
     public static void setAutoPBREnabled(boolean enabled, boolean write) {
         com.radiance.client.debug.CrashContext.recordChange("autoPBREnabled=" + enabled);
@@ -814,6 +827,27 @@ public class Options {
                 net.minecraft.client.MinecraftClient.getInstance());
         }
         if (write) { overwriteConfig(); }
+    }
+
+    private static boolean legacyMaterialCompatAllDisabled(Properties props) {
+        return !Boolean.parseBoolean(props.getProperty("materialCompatEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatCtmEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatRandomEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatNaturalEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", "false"));
+    }
+
+    private static void enableMaterialCompatDefaults() {
+        materialCompatEnabled = true;
+        materialCompatCtmEnabled = true;
+        materialCompatRandomEnabled = true;
+        materialCompatNaturalEnabled = true;
+        materialCompatColorsEnabled = true;
+        materialCompatOverlaysEnabled = true;
+        materialCompatLegacyMcPatcherEnabled = true;
+        materialCompatPhysicalEmissiveEnabled = true;
     }
 
     // Environmental settings (per dimension: overworld/nether/end)
@@ -838,8 +872,8 @@ public class Options {
     // Default: enable mottled cloud shadows in the overworld only.
     public static final int[] cloudNoiseAffectsShadows = new int[]{1, 0, 0};
 
-    // Volumetric cloud module settings (global, not per-dimension)
-    public static int volCloudQuality = 3;            // 0=Off, 1=Low, 2=Medium, 3=High, 4=Ultra, 5=Extreme
+    // Retired fork CloudModule settings retained for native ABI compatibility.
+    public static int volCloudQuality = 0;            // Forced off for the 0.1.5 visual-only lane.
     public static int volCloudDensityTenths = 10;     // 1-30 → 0.1-3.0
     public static int volCloudCoveragePercent = 35;   // 0-100 → 0.0-1.0
     public static int volCloudTypePercent = 67;       // 0-100 → 0.0-1.0 (0=Stratus, 33=Sc, 67=Cumulus, 100=Cb)
@@ -861,14 +895,9 @@ public class Options {
     public static int volCloudNoiseRes = 128;          // 128 (8MB), 256 (64MB), 512 (512MB)
     public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
-    public static final String[] VOL_CLOUD_QUALITY_NAMES = {
-        "Off", "Low", "Medium", "High", "Ultra", "Extreme"
-    };
-
-    // Ordered by increasing meteorological altitude: low → high
-    public static final String[] VOL_CLOUD_TYPE_NAMES = {
-        "Stratus", "Stratocumulus", "Cumulus", "Cumulonimbus"
-    };
+    public static boolean isVolumetricCloudModuleEnabled() {
+        return false;
+    }
 
     public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
     public static final int[] waterTintG = new int[]{WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT};
@@ -1022,7 +1051,10 @@ public class Options {
             multiScatterGGX = Boolean.parseBoolean(props.getProperty("multiScatterGGX", String.valueOf(multiScatterGGX)));
             try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
             eonDiffuse = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(eonDiffuse)));
-            try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
+            diffuseModel = diffuseModelFromProperties(props, diffuseModel, eonDiffuse);
+            eonDiffuse = diffuseModel != DIFFUSE_MODEL_LEGACY;
+            try { nativeSetDiffuseModel(diffuseModel, false); } catch (UnsatisfiedLinkError ignored) {}
+            shaderPackPath = props.getProperty("shaderPackPath", shaderPackPath);
 
             windowPosX = Integer.parseInt(props.getProperty("windowPosX", String.valueOf(windowPosX)));
             windowPosY = Integer.parseInt(props.getProperty("windowPosY", String.valueOf(windowPosY)));
@@ -1138,6 +1170,17 @@ public class Options {
             nativeSetEntityNormalsEnabled(entityNormalsEnabled, false);
 
             autoPBREnabled = Boolean.parseBoolean(props.getProperty("autoPBREnabled", String.valueOf(autoPBREnabled)));
+            materialCompatEnabled = Boolean.parseBoolean(props.getProperty("materialCompatEnabled", String.valueOf(materialCompatEnabled)));
+            materialCompatCtmEnabled = Boolean.parseBoolean(props.getProperty("materialCompatCtmEnabled", String.valueOf(materialCompatCtmEnabled)));
+            materialCompatRandomEnabled = Boolean.parseBoolean(props.getProperty("materialCompatRandomEnabled", String.valueOf(materialCompatRandomEnabled)));
+            materialCompatNaturalEnabled = Boolean.parseBoolean(props.getProperty("materialCompatNaturalEnabled", String.valueOf(materialCompatNaturalEnabled)));
+            materialCompatColorsEnabled = Boolean.parseBoolean(props.getProperty("materialCompatColorsEnabled", String.valueOf(materialCompatColorsEnabled)));
+            materialCompatOverlaysEnabled = Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", String.valueOf(materialCompatOverlaysEnabled)));
+            materialCompatLegacyMcPatcherEnabled = Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled)));
+            materialCompatPhysicalEmissiveEnabled = Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled)));
+            if (loadedOptionsVersion < 24 && legacyMaterialCompatAllDisabled(props)) {
+                enableMaterialCompatDefaults();
+            }
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
 
@@ -1452,6 +1495,8 @@ public class Options {
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
         props.setProperty("multiScatterGGX", String.valueOf(multiScatterGGX));
         props.setProperty("eonDiffuse", String.valueOf(eonDiffuse));
+        props.setProperty("diffuseModel", String.valueOf(diffuseModel));
+        props.setProperty("shaderPackPath", String.valueOf(shaderPackPath));
         // Save current window position/size via LWJGL — only if restore succeeded
         // (prevents PrismLauncher's default centered position from overwriting saved values after a crash)
         if (windowRestoreSucceeded) {
@@ -1492,6 +1537,14 @@ public class Options {
         props.setProperty("sharcQueryMode", String.valueOf(sharcQueryMode));
         props.setProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset));
         props.setProperty("autoPBREnabled", String.valueOf(autoPBREnabled));
+        props.setProperty("materialCompatEnabled", String.valueOf(materialCompatEnabled));
+        props.setProperty("materialCompatCtmEnabled", String.valueOf(materialCompatCtmEnabled));
+        props.setProperty("materialCompatRandomEnabled", String.valueOf(materialCompatRandomEnabled));
+        props.setProperty("materialCompatNaturalEnabled", String.valueOf(materialCompatNaturalEnabled));
+        props.setProperty("materialCompatColorsEnabled", String.valueOf(materialCompatColorsEnabled));
+        props.setProperty("materialCompatOverlaysEnabled", String.valueOf(materialCompatOverlaysEnabled));
+        props.setProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled));
+        props.setProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled));
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
@@ -1654,27 +1707,6 @@ public class Options {
             props.setProperty("env.cloudDensityPercent." + dim, String.valueOf(cloudDensityPercent[dim]));
             props.setProperty("env.cloudNoiseAffectsShadows." + dim, String.valueOf(cloudNoiseAffectsShadows[dim]));
         }
-        // Volumetric cloud module settings (global, not per-dimension)
-        props.setProperty("volCloudQuality", String.valueOf(volCloudQuality));
-        props.setProperty("volCloudDensityTenths", String.valueOf(volCloudDensityTenths));
-        props.setProperty("volCloudCoveragePercent", String.valueOf(volCloudCoveragePercent));
-        props.setProperty("volCloudTypePercent", String.valueOf(volCloudTypePercent));
-        props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
-        props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
-        props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
-        props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
-        props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
-        props.setProperty("volCloudAmbientPercent", String.valueOf(volCloudAmbientPercent));
-        props.setProperty("volCloudTemporalPercent", String.valueOf(volCloudTemporalPercent));
-        props.setProperty("volCloudNoiseScale", String.valueOf(volCloudNoiseScale));
-        props.setProperty("volCloudCellFrequencyTenths", String.valueOf(volCloudCellFrequencyTenths));
-        props.setProperty("volCloudAtmosphereFadeDist", String.valueOf(volCloudAtmosphereFadeDist));
-        props.setProperty("volCloudDebugMode", String.valueOf(volCloudDebugMode));
-        props.setProperty("volCloudWindAngleDegrees", String.valueOf(volCloudWindAngleDegrees));
-        props.setProperty("volCloudMarchSteps", String.valueOf(volCloudMarchSteps));
-        props.setProperty("volCloudLightSteps", String.valueOf(volCloudLightSteps));
-        props.setProperty("volCloudResDivisor", String.valueOf(volCloudResDivisor));
-        props.setProperty("volCloudNoiseRes", String.valueOf(volCloudNoiseRes));
         props.setProperty("wetSurfaceStrengthPercent", String.valueOf(wetSurfaceStrengthPercent));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
@@ -1686,18 +1718,6 @@ public class Options {
             props.setProperty("env.moonSizePercent." + dim, String.valueOf(moonSizePercent[dim]));
             props.setProperty("env.moonIntensityPercent." + dim, String.valueOf(moonIntensityPercent[dim]));
         }
-
-        // Volumetric cloud module settings (global, not per-dimension)
-        props.setProperty("volCloudQuality", String.valueOf(volCloudQuality));
-        props.setProperty("volCloudDensityTenths", String.valueOf(volCloudDensityTenths));
-        props.setProperty("volCloudCoveragePercent", String.valueOf(volCloudCoveragePercent));
-        props.setProperty("volCloudTypePercent", String.valueOf(volCloudTypePercent));
-        props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
-        props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
-        props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
-        props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
-        props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
-
         // Sun/Moon orbit (Overworld-only)
         props.setProperty("sunPathMode", String.valueOf(sunPathMode));
         props.setProperty("sunInclinationDeg", String.valueOf(sunInclinationDeg));
@@ -1805,73 +1825,14 @@ public class Options {
             }
         }
 
-        // Volumetric cloud module settings (global, not per-dimension)
         if (loadedOptionsVersion >= 20) {
-            volCloudQuality = clamp(Integer.parseInt(
-                props.getProperty("volCloudQuality", "3")), 0, 6);
-            volCloudDensityTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudDensityTenths", "10")), 1, 50);
-            volCloudCoveragePercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
-            volCloudTypePercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudTypePercent", "67")), 0, 100);
-            volCloudSpeedTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
-            volCloudAltitude = clamp(Integer.parseInt(
-                props.getProperty("volCloudAltitude", "192")), 64, 320);
-            volCloudThickness = clamp(Integer.parseInt(
-                props.getProperty("volCloudThickness", "64")), 16, 256);
-            volCloudDetailStrengthPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 300);
-            volCloudScatterOctaves = clamp(Integer.parseInt(
-                props.getProperty("volCloudScatterOctaves", "3")), 1, 8);
-            volCloudAmbientPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudAmbientPercent", "100")), 0, 300);
-            volCloudTemporalPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudTemporalPercent", "0")), 0, 99);
-            volCloudNoiseScale = clamp(Integer.parseInt(
-                props.getProperty("volCloudNoiseScale", "1000")), 64, 4096);
-            volCloudCellFrequencyTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudCellFrequencyTenths", "80")), 10, 320);
-            volCloudAtmosphereFadeDist = clamp(Integer.parseInt(
-                props.getProperty("volCloudAtmosphereFadeDist", "800")), 100, 4000);
-            volCloudDebugMode = clamp(Integer.parseInt(
-                props.getProperty("volCloudDebugMode", "0")), 0, 8);
-            volCloudWindAngleDegrees = clamp(Integer.parseInt(
-                props.getProperty("volCloudWindAngleDegrees", "0")), 0, 360);
-            volCloudMarchSteps = clamp(Integer.parseInt(
-                props.getProperty("volCloudMarchSteps", "0")), 0, 512);
-            volCloudLightSteps = clamp(Integer.parseInt(
-                props.getProperty("volCloudLightSteps", "0")), 0, 16);
-            volCloudResDivisor = clamp(Integer.parseInt(
-                props.getProperty("volCloudResDivisor", "0")), 0, 4);
-            volCloudNoiseRes = clamp(Integer.parseInt(
-                props.getProperty("volCloudNoiseRes", "128")), 128, 512);
             wetSurfaceStrengthPercent = clamp(Integer.parseInt(
                 props.getProperty("wetSurfaceStrengthPercent", "100")), 0, 200);
         }
-        // Push volumetric cloud settings to native
+
+        disableVolumetricCloudModule();
         try {
-            nativeSetCloudQuality(volCloudQuality, false);
-            nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
-            nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
-            nativeSetCloudType(volCloudTypePercent / 100.0f, false);
-            nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, false);
-            nativeSetCloudAltitude((float) volCloudAltitude, false);
-            nativeSetCloudThicknessVol((float) volCloudThickness, false);
-            nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
-            nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
-            nativeSetCloudAmbientStrength(volCloudAmbientPercent / 100.0f, false);
-            nativeSetCloudTemporalBlend(volCloudTemporalPercent == 0 ? -1.0f : volCloudTemporalPercent / 100.0f, false);
-            nativeSetCloudNoiseScale((float) volCloudNoiseScale, false);
-            nativeSetCloudCellFrequency(volCloudCellFrequencyTenths / 10.0f, false);
-            nativeSetCloudAtmosphereFadeDist((float) volCloudAtmosphereFadeDist, false);
-            nativeSetCloudDebugMode(volCloudDebugMode, false);
-            nativeSetCloudWindAngle((float)(volCloudWindAngleDegrees * Math.PI / 180.0), false);
-            nativeSetCloudMarchSteps(volCloudMarchSteps, false);
-            nativeSetCloudLightSteps(volCloudLightSteps, false);
-            nativeSetCloudResDivisor(volCloudResDivisor, false);
-            nativeSetCloudNoiseRes(volCloudNoiseRes, false);
+            nativeSetCloudQuality(0, false);
             nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, false);
         } catch (UnsatisfiedLinkError ignored) {}
 
@@ -1894,39 +1855,6 @@ public class Options {
                 props.getProperty("env.moonIntensityPercent." + dim,
                     String.valueOf(dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT))));
         }
-
-        // Volumetric cloud module settings (global, not per-dimension)
-        volCloudQuality = clamp(Integer.parseInt(
-            props.getProperty("volCloudQuality", "3")), 0, 5);
-        volCloudDensityTenths = clamp(Integer.parseInt(
-            props.getProperty("volCloudDensityTenths", "10")), 1, 30);
-        volCloudCoveragePercent = clamp(Integer.parseInt(
-            props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
-        volCloudTypePercent = clamp(Integer.parseInt(
-            props.getProperty("volCloudTypePercent", "67")), 0, 100);
-        volCloudSpeedTenths = clamp(Integer.parseInt(
-            props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
-        volCloudAltitude = clamp(Integer.parseInt(
-            props.getProperty("volCloudAltitude", "192")), 128, 320);
-        volCloudThickness = clamp(Integer.parseInt(
-            props.getProperty("volCloudThickness", "64")), 32, 128);
-        volCloudDetailStrengthPercent = clamp(Integer.parseInt(
-            props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 200);
-        volCloudScatterOctaves = clamp(Integer.parseInt(
-            props.getProperty("volCloudScatterOctaves", "3")), 1, 4);
-
-        // Push volumetric cloud settings to native
-        try {
-            nativeSetCloudQuality(volCloudQuality, false);
-            nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
-            nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
-            nativeSetCloudType(volCloudTypePercent / 100.0f, false);
-            nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, false);
-            nativeSetCloudAltitude((float) volCloudAltitude, false);
-            nativeSetCloudThicknessVol((float) volCloudThickness, false);
-            nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
-            nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
-        } catch (UnsatisfiedLinkError ignored) {}
 
         // Sun/Moon orbit (Overworld-only, not per-dimension)
         sunPathMode = Math.max(0, Math.min(1, Integer.parseInt(
@@ -1985,16 +1913,7 @@ public class Options {
             moonIntensityPercent[dim] = dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT;
         }
 
-        // Volumetric cloud module defaults
-        volCloudQuality = 3;
-        volCloudDensityTenths = 10;
-        volCloudCoveragePercent = 35;
-        volCloudTypePercent = 67;
-        volCloudSpeedTenths = 50;
-        volCloudAltitude = 192;
-        volCloudThickness = 64;
-        volCloudDetailStrengthPercent = 100;
-        volCloudScatterOctaves = 3;
+        disableVolumetricCloudModule();
 
         // Sun/Moon orbit defaults
         sunPathMode = SUN_PATH_MODE_DEFAULT;
@@ -2003,6 +1922,29 @@ public class Options {
         moonFollowSun = true;
         moonInclinationDeg = MOON_INCLINATION_DEFAULT;
         moonAzimuthOffsetDeg = MOON_AZIMUTH_OFFSET_DEFAULT;
+    }
+
+    private static void disableVolumetricCloudModule() {
+        volCloudQuality = 0;
+        volCloudDensityTenths = 10;
+        volCloudCoveragePercent = 35;
+        volCloudTypePercent = 67;
+        volCloudSpeedTenths = 50;
+        volCloudAltitude = 192;
+        volCloudThickness = 64;
+        volCloudDetailStrengthPercent = 100;
+        volCloudScatterOctaves = 3;
+        volCloudAmbientPercent = 100;
+        volCloudTemporalPercent = 0;
+        volCloudNoiseScale = 1000;
+        volCloudCellFrequencyTenths = 40;
+        volCloudAtmosphereFadeDist = 800;
+        volCloudDebugMode = 0;
+        volCloudWindAngleDegrees = 0;
+        volCloudMarchSteps = 0;
+        volCloudLightSteps = 0;
+        volCloudResDivisor = 0;
+        volCloudNoiseRes = 128;
     }
 
     public static void setFpvEnabled(boolean value, boolean write) {
@@ -2235,8 +2177,8 @@ public class Options {
     // ── Volumetric Cloud Module setters (global) ──
 
     public static void setVolCloudQuality(int quality, boolean write) {
-        volCloudQuality = clamp(quality, 0, 5);
-        try { nativeSetCloudQuality(volCloudQuality, write); } catch (UnsatisfiedLinkError ignored) {}
+        disableVolumetricCloudModule();
+        try { nativeSetCloudQuality(0, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) overwriteConfig();
     }
 
@@ -2383,8 +2325,11 @@ public class Options {
         maxFps = 260;
         vsync = true;
         dlssDEnabled = true;
-        rayBounces = 16;
+        rayBounces = 2;
         simplifiedIndirect = false;
+        multiScatterGGX = true;
+        eonDiffuse = true;
+        diffuseModel = DIFFUSE_MODEL_EON;
         sharcEnabled = true;
         sharcSceneScaleTenths = 40;
         sharcRoughnessThresholdPercent = 25;
@@ -2503,7 +2448,7 @@ public class Options {
         nativeSetRayBounces(rayBounces, false);
         nativeSetSimplifiedIndirect(simplifiedIndirect, false);
         try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
-        try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
+        try { nativeSetDiffuseModel(diffuseModel, false); } catch (UnsatisfiedLinkError ignored) {}
         nativeSetSharcEnabled(sharcEnabled, false);
         nativeSetSharcSceneScale(sharcSceneScaleTenths / 10.0f, false);
         nativeSetSharcRoughnessThreshold(sharcRoughnessThresholdPercent / 100.0f, false);
@@ -2568,6 +2513,8 @@ public class Options {
         nativeSetPsychoPeakSDR(psychoPeakSDRTenths / 10.0f, false);
         initTonemapDefaults();
         pushActiveTonemapParams();
+        Pipeline.resetRayTracingShaderPackAttributesToDefaults();
+        Pipeline.build();
         overwriteConfig();
     }
 
@@ -3232,13 +3179,37 @@ public class Options {
 
     // --- EON Diffuse ---
     public native static void nativeSetEonDiffuse(boolean enabled, boolean write);
+    public native static void nativeSetDiffuseModel(int model, boolean write);
 
     public static void setEonDiffuse(boolean enabled, boolean write) {
         Options.eonDiffuse = enabled;
+        Options.diffuseModel = enabled ? DIFFUSE_MODEL_EON : DIFFUSE_MODEL_LEGACY;
+        try { nativeSetDiffuseModel(Options.diffuseModel, write); } catch (UnsatisfiedLinkError ignored) {}
         try { nativeSetEonDiffuse(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) {
             overwriteConfig();
         }
+    }
+
+    public static void setDiffuseModel(int model, boolean write) {
+        Options.diffuseModel = clampDiffuseModel(model);
+        Options.eonDiffuse = Options.diffuseModel != DIFFUSE_MODEL_LEGACY;
+        try { nativeSetDiffuseModel(Options.diffuseModel, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    private static int clampDiffuseModel(int model) {
+        return clamp(model, DIFFUSE_MODEL_EON, DIFFUSE_MODEL_LEGACY);
+    }
+
+    public static int diffuseModelFromProperties(Properties props, int fallbackDiffuseModel, boolean fallbackEonDiffuse) {
+        if (props.containsKey("diffuseModel")) {
+            return clampDiffuseModel(Integer.parseInt(props.getProperty("diffuseModel", String.valueOf(fallbackDiffuseModel))));
+        }
+        boolean enabled = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(fallbackEonDiffuse)));
+        return enabled ? DIFFUSE_MODEL_EON : DIFFUSE_MODEL_LEGACY;
     }
 
     public native static void nativeSetSEREnabled(boolean enabled, boolean write);
@@ -3636,6 +3607,19 @@ public class Options {
     public static void setDofStrength(int percent, boolean write) {
         dofStrengthPercent = clamp(percent, 100, 2000);
         nativeSetDofStrength(percent / 100.0f, write);
+    }
+
+    public static void setShaderPackPath(String path, boolean write) {
+        String value = path == null || path.isBlank()
+            ? Pipeline.VANILLA_RAY_TRACING_SHADER_PACK_PATH
+            : path.trim();
+        if (!Pipeline.setRayTracingShaderPackPath(value, true)) {
+            return;
+        }
+        shaderPackPath = value;
+        if (write) {
+            overwriteConfig();
+        }
     }
     public native static void nativeSetOfflineNativeRes(boolean enabled, boolean write);
     public native static void nativeSetOfflineDenoised(int mode, boolean write);

@@ -272,6 +272,7 @@ public class RadianceUnifiedScreen extends Screen {
         TreeNode rendering = new TreeNode("rendering", "Rendering");
         rendering.addChild(new TreeNode("ray_tracing", "Ray Tracing",
             compositeOf(new RayTracingPopulator(), new SharcPopulator())));
+        rendering.addChild(new TreeNode("shader_packs", "Shader Packs", new ShaderPackPopulator()));
         rendering.addChild(new TreeNode("upscaler", "Upscaling & FG", new UpscalerPopulator()));
         rendering.addChild(new TreeNode("post_processing", "Post Processing", new PostProcessingPopulator()));
         rendering.addChild(new TreeNode("performance", "Frame Pacing", new PerformancePopulator()));

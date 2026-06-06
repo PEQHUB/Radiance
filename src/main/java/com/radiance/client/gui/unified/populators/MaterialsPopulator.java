@@ -44,7 +44,7 @@ public class MaterialsPopulator implements ContentPopulator {
         }).dimensions(0, 0, 150, 20).build();
         quality.active = Options.displacementEnabled;
         displacement.addTwoWidgets(displacementEnabled.createWidget(gameOptions), quality)
-            .tooltip("Authored normal-alpha height maps displace cube faces. Quality controls the shader DDA step budget.");
+            .tooltip("Direct LabPBR normal-alpha height maps displace cube faces. Quality controls the smooth shader trace budget.");
 
         ResettableSliderWidget depthCap = new ResettableSliderWidget(0, 0, 150, 20,
             1, 50, Options.displacementDepthCapPercent, 5,

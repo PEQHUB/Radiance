@@ -99,18 +99,22 @@ public class SelectionDropdownWidget extends ClickableWidget {
 
     private int getDropdownY() {
         int totalHeight = options.length * ITEM_HEIGHT + 2;
+        return dropdownY(getY(), getHeight(), totalHeight, openDirection);
+    }
+
+    static int dropdownY(int widgetY, int widgetHeight, int totalHeight, OpenDirection direction) {
         int screenHeight = MinecraftClient.getInstance().getWindow().getScaledHeight();
-        int downY = getY() + getHeight();
-        int upY = getY() - totalHeight;
+        int downY = widgetY + widgetHeight;
+        int upY = widgetY - totalHeight;
         int topLimit = 4;
         int bottomLimit = screenHeight - 4;
         boolean fitsDown = downY + totalHeight <= bottomLimit;
         boolean fitsUp = upY >= topLimit;
 
-        if (openDirection == OpenDirection.PREFER_UP) {
+        if (direction == OpenDirection.PREFER_UP) {
             if (fitsUp) return upY;
             if (fitsDown) return downY;
-        } else if (openDirection == OpenDirection.PREFER_DOWN) {
+        } else if (direction == OpenDirection.PREFER_DOWN) {
             if (fitsDown) return downY;
             if (fitsUp) return upY;
         } else {
@@ -118,10 +122,28 @@ public class SelectionDropdownWidget extends ClickableWidget {
             if (fitsUp) return upY;
         }
 
-        int spaceUp = Math.max(0, getY() - topLimit);
+        int spaceUp = Math.max(0, widgetY - topLimit);
         int spaceDown = Math.max(0, bottomLimit - downY);
         int preferredY = spaceUp >= spaceDown ? upY : downY;
         return MathHelper.clamp(preferredY, topLimit, Math.max(topLimit, bottomLimit - totalHeight));
+    }
+
+    private int rowAt(double mouseX, double mouseY) {
+        return rowIndexAt(getX(), getDropdownY(), getWidth(), ITEM_HEIGHT, options.length, mouseX, mouseY);
+    }
+
+    public static int rowIndexForTest(int x, int y, int width, int itemHeight, int optionCount,
+                                      double mouseX, double mouseY) {
+        return rowIndexAt(x, y, width, itemHeight, optionCount, mouseX, mouseY);
+    }
+
+    static int rowIndexAt(int x, int y, int width, int itemHeight, int optionCount,
+                          double mouseX, double mouseY) {
+        if (mouseX < x || mouseX >= x + width) return -1;
+        int row = (int) ((mouseY - y - 1) / itemHeight);
+        if (row < 0 || row >= optionCount) return -1;
+        int itemY = y + 1 + row * itemHeight;
+        return mouseY >= itemY && mouseY < itemY + itemHeight ? row : -1;
     }
 
     @Override
@@ -211,8 +233,9 @@ public class SelectionDropdownWidget extends ClickableWidget {
         if (button != 0) return false;
 
         if (open && isInDropdownBounds(mouseX, mouseY)) {
-            if (hoveredIndex >= 0 && hoveredIndex < options.length) {
-                selectedIndex = hoveredIndex;
+            int clickedIndex = rowAt(mouseX, mouseY);
+            if (clickedIndex >= 0 && clickedIndex < options.length) {
+                selectedIndex = clickedIndex;
                 updateMessage();
                 onSelect.accept(selectedIndex);
             }

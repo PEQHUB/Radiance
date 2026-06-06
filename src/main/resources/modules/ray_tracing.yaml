@@ -66,3 +66,6 @@ attributeConfigs:
   - name: "render_pipeline.module.ray_tracing.attribute.use_jitter"
     type: "bool"
     value: "true"
+  - name: "render_pipeline.module.ray_tracing.attribute.shader_pack_path"
+    type: "string"
+    value: "shaders/world/ray_tracing/vanilla-pt.zip"

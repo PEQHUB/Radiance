@@ -10,6 +10,10 @@ import net.minecraft.text.Text;
 public class WaterPopulator implements ContentPopulator {
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
+        ShaderPackAttributeControls.addSection(panel,
+            "options.video.environment.water.shader_pack.category",
+            name -> ShaderPackAttributeControls.nameContainsAny(name, "water", "caustic"));
+
         int dim = Options.getEnvironmentEditingDimension();
 
         SettingsSection section = panel.addSection("options.video.environment.water.category");
@@ -39,7 +43,9 @@ public class WaterPopulator implements ContentPopulator {
     public java.util.List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("Water Tint", category, nodeId, false),
-            new UnifiedSearchOverlay.SearchEntry("Water Fog", category, nodeId, false)
+            new UnifiedSearchOverlay.SearchEntry("Water Fog", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Water Surface", category, nodeId, false),
+            new UnifiedSearchOverlay.SearchEntry("Water Caustics", category, nodeId, false)
         );
     }
 }

@@ -1,6 +1,7 @@
 package com.radiance.client.gui;
 
 import com.radiance.client.pipeline.Module;
+import com.radiance.client.pipeline.Pipeline;
 import com.radiance.client.pipeline.config.AttributeConfig;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,7 +29,7 @@ public class ModuleAttributeScreen extends Screen {
     private int scrollY = 0;
 
     public ModuleAttributeScreen(Screen parent, Module module) {
-        super(Text.translatable(module.name));
+        super(module.translateText(module.name));
         this.parent = parent;
         this.module = module;
     }
@@ -48,6 +49,9 @@ public class ModuleAttributeScreen extends Screen {
         }
 
         for (AttributeConfig cfg : list) {
+            if (Pipeline.isRayTracingShaderPackAttribute(module, cfg)) {
+                continue;
+            }
             List<ClickableWidget> ws = buildWidgets(cfg);
             for (ClickableWidget w : ws) {
                 addDrawableChild(w);
@@ -71,7 +75,7 @@ public class ModuleAttributeScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         super.render(context, mouseX, mouseY, delta);
 
-        RadianceTheme.drawOutlinedText(context, textRenderer, Text.translatable(module.name), 10,
+        RadianceTheme.drawOutlinedText(context, textRenderer, module.translateText(module.name), 10,
             HEADER_HEIGHT + 8, RadianceTheme.textPrimary);
 
         if (rows.isEmpty()) {
@@ -90,7 +94,7 @@ public class ModuleAttributeScreen extends Screen {
             boolean visible = y >= (HEADER_HEIGHT + 18) && y <= (this.height - 24);
             if (visible) {
                 RadianceTheme.drawOutlinedText(context, textRenderer,
-                    Text.translatable(row.cfg.name), 20, y + 6, RadianceTheme.textPrimary);
+                    module.translateText(row.cfg.name), 20, y + 6, RadianceTheme.textPrimary);
             }
 
             layoutRowWidgets(row, y);

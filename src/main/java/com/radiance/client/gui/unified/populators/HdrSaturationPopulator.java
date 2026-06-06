@@ -133,11 +133,13 @@ public class HdrSaturationPopulator implements ContentPopulator {
         SimpleOption<Boolean> msGGX = SimpleOption.ofBoolean(
             Options.MULTI_SCATTER_GGX_KEY, Options.multiScatterGGX,
             value -> Options.setMultiScatterGGX(value, true));
-        SimpleOption<Boolean> eonDiffuse = SimpleOption.ofBoolean(
-            Options.EON_DIFFUSE_KEY, Options.eonDiffuse,
-            value -> Options.setEonDiffuse(value, true));
-        color.addTwoWidgets(msGGX.createWidget(gameOptions), eonDiffuse.createWidget(gameOptions))
-              .tooltip("BRDF energy conservation models. Multi-Scatter prevents energy loss at high roughness. EON improves diffuse accuracy.");
+        SelectionDropdownWidget diffuseModel = new SelectionDropdownWidget(
+            0, 0, 150, 20, "Diffuse",
+            new String[]{"EON", "VMF (Experimental)"},
+            Options.diffuseModel == Options.DIFFUSE_MODEL_VMF ? 1 : 0,
+            value -> Options.setDiffuseModel(value == 1 ? Options.DIFFUSE_MODEL_VMF : Options.DIFFUSE_MODEL_EON, true));
+        color.addTwoWidgets(msGGX.createWidget(gameOptions), diffuseModel)
+              .tooltip("BRDF energy conservation models. Multi-Scatter prevents energy loss at high roughness. Diffuse selects the rough diffuse model.");
 
         // HDR Output (conditional)
         if (Options.isHdrSupported()) {
@@ -199,7 +201,7 @@ public class HdrSaturationPopulator implements ContentPopulator {
             new UnifiedSearchOverlay.SearchEntry("Saturation", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("SDR Transfer Function", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("Multi-Scatter GGX", category, nodeId, true),
-            new UnifiedSearchOverlay.SearchEntry("EON Diffuse", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("Diffuse Model", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("HDR Enabled", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("HDR Format", category, nodeId, false),
             new UnifiedSearchOverlay.SearchEntry("HDR Peak Nits", category, nodeId, false),
