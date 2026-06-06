@@ -6,6 +6,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
+import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt;
@@ -13,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.MinecraftClient;
@@ -105,14 +107,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
         TextureArrayBridge.setSortedSpriteIds(sortedIds);
         TextureArrayBridge.incrementTextureGeneration();
-        // Detect sprite size (all block sprites should be uniform)
-        int spriteSize = 0;
-        for (var entry : sorted) {
-            int w = entry.getValue().getContents().getWidth();
-            if (spriteSize == 0) spriteSize = w;
-            break;
-        }
-        if (spriteSize == 0) return;
+        int spriteSize = manifest.fixedLayerSize();
+        if (spriteSize <= 0) return;
 
         int count = sorted.size();
         int bytesPerSprite = spriteSize * spriteSize * 4; // RGBA8
@@ -127,30 +123,48 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             INativeImageExt auxExt = (INativeImageExt) (Object) img;
             NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
             if (specImg != null) {
-                TextureTracker.spriteSpecularSource[i] =
-                    ((INativeImageExt) (Object) specImg).neoVoxelRT$getAuxSource();
+                byte source = ((INativeImageExt) (Object) specImg).neoVoxelRT$getAuxSource();
+                TextureTracker.spriteSpecularSource[i] = source;
+                TextureTracker.spriteBaselineSpecularSource[i] = source;
             }
 
             NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
             if (normalImg != null) {
-                TextureTracker.spriteNormalSource[i] =
-                    ((INativeImageExt) (Object) normalImg).neoVoxelRT$getAuxSource();
+                byte source = ((INativeImageExt) (Object) normalImg).neoVoxelRT$getAuxSource();
+                TextureTracker.spriteNormalSource[i] = source;
+                TextureTracker.spriteBaselineNormalSource[i] = source;
             }
         }
 
         // ---- Step 2: Detect overlay sprites (grass_block_side_overlay → grass_block_side) ----
         // overlayOf[i] = spriteId that sprite i is an overlay FOR, or -1
         short[] overlayOf = new short[count];
+        boolean[] emissiveOverlay = new boolean[count];
         java.util.Arrays.fill(overlayOf, (short) -1);
+        Map<Identifier, Integer> spriteIndexById = new HashMap<>();
         for (int i = 0; i < count; i++) {
-            String name = sorted.get(i).getKey().toString();
+            spriteIndexById.put(sorted.get(i).getKey(), i);
+        }
+        String emissiveSuffix = ResourcePackEmissiveTextureResolver.suffix(
+            MinecraftClient.getInstance().getResourceManager(),
+            Options.materialCompatLegacyMcPatcherEnabled);
+        for (int i = 0; i < count; i++) {
+            Identifier spriteId = sorted.get(i).getKey();
+            String name = spriteId.toString();
             if (name.endsWith("_overlay")) {
                 String baseName = name.substring(0, name.length() - "_overlay".length());
-                for (int j = 0; j < count; j++) {
-                    if (sorted.get(j).getKey().toString().equals(baseName)) {
-                        overlayOf[i] = (short) j;
-                        break;
-                    }
+                Identifier baseId = Identifier.tryParse(baseName);
+                Integer baseIndex = baseId == null ? null : spriteIndexById.get(baseId);
+                if (baseIndex != null) {
+                    overlayOf[i] = baseIndex.shortValue();
+                }
+            } else if (Options.materialCompatEnabled && Options.materialCompatPhysicalEmissiveEnabled) {
+                Identifier baseId =
+                    ResourcePackEmissiveTextureResolver.baseSpriteForEmissiveSprite(spriteId, emissiveSuffix);
+                Integer baseIndex = baseId == null ? null : spriteIndexById.get(baseId);
+                if (baseIndex != null) {
+                    overlayOf[i] = baseIndex.shortValue();
+                    emissiveOverlay[i] = true;
                 }
             }
         }
@@ -199,6 +213,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
                 }
             }
+            if (emissiveOverlay[i]) {
+                flags |= TextureTracker.SPRITE_FLAG_EMISSIVE_OVERLAY;
+            }
             metaBuf.putShort(off + 14, (short) flags);
         }
 
@@ -220,21 +237,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             int w = contents.getWidth();
             int h = contents.getHeight();
 
-            if (img != null && w == spriteSize && h == spriteSize) {
+            if (img != null) {
                 TextureTracker.spriteAlbedoCache.put(i, copySpriteImage(img, w, h, spriteSize));
-                // Raw copy frame 0 from NativeImage (RGBA8 bytes)
-                long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                    (Object) img).neoVoxelRT$getPointer();
-                long dstPtr = memAddress(pixelBuf) + (long) i * bytesPerSprite;
-                memCopy(srcPtr, dstPtr, bytesPerSprite);
-                uploaded++;
-            } else if (img != null) {
-                TextureTracker.spriteAlbedoCache.put(i, copySpriteImage(img, w, h, spriteSize));
-                // Size mismatch — extract per-pixel with conversion
                 long dstBase = memAddress(pixelBuf) + (long) i * bytesPerSprite;
-                extractPixelsManual(img, w, h, spriteSize, dstBase);
+                writeSpriteFramePixels(img, w, h, 0, spriteSize, dstBase);
                 uploaded++;
             }
+                // Size mismatch — extract per-pixel with conversion
             // else: leave zeroed (black transparent)
 
             int imgH = (img != null) ? img.getHeight() : h;
@@ -280,53 +289,36 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             // Specular (_s) texture
             NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
             if (specImg != null) {
+                int specH = Math.min(specImg.getHeight(), Math.max(1, h));
                 TextureTracker.spriteSpecularCache.put(i,
-                    copySpriteImage(specImg, specImg.getWidth(), specImg.getHeight(), spriteSize));
+                    copySpriteImage(specImg, specImg.getWidth(), specH, spriteSize));
+                TextureTracker.spriteBaselineSpecularCache.put(i,
+                    copySpriteImage(specImg, specImg.getWidth(), specH, spriteSize));
                 long dstPtr = memAddress(specPixelBuf) + (long) i * bytesPerSprite;
-                int specW = specImg.getWidth();
-                int specH = specImg.getHeight();
-                if (specW == spriteSize && specH == spriteSize) {
-                    long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                        (Object) specImg).neoVoxelRT$getPointer();
-                    memCopy(srcPtr, dstPtr, bytesPerSprite);
-                } else {
-                    extractPixelsManual(specImg, specW, specH, spriteSize, dstPtr);
-                }
+                writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, spriteSize, dstPtr);
                 specCount++;
             }
 
             // Normal (_n) texture
             NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
             if (normalImg != null) {
+                int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
                 TextureTracker.spriteNormalCache.put(i,
-                    copySpriteImage(normalImg, normalImg.getWidth(), normalImg.getHeight(), spriteSize));
+                    copySpriteImage(normalImg, normalImg.getWidth(), normalH, spriteSize));
+                TextureTracker.spriteBaselineNormalCache.put(i,
+                    copySpriteImage(normalImg, normalImg.getWidth(), normalH, spriteSize));
                 long dstPtr = memAddress(normalPixelBuf) + (long) i * bytesPerSprite;
-                int normW = normalImg.getWidth();
-                int normH = normalImg.getHeight();
-                if (normW == spriteSize && normH == spriteSize) {
-                    long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                        (Object) normalImg).neoVoxelRT$getPointer();
-                    memCopy(srcPtr, dstPtr, bytesPerSprite);
-                } else {
-                    extractPixelsManual(normalImg, normW, normH, spriteSize, dstPtr);
-                }
+                writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, spriteSize, dstPtr);
                 normalCount++;
             }
 
             NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
             if (flagImg != null) {
+                int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
                 TextureTracker.spriteFlagCache.put(i,
-                    copySpriteImage(flagImg, flagImg.getWidth(), flagImg.getHeight(), spriteSize));
+                    copySpriteImage(flagImg, flagImg.getWidth(), flagH, spriteSize));
                 long dstPtr = memAddress(flagPixelBuf) + (long) i * bytesPerSprite;
-                int flagW = flagImg.getWidth();
-                int flagH = flagImg.getHeight();
-                if (flagW == spriteSize && flagH == spriteSize) {
-                    long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
-                        (Object) flagImg).neoVoxelRT$getPointer();
-                    memCopy(srcPtr, dstPtr, bytesPerSprite);
-                } else {
-                    extractPixelsManual(flagImg, flagW, flagH, spriteSize, dstPtr);
-                }
+                writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, spriteSize, dstPtr);
                 flagCount++;
             }
         }
@@ -380,19 +372,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     animBuf.putShort(animOffset + 2, (short) frame);
                     animOffset += 4;
 
-                    // Pixel data for this frame (raw copy from NativeImage)
-                    if (w == spriteSize && srcRowBytes == w * 4) {
+                    if (w == spriteSize && h == spriteSize && srcRowBytes == w * 4) {
                         // Fast path: contiguous, correct width
                         long frameSrc = srcBase + (long) frame * h * srcRowBytes;
                         memCopy(frameSrc, memAddress(animBuf) + animOffset, bytesPerSprite);
                     } else {
-                        // Row-by-row copy (different NativeImage width)
-                        for (int y = 0; y < Math.min(h, spriteSize); y++) {
-                            long rowSrc = srcBase + ((long) frame * h + y) * srcRowBytes;
-                            long rowDst = memAddress(animBuf) + animOffset + (long) y * spriteSize * 4;
-                            int copyBytes = Math.min(w, spriteSize) * 4;
-                            memCopy(rowSrc, rowDst, copyBytes);
-                        }
+                        writeSpriteFramePixels(img, w, h, frame, spriteSize,
+                            memAddress(animBuf) + animOffset);
                     }
                     animOffset += bytesPerSprite;
                 }
@@ -426,30 +412,47 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
     }
 
-    /** Manual pixel extraction for size-mismatched sprites (rare). */
-    private static void extractPixelsManual(NativeImage img, int srcW, int srcH,
-                                             int dstSize, long dstPtr) {
-        int copyW = Math.min(srcW, dstSize);
-        int copyH = Math.min(srcH, dstSize);
-        for (int y = 0; y < copyH; y++) {
-            for (int x = 0; x < copyW; x++) {
-                int argb = img.getColorArgb(x, y);
+    private static void writeSpriteFramePixels(NativeImage img, int srcW, int srcH,
+                                               int frameIndex, int dstSize, long dstPtr) {
+        if (img == null || dstSize <= 0 || dstPtr == 0L) return;
+        int frameY = Math.max(0, frameIndex) * Math.max(1, srcH);
+        int sourceW = Math.max(1, Math.min(srcW, img.getWidth()));
+        int remainingH = img.getHeight() - frameY;
+        if (remainingH <= 0) return;
+        int sourceH = Math.max(1, Math.min(srcH, remainingH));
+
+        if (sourceW == dstSize && sourceH == dstSize && img.getWidth() == sourceW
+            && img.getFormat().getChannelCount() == 4) {
+            long srcPtr = ((com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt)
+                (Object) img).neoVoxelRT$getPointer() + (long) frameY * sourceW * 4L;
+            memCopy(srcPtr, dstPtr, (long) dstSize * dstSize * 4L);
+            return;
+        }
+
+        for (int y = 0; y < dstSize; y++) {
+            int sampleY = frameY + Math.min(sourceH - 1, (int) (((long) y * sourceH) / dstSize));
+            for (int x = 0; x < dstSize; x++) {
+                int sampleX = Math.min(sourceW - 1, (int) (((long) x * sourceW) / dstSize));
+                int argb = img.getColorArgb(sampleX, sampleY);
                 int offset = (y * dstSize + x) * 4;
-                org.lwjgl.system.MemoryUtil.memPutByte(dstPtr + offset,     (byte) ((argb >> 16) & 0xFF)); // R
-                org.lwjgl.system.MemoryUtil.memPutByte(dstPtr + offset + 1, (byte) ((argb >> 8) & 0xFF));  // G
-                org.lwjgl.system.MemoryUtil.memPutByte(dstPtr + offset + 2, (byte) (argb & 0xFF));         // B
-                org.lwjgl.system.MemoryUtil.memPutByte(dstPtr + offset + 3, (byte) ((argb >> 24) & 0xFF)); // A
+                memPutByte(dstPtr + offset,     (byte) ((argb >> 16) & 0xFF));
+                memPutByte(dstPtr + offset + 1, (byte) ((argb >> 8) & 0xFF));
+                memPutByte(dstPtr + offset + 2, (byte) (argb & 0xFF));
+                memPutByte(dstPtr + offset + 3, (byte) ((argb >> 24) & 0xFF));
             }
         }
     }
 
     private static NativeImage copySpriteImage(NativeImage img, int srcW, int srcH, int dstSize) {
         NativeImage copy = new NativeImage(NativeImage.Format.RGBA, dstSize, dstSize, false);
-        int copyW = Math.min(srcW, dstSize);
-        int copyH = Math.min(srcH, dstSize);
-        for (int y = 0; y < copyH; y++) {
-            for (int x = 0; x < copyW; x++) {
-                copy.setColorArgb(x, y, img.getColorArgb(x, y));
+        if (img == null || dstSize <= 0) return copy;
+        int sourceW = Math.max(1, Math.min(srcW, img.getWidth()));
+        int sourceH = Math.max(1, Math.min(srcH, img.getHeight()));
+        for (int y = 0; y < dstSize; y++) {
+            int sampleY = Math.min(sourceH - 1, (int) (((long) y * sourceH) / dstSize));
+            for (int x = 0; x < dstSize; x++) {
+                int sampleX = Math.min(sourceW - 1, (int) (((long) x * sourceW) / dstSize));
+                copy.setColorArgb(x, y, img.getColorArgb(sampleX, sampleY));
             }
         }
         return copy;

@@ -2,8 +2,7 @@ package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.vertex.PBRVertexConsumer;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_BLOCK_GEOMETRY;
-import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_FLUID_GEOMETRY;
+import static com.radiance.client.vertex.PBRVertexFormatElements.fluidGeometryFlags;
 import static net.minecraft.client.render.block.FluidRenderer.shouldRenderSide;
 
 import net.minecraft.block.Block;
@@ -127,11 +126,11 @@ public abstract class FluidRendererMixins {
     }
 
     @Unique
-    private void setPendingFluidSprite(VertexConsumer vertexConsumer, Sprite sprite) {
+    private void setPendingFluidSprite(VertexConsumer vertexConsumer, Sprite sprite, boolean isWater) {
         if (vertexConsumer instanceof PBRVertexConsumer pbrVertexConsumer) {
             pbrVertexConsumer.setPendingTextureSprite(
                 sprite,
-                PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY);
+                fluidGeometryFlags(isWater));
         }
     }
 
@@ -146,7 +145,11 @@ public abstract class FluidRendererMixins {
         BlockState blockState,
         FluidState fluidState,
         CallbackInfo ci) {
+        if (!(vertexConsumer instanceof PBRVertexConsumer)) {
+            return;
+        }
         boolean isLava = fluidState.isIn(FluidTags.LAVA);
+        boolean pbrWater = !isLava;
         Sprite[] fluidSprites = isLava ? this.lavaSprites : this.waterSprites;
         int tintColor = isLava ? 16777215 : BiomeColors.getWaterColor(world, pos);
         float emission = isLava ? EmissiveBlock.LAVA.getDefaultSurfaceNits() : 0.0F;
@@ -252,10 +255,16 @@ public abstract class FluidRendererMixins {
             if (renderTop && !method_3344(Direction.UP,
                 Math.min(Math.min(heightNW, heightSW), Math.min(heightSE, heightNE)), stateUp)) {
                 // 稍微调低一点避免 Z-Fighting
-                heightNW -= 0.001F;
-                heightSW -= 0.001F;
-                heightSE -= 0.001F;
-                heightNE -= 0.001F;
+                float topHeightNW = heightNW;
+                float topHeightSW = heightSW;
+                float topHeightSE = heightSE;
+                float topHeightNE = heightNE;
+                if (!pbrWater) {
+                    topHeightNW -= 0.001F;
+                    topHeightSW -= 0.001F;
+                    topHeightSE -= 0.001F;
+                    topHeightNE -= 0.001F;
+                }
 
                 Vec3d flowVector = fluidState.getVelocity(world, pos);
                 float u1, v1, u2, v2, u3, v3, u4, v4; // 对应四个角的UV
@@ -314,8 +323,8 @@ public abstract class FluidRendererMixins {
                 // 坐标系：NW(0,0), NE(1,0), SW(0,1), SE(1,1)
                 // X轴斜率贡献: (左 - 右) => (NW - NE) + (SW - SE)
                 // Z轴斜率贡献: (上 - 下) => (NW - SW) + (NE - SE)
-                float normalX = (heightNW - heightNE) + (heightSW - heightSE);
-                float normalZ = (heightNW - heightSW) + (heightNE - heightSE);
+                float normalX = (topHeightNW - topHeightNE) + (topHeightSW - topHeightSE);
+                float normalZ = (topHeightNW - topHeightSW) + (topHeightNE - topHeightSE);
                 float normalY = 1.0F; // 基础垂直分量
 
                 // 归一化
@@ -327,11 +336,11 @@ public abstract class FluidRendererMixins {
 
                 // 绘制顶面 (四个顶点)
                 // 0: NW (0, 0) -> heightNW
-                this.setPendingFluidSprite(vertexConsumer, topSprite);
+                this.setPendingFluidSprite(vertexConsumer, topSprite, !isLava);
 
                 this.vertex(vertexConsumer,
                     x + 0.0F,
-                    y + heightNW,
+                    y + topHeightNW,
                     z + 0.0F,
                     shadedRed,
                     shadedGreen,
@@ -345,7 +354,7 @@ public abstract class FluidRendererMixins {
                 // 1: SW (0, 1) -> heightSW
                 this.vertex(vertexConsumer,
                     x + 0.0F,
-                    y + heightSW,
+                    y + topHeightSW,
                     z + 1.0F,
                     shadedRed,
                     shadedGreen,
@@ -359,7 +368,7 @@ public abstract class FluidRendererMixins {
                 // 2: SE (1, 1) -> heightSE
                 this.vertex(vertexConsumer,
                     x + 1.0F,
-                    y + heightSE,
+                    y + topHeightSE,
                     z + 1.0F,
                     shadedRed,
                     shadedGreen,
@@ -373,7 +382,7 @@ public abstract class FluidRendererMixins {
                 // 3: NE (1, 0) -> heightNE
                 this.vertex(vertexConsumer,
                     x + 1.0F,
-                    y + heightNE,
+                    y + topHeightNE,
                     z + 0.0F,
                     shadedRed,
                     shadedGreen,
@@ -385,11 +394,11 @@ public abstract class FluidRendererMixins {
                     normalY,
                     normalZ, emission);
 
-                if (fluidState.canFlowTo(world, pos.up())) {
+                if (!pbrWater && fluidState.canFlowTo(world, pos.up())) {
                     // 绘制内顶面 (Backface)，法线取反
                     this.vertex(vertexConsumer,
                         x + 0.0F,
-                        y + heightNW,
+                        y + topHeightNW,
                         z + 0.0F,
                         shadedRed,
                         shadedGreen,
@@ -402,7 +411,7 @@ public abstract class FluidRendererMixins {
                         -normalZ, emission);
                     this.vertex(vertexConsumer,
                         x + 1.0F,
-                        y + heightNE,
+                        y + topHeightNE,
                         z + 0.0F,
                         shadedRed,
                         shadedGreen,
@@ -415,7 +424,7 @@ public abstract class FluidRendererMixins {
                         -normalZ, emission);
                     this.vertex(vertexConsumer,
                         x + 1.0F,
-                        y + heightSE,
+                        y + topHeightSE,
                         z + 1.0F,
                         shadedRed,
                         shadedGreen,
@@ -428,7 +437,7 @@ public abstract class FluidRendererMixins {
                         -normalZ, emission);
                     this.vertex(vertexConsumer,
                         x + 0.0F,
-                        y + heightSW,
+                        y + topHeightSW,
                         z + 1.0F,
                         shadedRed,
                         shadedGreen,
@@ -457,7 +466,7 @@ public abstract class FluidRendererMixins {
                 float shadedGreenDown = lightDown * green;
                 float shadedBlueDown = lightDown * blue;
 
-                this.setPendingFluidSprite(vertexConsumer, bottomSprite);
+                this.setPendingFluidSprite(vertexConsumer, bottomSprite, !isLava);
 
                 // 法线向下 (0, -1, 0)
                 this.vertex(vertexConsumer,
@@ -529,8 +538,8 @@ public abstract class FluidRendererMixins {
                         yEnd = heightNE;
                         xStart = x;
                         xEnd = x + 1.0F;
-                        zStart = z + 0.001F;
-                        zEnd = z + 0.001F;
+                        zStart = z + (pbrWater ? 0.0F : 0.001F);
+                        zEnd = z + (pbrWater ? 0.0F : 0.001F);
                         shouldRenderSide = renderNorth;
                         break;
                     case SOUTH:
@@ -538,15 +547,15 @@ public abstract class FluidRendererMixins {
                         yEnd = heightSW;
                         xStart = x + 1.0F;
                         xEnd = x;
-                        zStart = z + 1.0F - 0.001F;
-                        zEnd = z + 1.0F - 0.001F;
+                        zStart = z + 1.0F - (pbrWater ? 0.0F : 0.001F);
+                        zEnd = z + 1.0F - (pbrWater ? 0.0F : 0.001F);
                         shouldRenderSide = renderSouth;
                         break;
                     case WEST:
                         yStart = heightSW;
                         yEnd = heightNW;
-                        xStart = x + 0.001F;
-                        xEnd = x + 0.001F;
+                        xStart = x + (pbrWater ? 0.0F : 0.001F);
+                        xEnd = x + (pbrWater ? 0.0F : 0.001F);
                         zStart = z + 1.0F;
                         zEnd = z;
                         shouldRenderSide = renderWest;
@@ -554,8 +563,8 @@ public abstract class FluidRendererMixins {
                     default: // EAST
                         yStart = heightNE;
                         yEnd = heightSE;
-                        xStart = x + 1.0F - 0.001F;
-                        xEnd = x + 1.0F - 0.001F;
+                        xStart = x + 1.0F - (pbrWater ? 0.0F : 0.001F);
+                        xEnd = x + 1.0F - (pbrWater ? 0.0F : 0.001F);
                         zStart = z;
                         zEnd = z + 1.0F;
                         shouldRenderSide = renderEast;
@@ -576,7 +585,7 @@ public abstract class FluidRendererMixins {
                         }
                     }
 
-                    this.setPendingFluidSprite(vertexConsumer, sideSprite);
+                    this.setPendingFluidSprite(vertexConsumer, sideSprite, !isLava);
 
                     float uStart = sideSprite.getFrameU(0.0F);
                     float uCenter = sideSprite.getFrameU(0.5F);
@@ -649,7 +658,7 @@ public abstract class FluidRendererMixins {
                         dirY,
                         dirZ, emission);
 
-                    if (sideSprite != this.waterOverlaySprite) {
+                    if (!pbrWater && sideSprite != this.waterOverlaySprite) {
                         // 双面渲染（通常用于查看背面时），法线保持几何方向或取反均可。
                         // 这里为了保持光照一致性，通常使用与面朝向相同的法线。
                         this.vertex(vertexConsumer,

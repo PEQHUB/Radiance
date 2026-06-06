@@ -2,6 +2,7 @@ package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
 import com.radiance.client.proxy.vulkan.TextureProxy;
+import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
 import java.util.Arrays;
@@ -227,10 +228,8 @@ public enum AuxiliaryTextures {
                     }
                 }
 
-                if (auxiliaryTemplateImage == null && (
-                    identifier.getPath().contains("textures/block") || identifier.getPath()
-                        .contains("textures/item") || identifier.getPath()
-                        .contains("textures/entity"))) {
+                if (auxiliaryTemplateImage == null
+                    && ResourcePackTextureNames.allowsPbrAuxiliaryLookup(identifier)) {
                     List<Identifier> candidates = auxiliaryTexture.identifierCandidateProvider.get(
                         identifier, source);
 

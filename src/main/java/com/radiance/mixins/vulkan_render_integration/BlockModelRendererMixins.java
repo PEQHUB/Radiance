@@ -1,16 +1,21 @@
 package com.radiance.mixins.vulkan_render_integration;
 
 import com.radiance.client.util.EmissiveBlock;
+import com.radiance.client.texture.compat.ResourcePackColorPropertiesResolver;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.vertex.PBRVertexConsumer;
 
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IBlockColorsExt;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.state.property.Properties;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.block.BlockModelRenderer;
 import net.minecraft.client.render.model.BakedQuad;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.BlockRenderView;
 import org.spongepowered.asm.mixin.Final;
@@ -23,12 +28,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(BlockModelRenderer.class)
 public class BlockModelRendererMixins {
 
+    private static final Identifier GRASS_BLOCK_SIDE =
+        Identifier.ofVanilla("block/grass_block_side");
+    private static final Identifier GRASS_BLOCK_SIDE_OVERLAY =
+        Identifier.ofVanilla("block/grass_block_side_overlay");
+
     @Final
     @Shadow
     private BlockColors colors;
 
     private static final ThreadLocal<float[]> BRIGHTNESS_BUFFER = ThreadLocal.withInitial(() -> new float[4]);
     private static final ThreadLocal<int[]> LIGHT_BUFFER = ThreadLocal.withInitial(() -> new int[4]);
+
+    private static boolean isGrassBlockSideBaseQuad(BlockState state, BakedQuad quad) {
+        if (state.getBlock() != Blocks.GRASS_BLOCK || quad == null) {
+            return false;
+        }
+        Sprite sprite = quad.getSprite();
+        return sprite != null && sprite.getContents() != null &&
+            GRASS_BLOCK_SIDE.equals(sprite.getContents().getId());
+    }
 
     @Inject(method =
         "renderQuad(Lnet/minecraft/world/BlockRenderView;Lnet/minecraft/block/BlockState;Lnet/minecraft/util/math/BlockPos;"
@@ -60,6 +79,8 @@ public class BlockModelRendererMixins {
         float emission;
         if (quad.hasTint()) {
             int i = this.colors.getColor(state, world, pos, quad.getTintIndex());
+            i = ResourcePackColorPropertiesResolver.resolveBlockColor(state, world, pos,
+                quad.getTintIndex(), i);
             f = (i >> 16 & 0xFF) / 255.0F;
             g = (i >> 8 & 0xFF) / 255.0F;
             h = (i & 0xFF) / 255.0F;
@@ -67,11 +88,28 @@ public class BlockModelRendererMixins {
             emission = ((IBlockColorsExt) this.colors).neoVoxelRT$getEmission(state, world, pos,
                 quad.getTintIndex());
         } else {
-            f = 1.0F;
-            g = 1.0F;
-            h = 1.0F;
+            int i = ResourcePackColorPropertiesResolver.resolveBlockColor(state, world, pos,
+                -1, 0xFFFFFF);
+            f = (i >> 16 & 0xFF) / 255.0F;
+            g = (i >> 8 & 0xFF) / 255.0F;
+            h = (i & 0xFF) / 255.0F;
 
             emission = 0.0F;
+        }
+
+        boolean foldGrassSideOverlay = isGrassBlockSideBaseQuad(state, quad)
+            && !ResourcePackTextureVariantResolver.hasBlockSpriteRule(
+                GRASS_BLOCK_SIDE_OVERLAY,
+                world,
+                state,
+                pos,
+                quad.getFace());
+        if (foldGrassSideOverlay) {
+            int i = this.colors.getColor(state, world, pos, 0);
+            i = ResourcePackColorPropertiesResolver.resolveBlockColor(state, world, pos, 0, i);
+            f = (i >> 16 & 0xFF) / 255.0F;
+            g = (i >> 8 & 0xFF) / 255.0F;
+            h = (i & 0xFF) / 255.0F;
         }
 
         // Convert emission to physical nits (cd/m²)
@@ -93,10 +131,13 @@ public class BlockModelRendererMixins {
         if (vertexConsumer instanceof PBRVertexConsumer pbr) {
             pbrVertexConsumer = pbr;
             pbrVertexConsumer.setBase(pos.getX(), pos.getY(), pos.getZ());
+            pbrVertexConsumer.setPendingBlockContext(world, state, pos);
+            pbrVertexConsumer.pushBlockGeometryContext();
             if (eb != null) {
                 pbrVertexConsumer.setPendingEmissiveBlockType(eb.ordinal());
             }
             pbrVertexConsumer.setPendingEmission(emissionNits);
+            pbrVertexConsumer.setPendingOverlayAlphaMask(foldGrassSideOverlay);
         }
         float[] brightness = BRIGHTNESS_BUFFER.get();
         brightness[0] = brightness0;
@@ -123,9 +164,12 @@ public class BlockModelRendererMixins {
                 true);
         } finally {
             if (pbrVertexConsumer != null) {
+                pbrVertexConsumer.popBlockGeometryContext();
+                pbrVertexConsumer.clearPendingBlockContext();
                 pbrVertexConsumer.setBase(0.0F, 0.0F, 0.0F);
                 pbrVertexConsumer.setPendingEmission(0.0F);
                 pbrVertexConsumer.setPendingEmissiveBlockType(255);
+                pbrVertexConsumer.setPendingOverlayAlphaMask(false);
             }
         }
 

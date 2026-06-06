@@ -20,6 +20,7 @@ public class TextureTracker {
     public static final int SPRITE_FLAG_HAS_SPECULAR = 1 << 0;
     public static final int SPRITE_FLAG_HAS_NORMAL = 1 << 1;
     public static final int SPRITE_FLAG_HAS_HEIGHT = 1 << 2;
+    public static final int SPRITE_FLAG_EMISSIVE_OVERLAY = 1 << 7;
     public static final int SPRITE_FLAG_SPEC_SOURCE_SHIFT = 3;
     public static final int SPRITE_FLAG_NORMAL_SOURCE_SHIFT = 5;
     public static final int SPRITE_FLAG_SOURCE_MASK = 0x3;
@@ -65,6 +66,8 @@ public class TextureTracker {
     public static Map<Integer, NativeImage> spriteSpecularCache = new ConcurrentHashMap<>();
     public static Map<Integer, NativeImage> spriteNormalCache = new ConcurrentHashMap<>();
     public static Map<Integer, NativeImage> spriteFlagCache = new ConcurrentHashMap<>();
+    public static Map<Integer, NativeImage> spriteBaselineSpecularCache = new ConcurrentHashMap<>();
+    public static Map<Integer, NativeImage> spriteBaselineNormalCache = new ConcurrentHashMap<>();
     public static volatile int currentSpriteLayerSize = 0;
     // Auxiliary texture provenance keyed by auxiliary GLID. This survives the legacy upload
     // path and lets the texture-array stitch preserve authored LabPBR channels.
@@ -78,11 +81,15 @@ public class TextureTracker {
     public static Set<Integer> packProvidedNormalSpriteIds = ConcurrentHashMap.newKeySet();
     public static byte[] spriteSpecularSource = new byte[MAX_TEXTURES];
     public static byte[] spriteNormalSource = new byte[MAX_TEXTURES];
+    public static byte[] spriteBaselineSpecularSource = new byte[MAX_TEXTURES];
+    public static byte[] spriteBaselineNormalSource = new byte[MAX_TEXTURES];
 
     public static void resetSpriteAuxSources(int spriteCount) {
         int count = Math.min(spriteCount, MAX_TEXTURES);
         Arrays.fill(spriteSpecularSource, 0, count, SOURCE_GENERATED);
         Arrays.fill(spriteNormalSource, 0, count, SOURCE_GENERATED);
+        Arrays.fill(spriteBaselineSpecularSource, 0, count, SOURCE_GENERATED);
+        Arrays.fill(spriteBaselineNormalSource, 0, count, SOURCE_GENERATED);
         packProvidedSpecularSpriteIds.clear();
         packProvidedNormalSpriteIds.clear();
     }
@@ -96,6 +103,8 @@ public class TextureTracker {
         closeAndClearImageCache(spriteSpecularCache);
         closeAndClearImageCache(spriteNormalCache);
         closeAndClearImageCache(spriteFlagCache);
+        closeAndClearImageCache(spriteBaselineSpecularCache);
+        closeAndClearImageCache(spriteBaselineNormalCache);
         currentSpriteLayerSize = 0;
         packProvidedSpecularGLIDs.clear();
         packProvidedNormalGLIDs.clear();
@@ -105,6 +114,8 @@ public class TextureTracker {
         packProvidedNormalSpriteIds.clear();
         Arrays.fill(spriteSpecularSource, SOURCE_GENERATED);
         Arrays.fill(spriteNormalSource, SOURCE_GENERATED);
+        Arrays.fill(spriteBaselineSpecularSource, SOURCE_GENERATED);
+        Arrays.fill(spriteBaselineNormalSource, SOURCE_GENERATED);
     }
 
     public static void clearSpriteAlbedoCache() {
@@ -112,6 +123,8 @@ public class TextureTracker {
         closeAndClearImageCache(spriteSpecularCache);
         closeAndClearImageCache(spriteNormalCache);
         closeAndClearImageCache(spriteFlagCache);
+        closeAndClearImageCache(spriteBaselineSpecularCache);
+        closeAndClearImageCache(spriteBaselineNormalCache);
     }
 
     public static void closeAndClearImageCache(Map<Integer, NativeImage> cache) {

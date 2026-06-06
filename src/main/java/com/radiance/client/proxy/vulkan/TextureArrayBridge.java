@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,6 +16,13 @@ public final class TextureArrayBridge {
 
     public static List<Identifier> sortedSpriteIds = new ArrayList<>();
     private static Map<Identifier, Integer> spriteIdLookup = new HashMap<>();
+    private static volatile int missingSpriteFallbackId = -1;
+    private static volatile Identifier missingSpriteFallbackSprite = null;
+    private static final List<Identifier> MISSING_SPRITE_FALLBACKS = List.of(
+        Identifier.ofVanilla("block/dirt"),
+        Identifier.ofVanilla("block/stone"),
+        Identifier.ofVanilla("block/oak_planks"),
+        Identifier.ofVanilla("block/debug"));
 
     private TextureArrayBridge() {
     }
@@ -42,7 +50,47 @@ public final class TextureArrayBridge {
             nextLookup.put(sortedSpriteIds.get(i), i);
         }
         spriteIdLookup = nextLookup;
+        refreshMissingSpriteFallback(nextLookup);
         LOGGER.info("[TextureSystem] Sprite lookup refreshed: {} entries", spriteIdLookup.size());
+    }
+
+    private static void refreshMissingSpriteFallback(Map<Identifier, Integer> lookup) {
+        missingSpriteFallbackId = -1;
+        missingSpriteFallbackSprite = null;
+        for (Identifier candidate : MISSING_SPRITE_FALLBACKS) {
+            Integer id = lookup.get(candidate);
+            if (id != null && id >= 0) {
+                missingSpriteFallbackId = id;
+                missingSpriteFallbackSprite = candidate;
+                return;
+            }
+        }
+        for (Map.Entry<Identifier, Integer> entry : lookup.entrySet()) {
+            if (!MissingSprite.getMissingSpriteId().equals(entry.getKey())) {
+                missingSpriteFallbackId = entry.getValue();
+                missingSpriteFallbackSprite = entry.getKey();
+                return;
+            }
+        }
+    }
+
+    public static int resolveRenderableSpriteId(Identifier id) {
+        if (id == null) {
+            return -1;
+        }
+        Integer spriteId = spriteIdLookup.get(id);
+        if (spriteId != null && spriteId >= 0 && !MissingSprite.getMissingSpriteId().equals(id)) {
+            return spriteId;
+        }
+        return missingSpriteFallbackId;
+    }
+
+    public static int missingSpriteFallbackIdForTest() {
+        return missingSpriteFallbackId;
+    }
+
+    public static String missingSpriteFallbackLabel() {
+        return missingSpriteFallbackSprite == null ? "none" : missingSpriteFallbackSprite.toString();
     }
 
     public static int resolveSpriteId(String text) {
@@ -69,6 +117,8 @@ public final class TextureArrayBridge {
     public static void reset() {
         sortedSpriteIds = new ArrayList<>();
         spriteIdLookup = new HashMap<>();
+        missingSpriteFallbackId = -1;
+        missingSpriteFallbackSprite = null;
     }
 
     public static native void nativeReceiveSpriteTable(long metaPtr, int count,
@@ -81,17 +131,17 @@ public final class TextureArrayBridge {
     public static native void nativeSetTextureArrayAnimationEnabled(boolean enabled);
     public static native void nativeReceiveSpriteAuxPixels(
         long specularDataPtr, long normalDataPtr, long flagDataPtr, int totalBytesPerType);
-    public static native void nativeUpdateAlbedoLayer(int spriteId, long pixelPtr, int sizeBytes,
+    public static native boolean nativeUpdateAlbedoLayer(int spriteId, long pixelPtr, int sizeBytes,
         long generation);
-    public static native void nativeUpdateSpecularLayer(int spriteId, long pixelPtr, int sizeBytes,
+    public static native boolean nativeUpdateSpecularLayer(int spriteId, long pixelPtr, int sizeBytes,
         long generation);
-    public static native void nativeUpdateNormalLayer(int spriteId, long pixelPtr, int sizeBytes,
+    public static native boolean nativeUpdateNormalLayer(int spriteId, long pixelPtr, int sizeBytes,
         long generation);
-    public static native void nativeUpdateFlagLayer(int spriteId, long pixelPtr, int sizeBytes,
+    public static native boolean nativeUpdateFlagLayer(int spriteId, long pixelPtr, int sizeBytes,
         long generation);
-    public static native void nativeUpdateSpriteHeightMetadata(int spriteId, int flags,
+    public static native boolean nativeUpdateSpriteHeightMetadata(int spriteId, int flags,
         int heightRangePacked, long generation);
-    public static native void nativeReceiveTextureRules(long dataPtr, int count, long generation);
+    public static native boolean nativeReceiveTextureRules(long dataPtr, int count, long generation);
 
     public static void updateAnimatedSprites(int animTick) {
         nativeTickAnimation(animTick, getActiveTextureGeneration());

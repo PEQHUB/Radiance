@@ -5,6 +5,7 @@ import com.radiance.client.autopbr.AutoPbrRuntime;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -52,6 +53,10 @@ public final class DebugRuntimeDiagnostics {
 
     public static Path textureManifestPath() {
         return logsDir().resolve("texture_manifest.json");
+    }
+
+    public static Path materialCompatReportPath() {
+        return logsDir().resolve("radser-pack-index.json");
     }
 
     public static Path writeRuntimeSnapshot(MinecraftClient client) throws IOException {
@@ -131,10 +136,10 @@ public final class DebugRuntimeDiagnostics {
     }
 
     public static void rebuildChunks(MinecraftClient client) {
+        Options.nativeRebuildChunks();
         if (client.worldRenderer != null) {
             client.worldRenderer.reload();
         }
-        Options.nativeRebuildChunks();
         action(client, "Rebuild chunks requested");
     }
 
@@ -222,7 +227,11 @@ public final class DebugRuntimeDiagnostics {
         sb.append("lastRecipeRehydrateAtMillis=").append(AutoPbrRuntime.lastRehydrateAtMillis()).append('\n');
         sb.append("spriteProvenanceCounts=").append(AutoPbrRuntime.spriteProvenanceCounts()).append('\n');
         sb.append("textureRuleDiagnostics=").append(AutoPbrRuntime.diagnosticsSummary()).append('\n');
-        sb.append("displacementHeightSource=authored_normal_alpha_only\n");
+        sb.append("materialCompatFlags=").append(ResourcePackCompatDiagnostics.flagsSummary()).append('\n');
+        sb.append("materialCompatRenderingConsumesCompatibility=")
+            .append(ResourcePackCompatDiagnostics.renderingConsumesCompatibilityForDebug()).append('\n');
+        sb.append("pbrMissingSpriteFallback=").append(TextureArrayBridge.missingSpriteFallbackLabel()).append('\n');
+        sb.append("displacementHeightSource=direct_labpbr_normal_alpha\n");
         sb.append("generatedHeightDisplacement=not_supported\n");
         sb.append("displacementKnownBlockers=global_disabled,zero_depth,renderer_variant_no_height,non_block_geometry,hand_geometry,fluid_geometry,thin_cutout_plant,missing_native_sprite_entry,missing_normal_layer,no_height_flag,normal_source_generated_or_flat,uniform_normal_alpha,fade_distance,invalid_uv_basis,grazing_view\n");
         sb.append('\n');
@@ -232,9 +241,9 @@ public final class DebugRuntimeDiagnostics {
         sb.append("gpuDebugLabels=").append(Options.gpuDebugLabels).append('\n');
         sb.append("displacementEnabled=").append(Options.displacementEnabled).append('\n');
         sb.append("displacementQuality=").append(Options.displacementQualityName(Options.displacementQuality)).append('\n');
-        sb.append("displacementHeightSource=authored_normal_alpha_only\n");
+        sb.append("displacementHeightSource=direct_labpbr_normal_alpha\n");
         sb.append("displacementProxyGeometry=disabled\n");
-        sb.append("displacementPath=shader_height_field\n");
+        sb.append("displacementPath=shader_smooth_height_field\n");
         sb.append("upscalerMode=").append(Options.upscalerMode).append('\n');
         sb.append("frameGenMode=").append(Options.frameGenMode).append('\n');
         sb.append("frameGenMultiplier=").append(Options.frameGenMultiplier).append('\n');
@@ -249,6 +258,7 @@ public final class DebugRuntimeDiagnostics {
         sb.append("latestTargetInspect=").append(DebugInspectReporter.latestReportPath().toAbsolutePath()).append('\n');
         sb.append("latestDebugBundle=").append(latestBundlePath().toAbsolutePath()).append('\n');
         sb.append("textureManifest=").append(textureManifestPath().toAbsolutePath()).append('\n');
+        sb.append("materialCompatReport=").append(materialCompatReportPath().toAbsolutePath()).append('\n');
         sb.append("textureFullCsv=").append(TEXTURE_FULL_CSV.toAbsolutePath()).append('\n');
         return sb.toString();
     }

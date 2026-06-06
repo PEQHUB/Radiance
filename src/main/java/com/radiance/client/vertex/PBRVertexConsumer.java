@@ -1,12 +1,21 @@
 package com.radiance.client.vertex;
 
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALBEDO_EMISSION;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_BLOCK_GEOMETRY;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_EMISSIVE_BLOCK_TYPE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_COLOR_LAYER;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAGS;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_ALPHA_MODE_MASK;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_ALPHA_MODE_SHIFT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_FLUID_GEOMETRY;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_OVERLAY_ALPHA_MASK;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_WATER_GEOMETRY;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_COORD_SHIFT;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_TEXT_MODE_MASK;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_TEXT_MODE_SHIFT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_COLOR_LAYER;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_GLINT;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_FLAG_USE_LIGHT;
@@ -20,12 +29,27 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_NORM;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_OVERLAY_PACKED;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POS;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POST_BASE;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_BACKGROUND;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_BACKGROUND_SEE_THROUGH;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_INTENSITY;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_INTENSITY_POLYGON_OFFSET;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_INTENSITY_SEE_THROUGH;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_RGBA;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_RGBA_POLYGON_OFFSET;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_RGBA_SEE_THROUGH;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_ID;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_UV;
 
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.compat.ResourcePackBlockLayerResolver;
+import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
+import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.BlockOverlaySprite;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
 import java.nio.ByteOrder;
 import java.util.stream.Collectors;
+import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.RenderLayer;
@@ -38,7 +62,9 @@ import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.BufferAllocator;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
+import net.minecraft.world.BlockRenderView;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
@@ -48,8 +74,10 @@ import org.lwjgl.system.MemoryUtil;
 public class PBRVertexConsumer implements VertexConsumer {
 
     private static final boolean LITTLE_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN;
+    private static final Identifier GRASS_BLOCK_SIDE_OVERLAY =
+        Identifier.ofVanilla("block/grass_block_side_overlay");
     private static final int PBR_GEOMETRY_FLAG_MASK =
-        PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY;
+        PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY | PBR_FLAG_WATER_GEOMETRY;
 
     private final BufferAllocator allocator;
     private final VertexFormat format;
@@ -76,6 +104,14 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float pendingSpriteMaxU = 1.0f;
     private float pendingSpriteMinV = 0.0f;
     private float pendingSpriteMaxV = 1.0f;
+    private NaturalTransform pendingNaturalUvTransform = NaturalTransform.identity();
+    private int blockGeometryContextDepth = 0;
+    @Nullable
+    private BlockRenderView pendingBlockWorld = null;
+    @Nullable
+    private BlockState pendingBlockState = null;
+    @Nullable
+    private BlockPos pendingBlockPos = null;
 
     public PBRVertexConsumer(BufferAllocator allocator, RenderLayer renderLayer) {
         this(allocator, VertexFormat.DrawMode.QUADS, PBRVertexFormats.PBR_TRIANGLE, renderLayer);
@@ -101,9 +137,12 @@ public class PBRVertexConsumer implements VertexConsumer {
         }
 
         if (renderLayer instanceof RenderLayer.MultiPhase) {
+            RenderLayer.MultiPhase multiPhase = (RenderLayer.MultiPhase) renderLayer;
+            this.pendingVertexFlags =
+                packAlphaMode(alphaModeFor(multiPhase)) | packTextMode(textModeFor(multiPhase));
             Identifier
                 identifier =
-                ((RenderLayer.MultiPhase) renderLayer).phases.texture.getId()
+                multiPhase.phases.texture.getId()
                     .orElse(MissingSprite.getMissingSpriteId());
             textureID =
                 MinecraftClient.getInstance()
@@ -143,6 +182,30 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.baseX = x;
         this.baseY = y;
         this.baseZ = z;
+    }
+
+    public void pushBlockGeometryContext() {
+        this.blockGeometryContextDepth++;
+    }
+
+    public void popBlockGeometryContext() {
+        if (this.blockGeometryContextDepth > 0) {
+            this.blockGeometryContextDepth--;
+        }
+    }
+
+    public void setPendingBlockContext(@Nullable BlockRenderView world,
+        @Nullable BlockState state,
+        @Nullable BlockPos pos) {
+        this.pendingBlockWorld = world;
+        this.pendingBlockState = state;
+        this.pendingBlockPos = pos == null ? null : pos.toImmutable();
+    }
+
+    public void clearPendingBlockContext() {
+        this.pendingBlockWorld = null;
+        this.pendingBlockState = null;
+        this.pendingBlockPos = null;
     }
 
     private void ensureBuilding() {
@@ -245,6 +308,50 @@ public class PBRVertexConsumer implements VertexConsumer {
             MemoryUtil.memPutFloat(ptr + offBase + 4L, baseY);
             MemoryUtil.memPutFloat(ptr + offBase + 8L, baseZ);
         }
+    }
+
+    private static int packAlphaMode(int alphaMode) {
+        return (alphaMode << PBR_FLAG_ALPHA_MODE_SHIFT) & PBR_FLAG_ALPHA_MODE_MASK;
+    }
+
+    private static int packTextMode(int textMode) {
+        return (textMode << PBR_FLAG_TEXT_MODE_SHIFT) & PBR_FLAG_TEXT_MODE_MASK;
+    }
+
+    private static int alphaModeFor(RenderLayer.MultiPhase renderLayer) {
+        if (renderLayer.name.contains("solid")) {
+            return PBR_ALPHA_MODE_OPAQUE;
+        }
+        return renderLayer.isTranslucent() ? PBR_ALPHA_MODE_TRANSPARENT : PBR_ALPHA_MODE_CUTOUT;
+    }
+
+    private static int textModeFor(RenderLayer.MultiPhase renderLayer) {
+        String name = renderLayer.name;
+        if (name.equals("text_background")) {
+            return PBR_TEXT_MODE_BACKGROUND;
+        }
+        if (name.equals("text_intensity")) {
+            return PBR_TEXT_MODE_INTENSITY;
+        }
+        if (name.equals("text")) {
+            return PBR_TEXT_MODE_RGBA;
+        }
+        if (name.equals("text_background_see_through")) {
+            return PBR_TEXT_MODE_BACKGROUND_SEE_THROUGH;
+        }
+        if (name.equals("text_intensity_see_through")) {
+            return PBR_TEXT_MODE_INTENSITY_SEE_THROUGH;
+        }
+        if (name.equals("text_see_through")) {
+            return PBR_TEXT_MODE_RGBA_SEE_THROUGH;
+        }
+        if (name.equals("text_intensity_polygon_offset")) {
+            return PBR_TEXT_MODE_INTENSITY_POLYGON_OFFSET;
+        }
+        if (name.equals("text_polygon_offset")) {
+            return PBR_TEXT_MODE_RGBA_POLYGON_OFFSET;
+        }
+        return 0;
     }
 
     long beginElement(VertexFormatElement element) {
@@ -365,6 +472,12 @@ public class PBRVertexConsumer implements VertexConsumer {
                 u = localSpriteUvForTest(u, pendingSpriteMinU, pendingSpriteMaxU);
                 v = localSpriteUvForTest(v, pendingSpriteMinV, pendingSpriteMaxV);
             }
+            if (!pendingNaturalUvTransform.isIdentity()) {
+                float oldU = u;
+                float oldV = v;
+                u = pendingNaturalUvTransform.transformU(oldU, oldV);
+                v = pendingNaturalUvTransform.transformV(oldU, oldV);
+            }
             MemoryUtil.memPutFloat(p, u);
             MemoryUtil.memPutFloat(p + 4L, v);
         }
@@ -422,6 +535,22 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.pendingEmissiveBlockType = ordinal;
     }
 
+    public void setPendingOverlayAlphaMask(boolean enabled) {
+        if (enabled) {
+            this.pendingVertexFlags |= PBR_FLAG_OVERLAY_ALPHA_MASK;
+        } else {
+            this.pendingVertexFlags &= ~PBR_FLAG_OVERLAY_ALPHA_MASK;
+        }
+    }
+
+    private void setPendingAlphaMode(int alphaMode) {
+        if (alphaMode < PBR_ALPHA_MODE_OPAQUE || alphaMode > PBR_ALPHA_MODE_TRANSPARENT) {
+            return;
+        }
+        this.pendingVertexFlags =
+            (this.pendingVertexFlags & ~PBR_FLAG_ALPHA_MODE_MASK) | packAlphaMode(alphaMode);
+    }
+
     public VertexConsumer emissiveBlockType(int type) {
         long p = beginElement(PBR_EMISSIVE_BLOCK_TYPE);
         if (p != -1L) {
@@ -434,11 +563,41 @@ public class PBRVertexConsumer implements VertexConsumer {
         return this.textureID;
     }
 
-    public void setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags) {
+    public ResolvedBlockSprite setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags) {
+        return setPendingTextureSprite(sprite, geometryFlags, null);
+    }
+
+    private ResolvedBlockSprite setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags,
+        @Nullable Direction face) {
         Identifier id = sprite == null || sprite.getContents() == null
             ? null
             : sprite.getContents().getId();
-        int spriteId = id == null ? -1 : TextureArrayBridge.resolveSpriteId(id.toString());
+        ResolvedBlockSprite resolved = this.blockGeometryContextDepth > 0
+            ? ResourcePackTextureVariantResolver.resolveBlockSprite(
+                sprite,
+                this.pendingBlockWorld,
+                this.pendingBlockState,
+                this.pendingBlockPos,
+                face)
+            : new ResolvedBlockSprite(TextureArrayBridge.resolveRenderableSpriteId(id),
+                false, 0xFFFFFF, false, -1);
+        int spriteId = resolved.spriteId();
+        if (spriteId < 0) spriteId = TextureArrayBridge.resolveRenderableSpriteId(id);
+        if (this.blockGeometryContextDepth > 0) {
+            int alphaMode = resolved.alphaMode() >= 0
+                ? resolved.alphaMode()
+                : ResourcePackBlockLayerResolver.resolveBlockAlphaMode(this.pendingBlockState);
+            if (alphaMode >= 0) {
+                setPendingAlphaMode(alphaMode);
+            }
+        }
+        this.pendingNaturalUvTransform = this.blockGeometryContextDepth > 0
+            ? ResourcePackNaturalTextureResolver.resolveBlockTransform(
+                sprite,
+                spriteId,
+                this.pendingBlockPos,
+                face)
+            : NaturalTransform.identity();
         this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
         if (spriteId >= 0 && sprite != null) {
             this.pendingTextureOverride = spriteId;
@@ -451,7 +610,9 @@ public class PBRVertexConsumer implements VertexConsumer {
         } else {
             this.pendingTextureOverride = -1;
             this.pendingSpriteUvRemap = false;
+            this.pendingNaturalUvTransform = NaturalTransform.identity();
         }
+        return resolved;
     }
 
     public void setPendingTextureSpriteId(int spriteId, int geometryFlags) {
@@ -460,9 +621,30 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
             this.pendingSpriteUvRemap = false;
+            this.pendingNaturalUvTransform = NaturalTransform.identity();
         } else {
             this.pendingTextureOverride = -1;
             this.pendingSpriteUvRemap = false;
+            this.pendingNaturalUvTransform = NaturalTransform.identity();
+        }
+    }
+
+    private void setPendingTextureSpriteIdWithSourceUv(int spriteId, int geometryFlags,
+        @Nullable Sprite sourceSprite, NaturalTransform uvTransform) {
+        this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
+        if (spriteId >= 0 && sourceSprite != null) {
+            this.pendingTextureOverride = spriteId;
+            this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
+            this.pendingSpriteUvRemap = true;
+            this.pendingSpriteMinU = sourceSprite.getMinU();
+            this.pendingSpriteMaxU = sourceSprite.getMaxU();
+            this.pendingSpriteMinV = sourceSprite.getMinV();
+            this.pendingSpriteMaxV = sourceSprite.getMaxV();
+            this.pendingNaturalUvTransform = uvTransform == null ? NaturalTransform.identity() : uvTransform;
+        } else {
+            this.pendingTextureOverride = -1;
+            this.pendingSpriteUvRemap = false;
+            this.pendingNaturalUvTransform = NaturalTransform.identity();
         }
     }
 
@@ -470,6 +652,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.pendingTextureOverride = -1;
         this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
         this.pendingSpriteUvRemap = false;
+        this.pendingNaturalUvTransform = NaturalTransform.identity();
     }
 
     public static float localSpriteUvForTest(float atlasUv, float min, float max) {
@@ -484,6 +667,13 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (local < 0.0f) return 0.0f;
         if (local > 1.0f) return 1.0f;
         return local;
+    }
+
+    private static boolean isGrassBlockSideOverlay(@Nullable Sprite sprite) {
+        if (sprite == null || sprite.getContents() == null) {
+            return false;
+        }
+        return GRASS_BLOCK_SIDE_OVERLAY.equals(sprite.getContents().getId());
     }
 
     @Override
@@ -504,18 +694,74 @@ public class PBRVertexConsumer implements VertexConsumer {
         float previousSpriteMaxU = this.pendingSpriteMaxU;
         float previousSpriteMinV = this.pendingSpriteMinV;
         float previousSpriteMaxV = this.pendingSpriteMaxV;
+        NaturalTransform previousNaturalUvTransform = this.pendingNaturalUvTransform;
         try {
-            setPendingTextureSprite(quad.getSprite(), PBR_FLAG_BLOCK_GEOMETRY);
+            Sprite blockSprite = null;
+            BlockOverlaySprite[] blockOverlaySprites = new BlockOverlaySprite[0];
+            NaturalTransform blockOverlayUvTransform = NaturalTransform.identity();
+            float baseRed = red;
+            float baseGreen = green;
+            float baseBlue = blue;
+            boolean baseUseQuadColorData = useQuadColorData;
+            if (this.blockGeometryContextDepth > 0) {
+                blockSprite = quad.getSprite();
+                if (isGrassBlockSideOverlay(blockSprite)
+                    && !ResourcePackTextureVariantResolver.hasBlockSpriteRule(
+                        blockSprite,
+                        this.pendingBlockWorld,
+                        this.pendingBlockState,
+                        this.pendingBlockPos,
+                        quad.getFace())) {
+                    return;
+                }
+                ResolvedBlockSprite resolved =
+                    setPendingTextureSprite(blockSprite, PBR_FLAG_BLOCK_GEOMETRY, quad.getFace());
+                if (resolved.tintOverride()) {
+                    int tintRgb = resolved.tintRgb() & 0x00FFFFFF;
+                    baseRed = ((tintRgb >> 16) & 0xFF) / 255.0F;
+                    baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
+                    baseBlue = (tintRgb & 0xFF) / 255.0F;
+                    baseUseQuadColorData = false;
+                }
+                blockOverlayUvTransform = this.pendingNaturalUvTransform;
+                blockOverlaySprites = ResourcePackTextureVariantResolver.resolveBlockOverlaySprites(
+                    blockSprite,
+                    this.pendingBlockWorld,
+                    this.pendingBlockState,
+                    this.pendingBlockPos,
+                    quad.getFace());
+            }
             VertexConsumer.super.quad(matrixEntry,
                 quad,
                 brightnesses,
-                red,
-                green,
-                blue,
+                baseRed,
+                baseGreen,
+                baseBlue,
                 alpha,
                 lights,
                 overlay,
-                useQuadColorData);
+                baseUseQuadColorData);
+            if (blockOverlaySprites.length > 0 && blockSprite != null) {
+                for (BlockOverlaySprite blockOverlay : blockOverlaySprites) {
+                    int tintRgb = blockOverlay.tintRgb() & 0x00FFFFFF;
+                    setPendingTextureSpriteIdWithSourceUv(
+                        blockOverlay.spriteId(),
+                        PBR_FLAG_BLOCK_GEOMETRY,
+                        blockSprite,
+                        blockOverlayUvTransform);
+                    setPendingAlphaMode(PBR_ALPHA_MODE_CUTOUT);
+                    VertexConsumer.super.quad(matrixEntry,
+                        quad,
+                        brightnesses,
+                        ((tintRgb >> 16) & 0xFF) / 255.0F,
+                        ((tintRgb >> 8) & 0xFF) / 255.0F,
+                        (tintRgb & 0xFF) / 255.0F,
+                        alpha,
+                        lights,
+                        overlay,
+                        false);
+                }
+            }
         } finally {
             this.pendingTextureOverride = previousTextureOverride;
             this.pendingVertexFlags = previousVertexFlags;
@@ -524,6 +770,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingSpriteMaxU = previousSpriteMaxU;
             this.pendingSpriteMinV = previousSpriteMinV;
             this.pendingSpriteMaxV = previousSpriteMaxV;
+            this.pendingNaturalUvTransform = previousNaturalUvTransform;
         }
     }
 
