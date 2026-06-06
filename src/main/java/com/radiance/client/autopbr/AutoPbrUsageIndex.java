@@ -64,8 +64,6 @@ public final class AutoPbrUsageIndex {
         }
 
         users.forEach((sprite, set) -> USAGE_COUNTS.put(sprite, set.size()));
-        addFluidFallback("minecraft:block/water_still", 1);
-        addFluidFallback("minecraft:block/water_flow", 1);
         addFluidFallback("minecraft:block/lava_still", 1);
         addFluidFallback("minecraft:block/lava_flow", 1);
     }

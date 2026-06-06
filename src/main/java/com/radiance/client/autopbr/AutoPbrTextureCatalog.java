@@ -8,16 +8,36 @@ import net.minecraft.client.texture.NativeImage;
 import net.minecraft.util.Identifier;
 
 public final class AutoPbrTextureCatalog {
-    public static final String DISPLACEMENT_HEIGHT_SOURCE = "authored_normal_alpha_only";
+    public static final String DISPLACEMENT_HEIGHT_SOURCE = "direct_labpbr_normal_alpha";
+    private static final Identifier WATER_STILL = Identifier.ofVanilla("block/water_still");
+    private static final Identifier WATER_FLOW = Identifier.ofVanilla("block/water_flow");
+    private static final Identifier WATER_OVERLAY = Identifier.ofVanilla("block/water_overlay");
 
     private AutoPbrTextureCatalog() {
     }
 
     public static Identifier fallbackSprite() {
         Identifier oak = Identifier.ofVanilla("block/oak_planks");
-        if (TextureArrayBridge.sortedSpriteIds.contains(oak)) return oak;
+        if (isEditableSprite(oak) && TextureArrayBridge.sortedSpriteIds.contains(oak)) return oak;
+        for (Identifier sprite : TextureArrayBridge.sortedSpriteIds) {
+            if (isEditableSprite(sprite)) return sprite;
+        }
         if (!TextureArrayBridge.sortedSpriteIds.isEmpty()) return TextureArrayBridge.sortedSpriteIds.get(0);
         return oak;
+    }
+
+    public static boolean isPhysicalWaterSprite(Identifier id) {
+        return WATER_STILL.equals(id) || WATER_FLOW.equals(id) || WATER_OVERLAY.equals(id);
+    }
+
+    public static boolean isPhysicalWaterSprite(int spriteId) {
+        return spriteId >= 0
+            && spriteId < TextureArrayBridge.sortedSpriteIds.size()
+            && isPhysicalWaterSprite(TextureArrayBridge.sortedSpriteIds.get(spriteId));
+    }
+
+    public static boolean isEditableSprite(Identifier id) {
+        return id != null && !isPhysicalWaterSprite(id);
     }
 
     public static int spriteIndex(Identifier id) {

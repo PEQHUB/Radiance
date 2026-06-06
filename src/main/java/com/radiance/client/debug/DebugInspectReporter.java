@@ -174,10 +174,10 @@ public final class DebugInspectReporter {
         sb.append("quality=").append(Options.displacementQuality)
             .append(" (").append(Options.displacementQualityName(Options.displacementQuality)).append(")\n");
         sb.append("proxyGeometry=disabled\n");
-        sb.append("shaderDDA=enabled_when_renderer_variant_allows\n");
+        sb.append("shaderSmoothTrace=enabled_when_renderer_variant_allows\n");
         sb.append("fadeDistanceBlocks=").append(Options.displacementFadeDistance).append('\n');
-        sb.append("heightSource=authored_normal_alpha_only\n");
-        sb.append("displacementPath=shader_height_field\n");
+        sb.append("heightSource=direct_labpbr_normal_alpha\n");
+        sb.append("displacementPath=shader_smooth_height_field\n");
         sb.append("generatedDisplacement=removed\n");
         sb.append("lastSidecarRehydrate=").append(AutoPbrRuntime.lastRehydrateReport()).append('\n');
         sb.append("spriteProvenanceCounts=").append(AutoPbrRuntime.spriteProvenanceCounts()).append('\n');
@@ -352,7 +352,7 @@ public final class DebugInspectReporter {
             || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
         if (!authored) return "flat:normal_source_" + sourceName(normalSource);
 
-        StringBuilder status = new StringBuilder("shader_pixel:authored_normal_alpha");
+        StringBuilder status = new StringBuilder("shader_smooth:direct_labpbr_normal_alpha");
         if (row.heightRangePacked < 0) {
             status.append(":uniform_or_unreported_alpha_range");
         } else {

@@ -6,10 +6,12 @@ import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.autopbr.AutoPbrTexturePicker;
 import com.radiance.client.autopbr.AutoPbrUsageIndex;
 import com.radiance.client.materiallab.MaterialBakePlan;
+import com.radiance.client.materiallab.MaterialHistogram;
 import com.radiance.client.materiallab.MaterialLabStore;
 import com.radiance.client.materiallab.MaterialPresetCatalog;
 import com.radiance.client.materiallab.MaterialRecipe;
 import com.radiance.client.materiallab.MaterialRecipeCompiler;
+import com.radiance.client.materiallab.MaterialUploadResult;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import java.util.ArrayDeque;
@@ -39,8 +41,6 @@ public class MaterialLabScreen extends Screen {
     private static final int PREVIEW_LANE_HEIGHT = 128;
     private static final int HISTOGRAM_HEIGHT = 58;
     private static final int MAIN_TITLE_HEIGHT = 58;
-    private static final int HISTOGRAM_MIN_BINS = 256;
-    private static final int HISTOGRAM_MAX_BINS = 512;
 
     private static final Option[] BLEND_SOURCES = {
         new Option("Pack + Generated + Flat", "pack_generated_flat"),
@@ -148,6 +148,11 @@ public class MaterialLabScreen extends Screen {
         new Option("Generated Luminance", "generated_luminance"),
         new Option("Pack Derived", "pack_derived")
     };
+    private static final Option[] DIFFUSE_MODELS = {
+        new Option("Global", "global"),
+        new Option("EON", "eon"),
+        new Option("VMF", "vmf")
+    };
 
     private final Screen parent;
     private Identifier selectedSprite;
@@ -157,6 +162,11 @@ public class MaterialLabScreen extends Screen {
     private String status = "Saved";
     private final ArrayDeque<MaterialRecipe> undo = new ArrayDeque<>();
     private final ArrayDeque<MaterialRecipe> redo = new ArrayDeque<>();
+    private int recipeRevision;
+    private int cachedRevision = -1;
+    private int cachedSpriteId = -1;
+    private MaterialBakePlan cachedPlan;
+    private MaterialUploadResult lastUpload;
 
     public MaterialLabScreen(Screen parent) {
         this(parent, null);
@@ -171,7 +181,9 @@ public class MaterialLabScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        if (selectedSprite == null || !TextureArrayBridge.sortedSpriteIds.contains(selectedSprite)) {
+        if (selectedSprite == null
+            || !TextureArrayBridge.sortedSpriteIds.contains(selectedSprite)
+            || !AutoPbrTextureCatalog.isEditableSprite(selectedSprite)) {
             selectedSprite = AutoPbrTextureCatalog.fallbackSprite();
         }
         loadRecipe();
@@ -186,6 +198,8 @@ public class MaterialLabScreen extends Screen {
     private void loadRecipe() {
         recipe = MaterialLabStore.loadRecipe(MinecraftClient.getInstance(), selectedSprite);
         savedSnapshot = recipe.copy();
+        markPlanDirty();
+        lastUpload = null;
         if (recipe.isDefaultIntent()
             && !MaterialLabStore.currentProfileExists(MinecraftClient.getInstance())
             && MaterialLabStore.hasAnyProfiles(MinecraftClient.getInstance())) {
@@ -193,6 +207,22 @@ public class MaterialLabScreen extends Screen {
         } else {
             status = recipe.isDefaultIntent() ? "Generated/Pack Baseline" : "Loaded";
         }
+    }
+
+    private void markPlanDirty() {
+        recipeRevision++;
+        cachedPlan = null;
+        cachedRevision = -1;
+        cachedSpriteId = -1;
+    }
+
+    private MaterialBakePlan currentPlan(int spriteId) {
+        if (cachedPlan == null || cachedSpriteId != spriteId || cachedRevision != recipeRevision) {
+            cachedPlan = MaterialRecipeCompiler.evaluate(spriteId, recipe);
+            cachedSpriteId = spriteId;
+            cachedRevision = recipeRevision;
+        }
+        return cachedPlan;
     }
 
     private void rebuildWidgets() {
@@ -239,7 +269,7 @@ public class MaterialLabScreen extends Screen {
         addButton(x, y, Math.min(180, w), CONTROL_HEIGHT, "Pick Crosshair",
             () -> selectSprite(AutoPbrTexturePicker.pick(MinecraftClient.getInstance())));
         addButton(x + Math.min(188, w / 2), y, Math.min(180, w), CONTROL_HEIGHT, "Use Pack Baseline",
-            () -> status = "Albedo is pack truth");
+            this::usePackBaseline);
     }
 
     private void addRoughnessControls(int x, int y, int w) {
@@ -1071,8 +1101,8 @@ public class MaterialLabScreen extends Screen {
                 r.displacementOverride = true;
                 r.displacementScale = v;
             }, false, false));
-        addDisabledButton(x + (colW + ROW_GAP) * 2, y, colW, CONTROL_HEIGHT,
-            "Cap " + Options.displacementDepthCapPercent + "% Global");
+        addOptionDropdown(x + (colW + ROW_GAP) * 2, y, colW, "Diffuse", DIFFUSE_MODELS,
+            recipe.diffuseModel, option -> mutate(r -> r.diffuseModel = option.value(), true, true));
     }
 
     private void addButton(int x, int y, int w, int h, String label, Runnable action) {
@@ -1172,6 +1202,7 @@ public class MaterialLabScreen extends Screen {
         while (undo.size() > 64) undo.removeLast();
         redo.clear();
         mutation.accept(recipe);
+        markPlanDirty();
         status = "Dirty";
         if (applyNow) applyPreview();
         if (rebuild && RadianceTheme.activeSlider == null) rebuildWidgets();
@@ -1244,17 +1275,33 @@ public class MaterialLabScreen extends Screen {
     }
 
     private void applyPreview() {
+        if (!AutoPbrTextureCatalog.isEditableSprite(selectedSprite)) {
+            lastUpload = null;
+            status = "Physical water is shader controlled";
+            return;
+        }
         int spriteId = AutoPbrTextureCatalog.spriteIndex(selectedSprite);
-        MaterialBakePlan plan = MaterialRecipeCompiler.compileAndUpload(spriteId, recipe);
-        status = plan.ok ? "Applied" : "Error";
+        lastUpload = MaterialRecipeCompiler.compileAndUpload(spriteId, recipe);
+        cachedPlan = lastUpload.plan;
+        cachedSpriteId = spriteId;
+        cachedRevision = recipeRevision;
+        status = lastUpload.statusText;
     }
 
     private void saveRecipe() {
+        if (!AutoPbrTextureCatalog.isEditableSprite(selectedSprite)) {
+            status = "Physical water is shader controlled";
+            return;
+        }
         applyPreview();
         boolean ok = MaterialLabStore.saveRecipe(MinecraftClient.getInstance(), selectedSprite, recipe);
         if (ok) {
             savedSnapshot = recipe.copy();
-            status = recipe.isDefaultIntent() ? "Baseline Saved" : "Saved";
+            if (lastUpload != null && !lastUpload.uploadOk) {
+                status = "Saved / " + lastUpload.statusText;
+            } else {
+                status = recipe.isDefaultIntent() ? "Baseline Saved" : "Saved";
+            }
         } else {
             status = "Save Error";
         }
@@ -1264,9 +1311,10 @@ public class MaterialLabScreen extends Screen {
     private void revertRecipe() {
         undo.push(recipe.copy());
         recipe = savedSnapshot.copy();
+        markPlanDirty();
         redo.clear();
         applyPreview();
-        status = "Reverted";
+        if (lastUpload != null && lastUpload.uploadOk) status = "Reverted";
         rebuildWidgets();
     }
 
@@ -1274,8 +1322,19 @@ public class MaterialLabScreen extends Screen {
         undo.push(recipe.copy());
         redo.clear();
         recipe = MaterialRecipe.defaults();
+        markPlanDirty();
         applyPreview();
-        status = "Sprite Reset";
+        if (lastUpload != null && lastUpload.uploadOk) status = "Sprite Reset";
+        rebuildWidgets();
+    }
+
+    private void usePackBaseline() {
+        undo.push(recipe.copy());
+        redo.clear();
+        recipe = MaterialRecipe.defaults();
+        markPlanDirty();
+        applyPreview();
+        if (lastUpload != null && lastUpload.uploadOk) status = "Baseline Restored";
         rebuildWidgets();
     }
 
@@ -1449,6 +1508,7 @@ public class MaterialLabScreen extends Screen {
                     r.sheenWeight = d.sheenWeight;
                     r.sheenTint = d.sheenTint;
                     r.sheenRoughness = d.sheenRoughness;
+                    r.diffuseModel = d.diffuseModel;
                     r.coatOverride = d.coatOverride;
                     r.coatWeight = d.coatWeight;
                     r.coatRoughness = d.coatRoughness;
@@ -1469,11 +1529,15 @@ public class MaterialLabScreen extends Screen {
                 }
             }
         }, true, true);
-        status = activeChannel.label() + " Reset";
+        if (lastUpload != null && lastUpload.uploadOk) status = activeChannel.label() + " Reset";
     }
 
     private void selectSprite(Identifier sprite) {
-        if (sprite == null || !TextureArrayBridge.sortedSpriteIds.contains(sprite)) return;
+        if (sprite == null
+            || !TextureArrayBridge.sortedSpriteIds.contains(sprite)
+            || !AutoPbrTextureCatalog.isEditableSprite(sprite)) {
+            return;
+        }
         selectedSprite = sprite;
         undo.clear();
         redo.clear();
@@ -1491,10 +1555,10 @@ public class MaterialLabScreen extends Screen {
 
     private void renderFrame(DrawContext context, int mouseX, int mouseY) {
         int spriteId = AutoPbrTextureCatalog.spriteIndex(selectedSprite);
-        MaterialBakePlan plan = MaterialRecipeCompiler.evaluate(spriteId, recipe);
+        MaterialBakePlan plan = currentPlan(spriteId);
         renderHeader(context);
         renderLeftPanel(context, spriteId);
-        renderMainPanel(context);
+        renderMainPanel(context, spriteId, plan);
         renderInspector(context, spriteId, plan);
         renderChannelStrip(context, spriteId, plan, mouseX, mouseY);
     }
@@ -1511,7 +1575,9 @@ public class MaterialLabScreen extends Screen {
             PAD, (HEADER_HEIGHT - 8) / 2, RadianceTheme.textAccent);
         Text statusText = Text.literal(status);
         int statusColor = "Saved".equals(status) || "Baseline Saved".equals(status)
+            || "Applied".equals(status) || "Baseline Restored".equals(status)
             ? RadianceTheme.TEXT_SUCCESS
+            : status.contains("Error") || status.contains("Failed") ? RadianceTheme.TEXT_ERROR
             : RadianceTheme.textSecondary;
         RadianceTheme.drawOutlinedText(context, textRenderer,
             RadianceTheme.trimText(textRenderer, statusText, statusMax),
@@ -1544,13 +1610,11 @@ public class MaterialLabScreen extends Screen {
         drawSmallLine(context, x + 10, lineY, "usage " + usage(selectedSprite));
     }
 
-    private void renderMainPanel(DrawContext context) {
+    private void renderMainPanel(DrawContext context, int spriteId, MaterialBakePlan plan) {
         int x = mainX();
         int y = HEADER_HEIGHT + PAD;
         int w = mainW();
         int h = height - HEADER_HEIGHT - BOTTOM_STRIP_HEIGHT - PAD * 2;
-        int spriteId = AutoPbrTextureCatalog.spriteIndex(selectedSprite);
-        MaterialBakePlan plan = MaterialRecipeCompiler.evaluate(spriteId, recipe);
         context.fill(x, y, x + w, y + h, labBg(RadianceTheme.unifiedContentBg));
         context.drawBorder(x, y, w, h, RadianceTheme.borderDefault);
         RadianceTheme.drawOutlinedText(context, textRenderer, Text.literal(activeChannel.label()),
@@ -1578,7 +1642,7 @@ public class MaterialLabScreen extends Screen {
                 "Pack LabPBR metal codes are preserved until you enable an explicit metal recipe.");
             case POROSITY -> List.of(
                 "Porosity/SSS edits LabPBR _s.B only when mode is not Preserve.",
-                "Shader-specific scattering status is shown in the inspector; pack _s.B stays intact by default.");
+                "SSS radius, thickness, and tint also write a modest shader rule when SSS mode is active.");
             case HEIGHT -> List.of(
                 "Height writes LabPBR _n.A and keeps generated/runtime images rebuildable.",
                 "Scale is per-material intent, still bounded by global displacement settings.");
@@ -1588,13 +1652,13 @@ public class MaterialLabScreen extends Screen {
                 "AO is preserved as packed _n.B data, but it is not a visible editing channel.");
             case EMISSION -> List.of(
                 "Emission is manual-mask only. No hidden light classifier.",
-                "Physical nits and tint are visible roadmap controls, disabled here.");
+                "Tint and physical nits are backed texture-rule fields; pulse/flicker remains roadmap-only.");
             case TRANSMISSION -> List.of(
                 "Transmission and IOR are RadSER material rules.",
-                "Albedo alpha is still Minecraft coverage/opacity.");
+                "Thickness source, min, max, and gamma shape the scalar rule before upload.");
             case ADVANCED -> List.of(
-                "Enabled: anisotropic scalar, coat weight/roughness, sheen/tint texture rules.",
-                "Roadmap disabled: SSS/porosity, UV scale/offset, filter radius, mip bias, displacement scalar, coat IOR/tint, sheen roughness.");
+                "Enabled: anisotropy, coat, sheen, UV transform, filter radius, mip bias, and displacement rules.",
+                "Coat IOR/tint/mask and sheen roughness are shader-backed scalar extensions.");
         };
         int lineY = y;
         for (String line : lines) {
@@ -1715,12 +1779,12 @@ public class MaterialLabScreen extends Screen {
             case ALBEDO -> new String[]{"Albedo", "Alpha", "Luminance", "Coverage"};
             case ROUGHNESS -> new String[]{"Pack Smooth", "Generated", "Flat", "Final Rough"};
             case METAL -> new String[]{"Pack _s.G", "Metal Mask", "F0 / Code", "BRDF"};
-            case POROSITY -> new String[]{"Pack _s.B", "Generated", "Mode", "Final _s.B"};
+            case POROSITY -> new String[]{"Pack _s.B", "Generated", "SSS Rule", "Final _s.B"};
             case HEIGHT -> new String[]{"Pack Height", "Generated", "Flat", "Final Height", "Relief"};
             case NORMAL -> new String[]{"Pack Normal", "Generated", "Detail", "Final Normal", "Tile"};
             case EMISSION -> new String[]{"Source", "Threshold", "Cleaned", "Final"};
             case TRANSMISSION -> new String[]{"Alpha", "Transmit", "Thickness", "Rule"};
-            case ADVANCED -> new String[]{"Aniso", "Coat", "Sheen", "Roadmap"};
+            case ADVANCED -> new String[]{"Aniso", "Coat", "Sheen", "Sampler"};
         };
     }
 
@@ -1752,7 +1816,7 @@ public class MaterialLabScreen extends Screen {
         int plotY = y + 20;
         int plotW = Math.max(16, w - 20);
         int plotH = Math.max(8, h - 30);
-        HistogramStats histogram = buildHistogramStats(valuesForHistogram(spriteId, plan), plotW);
+        MaterialHistogram.Stats histogram = MaterialHistogram.build(valuesForHistogram(spriteId, plan), plotW);
 
         String label = histogramLabel();
         String stats = histogram.count == 0
@@ -1773,50 +1837,6 @@ public class MaterialLabScreen extends Screen {
         drawHistogramHandle(context, plotX, plotY, plotW, plotH, levelWhite(activeChannel), RadianceTheme.textAccent);
     }
 
-    private HistogramStats buildHistogramStats(float[] values, int plotW) {
-        int binCount = MathHelper.clamp(plotW, HISTOGRAM_MIN_BINS, HISTOGRAM_MAX_BINS);
-        float[] bins = new float[binCount];
-        float min = 1.0f;
-        float max = 0.0f;
-        float sum = 0.0f;
-        int count = 0;
-        if (values != null) {
-            for (float raw : values) {
-                if (!Float.isFinite(raw)) continue;
-                float v = MathHelper.clamp(raw, 0.0f, 1.0f);
-                min = Math.min(min, v);
-                max = Math.max(max, v);
-                sum += v;
-                count++;
-
-                float pos = v * (binCount - 1);
-                int lo = MathHelper.clamp((int) Math.floor(pos), 0, binCount - 1);
-                int hi = Math.min(binCount - 1, lo + 1);
-                float t = pos - lo;
-                bins[lo] += 1.0f - t;
-                bins[hi] += t;
-            }
-        }
-
-        if (count == 0) {
-            return new HistogramStats(bins, 0.0f, 0.0f, 0.0f, 0, 0.0f);
-        }
-
-        float[] smooth = new float[binCount];
-        float maxDensity = 0.0f;
-        for (int i = 0; i < binCount; i++) {
-            float total = bins[Math.max(0, i - 2)]
-                + bins[Math.max(0, i - 1)] * 2.0f
-                + bins[i] * 3.0f
-                + bins[Math.min(binCount - 1, i + 1)] * 2.0f
-                + bins[Math.min(binCount - 1, i + 2)];
-            smooth[i] = total / 9.0f;
-            maxDensity = Math.max(maxDensity, smooth[i]);
-        }
-
-        return new HistogramStats(smooth, min, sum / count, max, count, maxDensity);
-    }
-
     private void drawHistogramGrid(DrawContext context, int x, int y, int w, int h) {
         int grid = RadianceTheme.withAlpha(0x808080, 0.22f);
         int faint = RadianceTheme.withAlpha(0x808080, 0.12f);
@@ -1833,12 +1853,13 @@ public class MaterialLabScreen extends Screen {
         }
     }
 
-    private void renderHistogramDensity(DrawContext context, int x, int y, int w, int h, HistogramStats histogram) {
+    private void renderHistogramDensity(DrawContext context, int x, int y, int w, int h,
+                                        MaterialHistogram.Stats histogram) {
         if (histogram.maxDensity <= 0.0f) return;
         float logMax = (float) Math.log1p(histogram.maxDensity);
         for (int col = 0; col < w; col++) {
             float u = w <= 1 ? 0.0f : col / (float) (w - 1);
-            float density = sampleDensity(histogram.density, u);
+            float density = histogram.sample(u);
             float normalized = logMax <= 0.0f ? 0.0f : (float) (Math.log1p(density) / logMax);
             if (normalized <= 0.005f) continue;
 
@@ -1893,7 +1914,8 @@ public class MaterialLabScreen extends Screen {
             };
             case POROSITY -> switch (label) {
                 case "Pack _s.B" -> new PreviewLane("pack_sb", 0xB8E0FF);
-                case "Generated", "Mode" -> new PreviewLane("generated_sss", 0xB8E0FF);
+                case "Generated" -> new PreviewLane("generated_sss", 0xB8E0FF);
+                case "SSS Rule" -> new PreviewLane("sss_rule", 0xFFB8A0);
                 default -> new PreviewLane("final_sss", 0xB8E0FF);
             };
             case HEIGHT -> switch (label) {
@@ -1924,7 +1946,7 @@ public class MaterialLabScreen extends Screen {
                 case "Aniso" -> new PreviewLane("anisotropic", 0xB6A3FF);
                 case "Coat" -> new PreviewLane("coat", 0xE4F0FF);
                 case "Sheen" -> new PreviewLane("sheen", 0xFFB8E6);
-                default -> new PreviewLane("roadmap", 0x666666);
+                default -> new PreviewLane("sampler", 0x66CCFF);
             };
         };
     }
@@ -1977,15 +1999,6 @@ public class MaterialLabScreen extends Screen {
         int markerY = y + h - 5;
         context.fill(markerX, markerY, markerX + 7, markerY + 7, RadianceTheme.withAlpha(0x050505, 0.88f));
         context.drawBorder(markerX, markerY, 7, 7, color);
-    }
-
-    private float sampleDensity(float[] density, float u) {
-        if (density.length == 0) return 0.0f;
-        float pos = MathHelper.clamp(u, 0.0f, 1.0f) * (density.length - 1);
-        int lo = MathHelper.clamp((int) Math.floor(pos), 0, density.length - 1);
-        int hi = Math.min(density.length - 1, lo + 1);
-        float t = pos - lo;
-        return density[lo] * (1.0f - t) + density[hi] * t;
     }
 
     private int histogramDensityColor(float value, float density) {
@@ -2083,12 +2096,15 @@ public class MaterialLabScreen extends Screen {
             case ROUGHNESS -> plan.surface.roughnessOverride ? "Recipe" : sourceLabel(AutoPbrTextureCatalog.specularSource(spriteId));
             case METAL -> (plan.surface.f0Override || plan.surface.metallicOverride || plan.surface.conductorF0RgbOverride)
                 ? "Recipe" : sourceLabel(AutoPbrTextureCatalog.specularSource(spriteId));
-            case POROSITY -> plan.surface.sssOverride ? "Recipe" : "Preserved";
+            case POROSITY -> plan.surface.sssOverride || plan.surface.subSurfaceExtOverride ? "Recipe" : "Preserved";
             case HEIGHT -> plan.surface.heightOverride ? "Recipe" : sourceLabel(AutoPbrTextureCatalog.normalSource(spriteId));
             case NORMAL -> plan.surface.normalOverride ? "Recipe" : sourceLabel(AutoPbrTextureCatalog.normalSource(spriteId));
             case EMISSION -> plan.surface.emissionOverride ? "Recipe" : sourceLabel(AutoPbrTextureCatalog.specularSource(spriteId));
-            case TRANSMISSION -> plan.surface.transmissionOverride || plan.surface.iorOverride ? "Rule" : "Opaque";
-            case ADVANCED -> plan.surface.anisotropicOverride || plan.surface.sheenOverride || plan.surface.coatOverride ? "Rule" : "Off";
+            case TRANSMISSION -> plan.surface.transmissionOverride || plan.surface.iorOverride
+                || plan.surface.thicknessOverride ? "Rule" : "Opaque";
+            case ADVANCED -> plan.surface.anisotropicOverride || plan.surface.sheenOverride || plan.surface.coatOverride
+                || plan.surface.displacementOverride || plan.surface.uvTransformOverride
+                || plan.surface.filterRadiusOverride || plan.surface.mipBiasOverride ? "Rule" : "Off";
             default -> "";
         };
     }
@@ -2225,8 +2241,15 @@ public class MaterialLabScreen extends Screen {
     private void stepSprite(int delta) {
         if (TextureArrayBridge.sortedSpriteIds.isEmpty()) return;
         int index = AutoPbrTextureCatalog.spriteIndex(selectedSprite);
-        int next = Math.floorMod(index + delta, TextureArrayBridge.sortedSpriteIds.size());
-        selectSprite(TextureArrayBridge.sortedSpriteIds.get(next));
+        int count = TextureArrayBridge.sortedSpriteIds.size();
+        for (int step = 1; step <= count; step++) {
+            int next = Math.floorMod(index + delta * step, count);
+            Identifier sprite = TextureArrayBridge.sortedSpriteIds.get(next);
+            if (AutoPbrTextureCatalog.isEditableSprite(sprite)) {
+                selectSprite(sprite);
+                return;
+            }
+        }
     }
 
     private boolean hover(double mx, double my, int x, int y, int w, int h) {
@@ -2250,6 +2273,7 @@ public class MaterialLabScreen extends Screen {
         }
         if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
             recipe = savedSnapshot.copy();
+            markPlanDirty();
             applyPreview();
             close();
             return true;
@@ -2275,6 +2299,7 @@ public class MaterialLabScreen extends Screen {
         if (undo.isEmpty()) return;
         redo.push(recipe.copy());
         recipe = undo.pop();
+        markPlanDirty();
         status = "Dirty";
         applyPreview();
         rebuildWidgets();
@@ -2284,6 +2309,7 @@ public class MaterialLabScreen extends Screen {
         if (redo.isEmpty()) return;
         undo.push(recipe.copy());
         recipe = redo.pop();
+        markPlanDirty();
         status = "Dirty";
         applyPreview();
         rebuildWidgets();
@@ -2381,13 +2407,18 @@ public class MaterialLabScreen extends Screen {
     private String dirtySummary() {
         List<String> channels = new java.util.ArrayList<>();
         if (recipe.roughnessOverride || recipe.generateRoughness) channels.add("Rough");
-        if (recipe.metallicOverride || recipe.f0Override || recipe.conductorF0RgbOverride) channels.add("Metal/F0");
+        if (recipe.metallicOverride || recipe.f0Override || recipe.conductorF0RgbOverride
+            || recipe.oxideAmount > 0.0001f || recipe.oxideRoughnessInfluence > 0.0001f) channels.add("Metal/F0");
         if (recipe.porosityOverride) channels.add("Porosity/SSS");
         if (recipe.heightOverride || recipe.generateHeight) channels.add("Height");
         if (recipe.normalStrengthOverride || recipe.generateNormal) channels.add("Normal");
         if (recipe.emissionOverride) channels.add("Emission");
-        if (recipe.iorOverride || recipe.transmissionOverride) channels.add("Transmit");
-        if (recipe.anisotropicOverride || recipe.sheenOverride || recipe.coatOverride || recipe.displacementOverride) {
+        if (recipe.iorOverride || recipe.transmissionOverride
+            || recipe.thicknessMin > 0.0001f || recipe.thicknessMax < 0.9999f
+            || Math.abs(recipe.thicknessGamma - 1.0f) > 0.0001f) channels.add("Transmit");
+        if (recipe.anisotropicOverride || recipe.sheenOverride || recipe.coatOverride || recipe.displacementOverride
+            || Math.abs(recipe.uvScale - 1.0f) > 0.0001f || Math.abs(recipe.uvOffset) > 0.0001f
+            || recipe.filterRadius > 0.0001f || Math.abs(recipe.mipBias) > 0.0001f) {
             channels.add("Advanced");
         }
         return channels.isEmpty() ? "none" : String.join(", ", channels);
@@ -2402,32 +2433,14 @@ public class MaterialLabScreen extends Screen {
             case HEIGHT -> "source, generator, levels, cleanup, scale";
             case NORMAL -> "source, combine, kernel, strength, orientation";
             case EMISSION -> "mask source, thresholds, cleanup, gain";
-            case TRANSMISSION -> "IOR, transmission, preset metadata";
-            case ADVANCED -> "anisotropy, coat, sheen backed rules";
+            case TRANSMISSION -> "IOR, transmission, absorption, volume, thickness shape";
+            case ADVANCED -> "anisotropy, coat, sheen, UV/filter/mip/displacement rules";
         };
     }
 
     private String usage(Identifier sprite) {
         int count = AutoPbrUsageIndex.usageCount(MinecraftClient.getInstance(), sprite);
         return count <= 0 ? "unknown" : Integer.toString(count);
-    }
-
-    private static final class HistogramStats {
-        private final float[] density;
-        private final float min;
-        private final float avg;
-        private final float max;
-        private final int count;
-        private final float maxDensity;
-
-        private HistogramStats(float[] density, float min, float avg, float max, int count, float maxDensity) {
-            this.density = density;
-            this.min = min;
-            this.avg = avg;
-            this.max = max;
-            this.count = count;
-            this.maxDensity = maxDensity;
-        }
     }
 
     private static final class MaterialLabButtonWidget extends ClickableWidget {
@@ -2472,7 +2485,10 @@ public class MaterialLabScreen extends Screen {
 
         @Override
         public void onClick(double mouseX, double mouseY) {
-            if (active) action.run();
+            if (active) {
+                playDownSound(MinecraftClient.getInstance().getSoundManager());
+                action.run();
+            }
         }
 
         @Override
@@ -2496,7 +2512,7 @@ public class MaterialLabScreen extends Screen {
         NORMAL("Normal", "Normal", "Pack/generated normal blending"),
         EMISSION("Emission", "Emission", "Manual emission mask recipe"),
         TRANSMISSION("Transmit", "Transmission / IOR", "RadSER transmission and IOR rules"),
-        ADVANCED("Advanced", "Advanced", "Backed optics plus disabled roadmap controls");
+        ADVANCED("Advanced", "Advanced", "Backed optics and sampler/material rule controls");
 
         private final String shortLabel;
         private final String label;

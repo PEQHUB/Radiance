@@ -13,7 +13,7 @@ import static org.lwjgl.system.MemoryUtil.memAddress;
 public final class AutoPbrTextureRules {
     private static final Logger LOGGER = LoggerFactory.getLogger("AutoPBR");
     private static final int MAX_SPRITES = 4096;
-    private static final int ENTRY_SIZE = 160;
+    private static final int ENTRY_SIZE = 192;
     private static final float DEFAULT_IOR = 1.45f;
     static final int FLAG_ENABLED = 1;
     static final int FLAG_TRANSMISSION = 1 << 1;
@@ -38,6 +38,8 @@ public final class AutoPbrTextureRules {
     static final int FLAG_FILTER_RADIUS = 1 << 20;
     static final int FLAG_MIP_BIAS = 1 << 21;
     static final int FLAG_DISPLACEMENT_SCALE = 1 << 22;
+    static final int FLAG_SUBSURFACE_EXT = 1 << 23;
+    static final int FLAG_DIFFUSE_MODEL = 1 << 24;
     private static final ByteBuffer RULES = ByteBuffer.allocateDirect(MAX_SPRITES * ENTRY_SIZE)
         .order(ByteOrder.nativeOrder());
     private static volatile int defaultSeedCount = 0;
@@ -45,12 +47,13 @@ public final class AutoPbrTextureRules {
     private AutoPbrTextureRules() {
     }
 
-    public static void update(int spriteId, MaterialBakePlan plan) {
-        if (spriteId < 0 || spriteId >= MAX_SPRITES || plan == null || !plan.ok || plan.surface == null) return;
-        updateSurface(spriteId, plan.surface, true);
+    public static boolean update(int spriteId, MaterialBakePlan plan) {
+        if (spriteId < 0 || spriteId >= MAX_SPRITES || plan == null || !plan.ok || plan.surface == null) return false;
+        if (AutoPbrTextureCatalog.isPhysicalWaterSprite(spriteId)) return false;
+        return updateSurface(spriteId, plan.surface, true);
     }
 
-    private static void updateSurface(int spriteId, AutoPbrValue.Surface surface, boolean allowAdvancedRules) {
+    private static boolean updateSurface(int spriteId, AutoPbrValue.Surface surface, boolean allowAdvancedRules) {
         int flags = 0;
         if (surface.transmissionOverride) flags |= FLAG_TRANSMISSION;
         if (shouldEmitIorRule(spriteId, surface)) flags |= FLAG_IOR;
@@ -60,6 +63,7 @@ public final class AutoPbrTextureRules {
         if (surface.absorptionOverride) flags |= FLAG_ABSORPTION;
         if (surface.thicknessOverride) flags |= FLAG_THICKNESS;
         if (surface.volumeModeOverride) flags |= FLAG_VOLUME_MODE;
+        if (surface.diffuseModelOverride) flags |= FLAG_DIFFUSE_MODEL;
         if (surface.refractionRoughnessOverride) flags |= FLAG_REFRACTION_ROUGHNESS;
         // Roughness can be per-pixel and is represented by the baked LabPBR specular layer.
         // A scalar texture rule would flatten that map, so no roughness rule is emitted here.
@@ -76,9 +80,10 @@ public final class AutoPbrTextureRules {
             if (surface.filterRadiusOverride) flags |= FLAG_FILTER_RADIUS;
             if (surface.mipBiasOverride) flags |= FLAG_MIP_BIAS;
             if (surface.displacementOverride) flags |= FLAG_DISPLACEMENT_SCALE;
+            if (surface.subSurfaceExtOverride) flags |= FLAG_SUBSURFACE_EXT;
         }
         writeMergedEntry(spriteId, flags, surface);
-        upload();
+        return upload();
     }
 
     public static void clear() {
@@ -107,12 +112,13 @@ public final class AutoPbrTextureRules {
         return defaultSeedCount;
     }
 
-    public static void upload() {
+    public static boolean upload() {
         try {
-            TextureArrayBridge.nativeReceiveTextureRules(memAddress(RULES), MAX_SPRITES,
+            return TextureArrayBridge.nativeReceiveTextureRules(memAddress(RULES), MAX_SPRITES,
                 TextureArrayBridge.getActiveTextureGeneration());
         } catch (UnsatisfiedLinkError ignored) {
             // Native renderer not loaded yet.
+            return false;
         }
     }
 
@@ -137,7 +143,8 @@ public final class AutoPbrTextureRules {
             0.0f, 0.5f,
             1.5f, 1.0f, 1.0f, 1.0f, 1.0f,
             1.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f);
+            0.0f, 0.0f, 1.0f,
+            0.0f, 0.5f, 1.0f, 0.75f, 0.55f);
     }
 
     private static void writeMergedEntry(int spriteId, int overrideFlags, AutoPbrValue.Surface surface) {
@@ -172,7 +179,9 @@ public final class AutoPbrTextureRules {
             surface.anisotropicRotation, surface.sheenRoughness,
             surface.coatIor, surface.coatTintR, surface.coatTintG, surface.coatTintB, surface.coatMask,
             surface.uvScaleU, surface.uvScaleV, surface.uvOffsetU, surface.uvOffsetV,
-            surface.filterRadius, surface.mipBias, surface.displacementScale);
+            surface.filterRadius, surface.mipBias, surface.displacementScale,
+            surface.subSurfaceRadius, surface.subSurfaceThickness,
+            surface.subSurfaceTintR, surface.subSurfaceTintG, surface.subSurfaceTintB);
     }
 
     private static int defaultFlagsForSprite(int spriteId, float metallic, float f0, float emission) {
@@ -240,7 +249,12 @@ public final class AutoPbrTextureRules {
         float uvOffsetV,
         float filterRadius,
         float mipBias,
-        float displacementScale) {
+        float displacementScale,
+        float subSurfaceRadius,
+        float subSurfaceThickness,
+        float subSurfaceTintR,
+        float subSurfaceTintG,
+        float subSurfaceTintB) {
         if (spriteId < 0 || spriteId >= MAX_SPRITES) return;
         int off = spriteId * ENTRY_SIZE;
         RULES.putInt(off, flags);
@@ -283,6 +297,14 @@ public final class AutoPbrTextureRules {
         RULES.putFloat(off + 148, MathHelper.clamp(filterRadius, 0.0f, 16.0f));
         RULES.putFloat(off + 152, MathHelper.clamp(mipBias, -8.0f, 8.0f));
         RULES.putFloat(off + 156, MathHelper.clamp(displacementScale, 0.0f, 4.0f));
+        RULES.putFloat(off + 160, MathHelper.clamp(subSurfaceRadius, 0.0f, 1.0f));
+        RULES.putFloat(off + 164, MathHelper.clamp(subSurfaceThickness, 0.0f, 1.0f));
+        RULES.putFloat(off + 168, MathHelper.clamp(subSurfaceTintR, 0.0f, 1.0f));
+        RULES.putFloat(off + 172, MathHelper.clamp(subSurfaceTintG, 0.0f, 1.0f));
+        RULES.putFloat(off + 176, MathHelper.clamp(subSurfaceTintB, 0.0f, 1.0f));
+        RULES.putFloat(off + 180, 0.0f);
+        RULES.putFloat(off + 184, 0.0f);
+        RULES.putFloat(off + 188, 0.0f);
     }
 
     static int flagsForTest(int spriteId) {

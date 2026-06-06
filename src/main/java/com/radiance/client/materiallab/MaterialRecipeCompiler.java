@@ -58,8 +58,9 @@ public final class MaterialRecipeCompiler {
         surface.absorptionB = MathHelper.clamp(r.absorptionB, 0.0f, 1.0f);
         surface.absorptionDistance = Math.max(0.01f, r.absorptionDistance);
         surface.refractionRoughness = MathHelper.clamp(r.refractionRoughness, 0.0f, 1.0f);
-        surface.thicknessAmount = MathHelper.clamp(r.thicknessAmount, 0.0f, 1.0f);
+        surface.thicknessAmount = thicknessAmount(spriteId, r, size);
         surface.textureRuleModeFlags = modeFlags(r);
+        surface.diffuseModelOverride = diffuseModelMode(r) != 0;
         surface.emissionTintR = MathHelper.clamp(r.emissionTintR, 0.0f, 1.0f);
         surface.emissionTintG = MathHelper.clamp(r.emissionTintG, 0.0f, 1.0f);
         surface.emissionTintB = MathHelper.clamp(r.emissionTintB, 0.0f, 1.0f);
@@ -72,6 +73,11 @@ public final class MaterialRecipeCompiler {
         surface.sheenWeight = MathHelper.clamp(r.sheenWeight, 0.0f, 1.0f);
         surface.sheenTint = MathHelper.clamp(r.sheenTint, 0.0f, 1.0f);
         surface.sheenRoughness = MathHelper.clamp(r.sheenRoughness, 0.0f, 1.0f);
+        surface.subSurfaceRadius = MathHelper.clamp(r.porositySssRadius, 0.0f, 1.0f);
+        surface.subSurfaceThickness = MathHelper.clamp(r.porositySssThickness, 0.0f, 1.0f);
+        surface.subSurfaceTintR = MathHelper.clamp(r.porositySssTintR, 0.0f, 1.0f);
+        surface.subSurfaceTintG = MathHelper.clamp(r.porositySssTintG, 0.0f, 1.0f);
+        surface.subSurfaceTintB = MathHelper.clamp(r.porositySssTintB, 0.0f, 1.0f);
         surface.coatWeight = MathHelper.clamp(r.coatWeight, 0.0f, 1.0f);
         surface.coatRoughness = MathHelper.clamp(r.coatRoughness, 0.0f, 1.0f);
         surface.coatIor = MathHelper.clamp(r.coatIor, 1.0f, 3.0f);
@@ -92,14 +98,22 @@ public final class MaterialRecipeCompiler {
         surface.displacementOverride = r.displacementOverride;
         surface.absorptionOverride = r.transmissionOverride && (r.absorptionR > 0.0f || r.absorptionG > 0.0f
             || r.absorptionB > 0.0f || differs(r.absorptionDistance, 16.0f));
-        surface.thicknessOverride = r.transmissionOverride && (differs(r.thicknessAmount, 0.5f)
-            || !"flat".equals(safe(r.thicknessSource, "flat")));
+        surface.thicknessOverride = r.transmissionOverride && (differs(surface.thicknessAmount, 0.5f)
+            || !"flat".equals(safe(r.thicknessSource, "flat"))
+            || differs(r.thicknessMin, 0.0f) || differs(r.thicknessMax, 1.0f)
+            || differs(r.thicknessGamma, 1.0f));
         surface.volumeModeOverride = r.transmissionOverride && !"solid_volume".equals(safe(r.transmissionVolumeMode, "solid_volume"));
         surface.refractionRoughnessOverride = r.transmissionOverride && r.refractionRoughness > 0.0001f;
         surface.emissionPhysicalOverride = r.emissionOverride && (r.emissionNits > 0.0f
             || differs(r.emissionTintR, 1.0f) || differs(r.emissionTintG, 0.75f) || differs(r.emissionTintB, 0.45f));
         surface.anisotropicRotationOverride = r.anisotropicOverride && r.anisotropic > 0.0f;
         surface.sheenRoughnessOverride = r.sheenOverride && differs(r.sheenRoughness, 0.5f);
+        surface.subSurfaceExtOverride = r.porosityOverride && "sss".equals(safe(r.porosityMode, "preserve"))
+            && (differs(r.porositySssRadius, 0.0f)
+            || differs(r.porositySssThickness, 0.5f)
+            || differs(r.porositySssTintR, 1.0f)
+            || differs(r.porositySssTintG, 0.75f)
+            || differs(r.porositySssTintB, 0.55f));
         surface.coatExtOverride = r.coatOverride && (differs(r.coatIor, 1.5f)
             || differs(r.coatTintR, 1.0f) || differs(r.coatTintG, 1.0f) || differs(r.coatTintB, 1.0f)
             || differs(r.coatMask, 1.0f)
@@ -158,6 +172,8 @@ public final class MaterialRecipeCompiler {
 
         builder.scalar("pack_ao", packAo(spriteId, size));
         builder.scalar("generated_sss", generatedSssPreview(spriteId, surface.heightMap, recipe, size));
+        builder.scalar("sss_rule", constant(size, surface.subSurfaceExtOverride
+            ? (surface.subSurfaceRadius + surface.subSurfaceThickness) * 0.5f : 0.0f));
         builder.scalar("final_sss", surface.sssMap);
 
         builder.scalar("emission_source", emissionSource(spriteId, recipe, size));
@@ -170,7 +186,12 @@ public final class MaterialRecipeCompiler {
         builder.scalar("anisotropic", constant(size, surface.anisotropic));
         builder.scalar("coat", constant(size, surface.coatWeight));
         builder.scalar("sheen", constant(size, surface.sheenWeight));
-        builder.scalar("roadmap", constant(size, 0.0f));
+        float samplerRule = Math.max(Math.max(
+            surface.uvTransformOverride ? Math.abs(surface.uvScaleU - 1.0f) / 4.0f : 0.0f,
+            surface.filterRadiusOverride ? surface.filterRadius / 16.0f : 0.0f), Math.max(
+            surface.mipBiasOverride ? Math.abs(surface.mipBias) / 8.0f : 0.0f,
+            surface.displacementOverride ? surface.displacementScale / 4.0f : 0.0f));
+        builder.scalar("sampler", constant(size, samplerRule));
         return builder.build();
     }
 
@@ -393,6 +414,9 @@ public final class MaterialRecipeCompiler {
         return out;
     }
 
+    private record NormalUpload(boolean layerOk, boolean heightOk) {
+    }
+
     private enum ChannelComponent {
         ALPHA,
         RED,
@@ -406,43 +430,161 @@ public final class MaterialRecipeCompiler {
         SSS
     }
 
-    public static MaterialBakePlan compileAndUpload(int spriteId, MaterialRecipe recipe) {
+    public static MaterialUploadResult compileAndUpload(int spriteId, MaterialRecipe recipe) {
         MaterialBakePlan plan = evaluate(spriteId, recipe);
-        if (!plan.ok || plan.surface == null || spriteId < 0 || plan.size <= 0) return plan;
+        if (!plan.ok || plan.surface == null || spriteId < 0 || plan.size <= 0) {
+            return MaterialUploadResult.bakeFailed(plan);
+        }
+        List<String> diagnostics = new ArrayList<>(plan.diagnostics);
+        boolean specOk = true;
+        boolean normalOk = true;
+        boolean heightOk = true;
+        boolean rulesOk = false;
         try {
             AutoPbrValue.Surface surface = plan.surface;
             int size = plan.size;
             long gen = TextureArrayBridge.getActiveTextureGeneration();
-            int bytes = size * size * 4;
             boolean specTouched = surface.roughnessOverride || surface.f0Override || surface.sssOverride
                 || surface.metallicOverride || surface.emissionOverride;
             boolean normalTouched = surface.normalOverride || surface.aoOverride || surface.heightOverride;
             if (specTouched) {
-                try (NativeImage spec = new NativeImage(NativeImage.Format.RGBA, size, size, false)) {
-                    bakeSpecular(spriteId, surface, spec);
-                    TextureArrayBridge.nativeUpdateSpecularLayer(spriteId,
-                        ((INativeImageExt) (Object) spec).neoVoxelRT$getPointer(), bytes, gen);
-                    TextureTracker.spriteSpecularSource[spriteId] = TextureTracker.SOURCE_USER_CUSTOM;
-                    cacheImage(TextureTracker.spriteSpecularCache, spriteId, spec);
-                }
+                specOk = uploadCustomSpecular(spriteId, surface, size, gen, diagnostics);
+            } else {
+                specOk = restoreSpecularBaseline(spriteId, size, gen, diagnostics);
             }
             if (normalTouched) {
-                try (NativeImage normal = new NativeImage(NativeImage.Format.RGBA, size, size, false)) {
-                    bakeNormal(spriteId, surface, normal);
-                    TextureArrayBridge.nativeUpdateNormalLayer(spriteId,
-                        ((INativeImageExt) (Object) normal).neoVoxelRT$getPointer(), bytes, gen);
-                    TextureTracker.spriteNormalSource[spriteId] = TextureTracker.SOURCE_USER_CUSTOM;
-                    cacheImage(TextureTracker.spriteNormalCache, spriteId, normal);
-                    refreshHeightMetadata(spriteId, normal, gen);
-                }
+                NormalUpload normalUpload = uploadCustomNormal(spriteId, surface, size, gen, diagnostics);
+                normalOk = normalUpload.layerOk();
+                heightOk = normalUpload.heightOk();
+            } else {
+                NormalUpload normalUpload = restoreNormalBaseline(spriteId, size, gen, diagnostics);
+                normalOk = normalUpload.layerOk();
+                heightOk = normalUpload.heightOk();
             }
-            AutoPbrTextureRules.update(spriteId, plan);
+            rulesOk = AutoPbrTextureRules.update(spriteId, plan);
+            if (!rulesOk) diagnostics.add("texture rules upload failed or pending");
         } catch (UnsatisfiedLinkError e) {
             LOGGER.debug("[MaterialLab] Native live upload skipped", e);
+            specOk = false;
+            normalOk = false;
+            heightOk = false;
+            rulesOk = false;
+            diagnostics.add("native link unavailable");
         } catch (Exception e) {
             LOGGER.warn("[MaterialLab] Recipe compile/upload failed for sprite {}", spriteId, e);
+            specOk = false;
+            normalOk = false;
+            heightOk = false;
+            rulesOk = false;
+            diagnostics.add("upload exception: " + e.getClass().getSimpleName());
         }
-        return plan;
+        return new MaterialUploadResult(plan, specOk, normalOk, heightOk, rulesOk, diagnostics);
+    }
+
+    private static boolean uploadCustomSpecular(int spriteId, AutoPbrValue.Surface surface, int size,
+                                                long generation, List<String> diagnostics) {
+        int bytes = size * size * 4;
+        try (NativeImage spec = new NativeImage(NativeImage.Format.RGBA, size, size, false)) {
+            bakeSpecular(spriteId, surface, spec);
+            boolean ok = TextureArrayBridge.nativeUpdateSpecularLayer(spriteId,
+                ((INativeImageExt) (Object) spec).neoVoxelRT$getPointer(), bytes, generation);
+            if (!ok) {
+                diagnostics.add("specular layer upload failed");
+                return false;
+            }
+            TextureTracker.spriteSpecularSource[spriteId] = TextureTracker.SOURCE_USER_CUSTOM;
+            cacheImage(TextureTracker.spriteSpecularCache, spriteId, spec);
+            return true;
+        }
+    }
+
+    private static NormalUpload uploadCustomNormal(int spriteId, AutoPbrValue.Surface surface, int size,
+                                                   long generation, List<String> diagnostics) {
+        int bytes = size * size * 4;
+        try (NativeImage normal = new NativeImage(NativeImage.Format.RGBA, size, size, false)) {
+            bakeNormal(spriteId, surface, normal);
+            boolean layerOk = TextureArrayBridge.nativeUpdateNormalLayer(spriteId,
+                ((INativeImageExt) (Object) normal).neoVoxelRT$getPointer(), bytes, generation);
+            if (!layerOk) {
+                diagnostics.add("normal layer upload failed");
+                return new NormalUpload(false, false);
+            }
+            TextureTracker.spriteNormalSource[spriteId] = TextureTracker.SOURCE_USER_CUSTOM;
+            cacheImage(TextureTracker.spriteNormalCache, spriteId, normal);
+            boolean heightOk = refreshHeightMetadata(spriteId, normal, generation, diagnostics);
+            return new NormalUpload(true, heightOk);
+        }
+    }
+
+    private static boolean restoreSpecularBaseline(int spriteId, int size, long generation, List<String> diagnostics) {
+        if (!validTextureIndex(spriteId) || TextureTracker.spriteSpecularSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM) {
+            return true;
+        }
+        NativeImage baseline = TextureTracker.spriteBaselineSpecularCache.get(spriteId);
+        try (NativeImage fallback = baseline == null ? defaultSpecular(size) : null) {
+            NativeImage source = baseline == null ? fallback : baseline;
+            boolean ok = TextureArrayBridge.nativeUpdateSpecularLayer(spriteId,
+                ((INativeImageExt) (Object) source).neoVoxelRT$getPointer(), size * size * 4, generation);
+            if (!ok) {
+                diagnostics.add("specular baseline restore failed");
+                return false;
+            }
+            TextureTracker.spriteSpecularSource[spriteId] = TextureTracker.spriteBaselineSpecularSource[spriteId];
+            if (baseline == null) {
+                removeCachedImage(TextureTracker.spriteSpecularCache, spriteId);
+            } else {
+                cacheImage(TextureTracker.spriteSpecularCache, spriteId, baseline);
+            }
+            return true;
+        }
+    }
+
+    private static NormalUpload restoreNormalBaseline(int spriteId, int size, long generation, List<String> diagnostics) {
+        if (!validTextureIndex(spriteId) || TextureTracker.spriteNormalSource[spriteId] != TextureTracker.SOURCE_USER_CUSTOM) {
+            return new NormalUpload(true, true);
+        }
+        NativeImage baseline = TextureTracker.spriteBaselineNormalCache.get(spriteId);
+        try (NativeImage fallback = baseline == null ? defaultNormal(size) : null) {
+            NativeImage source = baseline == null ? fallback : baseline;
+            boolean ok = TextureArrayBridge.nativeUpdateNormalLayer(spriteId,
+                ((INativeImageExt) (Object) source).neoVoxelRT$getPointer(), size * size * 4, generation);
+            if (!ok) {
+                diagnostics.add("normal baseline restore failed");
+                return new NormalUpload(false, false);
+            }
+            TextureTracker.spriteNormalSource[spriteId] = TextureTracker.spriteBaselineNormalSource[spriteId];
+            if (baseline == null) {
+                removeCachedImage(TextureTracker.spriteNormalCache, spriteId);
+            } else {
+                cacheImage(TextureTracker.spriteNormalCache, spriteId, baseline);
+            }
+            boolean heightOk = refreshHeightMetadata(spriteId, source, generation, diagnostics);
+            return new NormalUpload(true, heightOk);
+        }
+    }
+
+    private static NativeImage defaultSpecular(int size) {
+        NativeImage image = new NativeImage(NativeImage.Format.RGBA, size, size, false);
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                image.setColorArgb(x, y, 0);
+            }
+        }
+        return image;
+    }
+
+    private static NativeImage defaultNormal(int size) {
+        NativeImage image = new NativeImage(NativeImage.Format.RGBA, size, size, false);
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                image.setColorArgb(x, y, 0xFF8080FF);
+            }
+        }
+        return image;
+    }
+
+    private static boolean validTextureIndex(int spriteId) {
+        return spriteId >= 0 && spriteId < TextureTracker.MAX_TEXTURES;
     }
 
     private static float[] roughness(int spriteId, MaterialRecipe recipe, int size) {
@@ -469,6 +611,8 @@ public final class MaterialRecipeCompiler {
                 value = curve(value, recipe.roughnessGamma, recipe.roughnessContrast);
                 value = mix(value, MathHelper.clamp(value + edgeMagnitude(AutoPbrTextureCatalog.albedo(spriteId), x, y, size)
                     * recipe.roughnessEdgeRoughness, 0.0f, 1.0f), recipe.roughnessEdgeRoughness);
+                float oxide = oxideMask(spriteId, recipe, x, y, size, 1.0f);
+                value = MathHelper.clamp(value + oxide * MathHelper.clamp(recipe.oxideRoughnessInfluence, 0.0f, 1.0f) * 0.45f, 0.0f, 1.0f);
                 value = MathHelper.clamp(value + recipe.roughnessWear * 0.10f - recipe.roughnessPolish * 0.18f
                     - recipe.roughnessWetness * 0.25f, 0.0f, 1.0f);
                 out[index] = remap(value, recipe.roughnessMin, recipe.roughnessMax);
@@ -608,7 +752,10 @@ public final class MaterialRecipeCompiler {
                 value = levels(value, recipe.porosityBlackPoint, recipe.porosityMidpoint, recipe.porosityWhitePoint);
                 if (recipe.porosityInvert) value = 1.0f - value;
                 if ("sss".equals(safe(recipe.porosityMode, "preserve"))) {
-                    value = MathHelper.clamp(value * recipe.porositySssStrength, 0.0f, 1.0f);
+                    float thickness = MathHelper.clamp(recipe.porositySssThickness, 0.0f, 1.0f);
+                    float radius = MathHelper.clamp(recipe.porositySssRadius, 0.0f, 1.0f);
+                    value = MathHelper.clamp(value * recipe.porositySssStrength
+                        * mix(0.80f, 1.25f, thickness) * mix(1.0f, 1.15f, radius), 0.0f, 1.0f);
                 } else {
                     value = MathHelper.clamp(value * recipe.porosityAmount
                         + cavity * recipe.porosityCavityInfluence
@@ -624,7 +771,7 @@ public final class MaterialRecipeCompiler {
         if (!recipe.metallicOverride) return constant(size, 0.0f);
         if ("flat".equals(safe(recipe.metalMaskSource, "flat")) || "radser_measured".equals(recipe.metalMode)
             || "labpbr_code".equals(recipe.metalMode)) {
-            return constant(size, recipe.metallic);
+            return applyOxideToMetallic(spriteId, recipe, size, constant(size, recipe.metallic));
         }
         NativeImage albedo = AutoPbrTextureCatalog.albedo(spriteId);
         NativeImage spec = AutoPbrTextureCatalog.specular(spriteId);
@@ -646,6 +793,8 @@ public final class MaterialRecipeCompiler {
                 value = smoothstep(recipe.metalMaskThreshold - recipe.metalMaskSoftness,
                     recipe.metalMaskThreshold + recipe.metalMaskSoftness, value);
                 value = MathHelper.clamp(value * recipe.metallic, recipe.metalMaskClampMin, recipe.metalMaskClampMax);
+                float oxide = oxideMask(spriteId, recipe, x, y, size, value);
+                value = MathHelper.clamp(value * (1.0f - oxide), 0.0f, 1.0f);
                 out[index] = value;
             }
         }
@@ -760,13 +909,29 @@ public final class MaterialRecipeCompiler {
         }
     }
 
-    private static void refreshHeightMetadata(int spriteId, NativeImage normal, long generation) {
+    private static void removeCachedImage(java.util.Map<Integer, NativeImage> cache, int spriteId) {
+        if (cache == null) return;
+        NativeImage previous = cache.remove(spriteId);
+        if (previous != null) {
+            try {
+                previous.close();
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    private static boolean refreshHeightMetadata(int spriteId, NativeImage normal, long generation,
+                                                 List<String> diagnostics) {
         int heightRange = heightAlphaRangePackedForTest(normal, AutoPbrTextureCatalog.albedo(spriteId));
         int flags = AutoPbrTextureCatalog.spriteSourceFlags(spriteId);
         try {
-            TextureArrayBridge.nativeUpdateSpriteHeightMetadata(spriteId, flags, heightRange, generation);
+            boolean ok = TextureArrayBridge.nativeUpdateSpriteHeightMetadata(spriteId, flags, heightRange, generation);
+            if (!ok && diagnostics != null) diagnostics.add("height metadata upload failed");
+            return ok;
         } catch (UnsatisfiedLinkError e) {
             LOGGER.debug("[MaterialLab] Native height metadata refresh skipped", e);
+            if (diagnostics != null) diagnostics.add("native link unavailable");
+            return false;
         }
     }
 
@@ -793,7 +958,8 @@ public final class MaterialRecipeCompiler {
     }
 
     private static boolean roughnessTouched(MaterialRecipe recipe) {
-        return recipe.roughnessOverride || recipe.generateRoughness || recipe.roughnessInvert;
+        return recipe.roughnessOverride || recipe.generateRoughness || recipe.roughnessInvert
+            || (recipe.oxideAmount > 0.0001f && recipe.oxideRoughnessInfluence > 0.0001f);
     }
 
     private static boolean heightTouched(MaterialRecipe recipe) {
@@ -821,7 +987,92 @@ public final class MaterialRecipeCompiler {
             default -> 0;
         };
         int coatMaskMode = "flat".equals(safe(recipe.coatMaskSource, "flat")) ? 0 : 1;
-        return (volumeMode & 0x3) | ((thicknessMode & 0x3) << 2) | ((coatMaskMode & 0x3) << 4);
+        int diffuseModel = diffuseModelMode(recipe);
+        return (volumeMode & 0x3) | ((thicknessMode & 0x3) << 2) | ((coatMaskMode & 0x3) << 4)
+            | ((diffuseModel & 0x3) << 6);
+    }
+
+    private static int diffuseModelMode(MaterialRecipe recipe) {
+        return switch (safe(recipe.diffuseModel, "global")) {
+            case "eon" -> 1;
+            case "vmf" -> 2;
+            case "legacy" -> 3;
+            default -> 0;
+        };
+    }
+
+    private static float thicknessAmount(int spriteId, MaterialRecipe recipe, int size) {
+        float base = switch (safe(recipe.thicknessSource, "flat")) {
+            case "albedo_alpha" -> averageAlpha(AutoPbrTextureCatalog.albedo(spriteId), size, recipe.thicknessAmount);
+            case "generated_luminance" -> averageLuminance(AutoPbrTextureCatalog.albedo(spriteId), size, recipe.thicknessAmount);
+            case "pack_derived" -> average(packHeight(spriteId, size), recipe.thicknessAmount);
+            default -> recipe.thicknessAmount;
+        };
+        float gamma = MathHelper.clamp(recipe.thicknessGamma, 0.2f, 4.0f);
+        float shaped = (float) Math.pow(MathHelper.clamp(base, 0.0f, 1.0f), gamma);
+        float min = MathHelper.clamp(Math.min(recipe.thicknessMin, recipe.thicknessMax), 0.0f, 1.0f);
+        float max = MathHelper.clamp(Math.max(recipe.thicknessMin, recipe.thicknessMax), 0.0f, 1.0f);
+        return MathHelper.clamp(mix(min, max, shaped), 0.0f, 1.0f);
+    }
+
+    private static float average(float[] values, float fallback) {
+        if (values == null || values.length == 0) return MathHelper.clamp(fallback, 0.0f, 1.0f);
+        double sum = 0.0;
+        int count = 0;
+        for (float value : values) {
+            if (!Float.isFinite(value) || value < 0.0f) continue;
+            sum += MathHelper.clamp(value, 0.0f, 1.0f);
+            count++;
+        }
+        return count == 0 ? MathHelper.clamp(fallback, 0.0f, 1.0f) : (float) (sum / count);
+    }
+
+    private static float averageAlpha(NativeImage image, int size, float fallback) {
+        if (image == null) return MathHelper.clamp(fallback, 0.0f, 1.0f);
+        double sum = 0.0;
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                sum += ((sample(image, x, y, size) >>> 24) & 0xFF) / 255.0f;
+            }
+        }
+        return (float) (sum / Math.max(1, size * size));
+    }
+
+    private static float averageLuminance(NativeImage image, int size, float fallback) {
+        if (image == null) return MathHelper.clamp(fallback, 0.0f, 1.0f);
+        double sum = 0.0;
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                sum += luminance(sample(image, x, y, size));
+            }
+        }
+        return (float) (sum / Math.max(1, size * size));
+    }
+
+    private static float[] applyOxideToMetallic(int spriteId, MaterialRecipe recipe, int size, float[] values) {
+        if (values == null || recipe.oxideAmount <= 0.0001f) return values;
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                int index = y * size + x;
+                float metal = MathHelper.clamp(values[index], 0.0f, 1.0f);
+                values[index] = MathHelper.clamp(metal * (1.0f - oxideMask(spriteId, recipe, x, y, size, metal)), 0.0f, 1.0f);
+            }
+        }
+        return values;
+    }
+
+    private static float oxideMask(int spriteId, MaterialRecipe recipe, int x, int y, int size, float metalCoverage) {
+        float amount = MathHelper.clamp(recipe.oxideAmount, 0.0f, 1.0f);
+        if (amount <= 0.0001f) return 0.0f;
+        NativeImage albedo = AutoPbrTextureCatalog.albedo(spriteId);
+        int argb = sample(albedo, x, y, size);
+        float lum = luminance(argb);
+        float sat = saturation(argb);
+        float edge = edgeMagnitude(albedo, x, y, size);
+        float cavity = MathHelper.clamp(1.0f - lum + edge * 0.5f, 0.0f, 1.0f);
+        float patinaBias = MathHelper.clamp(recipe.oxideColorBias, 0.0f, 1.0f);
+        float chemical = mix(cavity, sat * 0.75f + edge * 0.35f, patinaBias);
+        return MathHelper.clamp(chemical * amount * MathHelper.clamp(metalCoverage, 0.0f, 1.0f), 0.0f, 1.0f);
     }
 
     private static boolean differs(float value, float baseline) {

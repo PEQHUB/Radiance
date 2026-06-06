@@ -82,6 +82,11 @@ public final class AutoPbrValue {
         public float sheenWeight;
         public float sheenTint;
         public float sheenRoughness;
+        public float subSurfaceRadius;
+        public float subSurfaceThickness;
+        public float subSurfaceTintR;
+        public float subSurfaceTintG;
+        public float subSurfaceTintB;
         public float coatWeight;
         public float coatRoughness;
         public float coatIor;
@@ -110,6 +115,7 @@ public final class AutoPbrValue {
         public boolean absorptionOverride;
         public boolean thicknessOverride;
         public boolean volumeModeOverride;
+        public boolean diffuseModelOverride;
         public boolean refractionRoughnessOverride;
         public boolean emissionPhysicalOverride;
         public boolean emissionOverride;
@@ -119,6 +125,7 @@ public final class AutoPbrValue {
         public boolean anisotropicRotationOverride;
         public boolean sheenOverride;
         public boolean sheenRoughnessOverride;
+        public boolean subSurfaceExtOverride;
         public boolean coatOverride;
         public boolean coatExtOverride;
         public boolean uvTransformOverride;

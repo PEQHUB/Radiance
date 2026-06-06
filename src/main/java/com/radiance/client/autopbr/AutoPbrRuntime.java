@@ -7,6 +7,7 @@ import com.radiance.client.materiallab.MaterialBakePlan;
 import com.radiance.client.materiallab.MaterialLabStore;
 import com.radiance.client.materiallab.MaterialRecipe;
 import com.radiance.client.materiallab.MaterialRecipeCompiler;
+import com.radiance.client.materiallab.MaterialUploadResult;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.option.Options;
@@ -57,14 +58,18 @@ public final class AutoPbrRuntime {
                 skipped++;
                 continue;
             }
-            MaterialBakePlan result = MaterialRecipeCompiler.compileAndUpload(spriteId, recipe);
-            if (result != null && result.ok) {
+            MaterialUploadResult result = MaterialRecipeCompiler.compileAndUpload(spriteId, recipe);
+            if (result != null && result.uploadOk) {
                 applied++;
             } else {
                 failed++;
+                MaterialBakePlan plan = result == null ? null : result.plan;
                 String diagnostic = result == null || result.diagnostics.isEmpty()
                     ? "unknown compile failure"
                     : result.diagnostics.get(0);
+                if (diagnostic.equals("unknown compile failure") && plan != null && !plan.diagnostics.isEmpty()) {
+                    diagnostic = plan.diagnostics.get(0);
+                }
                 LOGGER.warn("[AutoPBR] Failed to rehydrate {}: {}", sprite, diagnostic);
             }
         }
@@ -119,6 +124,8 @@ public final class AutoPbrRuntime {
         if ((flags & AutoPbrTextureRules.FLAG_FILTER_RADIUS) != 0) joiner.add("filterRadius");
         if ((flags & AutoPbrTextureRules.FLAG_MIP_BIAS) != 0) joiner.add("mipBias");
         if ((flags & AutoPbrTextureRules.FLAG_DISPLACEMENT_SCALE) != 0) joiner.add("displacementScale");
+        if ((flags & AutoPbrTextureRules.FLAG_SUBSURFACE_EXT) != 0) joiner.add("subsurfaceExt");
+        if ((flags & AutoPbrTextureRules.FLAG_DIFFUSE_MODEL) != 0) joiner.add("diffuseModel");
         return joiner.toString();
     }
 
@@ -190,21 +197,29 @@ public final class AutoPbrRuntime {
         for (int spriteId : spriteIds) {
             Identifier sprite = TextureArrayBridge.sortedSpriteIds.get(spriteId);
             MaterialRecipe recipe = MaterialLabStore.loadRecipe(client, sprite);
-            MaterialBakePlan result = compileUpload
+            MaterialUploadResult upload = compileUpload
                 ? MaterialRecipeCompiler.compileAndUpload(spriteId, recipe)
-                : MaterialRecipeCompiler.evaluate(spriteId, recipe);
+                : null;
+            MaterialBakePlan result = upload != null ? upload.plan : MaterialRecipeCompiler.evaluate(spriteId, recipe);
             JsonObject item = new JsonObject();
             item.addProperty("spriteId", spriteId);
             item.addProperty("sprite", sprite.toString());
-            item.addProperty("ok", result != null && result.ok);
+            item.addProperty("ok", compileUpload ? upload != null && upload.uploadOk : result != null && result.ok);
             item.addProperty("compiled", compileUpload);
+            if (upload != null) {
+                item.addProperty("uploadOk", upload.uploadOk);
+                item.addProperty("uploadStatus", upload.statusText);
+            }
             if (result != null) {
                 JsonArray diagnostics = new JsonArray();
                 for (String message : result.diagnostics) diagnostics.add(message);
+                if (upload != null) {
+                    for (String message : upload.diagnostics) diagnostics.add(message);
+                }
                 item.add("diagnostics", diagnostics);
                 if (result.surface != null) item.add("overrides", overrideJson(result.surface));
             }
-            if (result != null && result.ok) ok++; else failed++;
+            if (compileUpload ? upload != null && upload.uploadOk : result != null && result.ok) ok++; else failed++;
             items.add(item);
         }
         root.addProperty("ok", failed == 0);
@@ -337,6 +352,7 @@ public final class AutoPbrRuntime {
             fields.addProperty("normalOrientation", recipe.normalOrientation);
             fields.addProperty("emissionMode", recipe.emissionMode);
             fields.addProperty("transmissionVolumeMode", recipe.transmissionVolumeMode);
+            fields.addProperty("diffuseModel", recipe.diffuseModel);
             fields.addProperty("legacyNodeSidecars", "inert");
             json.add("fields", fields);
         }
@@ -384,6 +400,7 @@ public final class AutoPbrRuntime {
         json.addProperty("flags", surface.flagsOverride);
         json.addProperty("ior", surface.iorOverride);
         json.addProperty("transmission", surface.transmissionOverride);
+        json.addProperty("diffuseModel", surface.diffuseModelOverride);
         json.addProperty("anisotropic", surface.anisotropicOverride);
         json.addProperty("sheen", surface.sheenOverride);
         json.addProperty("coat", surface.coatOverride);

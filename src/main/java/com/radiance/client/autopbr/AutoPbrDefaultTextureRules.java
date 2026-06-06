@@ -6,7 +6,6 @@ import net.minecraft.util.Identifier;
 final class AutoPbrDefaultTextureRules {
     private static final int MAX_SPRITES = 4096;
     private static final DefaultRule[] RULES = new DefaultRule[] {
-        rule(0.96f, 1.333f, 0.0f, "block/water_still", "block/water_flow", "block/water_overlay"),
         rule(0.62f, 1.31f, 0.0f, "block/ice", "block/frosted_ice_0", "block/frosted_ice_1",
             "block/frosted_ice_2", "block/frosted_ice_3"),
         rule(0.42f, 1.31f, 0.0f, "block/packed_ice", "block/blue_ice"),
@@ -41,6 +40,7 @@ final class AutoPbrDefaultTextureRules {
         int applied = 0;
         int count = Math.min(TextureArrayBridge.sortedSpriteIds.size(), MAX_SPRITES);
         for (int spriteId = 0; spriteId < count; spriteId++) {
+            if (AutoPbrTextureCatalog.isPhysicalWaterSprite(spriteId)) continue;
             DefaultRule rule = ruleForSprite(spriteId);
             if (rule == null) continue;
             AutoPbrTextureRules.writeDefaultRule(spriteId,
@@ -56,6 +56,7 @@ final class AutoPbrDefaultTextureRules {
 
     static DefaultRule ruleForSprite(int spriteId) {
         if (spriteId < 0 || spriteId >= TextureArrayBridge.sortedSpriteIds.size()) return null;
+        if (AutoPbrTextureCatalog.isPhysicalWaterSprite(spriteId)) return null;
         Identifier id = TextureArrayBridge.sortedSpriteIds.get(spriteId);
         if (id == null) return null;
         for (DefaultRule rule : RULES) {

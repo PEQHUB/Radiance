@@ -7,7 +7,7 @@ package com.radiance.client.materiallab;
  * texture layers are rebuilt from the active resource-pack stack and these fields.
  */
 public final class MaterialRecipe {
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
 
     public int version = VERSION;
 
@@ -103,6 +103,8 @@ public final class MaterialRecipe {
     public float normalXStrength = 1.0f;
     public float normalYStrength = 1.0f;
     public float normalDetailFrequency = 1.0f;
+    // Deprecated: retained only so old JSON with the hidden detail blend field still loads.
+    @Deprecated
     public String normalDetailBlendMode = "add_detail";
     public int normalGeneratorRadius = 1;
     public int normalSmoothing = 0;
@@ -180,6 +182,7 @@ public final class MaterialRecipe {
     public float sheenWeight = 0.0f;
     public float sheenTint = 0.0f;
     public float sheenRoughness = 0.5f;
+    public String diffuseModel = "global";
 
     public boolean coatOverride;
     public float coatWeight = 0.0f;
@@ -195,6 +198,8 @@ public final class MaterialRecipe {
     public float displacementScale = 1.0f;
 
     public float detailNormalStrength = 1.0f;
+    // Deprecated: retained only so old JSON with the hidden anisotropy direction field still loads.
+    @Deprecated
     public String anisotropicDirectionMode = "texture_tangent";
     public float filterRadius = 0.0f;
     public float mipBias = 0.0f;
@@ -365,6 +370,7 @@ public final class MaterialRecipe {
         copy.sheenWeight = sheenWeight;
         copy.sheenTint = sheenTint;
         copy.sheenRoughness = sheenRoughness;
+        copy.diffuseModel = diffuseModel;
         copy.coatOverride = coatOverride;
         copy.coatWeight = coatWeight;
         copy.coatRoughness = coatRoughness;
@@ -411,7 +417,48 @@ public final class MaterialRecipe {
             && !roughnessInvert
             && !porosityInvert
             && !aoInvert
-            && !emissionInvert;
+            && !emissionInvert
+            && !differs(oxideAmount, 0.0f)
+            && !differs(oxideRoughnessInfluence, 0.0f)
+            && !differs(oxideColorBias, 0.0f)
+            && !differs(porositySssStrength, 0.0f)
+            && !differs(porositySssRadius, 0.0f)
+            && !differs(porositySssThickness, 0.5f)
+            && !differs(porositySssTintR, 1.0f)
+            && !differs(porositySssTintG, 0.75f)
+            && !differs(porositySssTintB, 0.55f)
+            && stringEquals(thicknessSource, "flat")
+            && !differs(thicknessAmount, 0.5f)
+            && !differs(thicknessMin, 0.0f)
+            && !differs(thicknessMax, 1.0f)
+            && !differs(thicknessGamma, 1.0f)
+            && !differs(absorptionR, 0.0f)
+            && !differs(absorptionG, 0.0f)
+            && !differs(absorptionB, 0.0f)
+            && !differs(absorptionDistance, 16.0f)
+            && stringEquals(transmissionVolumeMode, "solid_volume")
+            && !differs(refractionRoughness, 0.0f)
+            && !differs(anisotropicRotation, 0.0f)
+            && !differs(sheenRoughness, 0.5f)
+            && stringEquals(diffuseModel, "global")
+            && !differs(coatIor, 1.5f)
+            && !differs(coatTintR, 1.0f)
+            && !differs(coatTintG, 1.0f)
+            && !differs(coatTintB, 1.0f)
+            && !differs(coatMask, 1.0f)
+            && !differs(uvScale, 1.0f)
+            && !differs(uvOffset, 0.0f)
+            && !differs(filterRadius, 0.0f)
+            && !differs(mipBias, 0.0f)
+            && !differs(displacementScale, 1.0f);
+    }
+
+    private static boolean differs(float value, float baseline) {
+        return Math.abs(value - baseline) > 0.0001f;
+    }
+
+    private static boolean stringEquals(String value, String baseline) {
+        return baseline.equals(value == null ? "" : value);
     }
 
     public void applyPreset(MaterialPresetCatalog.Preset preset) {

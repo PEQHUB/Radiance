@@ -27,7 +27,11 @@ public final class AutoPbrTexturePicker {
 
         BlockState state = client.world.getBlockState(hit.getBlockPos());
         Identifier fluid = fluidSprite(state.getFluidState(), hit.getSide());
-        if (fluid != null && TextureArrayBridge.sortedSpriteIds.contains(fluid)) return fluid;
+        if (fluid != null
+            && AutoPbrTextureCatalog.isEditableSprite(fluid)
+            && TextureArrayBridge.sortedSpriteIds.contains(fluid)) {
+            return fluid;
+        }
 
         if (state.getRenderType() == BlockRenderType.MODEL) {
             Identifier sprite = modelSprite(client, state, hit.getSide());
@@ -53,7 +57,10 @@ public final class AutoPbrTexturePicker {
         for (BakedQuad quad : quads) {
             if (quad.getSprite() == null) continue;
             Identifier sprite = quad.getSprite().getContents().getId();
-            if (TextureArrayBridge.sortedSpriteIds.contains(sprite)) return sprite;
+            if (AutoPbrTextureCatalog.isEditableSprite(sprite)
+                && TextureArrayBridge.sortedSpriteIds.contains(sprite)) {
+                return sprite;
+            }
         }
         return null;
     }
@@ -62,7 +69,7 @@ public final class AutoPbrTexturePicker {
         if (fluid == null || fluid.isEmpty()) return null;
         boolean still = side == Direction.UP || side == Direction.DOWN;
         if (fluid.getFluid() == Fluids.WATER || fluid.getFluid() == Fluids.FLOWING_WATER) {
-            return Identifier.ofVanilla(still ? "block/water_still" : "block/water_flow");
+            return null;
         }
         if (fluid.getFluid() == Fluids.LAVA || fluid.getFluid() == Fluids.FLOWING_LAVA) {
             return Identifier.ofVanilla(still ? "block/lava_still" : "block/lava_flow");
