@@ -576,6 +576,20 @@ public final class MaterialLabSelfTest {
                     materialSet.getAsJsonObject("normal").get("binding").getAsString()),
                 "pack-authored normal should bind directly");
 
+            normal.setColorArgb(1, 0, 0xF58080FF);
+            JsonObject uniformAudit = JsonParser.parseString(AutoPbrRuntime.materialAuditJson("0")).getAsJsonObject();
+            JsonObject uniformSet = uniformAudit.getAsJsonObject("materialSet");
+            expect(!uniformSet.getAsJsonObject("displacement").get("eligible").getAsBoolean(),
+                "uniform authored normal alpha should not be displacement eligible");
+            expect("uniform_alpha_no_visible_relief".equals(
+                    uniformSet.getAsJsonObject("displacement").get("reason").getAsString()),
+                "uniform authored normal alpha should explain why displacement is skipped");
+            expect("none".equals(uniformSet.get("heightAlphaRange").getAsString()),
+                "uniform authored normal alpha should not report a visible height range");
+            expect((uniformSet.get("sourceFlags").getAsInt() & TextureTracker.SPRITE_FLAG_HAS_HEIGHT) == 0,
+                "uniform authored normal alpha should not set the sprite height flag");
+            normal.setColorArgb(1, 0, 0xFF8080FF);
+
             JsonObject registry = JsonParser.parseString(AutoPbrRuntime.materialSetRegistryJson(1)).getAsJsonObject();
             expect("radser_runtime_material_set_registry_v1".equals(registry.get("schema").getAsString()),
                 "material set registry should expose a stable schema");

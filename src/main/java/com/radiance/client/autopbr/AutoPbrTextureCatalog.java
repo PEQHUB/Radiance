@@ -134,8 +134,12 @@ public final class AutoPbrTextureCatalog {
             && authoredSource(source);
     }
 
-    public static boolean hasAuthoredHeight(int spriteId) {
+    public static boolean hasAuthoredHeightSource(int spriteId) {
         return hasAuthoredNormal(spriteId);
+    }
+
+    public static boolean hasAuthoredHeight(int spriteId) {
+        return hasAuthoredHeightSource(spriteId) && heightAlphaRangePacked(spriteId) >= 0;
     }
 
     public static int spriteSourceFlags(int spriteId) {
@@ -174,7 +178,7 @@ public final class AutoPbrTextureCatalog {
     }
 
     public static int heightAlphaRangePacked(int spriteId) {
-        if (!hasAuthoredHeight(spriteId)) return -1;
+        if (!hasAuthoredHeightSource(spriteId)) return -1;
         NativeImage image = normal(spriteId);
         if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) return -1;
         NativeImage albedoImage = albedo(spriteId);
@@ -212,7 +216,7 @@ public final class AutoPbrTextureCatalog {
         }
         boolean hasNormal = hasNormalTexture(spriteId);
         byte source = normalSource(spriteId);
-        boolean authored = hasAuthoredHeight(spriteId);
+        boolean authored = hasAuthoredHeightSource(spriteId);
         int range = heightAlphaRangePacked(spriteId);
         boolean visibleRange = range >= 0;
         String rangeText = visibleRange
@@ -227,7 +231,7 @@ public final class AutoPbrTextureCatalog {
                 DISPLACEMENT_HEIGHT_SOURCE, false, true, false, sourceLabel(source), rangeText);
         }
         if (!visibleRange) {
-            return new DisplacementEligibility(true, "eligible_but_uniform_alpha",
+            return new DisplacementEligibility(false, "uniform_alpha_no_visible_relief",
                 DISPLACEMENT_HEIGHT_SOURCE, true, true, false, sourceLabel(source), rangeText);
         }
         return new DisplacementEligibility(true, "eligible",
