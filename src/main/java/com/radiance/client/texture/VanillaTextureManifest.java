@@ -23,7 +23,7 @@ import net.minecraft.util.Identifier;
  */
 public final class VanillaTextureManifest {
     private static final int MAX_U16 = 0xFFFF;
-    private static final double COMMON_LAYER_SIZE_FRACTION = 0.10;
+    private static final int MAX_DEFAULT_LAYER_SIZE = 256;
 
     private final Identifier atlasId;
     private final int atlasWidth;
@@ -119,22 +119,11 @@ public final class VanillaTextureManifest {
     }
 
     private static int chooseFixedLayerSize(List<Map.Entry<Identifier, Sprite>> sortedSprites) {
-        int[] dimensions = new int[sortedSprites.size()];
-        for (int i = 0; i < sortedSprites.size(); i++) {
-            SpriteContents contents = sortedSprites.get(i).getValue().getContents();
-            int width = contents.getWidth();
-            int height = contents.getHeight();
-            dimensions[i] = width == height ? width : 0;
-        }
-        int commonSquare = chooseCommonSquareLayerSize(dimensions);
-        if (commonSquare > 0) {
-            return commonSquare;
-        }
-
         int layerSize = 0;
         for (Map.Entry<Identifier, Sprite> mapEntry : sortedSprites) {
             SpriteContents contents = mapEntry.getValue().getContents();
-            layerSize = Math.max(layerSize, Math.max(contents.getWidth(), contents.getHeight()));
+            layerSize = chooseQualityLayerSize(layerSize,
+                Math.max(contents.getWidth(), contents.getHeight()));
         }
         return layerSize;
     }
@@ -143,63 +132,35 @@ public final class VanillaTextureManifest {
         if (widthHeightPairs == null || widthHeightPairs.length % 2 != 0) {
             throw new IllegalArgumentException("widthHeightPairs must contain width/height pairs");
         }
-        int[] dimensions = new int[widthHeightPairs.length / 2];
+        int layerSize = 0;
         for (int i = 0; i < widthHeightPairs.length; i += 2) {
             int width = widthHeightPairs[i];
             int height = widthHeightPairs[i + 1];
-            dimensions[i / 2] = width == height ? width : 0;
+            layerSize = chooseQualityLayerSize(layerSize, Math.max(width, height));
         }
-        int commonSquare = chooseCommonSquareLayerSize(dimensions);
-        if (commonSquare > 0) {
-            return commonSquare;
-        }
-        int fallback = 0;
-        for (int i = 0; i < widthHeightPairs.length; i += 2) {
-            fallback = Math.max(fallback, Math.max(widthHeightPairs[i], widthHeightPairs[i + 1]));
-        }
-        return fallback;
+        return layerSize;
     }
 
     public static int chooseFixedLayerSizeFromCountsForTest(int... sizeCountPairs) {
         if (sizeCountPairs == null || sizeCountPairs.length % 2 != 0) {
             throw new IllegalArgumentException("sizeCountPairs must contain size/count pairs");
         }
-        int total = 0;
-        for (int i = 1; i < sizeCountPairs.length; i += 2) {
-            total += Math.max(0, sizeCountPairs[i]);
-        }
-        int[] dimensions = new int[total];
-        int out = 0;
+        int layerSize = 0;
         for (int i = 0; i < sizeCountPairs.length; i += 2) {
             int size = sizeCountPairs[i];
             int count = Math.max(0, sizeCountPairs[i + 1]);
-            for (int j = 0; j < count; j++) {
-                dimensions[out++] = size;
+            if (count > 0) {
+                layerSize = chooseQualityLayerSize(layerSize, size);
             }
         }
-        return chooseCommonSquareLayerSize(dimensions);
+        return layerSize;
     }
 
-    private static int chooseCommonSquareLayerSize(int[] squareDimensions) {
-        if (squareDimensions == null || squareDimensions.length == 0) {
-            return 0;
+    private static int chooseQualityLayerSize(int current, int candidate) {
+        if (candidate <= 0) {
+            return current;
         }
-        int requiredCount = Math.max(1,
-            (int) Math.ceil(squareDimensions.length * COMMON_LAYER_SIZE_FRACTION));
-        int best = 0;
-        for (int candidate : squareDimensions) {
-            if (candidate <= best) continue;
-            int count = 0;
-            for (int dimension : squareDimensions) {
-                if (dimension == candidate) {
-                    count++;
-                }
-            }
-            if (count >= requiredCount) {
-                best = candidate;
-            }
-        }
-        return best;
+        return Math.max(current, Math.min(candidate, MAX_DEFAULT_LAYER_SIZE));
     }
 
     public boolean isValid() {
