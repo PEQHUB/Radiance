@@ -50,6 +50,7 @@ import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.BlockOverlaySprite;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
 import java.nio.ByteOrder;
 import java.util.stream.Collectors;
@@ -109,6 +110,8 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float pendingSpriteMinV = 0.0f;
     private float pendingSpriteMaxV = 1.0f;
     private NaturalTransform pendingNaturalUvTransform = NaturalTransform.identity();
+    @Nullable
+    private RepeatTextureBasis pendingRepeatTextureBasis = null;
     private int blockGeometryContextDepth = 0;
     @Nullable
     private BlockRenderView pendingBlockWorld = null;
@@ -581,11 +584,16 @@ public class PBRVertexConsumer implements VertexConsumer {
     }
 
     public ResolvedBlockSprite setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags) {
-        return setPendingTextureSprite(sprite, geometryFlags, null);
+        return setPendingTextureSprite(sprite, geometryFlags, null, null);
     }
 
     private ResolvedBlockSprite setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags,
         @Nullable Direction face) {
+        return setPendingTextureSprite(sprite, geometryFlags, face, null);
+    }
+
+    private ResolvedBlockSprite setPendingTextureSprite(@Nullable Sprite sprite, int geometryFlags,
+        @Nullable Direction face, @Nullable RepeatTextureBasis repeatTextureBasis) {
         Identifier id = sprite == null || sprite.getContents() == null
             ? null
             : sprite.getContents().getId();
@@ -595,7 +603,8 @@ public class PBRVertexConsumer implements VertexConsumer {
                 this.pendingBlockWorld,
                 this.pendingBlockState,
                 this.pendingBlockPos,
-                face)
+                face,
+                repeatTextureBasis)
             : new ResolvedBlockSprite(TextureArrayBridge.resolveRenderableSpriteId(id),
                 false, 0xFFFFFF, false, -1);
         int spriteId = resolved.spriteId();
@@ -693,6 +702,81 @@ public class PBRVertexConsumer implements VertexConsumer {
         return GRASS_BLOCK_SIDE_OVERLAY.equals(sprite.getContents().getId());
     }
 
+    @Nullable
+    private static RepeatTextureBasis repeatTextureBasis(@Nullable BakedQuad quad) {
+        return quad == null ? null : repeatTextureBasisForTest(quad.getVertexData());
+    }
+
+    @Nullable
+    public static RepeatTextureBasis repeatTextureBasisForTest(@Nullable int[] data) {
+        if (data == null || data.length < 32) {
+            return null;
+        }
+        SignedAxis uAxis = dominantTextureAxis(data, true);
+        SignedAxis vAxis = dominantTextureAxis(data, false);
+        if (uAxis == null || vAxis == null || uAxis.axis() == vAxis.axis()) {
+            return null;
+        }
+        return new RepeatTextureBasis(uAxis.axis(), uAxis.sign(), vAxis.axis(), vAxis.sign());
+    }
+
+    @Nullable
+    private static SignedAxis dominantTextureAxis(int[] data, boolean useU) {
+        SignedAxis best = null;
+        float bestScore = 0.0f;
+        for (int a = 0; a < 4; a++) {
+            for (int b = a + 1; b < 4; b++) {
+                int ai = a * 8;
+                int bi = b * 8;
+                float du = Float.intBitsToFloat(data[bi + 4]) - Float.intBitsToFloat(data[ai + 4]);
+                float dv = Float.intBitsToFloat(data[bi + 5]) - Float.intBitsToFloat(data[ai + 5]);
+                float target = useU ? du : dv;
+                float other = useU ? dv : du;
+                float targetAbs = Math.abs(target);
+                if (targetAbs < 1.0e-6f || Math.abs(other) > targetAbs * 0.25f) {
+                    continue;
+                }
+                float dx = Float.intBitsToFloat(data[bi]) - Float.intBitsToFloat(data[ai]);
+                float dy = Float.intBitsToFloat(data[bi + 1]) - Float.intBitsToFloat(data[ai + 1]);
+                float dz = Float.intBitsToFloat(data[bi + 2]) - Float.intBitsToFloat(data[ai + 2]);
+                SignedAxis axis = signedDominantAxis(dx, dy, dz, target);
+                if (axis == null) {
+                    continue;
+                }
+                float score = targetAbs * axis.magnitude();
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = axis;
+                }
+            }
+        }
+        return best;
+    }
+
+    @Nullable
+    private static SignedAxis signedDominantAxis(float dx, float dy, float dz, float textureDelta) {
+        float ax = Math.abs(dx);
+        float ay = Math.abs(dy);
+        float az = Math.abs(dz);
+        if (ax < 1.0e-6f && ay < 1.0e-6f && az < 1.0e-6f) {
+            return null;
+        }
+        if (ax >= ay && ax >= az) {
+            return new SignedAxis(Direction.Axis.X, signedAxisDirection(dx, textureDelta), ax);
+        }
+        if (ay >= az) {
+            return new SignedAxis(Direction.Axis.Y, signedAxisDirection(dy, textureDelta), ay);
+        }
+        return new SignedAxis(Direction.Axis.Z, signedAxisDirection(dz, textureDelta), az);
+    }
+
+    private static int signedAxisDirection(float positionDelta, float textureDelta) {
+        return positionDelta * textureDelta < 0.0f ? -1 : 1;
+    }
+
+    private record SignedAxis(Direction.Axis axis, int sign, float magnitude) {
+    }
+
     @Override
     public void quad(MatrixStack.Entry matrixEntry,
         BakedQuad quad,
@@ -712,6 +796,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         float previousSpriteMinV = this.pendingSpriteMinV;
         float previousSpriteMaxV = this.pendingSpriteMaxV;
         NaturalTransform previousNaturalUvTransform = this.pendingNaturalUvTransform;
+        RepeatTextureBasis previousRepeatTextureBasis = this.pendingRepeatTextureBasis;
         try {
             Sprite blockSprite = null;
             BlockOverlaySprite[] blockOverlaySprites = new BlockOverlaySprite[0];
@@ -722,6 +807,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             boolean baseUseQuadColorData = useQuadColorData;
             if (this.blockGeometryContextDepth > 0) {
                 blockSprite = quad.getSprite();
+                this.pendingRepeatTextureBasis = repeatTextureBasis(quad);
                 if (isGrassBlockSideOverlay(blockSprite)
                     && !ResourcePackTextureVariantResolver.hasBlockSpriteRule(
                         blockSprite,
@@ -732,7 +818,8 @@ public class PBRVertexConsumer implements VertexConsumer {
                     return;
                 }
                 ResolvedBlockSprite resolved =
-                    setPendingTextureSprite(blockSprite, PBR_FLAG_BLOCK_GEOMETRY, quad.getFace());
+                    setPendingTextureSprite(blockSprite, PBR_FLAG_BLOCK_GEOMETRY, quad.getFace(),
+                        this.pendingRepeatTextureBasis);
                 if (resolved.tintOverride()) {
                     int tintRgb = resolved.tintRgb() & 0x00FFFFFF;
                     baseRed = ((tintRgb >> 16) & 0xFF) / 255.0F;
@@ -760,7 +847,8 @@ public class PBRVertexConsumer implements VertexConsumer {
                     this.pendingBlockWorld,
                     this.pendingBlockState,
                     this.pendingBlockPos,
-                    quad.getFace());
+                    quad.getFace(),
+                    this.pendingRepeatTextureBasis);
             }
             VertexConsumer.super.quad(matrixEntry,
                 quad,
@@ -802,6 +890,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingSpriteMinV = previousSpriteMinV;
             this.pendingSpriteMaxV = previousSpriteMaxV;
             this.pendingNaturalUvTransform = previousNaturalUvTransform;
+            this.pendingRepeatTextureBasis = previousRepeatTextureBasis;
         }
     }
 

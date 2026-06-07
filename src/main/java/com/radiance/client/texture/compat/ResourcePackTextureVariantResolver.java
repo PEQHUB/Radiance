@@ -73,6 +73,33 @@ public final class ResourcePackTextureVariantResolver {
                                       int alphaMode) {
     }
 
+    public record RepeatTextureBasis(Direction.Axis uAxis,
+                                     int uSign,
+                                     Direction.Axis vAxis,
+                                     int vSign) {
+        public RepeatTextureBasis {
+            uSign = uSign < 0 ? -1 : 1;
+            vSign = vSign < 0 ? -1 : 1;
+        }
+
+        public int u(BlockPos pos) {
+            return coordinate(pos, uAxis, uSign);
+        }
+
+        public int v(BlockPos pos) {
+            return coordinate(pos, vAxis, vSign);
+        }
+
+        private static int coordinate(BlockPos pos, Direction.Axis axis, int sign) {
+            int value = switch (axis) {
+                case X -> pos.getX();
+                case Y -> pos.getY();
+                case Z -> pos.getZ();
+            };
+            return sign < 0 ? -value : value;
+        }
+    }
+
     public static int resolveBlockSpriteId(@Nullable Sprite sourceSprite,
         @Nullable BlockRenderView world,
         @Nullable BlockState state,
@@ -86,6 +113,15 @@ public final class ResourcePackTextureVariantResolver {
         @Nullable BlockState state,
         @Nullable BlockPos pos,
         @Nullable Direction face) {
+        return resolveBlockSprite(sourceSprite, world, state, pos, face, null);
+    }
+
+    public static ResolvedBlockSprite resolveBlockSprite(@Nullable Sprite sourceSprite,
+        @Nullable BlockRenderView world,
+        @Nullable BlockState state,
+        @Nullable BlockPos pos,
+        @Nullable Direction face,
+        @Nullable RepeatTextureBasis textureBasis) {
         Identifier source = spriteIdentifier(sourceSprite);
         int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
         if (source == null || sourceSpriteId < 0 || !Options.materialCompatEnabled) {
@@ -96,7 +132,7 @@ public final class ResourcePackTextureVariantResolver {
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
         }
         ResolverIndex index = activeIndex(resourceManager);
-        return index.resolveDetailed(source, sourceSpriteId, world, state, pos, face);
+        return index.resolveDetailed(source, sourceSpriteId, world, state, pos, face, textureBasis);
     }
 
     public static boolean hasBlockSpriteRule(@Nullable Sprite sourceSprite,
@@ -152,6 +188,15 @@ public final class ResourcePackTextureVariantResolver {
         @Nullable BlockState state,
         @Nullable BlockPos pos,
         @Nullable Direction face) {
+        return resolveBlockOverlaySprites(sourceSprite, world, state, pos, face, null);
+    }
+
+    public static BlockOverlaySprite[] resolveBlockOverlaySprites(@Nullable Sprite sourceSprite,
+        @Nullable BlockRenderView world,
+        @Nullable BlockState state,
+        @Nullable BlockPos pos,
+        @Nullable Direction face,
+        @Nullable RepeatTextureBasis textureBasis) {
         Identifier source = spriteIdentifier(sourceSprite);
         int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
         if (source == null || sourceSpriteId < 0 || !Options.materialCompatEnabled
@@ -163,7 +208,7 @@ public final class ResourcePackTextureVariantResolver {
             return new BlockOverlaySprite[0];
         }
         ResolverIndex index = activeIndex(resourceManager);
-        return index.resolveOverlay(source, sourceSpriteId, world, state, pos, face);
+        return index.resolveOverlay(source, sourceSpriteId, world, state, pos, face, textureBasis);
     }
 
     public static ResolverIndex buildForTest(ResourceManager resourceManager, boolean legacyMcPatcher) {
@@ -844,6 +889,7 @@ public final class ResourcePackTextureVariantResolver {
     private static RepeatOrientation parseRepeatOrientation(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
+            case "texture" -> RepeatOrientation.TEXTURE;
             case "state_axis" -> RepeatOrientation.STATE_AXIS;
             default -> RepeatOrientation.NONE;
         };
@@ -1005,6 +1051,11 @@ public final class ResourcePackTextureVariantResolver {
                 .spriteId();
         }
 
+        public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable RepeatTextureBasis textureBasis,
+            @Nullable BlockPos pos, @Nullable Direction face) {
+            return resolveDetailed(source, sourceSpriteId, null, null, pos, face, textureBasis).spriteId();
+        }
+
         public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable BlockPos pos,
             @Nullable Direction face, @Nullable String biomeId) {
             return resolveDetailed(source, sourceSpriteId, null, null, pos, face, biomeId).spriteId();
@@ -1082,6 +1133,13 @@ public final class ResourcePackTextureVariantResolver {
         ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face) {
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face,
+                (RepeatTextureBasis) null);
+        }
+
+        ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, @Nullable RepeatTextureBasis textureBasis) {
             NeighborConnector connector = new NeighborConnector() {
                 @Override
                 public boolean connects(Direction direction, ConnectMode mode) {
@@ -1093,7 +1151,8 @@ public final class ResourcePackTextureVariantResolver {
                     return ResolverIndex.this.connects(world, state, pos, first, second, mode);
                 }
             };
-            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector);
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, null, textureBasis,
+                null);
         }
 
         ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
@@ -1128,13 +1187,22 @@ public final class ResourcePackTextureVariantResolver {
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
             @Nullable String biomeId) {
-            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, biomeId, null);
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, biomeId, null, null);
         }
 
         ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
             @Nullable String biomeId, @Nullable Direction.Axis repeatAxisOverride) {
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, biomeId, null,
+                repeatAxisOverride);
+        }
+
+        ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
+            @Nullable String biomeId, @Nullable RepeatTextureBasis textureBasis,
+            @Nullable Direction.Axis repeatAxisOverride) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
             }
@@ -1145,7 +1213,7 @@ public final class ResourcePackTextureVariantResolver {
                 }
                 ResolvedBlockSprite resolved =
                     rule.resolveSprite(source, sourceSpriteId, world, state, pos, face, connector,
-                        repeatAxisOverride);
+                        textureBasis, repeatAxisOverride);
                 if (resolved.spriteId() >= 0) {
                     return resolved;
                 }
@@ -1155,6 +1223,13 @@ public final class ResourcePackTextureVariantResolver {
 
         BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face) {
+            return resolveOverlay(source, sourceSpriteId, world, state, pos, face,
+                (RepeatTextureBasis) null);
+        }
+
+        BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
+            @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
+            @Nullable RepeatTextureBasis textureBasis) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new BlockOverlaySprite[0];
             }
@@ -1169,18 +1244,31 @@ public final class ResourcePackTextureVariantResolver {
                     return ResolverIndex.this.connects(world, state, pos, first, second, mode);
                 }
             };
-            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector);
+            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector, textureBasis);
         }
 
         BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
             NeighborConnector connector) {
-            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector, null);
+            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector,
+                (RepeatTextureBasis) null);
+        }
+
+        BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
+            @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
+            NeighborConnector connector, @Nullable RepeatTextureBasis textureBasis) {
+            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector, null, textureBasis);
         }
 
         BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
             NeighborConnector connector, @Nullable String biomeId) {
+            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector, biomeId, null);
+        }
+
+        BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
+            @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
+            NeighborConnector connector, @Nullable String biomeId, @Nullable RepeatTextureBasis textureBasis) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new BlockOverlaySprite[0];
             }
@@ -1190,7 +1278,7 @@ public final class ResourcePackTextureVariantResolver {
                     continue;
                 }
                 BlockOverlaySprite[] resolved =
-                    rule.resolveOverlaySpriteIds(source, world, state, pos, face, connector);
+                    rule.resolveOverlaySpriteIds(source, world, state, pos, face, connector, textureBasis);
                 if (resolved.length > 0) {
                     return resolved;
                 }
@@ -1294,13 +1382,13 @@ public final class ResourcePackTextureVariantResolver {
         ResolvedBlockSprite resolveSprite(Identifier source, int sourceSpriteId,
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
-            @Nullable Direction.Axis repeatAxisOverride) {
+            @Nullable RepeatTextureBasis textureBasis, @Nullable Direction.Axis repeatAxisOverride) {
             int outputIndex = switch (method) {
                 case CTM -> ctm47Index(connector, face);
                 case CTM_COMPACT -> compactCtmIndex(connector, face);
                 case FIXED -> 0;
                 case RANDOM -> weightedIndex(source, pos, face);
-                case REPEAT -> repeatIndex(state, repeatAxisOverride, pos, face);
+                case REPEAT -> repeatIndex(state, repeatAxisOverride, textureBasis, pos, face);
                 case HORIZONTAL -> twoBitIndex(connector, horizontalDirections(face));
                 case VERTICAL -> twoBitIndex(connector, verticalDirections(face));
                 case HORIZONTAL_THEN_VERTICAL ->
@@ -1328,13 +1416,13 @@ public final class ResourcePackTextureVariantResolver {
 
         BlockOverlaySprite[] resolveOverlaySpriteIds(Identifier source, @Nullable BlockRenderView world,
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
-            NeighborConnector connector) {
+            NeighborConnector connector, @Nullable RepeatTextureBasis textureBasis) {
             return switch (method) {
                 case OVERLAY, OVERLAY_CTM -> overlaySprites(
                     overlayTileIndices(world, state, pos, face, connector), false,
                     overlayTintRgb(world, state, pos));
                 case OVERLAY_RANDOM -> randomOverlaySpriteIds(source, pos, face);
-                case OVERLAY_REPEAT -> indexedOverlaySpriteId(repeatIndex(state, null, pos, face), true,
+                case OVERLAY_REPEAT -> indexedOverlaySpriteId(repeatIndex(state, null, textureBasis, pos, face), true,
                     overlayTintRgb(world, state, pos));
                 case OVERLAY_FIXED -> indexedOverlaySpriteId(0, false, overlayTintRgb(world, state, pos));
                 default -> new BlockOverlaySprite[0];
@@ -1750,9 +1838,12 @@ public final class ResourcePackTextureVariantResolver {
         }
 
         private int repeatIndex(@Nullable BlockState state, @Nullable Direction.Axis axisOverride,
-            @Nullable BlockPos pos, @Nullable Direction face) {
+            @Nullable RepeatTextureBasis textureBasis, @Nullable BlockPos pos, @Nullable Direction face) {
             if (pos == null) {
                 return 0;
+            }
+            if (repeatOrientation == RepeatOrientation.TEXTURE && textureBasis != null) {
+                return repeatIndexFromCoordinates(textureBasis.u(pos), textureBasis.v(pos));
             }
             RepeatBasis basis = repeatBasis(state, axisOverride, pos, face);
             int u;
@@ -1787,6 +1878,10 @@ public final class ResourcePackTextureVariantResolver {
                     v = basis.y();
                 }
             }
+            return repeatIndexFromCoordinates(u, v);
+        }
+
+        private int repeatIndexFromCoordinates(int u, int v) {
             int width = Math.max(1, repeatWidth);
             int height = Math.max(1, repeatHeight);
             int x = Math.floorMod(u, width);
@@ -1797,7 +1892,8 @@ public final class ResourcePackTextureVariantResolver {
         private RepeatBasis repeatBasis(@Nullable BlockState state, @Nullable Direction.Axis axisOverride,
             BlockPos pos, @Nullable Direction face) {
             Direction direction = face == null ? Direction.NORTH : face;
-            if (repeatOrientation != RepeatOrientation.STATE_AXIS) {
+            if (repeatOrientation != RepeatOrientation.STATE_AXIS
+                && repeatOrientation != RepeatOrientation.TEXTURE) {
                 return new RepeatBasis(pos.getX(), pos.getY(), pos.getZ(), direction);
             }
             Direction.Axis axis = axisOverride == null ? stateAxis(state) : axisOverride;
@@ -1913,6 +2009,7 @@ public final class ResourcePackTextureVariantResolver {
 
     private enum RepeatOrientation {
         NONE,
+        TEXTURE,
         STATE_AXIS
     }
 

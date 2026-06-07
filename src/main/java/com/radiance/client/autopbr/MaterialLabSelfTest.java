@@ -28,7 +28,9 @@ import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.vertex.PBRVertexFormatElements;
+import com.radiance.client.vertex.PBRVertexConsumer;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -110,6 +112,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverRespectsBiomeAndHeightPredicates();
         textureVariantResolverSelectsRepeatSprites();
         textureVariantResolverHonorsStateAxisRepeatOrientation();
+        textureVariantResolverHonorsTextureRepeatOrientation();
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverSelectsOverlaySprites();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
@@ -1644,6 +1647,77 @@ public final class MaterialLabSelfTest {
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);
         }
+    }
+
+    private static void textureVariantResolverHonorsTextureRepeatOrientation() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier log = Identifier.ofVanilla("block/oak_log");
+            ArrayList<Identifier> sprites = new ArrayList<>();
+            sprites.add(log);
+            ArrayList<Identifier> tiles = new ArrayList<>();
+            for (int i = 0; i < 18; i++) {
+                Identifier tile = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                    "assets/minecraft/optifine/ctm/texture_orient/" + i + ".png"));
+                expect(tile != null, "texture-orient repeat fixture ids should parse");
+                tiles.add(tile);
+                sprites.add(tile);
+            }
+            TextureArrayBridge.setSortedSpriteIds(sprites);
+
+            RepeatTextureBasis basis = PBRVertexConsumer.repeatTextureBasisForTest(textureBasisVertexData());
+            expect(basis != null, "texture repeat basis should be inferred from axis-aligned quad UVs");
+            expect(basis.uAxis() == Direction.Axis.Y && basis.uSign() > 0,
+                "texture repeat basis should infer positive world Y as texture U");
+            expect(basis.vAxis() == Direction.Axis.X && basis.vSign() > 0,
+                "texture repeat basis should infer positive world X as texture V");
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/texture_orient/oak_log.properties",
+                "method=repeat\nmatchTiles=oak_log\ntiles=0-17\nwidth=3\nheight=6\norient=texture\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex index =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            expect(index.ruleCountForTest() == 1, "texture-orient repeat rule should compile");
+
+            int sourceId = TextureArrayBridge.resolveSpriteId(log.toString());
+            BlockPos pos = new BlockPos(5, 8, 7);
+            expect(index.resolveForTest(log, sourceId, basis, pos, Direction.NORTH)
+                    == TextureArrayBridge.resolveSpriteId(tiles.get(17).toString()),
+                "orient=texture should select repeat tiles from the quad UV basis");
+            expect(index.resolveForTest(log, sourceId, (RepeatTextureBasis) null, pos, Direction.NORTH)
+                    == TextureArrayBridge.resolveSpriteId(tiles.get(8).toString()),
+                "orient=texture without a quad UV basis should retain face/state fallback coordinates");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static int[] textureBasisVertexData() {
+        int[] data = new int[32];
+        putBakedVertex(data, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        putBakedVertex(data, 1, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f);
+        putBakedVertex(data, 2, 1.0f, 1.0f, 0.0f, 1.0f, 1.0f);
+        putBakedVertex(data, 3, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f);
+        return data;
+    }
+
+    private static void putBakedVertex(int[] data, int vertex, float x, float y, float z, float u, float v) {
+        int base = vertex * 8;
+        data[base] = Float.floatToRawIntBits(x);
+        data[base + 1] = Float.floatToRawIntBits(y);
+        data[base + 2] = Float.floatToRawIntBits(z);
+        data[base + 4] = Float.floatToRawIntBits(u);
+        data[base + 5] = Float.floatToRawIntBits(v);
     }
 
     private static void textureVariantResolverSelectsOverlayRandomSprites() {
