@@ -1145,6 +1145,10 @@ public final class MaterialLabSelfTest {
             Files.write(root.resolve("assets/minecraft/textures/block/stone_n.png"), new byte[] {0});
             Files.write(root.resolve("assets/minecraft/textures/block/stone_specular.png"), new byte[] {0});
             Files.write(root.resolve("assets/minecraft/textures/block/stone_normal.png"), new byte[] {0});
+            Files.write(root.resolve("assets/minecraft/textures/block/stone_roughness.png"), new byte[] {0});
+            Files.write(root.resolve("assets/minecraft/textures/block/stone_metallic.png"), new byte[] {0});
+            Files.write(root.resolve("assets/minecraft/textures/block/stone_height.png"), new byte[] {0});
+            Files.write(root.resolve("assets/minecraft/textures/block/stone_ao.png"), new byte[] {0});
             Files.writeString(root.resolve("assets/minecraft/texture.properties"),
                 "format=lab-pbr/1.3\n", StandardCharsets.UTF_8);
             Files.writeString(root.resolve("assets/minecraft/optifine/emissive.properties"),
@@ -1164,7 +1168,18 @@ public final class MaterialLabSelfTest {
             expect(report.get("scannable").getAsBoolean(), "compat fixture should be scannable");
             expect(counts.get("specularMaps").getAsInt() == 2, "scanner should count specular map aliases");
             expect(counts.get("normalMaps").getAsInt() == 2, "scanner should count normal map aliases");
+            expect(counts.get("roughnessScalarMaps").getAsInt() == 1, "scanner should count roughness scalar maps");
+            expect(counts.get("metallicScalarMaps").getAsInt() == 1, "scanner should count metallic scalar maps");
+            expect(counts.get("heightScalarMaps").getAsInt() == 1, "scanner should count height scalar maps");
+            expect(counts.get("aoScalarMaps").getAsInt() == 1, "scanner should count AO scalar maps");
             expect(counts.get("albedoPng").getAsInt() == 1, "scanner should not count PBR aliases as albedo");
+            JsonObject coverage = report.getAsJsonObject("labpbrCoverage");
+            expect(coverage.get("roughnessBases").getAsInt() == 1, "coverage should count roughness bases");
+            expect(coverage.get("metallicBases").getAsInt() == 1, "coverage should count metallic bases");
+            expect(coverage.get("heightBases").getAsInt() == 1, "coverage should count height bases");
+            expect(coverage.get("aoBases").getAsInt() == 1, "coverage should count AO bases");
+            expect(coverage.get("albedoWithSpecularOrScalarAndNormalOrScalar").getAsInt() == 1,
+                "coverage should count direct-or-scalar renderable LabPBR candidates");
             expect(counts.get("textureProperties").getAsInt() == 1, "scanner should count texture.properties");
             expect(counts.get("emissiveProperties").getAsInt() == 1, "scanner should count emissive.properties");
             expect(counts.get("naturalProperties").getAsInt() == 1, "scanner should count natural.properties");
@@ -1207,6 +1222,9 @@ public final class MaterialLabSelfTest {
             Files.write(active.resolve("assets/minecraft/textures/block/stone.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/textures/block/stone_s.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/textures/block/stone_n.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/textures/block/dirt.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/textures/block/dirt_roughness.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/textures/block/dirt_height.png"), new byte[] {0});
             Files.writeString(active.resolve("assets/minecraft/optifine/texture.properties"),
                 "format=lab-pbr/1.3\n", StandardCharsets.UTF_8);
             Files.writeString(active.resolve("assets/minecraft/optifine/emissive.properties"),
@@ -1216,6 +1234,8 @@ public final class MaterialLabSelfTest {
             Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/1_s.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/1_n.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/2.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/2_roughness.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/2_height.png"), new byte[] {0});
             Files.writeString(active.resolve("assets/minecraft/optifine/ctm/stone/stone.properties"),
                 "method=ctm\nmatchTiles=stone\ntiles=textures/block/stone 0-2 custom_tile\nconnect=block\n", StandardCharsets.UTF_8);
             Files.write(inactive.resolve("assets/minecraft/textures/block/dirt.png"), new byte[] {0});
@@ -1230,6 +1250,9 @@ public final class MaterialLabSelfTest {
             expect(activePack.get("incompatibleSelected").getAsBoolean(), "incompatible selected pack should be flagged");
             expect(activePack.getAsJsonObject("labpbrCoverage").get("albedoWithSpecularAndNormal").getAsInt() == 1,
                 "active pack should report paired LabPBR sidecars");
+            expect(activePack.getAsJsonObject("labpbrCoverage")
+                    .get("albedoWithSpecularOrScalarAndNormalOrScalar").getAsInt() == 2,
+                "active pack should count scalar-composed LabPBR candidates");
             expect(activePack.getAsJsonObject("compatFeatures").get("ctm").getAsInt() == 1,
                 "active pack should report parsed CTM feature records");
             expect(hasCompatRecord(activePack.getAsJsonArray("compatRecords"), "ctm", "method", "ctm"),
@@ -1245,6 +1268,12 @@ public final class MaterialLabSelfTest {
             expect(ctmDeps.get("missingTiles").getAsInt() == 1, "CTM dependency index should count missing tiles");
             expect(ctmDeps.get("tilesWithSpecular").getAsInt() == 2, "CTM dependency index should see tile specular sidecars");
             expect(ctmDeps.get("tilesWithNormal").getAsInt() == 2, "CTM dependency index should see tile normal sidecars");
+            expect(ctmDeps.get("tilesWithSpecularOrScalar").getAsInt() == 3,
+                "CTM dependency index should see scalar specular fallbacks");
+            expect(ctmDeps.get("tilesWithNormalOrScalar").getAsInt() == 3,
+                "CTM dependency index should see scalar normal fallbacks");
+            expect(ctmDeps.get("tilesWithAnyMaterialSidecar").getAsInt() == 3,
+                "CTM dependency index should count materialized tile sidecars once per tile");
             expect(ctmDeps.get("tilesRequiringAtlasAdmission").getAsInt() == 4,
                 "CTM dependency index should mark non-vanilla CTM tiles for atlas admission");
             expect(ctmDeps.get("presentTilesRequiringAtlasAdmission").getAsInt() == 3,

@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.util.Identifier;
 
 /**
  * Resource-pack compatibility parser diagnostics.
@@ -266,6 +267,8 @@ public final class ResourcePackCompatDiagnostics {
         source.addProperty("materialFormat", "LabPBR");
         source.addProperty("specularSource", "direct_labpbr_specular_map");
         source.addProperty("normalSource", "direct_labpbr_normal_map");
+        source.addProperty("scalarSpecularFallback", "roughness_or_metallic_sidecar_composed_to_labpbr_specular");
+        source.addProperty("scalarNormalFallback", "height_or_ao_sidecar_composed_to_labpbr_normal");
         source.addProperty("displacementSource", "direct_labpbr_normal_alpha");
         source.addProperty("displacementNormalization", "none");
         source.addProperty("heightAlphaRangeRole", "diagnostic_metadata_only");
@@ -274,8 +277,12 @@ public final class ResourcePackCompatDiagnostics {
         JsonObject aggregate = aggregateLabPbrCoverage(active);
         aggregate.addProperty("materialSetCandidates", intProperty(aggregate, "albedoBases"));
         aggregate.addProperty("completeLabpbrCandidates", intProperty(aggregate, "albedoWithSpecularAndNormal"));
+        aggregate.addProperty("renderableLabpbrCandidates",
+            intProperty(aggregate, "albedoWithSpecularOrScalarAndNormalOrScalar"));
         JsonObject ctm = object(root, "activeCtmAtlasDependencies");
         aggregate.addProperty("ctmTileMaterialCandidates", intProperty(ctm, "presentTilesRequiringAtlasAdmission"));
+        aggregate.addProperty("ctmTileRenderableMaterialCandidates",
+            intProperty(ctm, "tilesWithAnyMaterialSidecar"));
         dump.add("aggregate", aggregate);
         dump.add("activePacks", packMaterialSummaries(active));
         dump.add("renderSafety", copyObject(object(root, "renderSafety")));
@@ -383,6 +390,10 @@ public final class ResourcePackCompatDiagnostics {
             "albedoPng",
             "specularMaps",
             "normalMaps",
+            "roughnessScalarMaps",
+            "metallicScalarMaps",
+            "heightScalarMaps",
+            "aoScalarMaps",
             "flag_f",
             "emissiveMaps",
             "properties",
@@ -416,13 +427,24 @@ public final class ResourcePackCompatDiagnostics {
             "albedoBases",
             "specularBases",
             "normalBases",
+            "roughnessBases",
+            "metallicBases",
+            "heightBases",
+            "aoBases",
             "flagBases",
             "emissiveBases",
             "albedoWithSpecular",
             "albedoWithNormal",
             "albedoWithSpecularAndNormal",
+            "albedoWithSpecularOrScalar",
+            "albedoWithNormalOrScalar",
+            "albedoWithSpecularOrScalarAndNormalOrScalar",
             "orphanSpecular",
             "orphanNormal",
+            "orphanRoughness",
+            "orphanMetallic",
+            "orphanHeight",
+            "orphanAo",
             "orphanEmissive");
         for (String key : keys) {
             int sum = 0;
@@ -457,8 +479,14 @@ public final class ResourcePackCompatDiagnostics {
             addPackIdentity(summary, pack);
             summary.addProperty("materialSetCandidates", intProperty(coverage, "albedoBases"));
             summary.addProperty("completeLabpbrCandidates", intProperty(coverage, "albedoWithSpecularAndNormal"));
+            summary.addProperty("renderableLabpbrCandidates",
+                intProperty(coverage, "albedoWithSpecularOrScalarAndNormalOrScalar"));
             summary.addProperty("orphanSpecular", intProperty(coverage, "orphanSpecular"));
             summary.addProperty("orphanNormal", intProperty(coverage, "orphanNormal"));
+            summary.addProperty("orphanScalarSpecular",
+                intProperty(coverage, "orphanRoughness") + intProperty(coverage, "orphanMetallic"));
+            summary.addProperty("orphanScalarNormal",
+                intProperty(coverage, "orphanHeight") + intProperty(coverage, "orphanAo"));
             summary.add("labpbrCoverage", copyObject(coverage));
             summaries.add(summary);
         }
@@ -623,6 +651,9 @@ public final class ResourcePackCompatDiagnostics {
         int missing = 0;
         int withSpecular = 0;
         int withNormal = 0;
+        int withDerivedSpecular = 0;
+        int withDerivedNormal = 0;
+        int withAnyMaterialSidecar = 0;
         int withEmissive = 0;
         int requiringAtlasAdmission = 0;
         int presentRequiringAtlasAdmission = 0;
@@ -631,6 +662,9 @@ public final class ResourcePackCompatDiagnostics {
             if (dependency.get("present").getAsBoolean()) present++; else missing++;
             if (dependency.get("specularPresent").getAsBoolean()) withSpecular++;
             if (dependency.get("normalPresent").getAsBoolean()) withNormal++;
+            if (boolProperty(dependency, "derivedSpecularPresent")) withDerivedSpecular++;
+            if (boolProperty(dependency, "derivedNormalPresent")) withDerivedNormal++;
+            if (boolProperty(dependency, "anyMaterialSidecarPresent")) withAnyMaterialSidecar++;
             if (dependency.get("emissivePresent").getAsBoolean()) withEmissive++;
             if (dependency.has("atlasAdmissionRequired")
                 && dependency.get("atlasAdmissionRequired").getAsBoolean()) {
@@ -650,6 +684,9 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("missingTiles", missing);
         json.addProperty("tilesWithSpecular", withSpecular);
         json.addProperty("tilesWithNormal", withNormal);
+        json.addProperty("tilesWithSpecularOrScalar", withDerivedSpecular);
+        json.addProperty("tilesWithNormalOrScalar", withDerivedNormal);
+        json.addProperty("tilesWithAnyMaterialSidecar", withAnyMaterialSidecar);
         json.addProperty("tilesWithEmissive", withEmissive);
         json.addProperty("tilesRequiringAtlasAdmission", requiringAtlasAdmission);
         json.addProperty("presentTilesRequiringAtlasAdmission", presentRequiringAtlasAdmission);
@@ -789,6 +826,10 @@ public final class ResourcePackCompatDiagnostics {
         private final Set<String> albedoBases = new HashSet<>();
         private final Set<String> specularBases = new HashSet<>();
         private final Set<String> normalBases = new HashSet<>();
+        private final Set<String> roughnessBases = new HashSet<>();
+        private final Set<String> metallicBases = new HashSet<>();
+        private final Set<String> heightBases = new HashSet<>();
+        private final Set<String> aoBases = new HashSet<>();
         private final Set<String> flagBases = new HashSet<>();
         private final Set<String> emissiveBases = new HashSet<>();
         private final LinkedHashMap<String, CtmDependency> ctmDependencies = new LinkedHashMap<>();
@@ -802,6 +843,10 @@ public final class ResourcePackCompatDiagnostics {
         private int albedoPng;
         private int specularPng;
         private int normalPng;
+        private int roughnessPng;
+        private int metallicPng;
+        private int heightPng;
+        private int aoPng;
         private int flagPng;
         private int emissivePng;
         private int optifineCtmProperties;
@@ -845,6 +890,18 @@ public final class ResourcePackCompatDiagnostics {
                 } else if (ResourcePackTextureNames.isNormalAuxiliaryPath(lower)) {
                     normalPng++;
                     normalBases.add(base);
+                } else if (ResourcePackTextureNames.isRoughnessScalarPath(lower)) {
+                    roughnessPng++;
+                    roughnessBases.add(base);
+                } else if (ResourcePackTextureNames.isMetallicScalarPath(lower)) {
+                    metallicPng++;
+                    metallicBases.add(base);
+                } else if (ResourcePackTextureNames.isHeightScalarPath(lower)) {
+                    heightPng++;
+                    heightBases.add(base);
+                } else if (ResourcePackTextureNames.isAoScalarPath(lower)) {
+                    aoPng++;
+                    aoBases.add(base);
                 } else if (ResourcePackTextureNames.isFlagAuxiliaryPath(lower)) {
                     flagPng++;
                     flagBases.add(base);
@@ -1029,22 +1086,56 @@ public final class ResourcePackCompatDiagnostics {
         private CtmDependency ctmDependency(String rawPath) {
             String path = normalize(rawPath);
             String lower = path.toLowerCase(Locale.ROOT);
+            Identifier resourceId = ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(path);
+            String specularPath = ResourcePackCompatCtmTiles.sidecarPath(path, "_s");
+            boolean specularPresent = sidecarPresent(path, "_s", "_spec", "_specular");
+            String normalPath = ResourcePackCompatCtmTiles.sidecarPath(path, "_n");
+            boolean normalPresent = sidecarPresent(path, "_n", "_normal", "_norm");
+            String roughnessPath = ResourcePackCompatCtmTiles.sidecarPath(path, "_roughness");
+            boolean roughnessPresent = sidecarPresent(path, "_roughness", "_rough");
+            String metallicPath = ResourcePackCompatCtmTiles.sidecarPath(path, "_metallic");
+            boolean metallicPresent = sidecarPresent(path, "_metallic", "_metalness");
+            String heightPath = ResourcePackCompatCtmTiles.sidecarPath(path, "_height");
+            boolean heightPresent = sidecarPresent(path, "_height", "_displacement", "_disp");
+            String aoPath = ResourcePackCompatCtmTiles.sidecarPath(path, "_ao");
+            boolean aoPresent = sidecarPresent(path, "_ao", "_ambientocclusion", "_ambient_occlusion");
+            boolean derivedSpecularPresent = specularPresent || roughnessPresent || metallicPresent;
+            boolean derivedNormalPresent = normalPresent || heightPresent || aoPresent;
             return new CtmDependency(
                 path,
-                ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(path) == null
-                    ? ""
-                    : ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(path).toString(),
+                resourceId == null ? "" : resourceId.toString(),
                 ResourcePackCompatCtmTiles.atlasSpriteIdentifier(path),
                 ResourcePackCompatCtmTiles.requiresAtlasAdmission(path),
                 entryNames.contains(lower),
-                ResourcePackCompatCtmTiles.sidecarPath(path, "_s"),
-                entryNames.contains(ResourcePackCompatCtmTiles.sidecarPath(path, "_s").toLowerCase(Locale.ROOT)),
-                ResourcePackCompatCtmTiles.sidecarPath(path, "_n"),
-                entryNames.contains(ResourcePackCompatCtmTiles.sidecarPath(path, "_n").toLowerCase(Locale.ROOT)),
+                specularPath,
+                specularPresent,
+                normalPath,
+                normalPresent,
+                roughnessPath,
+                roughnessPresent,
+                metallicPath,
+                metallicPresent,
+                heightPath,
+                heightPresent,
+                aoPath,
+                aoPresent,
+                derivedSpecularPresent,
+                derivedNormalPresent,
+                derivedSpecularPresent || derivedNormalPresent,
                 ResourcePackCompatCtmTiles.sidecarPath(path, "_f"),
-                entryNames.contains(ResourcePackCompatCtmTiles.sidecarPath(path, "_f").toLowerCase(Locale.ROOT)),
+                sidecarPresent(path, "_f"),
                 ResourcePackCompatCtmTiles.sidecarPath(path, "_e"),
-                entryNames.contains(ResourcePackCompatCtmTiles.sidecarPath(path, "_e").toLowerCase(Locale.ROOT)));
+                sidecarPresent(path, "_e"));
+        }
+
+        private boolean sidecarPresent(String path, String... suffixes) {
+            for (String suffix : suffixes) {
+                String sidecar = ResourcePackCompatCtmTiles.sidecarPath(path, suffix);
+                if (entryNames.contains(sidecar.toLowerCase(Locale.ROOT))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private void addIfPresent(JsonObject record, Properties props, String key) {
@@ -1103,6 +1194,10 @@ public final class ResourcePackCompatDiagnostics {
             counts.addProperty("albedoPng", albedoPng);
             counts.addProperty("specularMaps", specularPng);
             counts.addProperty("normalMaps", normalPng);
+            counts.addProperty("roughnessScalarMaps", roughnessPng);
+            counts.addProperty("metallicScalarMaps", metallicPng);
+            counts.addProperty("heightScalarMaps", heightPng);
+            counts.addProperty("aoScalarMaps", aoPng);
             counts.addProperty("flag_f", flagPng);
             counts.addProperty("emissiveMaps", emissivePng);
             counts.addProperty("properties", properties);
@@ -1137,6 +1232,9 @@ public final class ResourcePackCompatDiagnostics {
             int missing = 0;
             int withSpecular = 0;
             int withNormal = 0;
+            int withDerivedSpecular = 0;
+            int withDerivedNormal = 0;
+            int withAnyMaterialSidecar = 0;
             int withEmissive = 0;
             int requiringAtlasAdmission = 0;
             int presentRequiringAtlasAdmission = 0;
@@ -1145,6 +1243,9 @@ public final class ResourcePackCompatDiagnostics {
                 if (dependency.present) present++; else missing++;
                 if (dependency.specularPresent) withSpecular++;
                 if (dependency.normalPresent) withNormal++;
+                if (dependency.derivedSpecularPresent) withDerivedSpecular++;
+                if (dependency.derivedNormalPresent) withDerivedNormal++;
+                if (dependency.anyMaterialSidecarPresent) withAnyMaterialSidecar++;
                 if (dependency.emissivePresent) withEmissive++;
                 if (dependency.atlasAdmissionRequired) {
                     requiringAtlasAdmission++;
@@ -1161,6 +1262,9 @@ public final class ResourcePackCompatDiagnostics {
             json.addProperty("missingTiles", missing);
             json.addProperty("tilesWithSpecular", withSpecular);
             json.addProperty("tilesWithNormal", withNormal);
+            json.addProperty("tilesWithSpecularOrScalar", withDerivedSpecular);
+            json.addProperty("tilesWithNormalOrScalar", withDerivedNormal);
+            json.addProperty("tilesWithAnyMaterialSidecar", withAnyMaterialSidecar);
             json.addProperty("tilesWithEmissive", withEmissive);
             json.addProperty("tilesRequiringAtlasAdmission", requiringAtlasAdmission);
             json.addProperty("presentTilesRequiringAtlasAdmission", presentRequiringAtlasAdmission);
@@ -1172,16 +1276,30 @@ public final class ResourcePackCompatDiagnostics {
 
         private JsonObject labpbrCoverageJson() {
             JsonObject json = new JsonObject();
+            Set<String> specularOrScalarBases = merged(specularBases, roughnessBases, metallicBases);
+            Set<String> normalOrScalarBases = merged(normalBases, heightBases, aoBases);
             json.addProperty("albedoBases", albedoBases.size());
             json.addProperty("specularBases", specularBases.size());
             json.addProperty("normalBases", normalBases.size());
+            json.addProperty("roughnessBases", roughnessBases.size());
+            json.addProperty("metallicBases", metallicBases.size());
+            json.addProperty("heightBases", heightBases.size());
+            json.addProperty("aoBases", aoBases.size());
             json.addProperty("flagBases", flagBases.size());
             json.addProperty("emissiveBases", emissiveBases.size());
             json.addProperty("albedoWithSpecular", intersectionCount(albedoBases, specularBases));
             json.addProperty("albedoWithNormal", intersectionCount(albedoBases, normalBases));
             json.addProperty("albedoWithSpecularAndNormal", tripleIntersectionCount(albedoBases, specularBases, normalBases));
+            json.addProperty("albedoWithSpecularOrScalar", intersectionCount(albedoBases, specularOrScalarBases));
+            json.addProperty("albedoWithNormalOrScalar", intersectionCount(albedoBases, normalOrScalarBases));
+            json.addProperty("albedoWithSpecularOrScalarAndNormalOrScalar",
+                tripleIntersectionCount(albedoBases, specularOrScalarBases, normalOrScalarBases));
             json.addProperty("orphanSpecular", orphanCount(specularBases, albedoBases));
             json.addProperty("orphanNormal", orphanCount(normalBases, albedoBases));
+            json.addProperty("orphanRoughness", orphanCount(roughnessBases, albedoBases));
+            json.addProperty("orphanMetallic", orphanCount(metallicBases, albedoBases));
+            json.addProperty("orphanHeight", orphanCount(heightBases, albedoBases));
+            json.addProperty("orphanAo", orphanCount(aoBases, albedoBases));
             json.addProperty("orphanEmissive", orphanCount(emissiveBases, albedoBases));
             return json;
         }
@@ -1227,6 +1345,13 @@ public final class ResourcePackCompatDiagnostics {
             return count;
         }
 
+        private Set<String> merged(Set<String> first, Set<String> second, Set<String> third) {
+            LinkedHashSet<String> values = new LinkedHashSet<>(first);
+            values.addAll(second);
+            values.addAll(third);
+            return values;
+        }
+
         private JsonArray propertyKeysJson() {
             JsonArray keys = new JsonArray();
             propertyKeyCounts.entrySet().stream()
@@ -1266,6 +1391,17 @@ public final class ResourcePackCompatDiagnostics {
                                  boolean specularPresent,
                                  String normalPath,
                                  boolean normalPresent,
+                                 String roughnessPath,
+                                 boolean roughnessPresent,
+                                 String metallicPath,
+                                 boolean metallicPresent,
+                                 String heightPath,
+                                 boolean heightPresent,
+                                 String aoPath,
+                                 boolean aoPresent,
+                                 boolean derivedSpecularPresent,
+                                 boolean derivedNormalPresent,
+                                 boolean anyMaterialSidecarPresent,
                                  String flagPath,
                                  boolean flagPresent,
                                  String emissivePath,
@@ -1281,6 +1417,17 @@ public final class ResourcePackCompatDiagnostics {
             json.addProperty("specularPresent", specularPresent);
             json.addProperty("normalPath", normalPath);
             json.addProperty("normalPresent", normalPresent);
+            json.addProperty("roughnessPath", roughnessPath);
+            json.addProperty("roughnessPresent", roughnessPresent);
+            json.addProperty("metallicPath", metallicPath);
+            json.addProperty("metallicPresent", metallicPresent);
+            json.addProperty("heightPath", heightPath);
+            json.addProperty("heightPresent", heightPresent);
+            json.addProperty("aoPath", aoPath);
+            json.addProperty("aoPresent", aoPresent);
+            json.addProperty("derivedSpecularPresent", derivedSpecularPresent);
+            json.addProperty("derivedNormalPresent", derivedNormalPresent);
+            json.addProperty("anyMaterialSidecarPresent", anyMaterialSidecarPresent);
             json.addProperty("flagPath", flagPath);
             json.addProperty("flagPresent", flagPresent);
             json.addProperty("emissivePath", emissivePath);

@@ -77,7 +77,23 @@ public final class ResourcePackTextureNames {
         return hasSuffix(path, EMISSIVE_SUFFIXES);
     }
 
-    private static boolean hasSuffix(String path, String[] suffixes) {
+    public static boolean isRoughnessScalarPath(String path) {
+        return hasSuffix(path, "_roughness", "_rough");
+    }
+
+    public static boolean isMetallicScalarPath(String path) {
+        return hasSuffix(path, "_metallic", "_metalness");
+    }
+
+    public static boolean isHeightScalarPath(String path) {
+        return hasSuffix(path, "_height", "_displacement", "_disp");
+    }
+
+    public static boolean isAoScalarPath(String path) {
+        return hasSuffix(path, "_ao", "_ambientocclusion", "_ambient_occlusion");
+    }
+
+    private static boolean hasSuffix(String path, String... suffixes) {
         if (path == null || path.isBlank()) {
             return false;
         }
