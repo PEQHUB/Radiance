@@ -47,16 +47,25 @@ public final class ResourcePackCompatCtmTiles {
         if (props == null) {
             return List.of();
         }
+        int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
+        int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         return ctmTileDependencyAssetPaths(propertyAssetPath,
             props.getProperty("tiles", ""),
-            props.getProperty("method", ""));
+            props.getProperty("method", ""),
+            repeatWidth,
+            repeatHeight);
     }
 
     public static List<String> ctmTileDependencyAssetPaths(String propertyAssetPath, String tilesValue,
         String methodValue) {
+        return ctmTileDependencyAssetPaths(propertyAssetPath, tilesValue, methodValue, 1, 1);
+    }
+
+    public static List<String> ctmTileDependencyAssetPaths(String propertyAssetPath, String tilesValue,
+        String methodValue, int repeatWidth, int repeatHeight) {
         String value = tilesValue == null ? "" : tilesValue.trim();
         if (value.isEmpty()) {
-            value = inferredTilesValue(methodValue);
+            value = inferredTilesValue(methodValue, repeatWidth, repeatHeight);
         }
         return ctmTileDependencyAssetPaths(propertyAssetPath, value);
     }
@@ -300,7 +309,7 @@ public final class ResourcePackCompatCtmTiles {
         return List.copyOf(normalized);
     }
 
-    private static String inferredTilesValue(String methodValue) {
+    private static String inferredTilesValue(String methodValue, int repeatWidth, int repeatHeight) {
         String method = methodValue == null ? "" : methodValue.trim().toLowerCase(Locale.ROOT);
         return switch (method) {
             case "ctm" -> "0-46";
@@ -308,10 +317,26 @@ public final class ResourcePackCompatCtmTiles {
             case "horizontal", "vertical" -> "0-3";
             case "horizontal+vertical", "vertical+horizontal" -> "0-6";
             case "top", "fixed" -> "0";
+            case "repeat", "overlay_repeat" -> inferredRepeatTiles(repeatWidth, repeatHeight);
             case "overlay", "overlay_ctm" -> "0-16";
             case "overlay_fixed" -> "0";
             default -> "";
         };
+    }
+
+    private static String inferredRepeatTiles(int repeatWidth, int repeatHeight) {
+        long rawCount = (long) Math.max(1, repeatWidth) * (long) Math.max(1, repeatHeight);
+        int count = (int) Math.min(rawCount, TILE_EXPANSION_LIMIT);
+        return "0-" + (count - 1);
+    }
+
+    private static int parsePositiveInt(String raw, int fallback) {
+        try {
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : fallback;
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
 
     private static String syntheticAtlasSpriteIdentifier(String assetPath) {

@@ -1866,6 +1866,16 @@ public final class MaterialLabSelfTest {
             "0-3", "overlay_repeat");
         expect(overlayRepeat.size() == 4 && overlayRepeat.get(3).endsWith("/3.png"),
             "overlay_repeat dependencies should expand explicit repeat tiles");
+
+        Properties inferredRepeatProps = new Properties();
+        inferredRepeatProps.setProperty("method", "overlay_repeat");
+        inferredRepeatProps.setProperty("width", "2");
+        inferredRepeatProps.setProperty("height", "3");
+        List<String> inferredOverlayRepeat = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(
+            "assets/minecraft/optifine/ctm/leaf_overlay/inferred_repeat.properties",
+            inferredRepeatProps);
+        expect(inferredOverlayRepeat.size() == 6 && inferredOverlayRepeat.get(5).endsWith("/5.png"),
+            "overlay_repeat should infer width*height tile dependencies when tiles is omitted");
     }
 
     private static void ctmAtlasSourceCollectsPresentTiles() {
@@ -2421,7 +2431,7 @@ public final class MaterialLabSelfTest {
 
             FakeResourceManager repeatManager = new FakeResourceManager();
             repeatManager.add("minecraft:optifine/ctm/repeat/repeat.properties",
-                "method=repeat\nmatchTiles=stone\ntiles=0-3\nwidth=2\nheight=2\nlayer=cutout\ntintIndex=1\n"
+                "method=repeat\nmatchTiles=stone\nwidth=2\nheight=2\nlayer=cutout\ntintIndex=1\n"
                     .getBytes(StandardCharsets.UTF_8));
             ResourcePackTextureVariantResolver.ResolverIndex repeat =
                 ResourcePackTextureVariantResolver.buildForTest(repeatManager, false);
@@ -2893,7 +2903,6 @@ public final class MaterialLabSelfTest {
                     "method=overlay_repeat",
                     "matchTiles=stone",
                     "faces=top",
-                    "tiles=0-3",
                     "width=2",
                     "height=2"
                 ).getBytes(StandardCharsets.UTF_8));

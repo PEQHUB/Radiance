@@ -371,10 +371,12 @@ public final class ResourcePackTextureVariantResolver {
             return Optional.empty();
         }
 
+        int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
+        int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         String propertyAssetPath = ResourcePackCompatCtmTiles.assetPath(propertyId);
         List<String> tileAssetPaths = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(propertyAssetPath, props);
         List<TileChoice> choices = ruleMethod.overlayRule()
-            ? tileChoices(propertyAssetPath, props.getProperty("tiles", ""), ruleMethod)
+            ? tileChoices(propertyAssetPath, props.getProperty("tiles", ""), ruleMethod, repeatWidth, repeatHeight)
             : List.of();
         if (tileAssetPaths.isEmpty() && !ruleMethod.overlayRule()) {
             return Optional.empty();
@@ -406,8 +408,6 @@ public final class ResourcePackTextureVariantResolver {
         RandomSymmetry randomSymmetry = parseRandomSymmetry(props.getProperty("symmetry", ""));
         boolean linkedRandom = parseBoolean(props.getProperty("linked", "false"));
         RepeatOrientation repeatOrientation = parseRepeatOrientation(props.getProperty("orient", ""));
-        int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
-        int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         int tintIndex = parseInt(props.getProperty("tintIndex", "-1"), -1);
         String tintBlock = normalizeBlockIdToken(props.getProperty("tintBlock", ""));
         int alphaMode = parseLayerAlphaMode(props.getProperty("layer", ""));
@@ -435,10 +435,11 @@ public final class ResourcePackTextureVariantResolver {
         }
     }
 
-    private static List<TileChoice> tileChoices(String propertyAssetPath, String tilesValue, RuleMethod method) {
+    private static List<TileChoice> tileChoices(String propertyAssetPath, String tilesValue, RuleMethod method,
+        int repeatWidth, int repeatHeight) {
         String value = tilesValue == null ? "" : tilesValue.trim();
         if (value.isEmpty()) {
-            value = inferredTilesForResolver(method);
+            value = inferredTilesForResolver(method, repeatWidth, repeatHeight);
         }
         if (propertyAssetPath == null || value.isBlank()) {
             return List.of();
@@ -490,17 +491,24 @@ public final class ResourcePackTextureVariantResolver {
         }
     }
 
-    private static String inferredTilesForResolver(RuleMethod method) {
+    private static String inferredTilesForResolver(RuleMethod method, int repeatWidth, int repeatHeight) {
         return switch (method) {
             case CTM -> "0-46";
             case CTM_COMPACT -> "0-4";
             case HORIZONTAL, VERTICAL -> "0-3";
             case HORIZONTAL_THEN_VERTICAL, VERTICAL_THEN_HORIZONTAL -> "0-6";
             case TOP, FIXED -> "0";
+            case REPEAT, OVERLAY_REPEAT -> inferredRepeatTiles(repeatWidth, repeatHeight);
             case OVERLAY, OVERLAY_CTM -> "0-16";
             case OVERLAY_FIXED -> "0";
             default -> "";
         };
+    }
+
+    private static String inferredRepeatTiles(int repeatWidth, int repeatHeight) {
+        long rawCount = (long) Math.max(1, repeatWidth) * (long) Math.max(1, repeatHeight);
+        int count = (int) Math.min(rawCount, CHOICE_EXPANSION_LIMIT);
+        return "0-" + (count - 1);
     }
 
     private static List<String> matchTileTokens(Identifier propertyId, Properties props) {
