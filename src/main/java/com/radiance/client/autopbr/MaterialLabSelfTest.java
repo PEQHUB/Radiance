@@ -126,7 +126,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsRepeatSprites();
         textureVariantResolverHonorsStateAxisRepeatOrientation();
         textureVariantResolverHonorsTextureRepeatOrientation();
-        textureVariantResolverSkipsOptifineOnlyRules();
+        textureVariantResolverHonorsOptifineOnlyRules();
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverStacksMatchingOverlayRules();
         textureVariantResolverSelectsOverlaySprites();
@@ -2045,7 +2045,8 @@ public final class MaterialLabSelfTest {
                     + "symmetry=opposite\nlinked=true\n").getBytes(StandardCharsets.UTF_8));
             manager.add("minecraft:optifine/ctm/stone/overlay.properties",
                 ("method=overlay_fixed\nmatchTiles=stone\ntiles=overlay\nlayer=translucent\n"
-                    + "tintIndex=1\nbiomes=plains\nheights=60-80\ndisableSolidCheck=true\n")
+                    + "tintIndex=1\nbiomes=plains\nheights=60-80\noptifineOnly=true\n"
+                    + "disableSolidCheck=true\n")
                     .getBytes(StandardCharsets.UTF_8));
 
             JsonObject registry = JsonParser.parseString(
@@ -2121,6 +2122,8 @@ public final class MaterialLabSelfTest {
             JsonObject overlayRule = ruleWithMethod(rules, "overlay_fixed");
             expect(overlayRule.get("overlayRule").getAsBoolean(),
                 "variant registry should mark overlay rules");
+            expect(overlayRule.get("optifineOnly").getAsBoolean(),
+                "variant registry should preserve optifineOnly compatibility flags");
             expect(overlayRule.get("disableSolidCheck").getAsBoolean(),
                 "variant registry should expose overlay disableSolidCheck flags");
             expect(overlayRule.getAsJsonArray("choices").get(0).getAsJsonObject()
@@ -2661,7 +2664,7 @@ public final class MaterialLabSelfTest {
         data[base + 5] = Float.floatToRawIntBits(v);
     }
 
-    private static void textureVariantResolverSkipsOptifineOnlyRules() {
+    private static void textureVariantResolverHonorsOptifineOnlyRules() {
         boolean oldEnabled = Options.materialCompatEnabled;
         boolean oldCtm = Options.materialCompatCtmEnabled;
         List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
@@ -2695,16 +2698,19 @@ public final class MaterialLabSelfTest {
                     "tiles=texture",
                     "width=1",
                     "height=1",
-                    "faces=north",
                     "orient=texture"
                 ).getBytes(StandardCharsets.UTF_8));
             ResourcePackTextureVariantResolver.ResolverIndex index =
                 ResourcePackTextureVariantResolver.buildForTest(manager, false);
-            expect(index.ruleCountForTest() == 1, "optifineOnly CTM rules should be skipped by RadSER");
+            expect(index.ruleCountForTest() == 2,
+                "optifineOnly CTM rules should be consumed by the OptiFine-compatible resolver");
             int sourceId = TextureArrayBridge.resolveSpriteId(log.toString());
             expect(index.resolveForTest(log, sourceId, new BlockPos(0, 0, 0), Direction.NORTH)
+                    == TextureArrayBridge.resolveSpriteId(optifineTile.toString()),
+                "matching optifineOnly CTM rules should win before texture-oriented fallback rules");
+            expect(index.resolveForTest(log, sourceId, new BlockPos(0, 0, 0), Direction.SOUTH)
                     == TextureArrayBridge.resolveSpriteId(textureTile.toString()),
-                "texture-oriented fallback rule should win after skipping optifineOnly rules");
+                "texture-oriented fallback rules should still apply when optifineOnly face predicates do not match");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;

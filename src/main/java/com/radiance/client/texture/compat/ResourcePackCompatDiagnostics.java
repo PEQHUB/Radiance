@@ -1181,6 +1181,7 @@ public final class ResourcePackCompatDiagnostics {
             addIfPresent(record, props, "weights");
             addIfPresent(record, props, "symmetry");
             addIfPresent(record, props, "layer");
+            addIfPresent(record, props, "optifineOnly");
             addIfPresent(record, props, "layer.cutout");
             addIfPresent(record, props, "layer.cutout_mipped");
             addIfPresent(record, props, "layer.translucent");

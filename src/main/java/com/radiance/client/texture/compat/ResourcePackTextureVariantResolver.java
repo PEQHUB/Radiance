@@ -367,10 +367,6 @@ public final class ResourcePackTextureVariantResolver {
         if (ruleMethod == null) {
             return Optional.empty();
         }
-        if (parseBoolean(props.getProperty("optifineOnly", "false"))) {
-            return Optional.empty();
-        }
-
         int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
         int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         String propertyAssetPath = ResourcePackCompatCtmTiles.assetPath(propertyId);
@@ -411,6 +407,7 @@ public final class ResourcePackTextureVariantResolver {
         int tintIndex = parseInt(props.getProperty("tintIndex", "-1"), -1);
         String tintBlock = normalizeBlockIdToken(props.getProperty("tintBlock", ""));
         int alphaMode = parseLayerAlphaMode(props.getProperty("layer", ""));
+        boolean optifineOnly = parseBoolean(props.getProperty("optifineOnly", "false"));
         boolean disableSolidCheck = parseBoolean(props.getProperty("disableSolidCheck", "false"));
         int[] ctmReplacementMap = parseCtmReplacementMap(props);
         BiomePredicate biomePredicate = parseBiomePredicate(props.getProperty("biomes", ""));
@@ -421,7 +418,7 @@ public final class ResourcePackTextureVariantResolver {
             faces, connectMode, List.copyOf(outputs), List.copyOf(choices), weights, randomLoops, randomSymmetry,
             linkedRandom,
             repeatOrientation, repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
-            disableSolidCheck, ctmReplacementMap, biomePredicate, heightPredicate));
+            optifineOnly, disableSolidCheck, ctmReplacementMap, biomePredicate, heightPredicate));
     }
 
     private static String safePackId(Resource resource) {
@@ -1144,6 +1141,7 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("tintIndex", rule.tintIndex());
         json.addProperty("tintBlock", rule.tintBlock());
         json.addProperty("alphaMode", rule.alphaMode());
+        json.addProperty("optifineOnly", rule.optifineOnly());
         json.addProperty("disableSolidCheck", rule.disableSolidCheck());
         json.addProperty("ctmReplacementOverrides", ctmReplacementOverrideCount(rule.ctmReplacementMap()));
         json.add("biomes", biomePredicateJson(rule.biomePredicate()));
@@ -1804,6 +1802,7 @@ public final class ResourcePackTextureVariantResolver {
                                int tintIndex,
                                String tintBlock,
                                int alphaMode,
+                               boolean optifineOnly,
                                boolean disableSolidCheck,
                                int[] ctmReplacementMap,
                                BiomePredicate biomePredicate,
