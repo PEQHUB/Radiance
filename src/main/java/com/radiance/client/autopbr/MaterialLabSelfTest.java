@@ -121,6 +121,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverRegistryReportsCompiledRules();
         textureVariantResolverHonorsDeterministicRulePrecedence();
         textureVariantResolverSelectsFixedAndRandomSprites();
+        textureVariantResolverRotatesFacePredicatesForAxisBlocks();
         textureVariantResolverRespectsBiomeAndHeightPredicates();
         textureVariantResolverSelectsRepeatSprites();
         textureVariantResolverHonorsStateAxisRepeatOrientation();
@@ -2053,6 +2054,8 @@ public final class MaterialLabSelfTest {
                 "variant registry should document same-path resource-manager precedence");
             expect("property_id_ascending_within_root".equals(precedencePolicy.get("ruleOrder").getAsString()),
                 "variant registry should document property path rule ordering");
+            expect("axis_aware_local_block_faces".equals(precedencePolicy.get("facesPredicateSpace").getAsString()),
+                "variant registry should document axis-aware face predicates");
             expect("first_enabled_matching_rule".equals(precedencePolicy.get("nonOverlayResolution").getAsString()),
                 "variant registry should document first-match non-overlay resolution");
             expect("stack_enabled_matching_overlay_groups_in_precedence_order".equals(
@@ -2323,6 +2326,49 @@ public final class MaterialLabSelfTest {
             Options.materialCompatCtmEnabled = oldCtm;
             Options.materialCompatRandomEnabled = oldRandom;
             Options.materialCompatLegacyMcPatcherEnabled = oldLegacy;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverRotatesFacePredicatesForAxisBlocks() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier logSide = Identifier.ofVanilla("block/oak_log");
+            Identifier topTile = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/axis_faces/top.png"));
+            expect(topTile != null, "axis face fixture id should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(logSide, topTile));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+            Options.materialCompatRandomEnabled = false;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/axis_faces/top.properties",
+                "method=fixed\nmatchTiles=oak_log\ntiles=top\nfaces=top\n".getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex index =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            int sourceId = TextureArrayBridge.resolveSpriteId(logSide.toString());
+            int topId = TextureArrayBridge.resolveSpriteId(topTile.toString());
+            BlockPos pos = new BlockPos(3, 64, 5);
+
+            expect(index.resolveForTest(logSide, sourceId, Direction.Axis.Y, pos, Direction.UP) == topId,
+                "faces=top should match world up on default Y-axis blocks");
+            expect(index.resolveForTest(logSide, sourceId, Direction.Axis.X, pos, Direction.EAST) == topId,
+                "faces=top should rotate onto the positive X end face for X-axis blocks");
+            expect(index.resolveForTest(logSide, sourceId, Direction.Axis.X, pos, Direction.UP) == sourceId,
+                "faces=top should not match world up after an X-axis block rotation");
+            expect(index.resolveForTest(logSide, sourceId, Direction.Axis.Z, pos, Direction.SOUTH) == topId,
+                "faces=top should rotate onto the positive Z end face for Z-axis blocks");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);

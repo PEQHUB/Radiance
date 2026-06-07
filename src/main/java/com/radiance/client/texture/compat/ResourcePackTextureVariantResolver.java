@@ -1288,6 +1288,7 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("samePath", "resource_manager_effective_resource");
         json.addProperty("rootOrder", "optifine/ctm before optional mcpatcher/ctm");
         json.addProperty("ruleOrder", "property_id_ascending_within_root");
+        json.addProperty("facesPredicateSpace", "axis_aware_local_block_faces");
         json.addProperty("nonOverlayResolution", "first_enabled_matching_rule");
         json.addProperty("overlayResolution", "stack_enabled_matching_overlay_groups_in_precedence_order");
         json.addProperty("overlayStackLimit", OVERLAY_STACK_LIMIT);
@@ -1610,7 +1611,7 @@ public final class ResourcePackTextureVariantResolver {
             }
             for (VariantRule rule : rules) {
                 if (rule.method().overlayRule() || !rule.enabledByOptions()
-                    || !rule.matches(source, world, state, pos, face, biomeId)) {
+                    || !rule.matches(source, world, state, pos, face, biomeId, repeatAxisOverride)) {
                     continue;
                 }
                 ResolvedBlockSprite resolved =
@@ -1806,7 +1807,13 @@ public final class ResourcePackTextureVariantResolver {
 
         boolean matches(Identifier source, @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, @Nullable String biomeId) {
-            if (face != null && !faces.contains(face)) {
+            return matches(source, world, state, pos, face, biomeId, null);
+        }
+
+        boolean matches(Identifier source, @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, @Nullable String biomeId,
+            @Nullable Direction.Axis stateAxisOverride) {
+            if (face != null && !faceApplies(face, state, stateAxisOverride)) {
                 return false;
             }
             if (!heightPredicate.matches(pos)) {
@@ -1830,6 +1837,17 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return false;
+        }
+
+        private boolean faceApplies(Direction face, @Nullable BlockState state,
+            @Nullable Direction.Axis stateAxisOverride) {
+            Direction.Axis axis = stateAxisOverride == null ? stateAxis(state) : stateAxisOverride;
+            Direction localFace = switch (axis) {
+                case X -> localFaceForXAxis(face);
+                case Z -> localFaceForZAxis(face);
+                default -> face;
+            };
+            return faces.contains(localFace);
         }
 
         ResolvedBlockSprite resolveSprite(Identifier source, int sourceSpriteId,
