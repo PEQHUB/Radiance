@@ -801,6 +801,13 @@ public final class MaterialLabSelfTest {
         expect(readResourceString(fallback.get()).contains("cube_all"),
             "model fallback should return the lower-priority valid resource");
 
+        Optional<Resource> selectedFallback = ResourcePackModelFallback.selectFallbackForTest(
+            modelId, Optional.of(malformedTopModel), List.of(malformedTopModel, validLowerModel));
+        expect(selectedFallback.isPresent(),
+            "model fallback should validate the selected top resource instead of assuming resource-list order");
+        expect(readResourceString(selectedFallback.get()).contains("cube_all"),
+            "selected-model fallback should return the lower-priority valid resource");
+
         Optional<Resource> unchanged = ResourcePackModelFallback.selectFallbackForTest(
             modelId, List.of(validLowerModel, validLowerModel));
         expect(unchanged.isEmpty(), "valid high-priority model should not be overridden");

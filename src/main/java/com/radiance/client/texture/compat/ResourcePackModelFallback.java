@@ -52,8 +52,40 @@ public final class ResourcePackModelFallback {
         return Optional.empty();
     }
 
+    public static Optional<Resource> fallbackForMalformedSelectedModel(Identifier id,
+        Optional<Resource> selected,
+        List<Resource> resources) {
+        if (!isModelJson(id) || selected.isEmpty() || resources == null || resources.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Resource top = selected.get();
+        Validation topValidation = validateModel(top);
+        if (topValidation.valid()) {
+            return Optional.empty();
+        }
+
+        for (Resource candidate : resources) {
+            Validation candidateValidation = validateModel(candidate);
+            if (candidateValidation.valid()) {
+                LOGGER.warn("[ResourcePackCompat] Falling back from malformed model {} in pack {} "
+                        + "to lower-priority pack {}: {}",
+                    id, safePackId(top), safePackId(candidate), topValidation.reason());
+                return Optional.of(wrapWithIdentifier(id, candidate));
+            }
+        }
+
+        return Optional.empty();
+    }
+
     public static Optional<Resource> selectFallbackForTest(Identifier id, List<Resource> resources) {
         return fallbackForMalformedTopModel(id, resources);
+    }
+
+    public static Optional<Resource> selectFallbackForTest(Identifier id,
+        Optional<Resource> selected,
+        List<Resource> resources) {
+        return fallbackForMalformedSelectedModel(id, selected, resources);
     }
 
     private static Resource wrapWithIdentifier(Identifier id, Resource resource) {

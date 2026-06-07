@@ -34,14 +34,14 @@ public abstract class NamespaceResourceManagerMixins {
         return null;
     }
 
-    @Inject(method = "getResource", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "getResource", at = @At("RETURN"), cancellable = true)
     private void fallbackMalformedModelJson(Identifier id,
         CallbackInfoReturnable<Optional<Resource>> cir) {
         if (!ResourcePackModelFallback.isModelJson(id)) {
             return;
         }
-        Optional<Resource> fallback = ResourcePackModelFallback.fallbackForMalformedTopModel(
-            id, this.getAllResources(id));
+        Optional<Resource> fallback = ResourcePackModelFallback.fallbackForMalformedSelectedModel(
+            id, cir.getReturnValue(), this.getAllResources(id));
         fallback.ifPresent(resource -> cir.setReturnValue(Optional.of(resource)));
     }
 
