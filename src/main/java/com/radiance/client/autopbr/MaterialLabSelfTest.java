@@ -139,6 +139,7 @@ public final class MaterialLabSelfTest {
         colorPropertiesResolverParsesFlatBlockPalettes();
         lightmapResolverSamplesCustomPalettes();
         naturalTextureResolverParsesRulesAndTransformsUv();
+        naturalTextureResolverUsesResolvedVariantRules();
         presetCatalogIsResourceBacked();
         System.out.println("Material Lab self-test passed");
     }
@@ -3419,6 +3420,57 @@ public final class MaterialLabSelfTest {
         expect(close(flipThenRotate180.transformU(0.25f, 0.75f), 0.25f)
                 && close(flipThenRotate180.transformV(0.25f, 0.75f), 0.25f),
             "natural flip should be applied before rotation");
+    }
+
+    private static void naturalTextureResolverUsesResolvedVariantRules() {
+        Identifier source = Identifier.ofVanilla("block/stone");
+        Identifier variant = Identifier.ofVanilla("block/stone_variant");
+        TextureArrayBridge.setSortedSpriteIds(List.of(source, variant));
+
+        FakeResourceManager manager = new FakeResourceManager();
+        manager.add("minecraft:optifine/natural.properties",
+            ("block/stone=4F\n"
+                + "block/stone_variant=F\n").getBytes(StandardCharsets.UTF_8));
+
+        int sourceId = TextureArrayBridge.resolveRenderableSpriteId(source);
+        NaturalTransform sourceTransform = firstNonIdentityBlockNaturalTransform(manager, source,
+            sourceId, Direction.NORTH);
+        expect(!sourceTransform.isIdentity(),
+            "source natural rule should still transform the unmodified source sprite");
+
+        int variantId = TextureArrayBridge.resolveRenderableSpriteId(variant);
+        NaturalTransform variantTransform = firstNonIdentityBlockNaturalTransform(manager, source,
+            variantId, Direction.NORTH);
+        expect(!variantTransform.isIdentity() && variantTransform.quarterTurns() == 0,
+            "resolved variant sprite should use its own natural rule instead of the source rule");
+
+        FakeResourceManager sourceOnly = new FakeResourceManager();
+        sourceOnly.add("minecraft:optifine/natural.properties",
+            "block/stone=4F\n".getBytes(StandardCharsets.UTF_8));
+        NaturalTransform missingVariantRule =
+            ResourcePackNaturalTextureResolver.resolveBlockTransformForTest(sourceOnly, source,
+                variantId, new BlockPos(3, 64, 0), Direction.NORTH, false);
+        expect(missingVariantRule.isIdentity(),
+            "source natural rule should not rotate a resolved variant sprite without its own rule");
+
+        TextureArrayBridge.setSortedSpriteIds(List.of(SPRITE, Identifier.ofVanilla("block/glass")));
+    }
+
+    private static NaturalTransform firstNonIdentityBlockNaturalTransform(ResourceManager manager,
+        Identifier source,
+        int resolvedSpriteId,
+        Direction face) {
+        for (int x = 0; x < 32; x++) {
+            for (int z = 0; z < 4; z++) {
+                NaturalTransform transform =
+                    ResourcePackNaturalTextureResolver.resolveBlockTransformForTest(manager, source,
+                        resolvedSpriteId, new BlockPos(x, 64, z), face, false);
+                if (!transform.isIdentity()) {
+                    return transform;
+                }
+            }
+        }
+        return NaturalTransform.identity();
     }
 
     private static boolean hasCompatRecord(JsonArray records, String kind, String key, String value) {

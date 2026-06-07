@@ -5,6 +5,7 @@ import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -32,16 +33,28 @@ public final class ResourcePackNaturalTextureResolver {
         @Nullable BlockPos pos,
         @Nullable Direction face) {
         Identifier source = spriteIdentifier(sourceSprite);
-        int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
         if (source == null || pos == null || !Options.materialCompatEnabled
-            || !Options.materialCompatNaturalEnabled || resolvedSpriteId != sourceSpriteId) {
+            || !Options.materialCompatNaturalEnabled) {
             return NaturalTransform.identity();
         }
         ResourceManager resourceManager = currentResourceManager();
         if (resourceManager == null) {
             return NaturalTransform.identity();
         }
-        return activeIndex(resourceManager).resolve(source, pos, face);
+        return resolveBlockTransform(source, resolvedSpriteId, pos, face, activeIndex(resourceManager));
+    }
+
+    public static NaturalTransform resolveBlockTransformForTest(ResourceManager resourceManager,
+        Identifier source,
+        int resolvedSpriteId,
+        BlockPos pos,
+        @Nullable Direction face,
+        boolean legacyMcPatcher) {
+        if (source == null || pos == null) {
+            return NaturalTransform.identity();
+        }
+        return resolveBlockTransform(source, resolvedSpriteId, pos, face,
+            build(resourceManager, legacyMcPatcher));
     }
 
     public static NaturalIndex buildForTest(ResourceManager resourceManager, boolean legacyMcPatcher) {
@@ -128,6 +141,31 @@ public final class ResourcePackNaturalTextureResolver {
         return sprite == null || sprite.getContents() == null ? null : sprite.getContents().getId();
     }
 
+    private static NaturalTransform resolveBlockTransform(Identifier source,
+        int resolvedSpriteId,
+        BlockPos pos,
+        @Nullable Direction face,
+        NaturalIndex index) {
+        Identifier resolved = spriteIdentifierForId(resolvedSpriteId);
+        if (resolved != null && index.hasRule(resolved)) {
+            return index.resolve(resolved, pos, face);
+        }
+        int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
+        if (resolvedSpriteId != sourceSpriteId) {
+            return NaturalTransform.identity();
+        }
+        return index.resolve(source, pos, face);
+    }
+
+    @Nullable
+    private static Identifier spriteIdentifierForId(int spriteId) {
+        if (spriteId < 0) {
+            return null;
+        }
+        List<Identifier> ids = TextureArrayBridge.sortedSpriteIds;
+        return spriteId < ids.size() ? ids.get(spriteId) : null;
+    }
+
     public static final class NaturalIndex {
         private static final NaturalIndex EMPTY = new NaturalIndex(Map.of());
         private final Map<String, NaturalRule> rules;
@@ -158,6 +196,10 @@ public final class ResourcePackNaturalTextureResolver {
                 ? rotationPick & 3
                 : rule.rotationVariants == 2 ? (rotationPick & 1) * 2 : 0;
             return new NaturalTransform(quarterTurns, flip);
+        }
+
+        private boolean hasRule(Identifier source) {
+            return ruleFor(source) != null;
         }
 
         private NaturalRule ruleFor(Identifier source) {
