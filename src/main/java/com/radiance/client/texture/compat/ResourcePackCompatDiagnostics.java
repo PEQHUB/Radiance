@@ -189,6 +189,8 @@ public final class ResourcePackCompatDiagnostics {
             Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
         json.addProperty("shaderBlockPropertiesLayerAlphaModes",
             Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
+        json.addProperty("shaderBlockPropertiesDisableSolidCheck",
+            Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
         json.addProperty("javaSideRuleParsing", Options.materialCompatEnabled);
         json.addProperty("javaChunkQuadRuleResolution", renderingConsumesCompatibility());
         json.addProperty("shaderSideRuleParsing", false);
@@ -1182,6 +1184,7 @@ public final class ResourcePackCompatDiagnostics {
             addIfPresent(record, props, "layer.cutout");
             addIfPresent(record, props, "layer.cutout_mipped");
             addIfPresent(record, props, "layer.translucent");
+            addIfPresent(record, props, "disableSolidCheck");
             addIfPresent(record, props, "suffix");
             addIfPresent(record, props, "suffix.emissive");
             record.add("values", propertyValues(props, keys));

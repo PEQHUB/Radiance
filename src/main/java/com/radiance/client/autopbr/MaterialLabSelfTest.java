@@ -130,6 +130,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverStacksMatchingOverlayRules();
         textureVariantResolverSelectsOverlaySprites();
+        textureVariantResolverHonorsOverlaySolidCheckDisable();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
         textureVariantResolverCarriesOverlayLayerAlphaModes();
         textureVariantResolverSelectsNeighborMasks();
@@ -1794,6 +1795,9 @@ public final class MaterialLabSelfTest {
                     .get("shaderBlockPropertiesLayerAlphaModes").getAsBoolean(),
                 "diagnostics should expose shader block.properties layer alpha mode consumption");
             expect(status.getAsJsonObject("compatibilityConsumption")
+                    .get("shaderBlockPropertiesDisableSolidCheck").getAsBoolean(),
+                "diagnostics should expose block.properties disableSolidCheck overlay consumption");
+            expect(status.getAsJsonObject("compatibilityConsumption")
                     .get("javaSideRuleParsing").getAsBoolean(),
                 "diagnostics should expose Java-side shader block.N side rule parsing");
             expect(status.getAsJsonObject("compatibilityConsumption")
@@ -2041,7 +2045,8 @@ public final class MaterialLabSelfTest {
                     + "symmetry=opposite\nlinked=true\n").getBytes(StandardCharsets.UTF_8));
             manager.add("minecraft:optifine/ctm/stone/overlay.properties",
                 ("method=overlay_fixed\nmatchTiles=stone\ntiles=overlay\nlayer=translucent\n"
-                    + "tintIndex=1\nbiomes=plains\nheights=60-80\n").getBytes(StandardCharsets.UTF_8));
+                    + "tintIndex=1\nbiomes=plains\nheights=60-80\ndisableSolidCheck=true\n")
+                    .getBytes(StandardCharsets.UTF_8));
 
             JsonObject registry = JsonParser.parseString(
                 ResourcePackTextureVariantResolver.registryJsonForTest(manager, false, 8)).getAsJsonObject();
@@ -2116,6 +2121,8 @@ public final class MaterialLabSelfTest {
             JsonObject overlayRule = ruleWithMethod(rules, "overlay_fixed");
             expect(overlayRule.get("overlayRule").getAsBoolean(),
                 "variant registry should mark overlay rules");
+            expect(overlayRule.get("disableSolidCheck").getAsBoolean(),
+                "variant registry should expose overlay disableSolidCheck flags");
             expect(overlayRule.getAsJsonArray("choices").get(0).getAsJsonObject()
                     .get("spriteId").getAsInt() == TextureArrayBridge.resolveSpriteId(overlay.toString()),
                 "variant registry should resolve overlay choice sprite ids");
@@ -2917,6 +2924,60 @@ public final class MaterialLabSelfTest {
         }
     }
 
+    private static void textureVariantResolverHonorsOverlaySolidCheckDisable() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier overlay0 = ctmFixtureId("overlay_solid_check", 0);
+            expect(overlay0 != null, "overlay solid-check fixture id should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, overlay0));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = false;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatOverlaysEnabled = true;
+
+            FakeResourceManager defaultManager = new FakeResourceManager();
+            defaultManager.add("minecraft:optifine/ctm/overlay_solid_check/default.properties",
+                String.join("\n",
+                    "method=overlay_fixed",
+                    "matchTiles=stone",
+                    "tiles=0"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex defaults =
+                ResourcePackTextureVariantResolver.buildForTest(defaultManager, false);
+            expect(defaults.overlaySolidOccluderBlocksForTest(stone, Direction.UP, true),
+                "overlay rules should reject opaque forward occluders by default");
+
+            FakeResourceManager disabledManager = new FakeResourceManager();
+            disabledManager.add("minecraft:optifine/ctm/overlay_solid_check/disabled.properties",
+                String.join("\n",
+                    "method=overlay_fixed",
+                    "matchTiles=stone",
+                    "tiles=0",
+                    "disableSolidCheck=true"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex disabled =
+                ResourcePackTextureVariantResolver.buildForTest(disabledManager, false);
+            expect(!disabled.overlaySolidOccluderBlocksForTest(stone, Direction.UP, true),
+                "disableSolidCheck=true should allow overlay placement against solid forward neighbors");
+            expect(!disabled.overlaySolidOccluderBlocksForTest(stone, Direction.UP, false),
+                "non-opaque forward neighbors should never block overlay placement");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
     private static void textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites() {
         boolean oldEnabled = Options.materialCompatEnabled;
         boolean oldCtm = Options.materialCompatCtmEnabled;
@@ -3407,6 +3468,11 @@ public final class MaterialLabSelfTest {
         );
         expect(ResourcePackBlockLayerResolver.ruleCountForTest(blockProperties) == 7,
             "shader block layer resolver should parse all named block layer entries");
+        expect(ResourcePackBlockLayerResolver.disablesOverlaySolidCheckForTest("disableSolidCheck=true"),
+            "block.properties should parse disableSolidCheck=true as an overlay placement flag");
+        expect(!ResourcePackBlockLayerResolver.disablesOverlaySolidCheckForTest(
+                "disableSolidCheck=true", "disableSolidCheck=false"),
+            "later active resource-pack block.properties should override shader-pack disableSolidCheck defaults");
         expect(ResourcePackBlockLayerResolver.resolveBlockAlphaModeForTest(blockProperties, "minecraft:stone")
                 == PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE,
             "layer.solid should map to opaque alpha mode");

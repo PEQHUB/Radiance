@@ -411,6 +411,7 @@ public final class ResourcePackTextureVariantResolver {
         int tintIndex = parseInt(props.getProperty("tintIndex", "-1"), -1);
         String tintBlock = normalizeBlockIdToken(props.getProperty("tintBlock", ""));
         int alphaMode = parseLayerAlphaMode(props.getProperty("layer", ""));
+        boolean disableSolidCheck = parseBoolean(props.getProperty("disableSolidCheck", "false"));
         int[] ctmReplacementMap = parseCtmReplacementMap(props);
         BiomePredicate biomePredicate = parseBiomePredicate(props.getProperty("biomes", ""));
         HeightPredicate heightPredicate = parseHeightPredicate(props);
@@ -420,7 +421,7 @@ public final class ResourcePackTextureVariantResolver {
             faces, connectMode, List.copyOf(outputs), List.copyOf(choices), weights, randomLoops, randomSymmetry,
             linkedRandom,
             repeatOrientation, repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
-            ctmReplacementMap, biomePredicate, heightPredicate));
+            disableSolidCheck, ctmReplacementMap, biomePredicate, heightPredicate));
     }
 
     private static String safePackId(Resource resource) {
@@ -1143,6 +1144,7 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("tintIndex", rule.tintIndex());
         json.addProperty("tintBlock", rule.tintBlock());
         json.addProperty("alphaMode", rule.alphaMode());
+        json.addProperty("disableSolidCheck", rule.disableSolidCheck());
         json.addProperty("ctmReplacementOverrides", ctmReplacementOverrideCount(rule.ctmReplacementMap()));
         json.add("biomes", biomePredicateJson(rule.biomePredicate()));
         json.add("heights", heightPredicateJson(rule.heightPredicate()));
@@ -1413,6 +1415,17 @@ public final class ResourcePackTextureVariantResolver {
         public BlockOverlaySprite[] resolveOverlayDetailsForTest(Identifier source, int sourceSpriteId,
             @Nullable BlockPos pos, @Nullable Direction face) {
             return resolveOverlay(source, sourceSpriteId, null, null, pos, face);
+        }
+
+        public boolean overlaySolidOccluderBlocksForTest(Identifier source, @Nullable Direction face,
+            boolean opaqueFullCube) {
+            for (VariantRule rule : rules) {
+                if (rule.method().overlayRule()
+                    && rule.matches(source, null, null, null, face, null)) {
+                    return rule.overlayOccluderBlocksForTest(opaqueFullCube);
+                }
+            }
+            return false;
         }
 
         public int[] resolveOverlaysWithConnectionsForTest(Identifier source, int sourceSpriteId,
@@ -1791,6 +1804,7 @@ public final class ResourcePackTextureVariantResolver {
                                int tintIndex,
                                String tintBlock,
                                int alphaMode,
+                               boolean disableSolidCheck,
                                int[] ctmReplacementMap,
                                BiomePredicate biomePredicate,
                                HeightPredicate heightPredicate) {
@@ -2260,7 +2274,7 @@ public final class ResourcePackTextureVariantResolver {
             }
             Direction lightFace = face == null ? Direction.NORTH : face;
             BlockPos occluderPos = pos.offset(side).offset(lightFace);
-            if (world.getBlockState(occluderPos).isOpaqueFullCube()) {
+            if (overlayOccluderBlocks(world, occluderPos)) {
                 return false;
             }
             BlockPos otherPos = pos.offset(side);
@@ -2280,7 +2294,19 @@ public final class ResourcePackTextureVariantResolver {
                 return false;
             }
             BlockPos occluderPos = otherPos.offset(lightFace);
-            return !world.getBlockState(occluderPos).isOpaqueFullCube();
+            return !overlayOccluderBlocks(world, occluderPos);
+        }
+
+        boolean overlayOccluderBlocksForTest(boolean opaqueFullCube) {
+            return !overlaySolidCheckDisabled() && opaqueFullCube;
+        }
+
+        private boolean overlayOccluderBlocks(BlockRenderView world, BlockPos occluderPos) {
+            return !overlaySolidCheckDisabled() && world.getBlockState(occluderPos).isOpaqueFullCube();
+        }
+
+        private boolean overlaySolidCheckDisabled() {
+            return disableSolidCheck || ResourcePackBlockLayerResolver.disablesOverlaySolidCheck();
         }
 
         private boolean overlayStateApplies(BlockRenderView world, @Nullable BlockState other,

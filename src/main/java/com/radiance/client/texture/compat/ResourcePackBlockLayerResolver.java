@@ -72,6 +72,13 @@ public final class ResourcePackBlockLayerResolver {
         return index.shaderBlockId(state);
     }
 
+    public static boolean disablesOverlaySolidCheck() {
+        if (!Options.materialCompatEnabled || !Options.materialCompatOverlaysEnabled) {
+            return false;
+        }
+        return activeIndex().disableSolidCheck();
+    }
+
     public static int resolveBlockAlphaModeForTest(String blockPropertiesText, String blockId) {
         return parse(blockPropertiesText).alphaMode(normalizeBlockToken(blockId), Map.of());
     }
@@ -95,6 +102,15 @@ public final class ResourcePackBlockLayerResolver {
         Map<String, String> stateValues) {
         return parse(blockPropertiesText).shaderBlockId(normalizeBlockToken(blockId),
             normalizeStateValues(stateValues));
+    }
+
+    public static boolean disablesOverlaySolidCheckForTest(String blockPropertiesText) {
+        return parse(blockPropertiesText).disableSolidCheck();
+    }
+
+    public static boolean disablesOverlaySolidCheckForTest(String shaderBlockPropertiesText,
+        String resourcePackBlockPropertiesText) {
+        return parseAll(List.of(shaderBlockPropertiesText, resourcePackBlockPropertiesText)).disableSolidCheck();
     }
 
     public static int ruleCountForTest(String blockPropertiesText) {
@@ -246,23 +262,29 @@ public final class ResourcePackBlockLayerResolver {
         }
         ArrayList<LayerRule> layerRules = new ArrayList<>();
         ArrayList<ShaderBlockRule> shaderBlockRules = new ArrayList<>();
+        Boolean disableSolidCheck = null;
         for (String text : texts) {
-            parseInto(layerRules, shaderBlockRules, text);
+            Boolean parsedSolidCheck = parseInto(layerRules, shaderBlockRules, text);
+            if (parsedSolidCheck != null) {
+                disableSolidCheck = parsedSolidCheck;
+            }
         }
-        return layerRules.isEmpty() && shaderBlockRules.isEmpty()
+        boolean disabled = Boolean.TRUE.equals(disableSolidCheck);
+        return layerRules.isEmpty() && shaderBlockRules.isEmpty() && !disabled
             ? LayerIndex.empty()
-            : new LayerIndex(List.copyOf(layerRules), List.copyOf(shaderBlockRules));
+            : new LayerIndex(List.copyOf(layerRules), List.copyOf(shaderBlockRules), disabled);
     }
 
-    private static void parseInto(List<LayerRule> layerRules, List<ShaderBlockRule> shaderBlockRules, String text) {
+    @Nullable
+    private static Boolean parseInto(List<LayerRule> layerRules, List<ShaderBlockRule> shaderBlockRules, String text) {
         if (text == null || text.isBlank()) {
-            return;
+            return null;
         }
         Properties props = new Properties();
         try {
             props.load(new StringReader(text));
         } catch (IOException e) {
-            return;
+            return null;
         }
 
         addLayer(layerRules, props.getProperty("layer.solid"), PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE);
@@ -270,6 +292,8 @@ public final class ResourcePackBlockLayerResolver {
         addLayer(layerRules, props.getProperty("layer.cutout_mipped"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
         addLayer(layerRules, props.getProperty("layer.translucent"), PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT);
         addShaderBlockRules(shaderBlockRules, props);
+        String disableSolidCheck = props.getProperty("disableSolidCheck");
+        return disableSolidCheck == null ? null : parseBoolean(disableSolidCheck);
     }
 
     private static void addLayer(List<LayerRule> rules, @Nullable String raw, int alphaMode) {
@@ -441,14 +465,23 @@ public final class ResourcePackBlockLayerResolver {
         return Map.copyOf(normalized);
     }
 
+    private static boolean parseBoolean(String raw) {
+        if (raw == null) {
+            return false;
+        }
+        String token = raw.trim().toLowerCase(Locale.ROOT);
+        return token.equals("true") || token.equals("1") || token.equals("yes") || token.equals("on");
+    }
+
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static String propertyValueName(Property property, Comparable value) {
         return property.name(value).toLowerCase(Locale.ROOT);
     }
 
-    private record LayerIndex(List<LayerRule> layerRules, List<ShaderBlockRule> shaderBlockRules) {
+    private record LayerIndex(List<LayerRule> layerRules, List<ShaderBlockRule> shaderBlockRules,
+                              boolean disableSolidCheck) {
         static LayerIndex empty() {
-            return new LayerIndex(List.of(), List.of());
+            return new LayerIndex(List.of(), List.of(), false);
         }
 
         int totalRuleCount() {
