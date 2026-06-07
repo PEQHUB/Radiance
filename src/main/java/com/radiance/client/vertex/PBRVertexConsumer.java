@@ -42,6 +42,7 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_UV;
 
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.compat.ResourcePackBlockLayerResolver;
+import com.radiance.client.texture.compat.ResourcePackColorPropertiesResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
@@ -722,6 +723,20 @@ public class PBRVertexConsumer implements VertexConsumer {
                     baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
                     baseBlue = (tintRgb & 0xFF) / 255.0F;
                     baseUseQuadColorData = false;
+                } else {
+                    int vanillaRgb = rgbFromFloats(baseRed, baseGreen, baseBlue);
+                    int compatRgb = ResourcePackColorPropertiesResolver.resolveBlockColor(
+                        this.pendingBlockState,
+                        this.pendingBlockWorld,
+                        this.pendingBlockPos,
+                        -1,
+                        vanillaRgb);
+                    if ((compatRgb & 0x00FFFFFF) != (vanillaRgb & 0x00FFFFFF)) {
+                        baseRed = ((compatRgb >> 16) & 0xFF) / 255.0F;
+                        baseGreen = ((compatRgb >> 8) & 0xFF) / 255.0F;
+                        baseBlue = (compatRgb & 0xFF) / 255.0F;
+                        baseUseQuadColorData = false;
+                    }
                 }
                 blockOverlayUvTransform = this.pendingNaturalUvTransform;
                 blockOverlaySprites = ResourcePackTextureVariantResolver.resolveBlockOverlaySprites(
@@ -772,6 +787,20 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingSpriteMaxV = previousSpriteMaxV;
             this.pendingNaturalUvTransform = previousNaturalUvTransform;
         }
+    }
+
+    private static int rgbFromFloats(float red, float green, float blue) {
+        int r = Math.round(clamp01(red) * 255.0F);
+        int g = Math.round(clamp01(green) * 255.0F);
+        int b = Math.round(clamp01(blue) * 255.0F);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    private static float clamp01(float value) {
+        if (!Float.isFinite(value)) {
+            return 0.0F;
+        }
+        return Math.max(0.0F, Math.min(1.0F, value));
     }
 
     public static class GLint implements VertexConsumer {

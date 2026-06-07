@@ -151,7 +151,9 @@ public final class ResourcePackCompatDiagnostics {
             Options.materialCompatEnabled && Options.materialCompatColorsEnabled);
         json.addProperty("optifineFixedBlockColormapProperties",
             Options.materialCompatEnabled && Options.materialCompatColorsEnabled);
-        json.addProperty("colorPropertiesBiomePalettesMetadataOnly", true);
+        json.addProperty("colorPropertiesBiomePalettes",
+            Options.materialCompatEnabled && Options.materialCompatColorsEnabled);
+        json.addProperty("colorPropertiesBiomePalettesMetadataOnly", false);
         json.addProperty("horizontalVerticalTopNeighborMasks",
             Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("ctmTileAtlasAdmission", renderingConsumesCompatibility());

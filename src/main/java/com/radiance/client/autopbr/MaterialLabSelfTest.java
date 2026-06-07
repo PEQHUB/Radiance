@@ -957,8 +957,10 @@ public final class MaterialLabSelfTest {
                 "diagnostics should expose fixed block tint consumption");
             expect(consumption.get("optifineFixedBlockColormapProperties").getAsBoolean(),
                 "diagnostics should expose fixed OptiFine block colormap consumption");
-            expect(consumption.get("colorPropertiesBiomePalettesMetadataOnly").getAsBoolean(),
-                "diagnostics should state biome palettes remain metadata-only");
+            expect(consumption.get("colorPropertiesBiomePalettes").getAsBoolean(),
+                "diagnostics should expose rendered color.properties biome palette sampling");
+            expect(!consumption.get("colorPropertiesBiomePalettesMetadataOnly").getAsBoolean(),
+                "diagnostics should not mark rendered biome palettes as metadata-only");
         } catch (IOException e) {
             throw new AssertionError("material compat color diagnostics fixture failed", e);
         } finally {
@@ -1792,7 +1794,7 @@ public final class MaterialLabSelfTest {
         expect(index.fixedBlockColormapCountForTest() == 1,
             "color resolver should count fixed OptiFine block colormap properties");
         expect(index.variablePaletteCountForTest() == 1,
-            "color resolver should leave non-flat biome palettes as metadata");
+            "color resolver should count non-flat biome palettes for sampling");
         expect(index.fixedBlockTintCountForTest() == 5,
             "color resolver should compile fixed block tint entries from flat palettes");
         expect(index.resolveBlockColor("minecraft:stone", 0xFFFFFF) == 0x3366AA,
@@ -1800,7 +1802,11 @@ public final class MaterialLabSelfTest {
         expect(index.resolveBlockColor("minecraft:oak_leaves", 0xFFFFFF) == 0x3366AA,
             "flat color.properties palette should normalize namespaced block ids");
         expect(index.resolveBlockColor("minecraft:grass_block", 0x112233) == 0x112233,
-            "non-flat biome palettes should not be averaged into fixed tint");
+            "biome palettes without world context should keep vanilla tint");
+        expect(index.resolveBlockColorForClimateForTest("minecraft:grass_block", 1.0, 1.0, 0x112233) == 0x00AA00,
+            "color.properties biome palette should sample hot humid coordinates");
+        expect(index.resolveBlockColorForClimateForTest("minecraft:grass_block", 0.0, 0.0, 0x112233) == 0xCCDD44,
+            "color.properties biome palette should sample cold dry coordinates");
         expect(index.resolveBlockColor("minecraft:terracotta", 0xFFFFFF) == 0x985E44,
             "fixed OptiFine block colormap should override non-tinted block color");
         expect(index.resolveBlockColor("minecraft:red_concrete", 0xFFFFFF) == 0x985E44,

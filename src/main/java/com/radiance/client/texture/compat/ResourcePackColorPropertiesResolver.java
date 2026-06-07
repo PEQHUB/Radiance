@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Properties;
+import net.minecraft.world.biome.Biome;
+import net.minecraft.world.biome.ColorResolver;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
@@ -47,7 +49,7 @@ public final class ResourcePackColorPropertiesResolver {
             return vanillaRgb & 0x00FFFFFF;
         }
         String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-        return activeIndex(resourceManager).resolveBlockColor(blockId, vanillaRgb);
+        return activeIndex(resourceManager).resolveBlockColor(blockId, world, pos, vanillaRgb);
     }
 
     public static ColorIndex buildForTest(ResourceManager resourceManager, boolean legacyMcPatcher) {
@@ -84,23 +86,25 @@ public final class ResourcePackColorPropertiesResolver {
             return ColorIndex.empty();
         }
         LinkedHashMap<String, Integer> blockColors = new LinkedHashMap<>();
+        LinkedHashMap<String, PaletteImage> blockPalettes = new LinkedHashMap<>();
         int[] counts = new int[3];
         loadColorProperties(resourceManager, Identifier.ofVanilla("optifine/color.properties"),
-            blockColors, counts);
+            blockColors, blockPalettes, counts);
         loadFixedBlockColormapProperties(resourceManager, "optifine/colormap/blocks",
             blockColors, counts);
         if (legacyMcPatcher) {
             loadColorProperties(resourceManager, Identifier.ofVanilla("mcpatcher/color.properties"),
-                blockColors, counts);
+                blockColors, blockPalettes, counts);
             loadFixedBlockColormapProperties(resourceManager, "mcpatcher/colormap/blocks",
                 blockColors, counts);
         }
-        return new ColorIndex(Map.copyOf(blockColors), counts[0], counts[1], counts[2]);
+        return new ColorIndex(Map.copyOf(blockColors), Map.copyOf(blockPalettes), counts[0], counts[1], counts[2]);
     }
 
     private static void loadColorProperties(ResourceManager resourceManager,
         Identifier propertiesId,
         LinkedHashMap<String, Integer> blockColors,
+        LinkedHashMap<String, PaletteImage> blockPalettes,
         int[] counts) {
         Optional<Resource> resource = resourceManager.getResource(propertiesId);
         if (resource.isEmpty()) {
@@ -123,19 +127,29 @@ public final class ResourcePackColorPropertiesResolver {
             if (palette.isEmpty()) {
                 continue;
             }
-            OptionalInt rgb = readFlatPaletteRgb(palette.get());
-            if (rgb.isEmpty()) {
-                counts[1]++;
+            Optional<PaletteImage> image = readPaletteImage(palette.get());
+            if (image.isEmpty()) {
                 continue;
             }
-            int color = rgb.getAsInt() & 0x00FFFFFF;
             int assigned = 0;
-            for (String block : blockTokens(props.getProperty(key))) {
-                blockColors.put(block, color);
-                assigned++;
-            }
-            if (assigned > 0) {
-                counts[0]++;
+            OptionalInt flat = image.get().flatRgb();
+            if (flat.isPresent()) {
+                int color = flat.getAsInt() & 0x00FFFFFF;
+                for (String block : blockTokens(props.getProperty(key))) {
+                    blockColors.put(block, color);
+                    assigned++;
+                }
+                if (assigned > 0) {
+                    counts[0]++;
+                }
+            } else {
+                for (String block : blockTokens(props.getProperty(key))) {
+                    blockPalettes.put(block, image.get());
+                    assigned++;
+                }
+                if (assigned > 0) {
+                    counts[1]++;
+                }
             }
         }
     }
@@ -264,25 +278,23 @@ public final class ResourcePackColorPropertiesResolver {
         }
     }
 
-    private static OptionalInt readFlatPaletteRgb(Resource resource) {
+    private static Optional<PaletteImage> readPaletteImage(Resource resource) {
         try (InputStream input = resource.getInputStream();
              NativeImage image = NativeImage.read(input)) {
             int width = image.getWidth();
             int height = image.getHeight();
             if (width <= 0 || height <= 0) {
-                return OptionalInt.empty();
+                return Optional.empty();
             }
-            int rgb = image.getColorArgb(0, 0) & 0x00FFFFFF;
+            int[] pixels = new int[width * height];
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
-                    if ((image.getColorArgb(x, y) & 0x00FFFFFF) != rgb) {
-                        return OptionalInt.empty();
-                    }
+                    pixels[y * width + x] = image.getColorArgb(x, y) & 0x00FFFFFF;
                 }
             }
-            return OptionalInt.of(rgb);
+            return Optional.of(new PaletteImage(width, height, pixels));
         } catch (IOException e) {
-            return OptionalInt.empty();
+            return Optional.empty();
         }
     }
 
@@ -324,17 +336,20 @@ public final class ResourcePackColorPropertiesResolver {
     }
 
     public static final class ColorIndex {
-        private static final ColorIndex EMPTY = new ColorIndex(Map.of(), 0, 0, 0);
+        private static final ColorIndex EMPTY = new ColorIndex(Map.of(), Map.of(), 0, 0, 0);
         private final Map<String, Integer> blockColors;
+        private final Map<String, PaletteImage> blockPalettes;
         private final int flatPaletteCount;
         private final int variablePaletteCount;
         private final int fixedBlockColormapCount;
 
         private ColorIndex(Map<String, Integer> blockColors,
+            Map<String, PaletteImage> blockPalettes,
             int flatPaletteCount,
             int variablePaletteCount,
             int fixedBlockColormapCount) {
             this.blockColors = blockColors;
+            this.blockPalettes = blockPalettes;
             this.flatPaletteCount = flatPaletteCount;
             this.variablePaletteCount = variablePaletteCount;
             this.fixedBlockColormapCount = fixedBlockColormapCount;
@@ -346,7 +361,35 @@ public final class ResourcePackColorPropertiesResolver {
 
         public int resolveBlockColor(String blockId, int vanillaRgb) {
             Integer rgb = blockColors.get(normalizeBlockToken(blockId));
-            return rgb == null ? vanillaRgb & 0x00FFFFFF : rgb & 0x00FFFFFF;
+            if (rgb != null) {
+                return rgb & 0x00FFFFFF;
+            }
+            return vanillaRgb & 0x00FFFFFF;
+        }
+
+        public int resolveBlockColor(String blockId, @Nullable BlockRenderView world,
+            @Nullable BlockPos pos, int vanillaRgb) {
+            String normalized = normalizeBlockToken(blockId);
+            Integer rgb = blockColors.get(normalized);
+            if (rgb != null) {
+                return rgb & 0x00FFFFFF;
+            }
+            PaletteImage palette = blockPalettes.get(normalized);
+            if (palette != null && world != null && pos != null) {
+                return world.getColor(pos, palette.colorResolver()) & 0x00FFFFFF;
+            }
+            return vanillaRgb & 0x00FFFFFF;
+        }
+
+        public int resolveBlockColorForClimateForTest(String blockId, double temperature,
+            double downfall, int vanillaRgb) {
+            String normalized = normalizeBlockToken(blockId);
+            Integer rgb = blockColors.get(normalized);
+            if (rgb != null) {
+                return rgb & 0x00FFFFFF;
+            }
+            PaletteImage palette = blockPalettes.get(normalized);
+            return palette == null ? vanillaRgb & 0x00FFFFFF : palette.sample(temperature, downfall);
         }
 
         public int fixedBlockTintCountForTest() {
@@ -363,6 +406,50 @@ public final class ResourcePackColorPropertiesResolver {
 
         public int fixedBlockColormapCountForTest() {
             return fixedBlockColormapCount;
+        }
+    }
+
+    private record PaletteImage(int width, int height, int[] pixels) {
+        OptionalInt flatRgb() {
+            if (pixels.length == 0) {
+                return OptionalInt.empty();
+            }
+            int rgb = pixels[0] & 0x00FFFFFF;
+            for (int pixel : pixels) {
+                if ((pixel & 0x00FFFFFF) != rgb) {
+                    return OptionalInt.empty();
+                }
+            }
+            return OptionalInt.of(rgb);
+        }
+
+        ColorResolver colorResolver() {
+            return this::sample;
+        }
+
+        int sample(Biome biome, double x, double z) {
+            double temperature = biome == null ? 0.5 : biome.getTemperature();
+            double downfall = biome != null && biome.hasPrecipitation() ? 1.0 : 0.0;
+            return sample(temperature, downfall);
+        }
+
+        int sample(double temperature, double downfall) {
+            double t = clamp01(temperature);
+            double h = clamp01(downfall) * t;
+            int x = clampIndex((int) Math.round((1.0 - t) * (width - 1)), width);
+            int y = clampIndex((int) Math.round((1.0 - h) * (height - 1)), height);
+            return pixels[y * width + x] & 0x00FFFFFF;
+        }
+
+        private static double clamp01(double value) {
+            if (!Double.isFinite(value)) {
+                return 0.0;
+            }
+            return Math.max(0.0, Math.min(1.0, value));
+        }
+
+        private static int clampIndex(int value, int size) {
+            return Math.max(0, Math.min(Math.max(0, size - 1), value));
         }
     }
 
