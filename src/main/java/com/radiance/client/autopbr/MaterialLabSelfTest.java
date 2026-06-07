@@ -1255,6 +1255,7 @@ public final class MaterialLabSelfTest {
             Path inactive = resourcePacks.resolve("Inactive Pack");
             Files.createDirectories(active.resolve("assets/minecraft/textures/block"));
             Files.createDirectories(active.resolve("assets/minecraft/optifine/ctm/stone"));
+            Files.createDirectories(active.resolve("assets/minecraft/optifine/ctm/repeat"));
             Files.createDirectories(later.resolve("assets/minecraft/textures/block"));
             Files.createDirectories(inactive.resolve("assets/minecraft/textures/block"));
             Files.writeString(run.resolve("options.txt"),
@@ -1279,6 +1280,12 @@ public final class MaterialLabSelfTest {
             Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/2_height.png"), new byte[] {0});
             Files.writeString(active.resolve("assets/minecraft/optifine/ctm/stone/stone.properties"),
                 "method=ctm\nmatchTiles=stone\ntiles=textures/block/stone 0-2 custom_tile\nconnect=block\n", StandardCharsets.UTF_8);
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/repeat/0.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/repeat/1.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/repeat/2.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/repeat/3.png"), new byte[] {0});
+            Files.writeString(active.resolve("assets/minecraft/optifine/ctm/repeat/repeat.properties"),
+                "method=overlay_repeat\nmatchTiles=stone\nwidth=2\nheight=2\n", StandardCharsets.UTF_8);
             Files.write(later.resolve("assets/minecraft/textures/block/sand.png"), new byte[] {0});
             Files.write(inactive.resolve("assets/minecraft/textures/block/dirt.png"), new byte[] {0});
 
@@ -1302,18 +1309,21 @@ public final class MaterialLabSelfTest {
             expect(activePack.getAsJsonObject("labpbrCoverage")
                     .get("albedoWithSpecularOrScalarAndNormalOrScalar").getAsInt() == 2,
                 "active pack should count scalar-composed LabPBR candidates");
-            expect(activePack.getAsJsonObject("compatFeatures").get("ctm").getAsInt() == 1,
+            expect(activePack.getAsJsonObject("compatFeatures").get("ctm").getAsInt() == 2,
                 "active pack should report parsed CTM feature records");
             expect(hasCompatRecord(activePack.getAsJsonArray("compatRecords"), "ctm", "method", "ctm"),
                 "CTM record should retain method value");
+            expect(hasCompatRecord(activePack.getAsJsonArray("compatRecords"), "ctm", "method", "overlay_repeat"),
+                "CTM record should retain overlay_repeat method value");
             expect(hasCompatRecord(activePack.getAsJsonArray("compatRecords"), "emissive_properties", "suffix.emissive", "_e"),
                 "emissive record should retain suffix value");
             JsonObject ctmDeps = activePack.getAsJsonObject("ctmAtlasDependencies");
             JsonObject activeCtmDeps = status.getAsJsonObject("activeCtmAtlasDependencies");
-            expect(ctmDeps.get("uniqueTiles").getAsInt() == 5, "CTM dependency index should expand path and tile range");
-            expect(activeCtmDeps.get("uniqueTiles").getAsInt() == 5,
+            expect(ctmDeps.get("uniqueTiles").getAsInt() == 9,
+                "CTM dependency index should expand path, explicit ranges, and inferred repeat tiles");
+            expect(activeCtmDeps.get("uniqueTiles").getAsInt() == 9,
                 "active CTM dependency aggregate should include active pack dependencies");
-            expect(ctmDeps.get("presentTiles").getAsInt() == 4, "CTM dependency index should count present tiles");
+            expect(ctmDeps.get("presentTiles").getAsInt() == 8, "CTM dependency index should count present tiles");
             expect(ctmDeps.get("missingTiles").getAsInt() == 1, "CTM dependency index should count missing tiles");
             expect(ctmDeps.get("tilesWithSpecular").getAsInt() == 2, "CTM dependency index should see tile specular sidecars");
             expect(ctmDeps.get("tilesWithNormal").getAsInt() == 2, "CTM dependency index should see tile normal sidecars");
@@ -1323,9 +1333,9 @@ public final class MaterialLabSelfTest {
                 "CTM dependency index should see scalar normal fallbacks");
             expect(ctmDeps.get("tilesWithAnyMaterialSidecar").getAsInt() == 3,
                 "CTM dependency index should count materialized tile sidecars once per tile");
-            expect(ctmDeps.get("tilesRequiringAtlasAdmission").getAsInt() == 4,
+            expect(ctmDeps.get("tilesRequiringAtlasAdmission").getAsInt() == 8,
                 "CTM dependency index should mark non-vanilla CTM tiles for atlas admission");
-            expect(ctmDeps.get("presentTilesRequiringAtlasAdmission").getAsInt() == 3,
+            expect(ctmDeps.get("presentTilesRequiringAtlasAdmission").getAsInt() == 7,
                 "CTM dependency index should separate present and missing admission tiles");
             JsonArray dependencies = ctmDeps.getAsJsonArray("dependencies");
             expect(hasCtmDependency(dependencies, "assets/minecraft/textures/block/stone.png", true, "minecraft:block/stone"),
@@ -1333,6 +1343,9 @@ public final class MaterialLabSelfTest {
             expect(hasCtmDependency(dependencies, "assets/minecraft/optifine/ctm/stone/custom_tile.png", false,
                 ResourcePackCompatCtmTiles.atlasSpriteIdentifier("assets/minecraft/optifine/ctm/stone/custom_tile.png")),
                 "CTM dependency index should retain missing relative tile dependencies");
+            expect(hasCtmDependency(dependencies, "assets/minecraft/optifine/ctm/repeat/3.png", true,
+                ResourcePackCompatCtmTiles.atlasSpriteIdentifier("assets/minecraft/optifine/ctm/repeat/3.png")),
+                "CTM dependency index should infer omitted overlay_repeat tiles from width and height");
         } catch (IOException e) {
             throw new AssertionError("material compat run fixture failed", e);
         } finally {

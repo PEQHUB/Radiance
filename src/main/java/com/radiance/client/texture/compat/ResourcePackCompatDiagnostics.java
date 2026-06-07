@@ -1200,9 +1200,12 @@ public final class ResourcePackCompatDiagnostics {
                 }
                 String tiles = record.has("tiles") ? record.get("tiles").getAsString() : "";
                 String method = record.has("method") ? record.get("method").getAsString() : "";
+                int repeatWidth = parseInt(record.has("width") ? record.get("width").getAsString() : null, 1);
+                int repeatHeight = parseInt(record.has("height") ? record.get("height").getAsString() : null, 1);
                 String propertyPath = record.has("path") ? record.get("path").getAsString() : "";
                 List<String> dependencyPaths =
-                    ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(propertyPath, tiles, method);
+                    ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(
+                        propertyPath, tiles, method, repeatWidth, repeatHeight);
                 if (dependencyPaths.isEmpty()) {
                     record.add("tileDependencies", new JsonArray());
                     record.addProperty("tileDependencyCount", 0);
