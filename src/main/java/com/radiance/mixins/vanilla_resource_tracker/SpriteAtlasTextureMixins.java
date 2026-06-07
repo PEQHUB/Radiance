@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.autopbr.AutoPbrRuntime;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.AuxiliaryTextures;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
@@ -215,7 +216,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
                 if (specImg != null) flags |= TextureTracker.SPRITE_FLAG_HAS_SPECULAR;
                 if (normalImg != null) flags |= TextureTracker.SPRITE_FLAG_HAS_NORMAL;
-                if (normalImg != null && authoredHeight) {
+                if (normalImg != null && authoredHeight
+                    && AuxiliaryTextures.hasVisibleHeightAlphaRange(normalImg, img)) {
                     flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
                 }
             }

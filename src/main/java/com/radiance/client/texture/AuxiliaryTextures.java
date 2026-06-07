@@ -6,6 +6,7 @@ import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -17,6 +18,7 @@ import net.minecraft.client.texture.NativeImage;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 
 public enum AuxiliaryTextures {
     SPECULAR("specular", (identifier, source) ->
@@ -42,6 +44,13 @@ public enum AuxiliaryTextures {
 
     private static final List<AuxiliaryTextures> ALL_TEXTURES = Collections.unmodifiableList(
         Arrays.stream(values()).collect(Collectors.toList()));
+    private static final String[] ROUGHNESS_SUFFIXES = {"_roughness", "_rough"};
+    private static final String[] METALLIC_SUFFIXES = {"_metallic", "_metalness"};
+    private static final String[] HEIGHT_SUFFIXES = {"_height", "_displacement", "_disp"};
+    private static final String[] AO_SUFFIXES = {"_ao", "_ambientocclusion", "_ambient_occlusion"};
+    private static final int LABPBR_DEFAULT_SPECULAR_ARGB = 0xFF000000;
+    private static final int LABPBR_FLAT_NORMAL_ARGB = 0xFF8080FF;
+    private static final int LABPBR_METAL_CODE = 238;
     private final IdentifierCandidateProvider identifierCandidateProvider;
     private final Getter getter;
     private final Setter setter;
@@ -91,6 +100,14 @@ public enum AuxiliaryTextures {
             }
         }
         candidates.addAll(fallbackIds);
+        return List.copyOf(candidates);
+    }
+
+    private static List<Identifier> scalarCandidates(Identifier identifier, ScalarSidecar sidecar) {
+        LinkedHashSet<Identifier> candidates = new LinkedHashSet<>();
+        for (String folder : sidecar.folders()) {
+            candidates.addAll(auxiliaryCandidates(identifier, folder, true, sidecar.suffixes()));
+        }
         return List.copyOf(candidates);
     }
 
@@ -148,6 +165,146 @@ public enum AuxiliaryTextures {
             TextureTracker.packProvidedNormalGLIDs.remove(glid);
             TextureTracker.customNormalGLIDs.remove(glid);
         }
+    }
+
+    private ComposedAuxiliary composeFromScalarSidecars(ResourceManager resourceManager,
+        Identifier identifier, NativeImage source, int level) {
+        return switch (this) {
+            case SPECULAR -> composeSpecularFromScalarSidecars(resourceManager, identifier, source, level);
+            case NORMAL -> composeNormalFromScalarSidecars(resourceManager, identifier, source, level);
+            case FLAG -> null;
+        };
+    }
+
+    private static ComposedAuxiliary composeSpecularFromScalarSidecars(ResourceManager resourceManager,
+        Identifier identifier, NativeImage source, int level) {
+        try (NativeImage roughness = readPackImage(resourceManager,
+            scalarCandidates(identifier, ScalarSidecar.ROUGHNESS), level);
+             NativeImage metallic = readPackImage(resourceManager,
+                 scalarCandidates(identifier, ScalarSidecar.METALLIC), level)) {
+            if (roughness == null && metallic == null) {
+                return null;
+            }
+            NativeImage image = new NativeImage(NativeImage.Format.RGBA, source.getWidth(),
+                source.getHeight(), false);
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    int roughnessArgb = roughness == null ? 0 : sampleScaled(roughness, x, y, image);
+                    int metallicArgb = metallic == null ? 0 : sampleScaled(metallic, x, y, image);
+                    image.setColorArgb(x, y, composeSpecularPixel(
+                        roughnessArgb, roughness != null, metallicArgb, metallic != null));
+                }
+            }
+            return new ComposedAuxiliary(image);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static ComposedAuxiliary composeNormalFromScalarSidecars(ResourceManager resourceManager,
+        Identifier identifier, NativeImage source, int level) {
+        try (NativeImage height = readPackImage(resourceManager,
+            scalarCandidates(identifier, ScalarSidecar.HEIGHT), level);
+             NativeImage ao = readPackImage(resourceManager,
+                 scalarCandidates(identifier, ScalarSidecar.AO), level)) {
+            if (height == null && ao == null) {
+                return null;
+            }
+            NativeImage image = new NativeImage(NativeImage.Format.RGBA, source.getWidth(),
+                source.getHeight(), false);
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    int heightArgb = height == null ? 0 : sampleScaled(height, x, y, image);
+                    int aoArgb = ao == null ? 0 : sampleScaled(ao, x, y, image);
+                    image.setColorArgb(x, y, composeNormalPixel(
+                        heightArgb, height != null, aoArgb, ao != null));
+                }
+            }
+            return new ComposedAuxiliary(image);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static NativeImage readPackImage(ResourceManager resourceManager, List<Identifier> candidates,
+        int level) throws IOException {
+        for (Identifier candidate : candidates) {
+            Optional<Resource> optionalResource = resourceManager.getResource(candidate);
+            if (optionalResource.isPresent()) {
+                try (InputStream input = optionalResource.get().getInputStream();
+                     NativeImage tmpImage = NativeImage.read(input)) {
+                    return MipmapUtil.getSpecificMipmapLevelImage(tmpImage, level);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static int composeSpecularPixel(int roughnessArgb, boolean hasRoughness,
+        int metallicArgb, boolean hasMetallic) {
+        int smoothness = 0;
+        if (hasRoughness) {
+            float roughness = luminance(roughnessArgb);
+            smoothness = MathHelper.clamp(
+                Math.round((1.0f - (float) Math.sqrt(MathHelper.clamp(roughness, 0.02f, 0.98f))) * 255.0f),
+                0, 255);
+        }
+        int metallic = hasMetallic && luminanceByte(metallicArgb) >= 128 ? LABPBR_METAL_CODE : 0;
+        return (LABPBR_DEFAULT_SPECULAR_ARGB & 0xFF0000FF)
+            | (smoothness << 16)
+            | (metallic << 8);
+    }
+
+    private static int composeNormalPixel(int heightArgb, boolean hasHeight, int aoArgb, boolean hasAo) {
+        int height = hasHeight ? luminanceByte(heightArgb) : 255;
+        int ao = hasAo ? luminanceByte(aoArgb) : 255;
+        return (height << 24)
+            | (LABPBR_FLAT_NORMAL_ARGB & 0x00FFFF00)
+            | ao;
+    }
+
+    private static int sampleScaled(NativeImage image, int x, int y, NativeImage sourceSpace) {
+        if (image.getWidth() == sourceSpace.getWidth() && image.getHeight() == sourceSpace.getHeight()) {
+            return image.getColorArgb(x, y);
+        }
+        int sx = MathHelper.clamp(x * image.getWidth() / sourceSpace.getWidth(), 0, image.getWidth() - 1);
+        int sy = MathHelper.clamp(y * image.getHeight() / sourceSpace.getHeight(), 0, image.getHeight() - 1);
+        return image.getColorArgb(sx, sy);
+    }
+
+    private static float luminance(int argb) {
+        return luminanceByte(argb) / 255.0f;
+    }
+
+    private static int luminanceByte(int argb) {
+        float r = ((argb >>> 16) & 0xFF) / 255.0f;
+        float g = ((argb >>> 8) & 0xFF) / 255.0f;
+        float b = (argb & 0xFF) / 255.0f;
+        return MathHelper.clamp(Math.round((r * 0.2126f + g * 0.7152f + b * 0.0722f) * 255.0f), 0, 255);
+    }
+
+    public static boolean hasVisibleHeightAlphaRange(NativeImage normal, NativeImage albedo) {
+        if (normal == null || normal.getWidth() <= 0 || normal.getHeight() <= 0) {
+            return false;
+        }
+        int min = 255;
+        int max = 0;
+        boolean foundOpaquePixel = false;
+        int stepX = Math.max(1, normal.getWidth() / 64);
+        int stepY = Math.max(1, normal.getHeight() / 64);
+        for (int y = 0; y < normal.getHeight(); y += stepY) {
+            for (int x = 0; x < normal.getWidth(); x += stepX) {
+                if (albedo != null
+                    && (((sampleScaled(albedo, x, y, normal) >>> 24) & 0xFF) == 0)) {
+                    continue;
+                }
+                int alpha = (normal.getColorArgb(x, y) >>> 24) & 0xFF;
+                min = Math.min(min, alpha);
+                max = Math.max(max, alpha);
+                foundOpaquePixel = true;
+            }
+        }
+        return foundOpaquePixel && max > min;
     }
 
     public static void loadAndUpload(NativeImage source, INativeImageExt sourceExt, int level,
@@ -220,27 +377,25 @@ public enum AuxiliaryTextures {
                     List<Identifier> candidates = auxiliaryTexture.identifierCandidateProvider.get(
                         identifier, source);
 
-                    boolean success = false;
-                    for (Identifier candidate : candidates) {
-                        Optional<Resource> optionalResource = resourceManager.getResource(
-                            candidate);
-                        if (optionalResource.isPresent()) {
-                            try (NativeImage tmpImage = NativeImage.read(
-                                optionalResource.get().getInputStream())) {
-                                auxiliaryTemplateImage = MipmapUtil.getSpecificMipmapLevelImage(
-                                    tmpImage, level);
-
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-
+                    boolean success;
+                    try {
+                        auxiliaryTemplateImage = readPackImage(resourceManager, candidates, level);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    success = auxiliaryTemplateImage != null;
+                    if (!success) {
+                        ComposedAuxiliary composed = auxiliaryTexture.composeFromScalarSidecars(
+                            resourceManager, identifier, source, level);
+                        if (composed != null) {
+                            auxiliaryTemplateImage = composed.image();
                             success = true;
-                            if (level == 0) {
-                                auxiliaryTexture.markPackProvided(auxiliaryTargetId);
-                                auxiliarySource = TextureTracker.SOURCE_PACK_AUTHORED;
-                            }
-                            break;
                         }
+                    }
+
+                    if (success && level == 0) {
+                        auxiliaryTexture.markPackProvided(auxiliaryTargetId);
+                        auxiliarySource = TextureTracker.SOURCE_PACK_AUTHORED;
                     }
 
                     if (!success) {
@@ -255,7 +410,8 @@ public enum AuxiliaryTextures {
                             auxiliarySource = TextureTracker.SOURCE_FLAT;
                             auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                         }
-                    } else if (auxiliaryTexture == NORMAL) {
+                    } else if (auxiliaryTexture == NORMAL
+                        && hasVisibleHeightAlphaRange(auxiliaryTemplateImage, source)) {
                         // Resource pack LabPBR normal loaded — alpha contains height data
                         TextureTracker.hasHeightMap.add(targetId);
                     }
@@ -295,6 +451,66 @@ public enum AuxiliaryTextures {
             return List.of();
         }
         return texture.identifierCandidateProvider.get(identifier, null);
+    }
+
+    public static List<Identifier> scalarCandidatesForTest(String channel, Identifier identifier) {
+        ScalarSidecar sidecar = ScalarSidecar.fromChannel(channel);
+        return sidecar == null ? List.of() : scalarCandidates(identifier, sidecar);
+    }
+
+    public static int composedSpecularPixelForTest(Integer roughnessArgb, Integer metallicArgb) {
+        return composeSpecularPixel(
+            roughnessArgb == null ? 0 : roughnessArgb,
+            roughnessArgb != null,
+            metallicArgb == null ? 0 : metallicArgb,
+            metallicArgb != null);
+    }
+
+    public static int composedNormalPixelForTest(Integer heightArgb, Integer aoArgb) {
+        return composeNormalPixel(
+            heightArgb == null ? 0 : heightArgb,
+            heightArgb != null,
+            aoArgb == null ? 0 : aoArgb,
+            aoArgb != null);
+    }
+
+    private enum ScalarSidecar {
+        ROUGHNESS(new String[] {"roughness"}, ROUGHNESS_SUFFIXES),
+        METALLIC(new String[] {"metallic", "metalness"}, METALLIC_SUFFIXES),
+        HEIGHT(new String[] {"height", "displacement"}, HEIGHT_SUFFIXES),
+        AO(new String[] {"ao", "ambientocclusion", "ambient_occlusion"}, AO_SUFFIXES);
+
+        private final String[] folders;
+        private final String[] suffixes;
+
+        ScalarSidecar(String[] folders, String[] suffixes) {
+            this.folders = folders;
+            this.suffixes = suffixes;
+        }
+
+        String[] folders() {
+            return folders;
+        }
+
+        String[] suffixes() {
+            return suffixes;
+        }
+
+        static ScalarSidecar fromChannel(String channel) {
+            if (channel == null) {
+                return null;
+            }
+            return switch (channel) {
+                case "roughness" -> ROUGHNESS;
+                case "metallic", "metalness" -> METALLIC;
+                case "height", "displacement" -> HEIGHT;
+                case "ao", "ambientocclusion", "ambient_occlusion" -> AO;
+                default -> null;
+            };
+        }
+    }
+
+    private record ComposedAuxiliary(NativeImage image) {
     }
 
     public interface IdentifierCandidateProvider {

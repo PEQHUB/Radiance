@@ -98,6 +98,7 @@ public final class MaterialLabSelfTest {
         dropdownRowSelectionUsesClickCoordinates();
         textureRuleEntrySizeStaysStable();
         textureNameFilterTreatsEmissiveAsAuxiliary();
+        scalarPbrSidecarsComposeLabPbrLayers();
         textureArrayLayerSizeUsesLargestSprite();
         missingSpriteFallbackUsesRenderableBlockSprite();
         malformedModelJsonFallsBackToLowerPriorityResource();
@@ -846,6 +847,60 @@ public final class MaterialLabSelfTest {
                 "CTM normal lookup should include _normal sidecars");
         } finally {
             ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
+        }
+    }
+
+    private static void scalarPbrSidecarsComposeLabPbrLayers() {
+        List<Identifier> roughnessCandidates = AuxiliaryTextures.scalarCandidatesForTest(
+            "roughness", Identifier.ofVanilla("textures/block/stone.png"));
+        expect(roughnessCandidates.contains(Identifier.ofVanilla("textures/block/stone_roughness.png")),
+            "scalar roughness lookup should include same-directory _roughness maps");
+        expect(roughnessCandidates.contains(Identifier.ofVanilla("textures/roughness/block/stone.png")),
+            "scalar roughness lookup should include unsuffixed textures/roughness fallbacks");
+        List<Identifier> heightCandidates = AuxiliaryTextures.scalarCandidatesForTest(
+            "height", Identifier.ofVanilla("textures/block/stone.png"));
+        expect(heightCandidates.contains(Identifier.ofVanilla("textures/block/stone_disp.png")),
+            "scalar height lookup should include _disp aliases");
+        expect(heightCandidates.contains(Identifier.ofVanilla("textures/displacement/block/stone.png")),
+            "scalar height lookup should include unsuffixed displacement folder fallbacks");
+
+        int spec = AuxiliaryTextures.composedSpecularPixelForTest(0xFF404040, 0xFFFFFFFF);
+        int smoothness = (spec >>> 16) & 0xFF;
+        expect(((spec >>> 24) & 0xFF) == 255, "composed specular should encode no emission by default");
+        expect(smoothness >= 126 && smoothness <= 129,
+            "roughness scalar should convert to LabPBR smoothness");
+        expect(((spec >>> 8) & 0xFF) == 238, "metallic scalar should encode LabPBR metal code");
+        expect((spec & 0xFF) == 0, "composed specular should preserve default SSS");
+        int metalOnly = AuxiliaryTextures.composedSpecularPixelForTest(null, 0xFFFFFFFF);
+        expect(((metalOnly >>> 16) & 0xFF) == 0,
+            "missing roughness scalar should preserve LabPBR rough default");
+        expect(((metalOnly >>> 8) & 0xFF) == 238,
+            "metallic scalar alone should still encode metal code");
+
+        int normal = AuxiliaryTextures.composedNormalPixelForTest(0xFF202020, 0xFF808080);
+        expect(((normal >>> 24) & 0xFF) >= 31 && ((normal >>> 24) & 0xFF) <= 33,
+            "height scalar should become direct LabPBR normal alpha");
+        expect(((normal >>> 16) & 0xFF) == 128,
+            "composed normal should preserve flat LabPBR normal X");
+        expect(((normal >>> 8) & 0xFF) == 128,
+            "composed normal should preserve flat LabPBR normal Y");
+        expect((normal & 0xFF) >= 127 && (normal & 0xFF) <= 129,
+            "AO scalar should become LabPBR normal blue");
+
+        try (NativeImage albedo = new NativeImage(NativeImage.Format.RGBA, 2, 1, false);
+             NativeImage normalMap = new NativeImage(NativeImage.Format.RGBA, 2, 1, false)) {
+            albedo.setColorArgb(0, 0, 0xFFFFFFFF);
+            albedo.setColorArgb(1, 0, 0xFFFFFFFF);
+            normalMap.setColorArgb(0, 0, 0xF08080FF);
+            normalMap.setColorArgb(1, 0, 0xF08080FF);
+            expect(!AuxiliaryTextures.hasVisibleHeightAlphaRange(normalMap, albedo),
+                "uniform normal alpha should not be visible displacement");
+            normalMap.setColorArgb(1, 0, 0xFF8080FF);
+            expect(AuxiliaryTextures.hasVisibleHeightAlphaRange(normalMap, albedo),
+                "varying normal alpha should be visible displacement");
+            albedo.setColorArgb(1, 0, 0x00FFFFFF);
+            expect(!AuxiliaryTextures.hasVisibleHeightAlphaRange(normalMap, albedo),
+                "transparent albedo pixels should not create visible height range");
         }
     }
 
