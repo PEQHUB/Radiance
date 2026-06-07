@@ -1,6 +1,7 @@
 package com.radiance.client.autopbr;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.radiance.client.materiallab.MaterialBakePlan;
@@ -108,6 +109,7 @@ public final class MaterialLabSelfTest {
         materialCompatScannerRecognizesCoreFeatures();
         materialCompatRunScanMarksActivePacksAndParsesRecords();
         materialCompatWritesParserArtifactDumps();
+        materialCompatDiagnosticsDetectPersistedOptionDivergence();
         materialCompatDiagnosticsReportNaturalConsumption();
         materialCompatDiagnosticsReportColorConsumption();
         materialCompatDiagnosticsReportLightmapConsumption();
@@ -1319,9 +1321,20 @@ public final class MaterialLabSelfTest {
             Path active = run.resolve("resourcepacks/Active Pack");
             Files.createDirectories(active.resolve("assets/minecraft/textures/block"));
             Files.createDirectories(active.resolve("assets/minecraft/optifine/ctm/stone"));
+            Files.createDirectories(run.resolve("radiance"));
             Files.writeString(run.resolve("options.txt"),
                 "resourcePacks:[\"vanilla\",\"fabric\",\"file/Active Pack\"]\n"
                     + "incompatibleResourcePacks:[\"file/Active Pack\"]\n", StandardCharsets.UTF_8);
+            Files.writeString(run.resolve("radiance/options.properties"),
+                "optionsVersion=24\n"
+                    + "materialCompatEnabled=true\n"
+                    + "materialCompatCtmEnabled=true\n"
+                    + "materialCompatRandomEnabled=false\n"
+                    + "materialCompatNaturalEnabled=false\n"
+                    + "materialCompatColorsEnabled=false\n"
+                    + "materialCompatOverlaysEnabled=false\n"
+                    + "materialCompatLegacyMcPatcherEnabled=true\n"
+                    + "materialCompatPhysicalEmissiveEnabled=false\n", StandardCharsets.UTF_8);
             Files.write(active.resolve("assets/minecraft/textures/block/stone.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/textures/block/stone_s.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/textures/block/stone_n.png"), new byte[] {0});
@@ -1344,6 +1357,14 @@ public final class MaterialLabSelfTest {
 
             JsonObject status = JsonParser.parseString(
                 ResourcePackCompatDiagnostics.writeRunDirectoryReportsForTest(run.toString())).getAsJsonObject();
+            JsonObject provenance = status.getAsJsonObject("optionsProvenance");
+            expect(provenance != null, "compat dump status should expose options provenance");
+            expect(provenance.get("persistedPresent").getAsBoolean(),
+                "options provenance should see persisted options.properties");
+            expect(provenance.get("persistedRenderingConsumesCompatibility").getAsBoolean(),
+                "persisted options should report compatibility consumption enabled");
+            expect(!provenance.get("materialCompatFlagsMismatch").getAsBoolean(),
+                "matching live and persisted material flags should not warn as mismatched");
             JsonObject reports = status.getAsJsonObject("diagnosticReports");
             expect(reports != null && reports.has("packIndex"), "compat dump status should expose pack index path");
             expect(reports.has("textureAssets"), "compat dump status should expose texture asset path");
@@ -1416,6 +1437,83 @@ public final class MaterialLabSelfTest {
             Options.materialCompatNaturalEnabled = oldNatural;
             Options.materialCompatColorsEnabled = oldColors;
             Options.materialCompatOverlaysEnabled = oldOverlays;
+            Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
+            if (run != null) {
+                deleteTree(run);
+            }
+        }
+    }
+
+    private static void materialCompatDiagnosticsDetectPersistedOptionDivergence() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldNatural = Options.materialCompatNaturalEnabled;
+        boolean oldColors = Options.materialCompatColorsEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        boolean oldLegacy = Options.materialCompatLegacyMcPatcherEnabled;
+        boolean oldPhysical = Options.materialCompatPhysicalEmissiveEnabled;
+        Path run = null;
+        try {
+            run = Files.createTempDirectory("radser-material-compat-provenance");
+            Path active = run.resolve("resourcepacks/Active Pack");
+            Files.createDirectories(active.resolve("assets/minecraft/textures/block"));
+            Files.createDirectories(run.resolve("radiance"));
+            Files.writeString(run.resolve("options.txt"),
+                "resourcePacks:[\"vanilla\",\"fabric\",\"file/Active Pack\"]\n", StandardCharsets.UTF_8);
+            Files.writeString(run.resolve("radiance/options.properties"),
+                "optionsVersion=24\n"
+                    + "materialCompatEnabled=true\n"
+                    + "materialCompatCtmEnabled=true\n"
+                    + "materialCompatRandomEnabled=true\n"
+                    + "materialCompatNaturalEnabled=true\n"
+                    + "materialCompatColorsEnabled=true\n"
+                    + "materialCompatOverlaysEnabled=true\n"
+                    + "materialCompatLegacyMcPatcherEnabled=true\n"
+                    + "materialCompatPhysicalEmissiveEnabled=true\n", StandardCharsets.UTF_8);
+            Files.write(active.resolve("assets/minecraft/textures/block/stone.png"), new byte[] {0});
+
+            Options.materialCompatEnabled = false;
+            Options.materialCompatCtmEnabled = false;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatNaturalEnabled = false;
+            Options.materialCompatColorsEnabled = false;
+            Options.materialCompatOverlaysEnabled = false;
+            Options.materialCompatLegacyMcPatcherEnabled = false;
+            Options.materialCompatPhysicalEmissiveEnabled = false;
+
+            JsonObject status = JsonParser.parseString(
+                ResourcePackCompatDiagnostics.writeRunDirectoryReportsForTest(run.toString())).getAsJsonObject();
+            expect(!status.get("renderingConsumesCompatibility").getAsBoolean(),
+                "live disabled material flags should keep root consumption false");
+            JsonObject provenance = status.getAsJsonObject("optionsProvenance");
+            expect(provenance.get("persistedRenderingConsumesCompatibility").getAsBoolean(),
+                "persisted options should still expose intended material consumption");
+            expect(provenance.get("materialCompatFlagsMismatch").getAsBoolean(),
+                "provenance should flag live/persisted material flag mismatch");
+            expect(provenance.get("liveCompatibilityLikelyUnloadedFromPersistedOptions").getAsBoolean(),
+                "provenance should identify stale or pre-load live compatibility flags");
+
+            JsonObject warnings = JsonParser.parseString(Files.readString(
+                run.resolve("radiance/logs/radser-parser-warnings.json"), StandardCharsets.UTF_8)).getAsJsonObject();
+            JsonArray warningArray = warnings.getAsJsonArray("warnings");
+            boolean found = false;
+            for (JsonElement warningElement : warningArray) {
+                JsonObject warning = warningElement.getAsJsonObject();
+                found |= "material_compat_live_options_disagree_with_persisted_options".equals(
+                    warning.get("code").getAsString());
+            }
+            expect(found, "parser warnings should call out persisted/live material flag divergence");
+        } catch (IOException e) {
+            throw new AssertionError("material compat options provenance fixture failed", e);
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatNaturalEnabled = oldNatural;
+            Options.materialCompatColorsEnabled = oldColors;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            Options.materialCompatLegacyMcPatcherEnabled = oldLegacy;
             Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
             if (run != null) {
                 deleteTree(run);

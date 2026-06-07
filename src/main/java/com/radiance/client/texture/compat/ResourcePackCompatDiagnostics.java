@@ -116,6 +116,7 @@ public final class ResourcePackCompatDiagnostics {
         root.addProperty("createdAt", Instant.now().toString());
         root.addProperty("renderingConsumesCompatibility", renderingConsumesCompatibility());
         root.add("flags", flagsJson());
+        root.add("optionsProvenance", optionsProvenanceJson(runDirectory));
         root.add("compatibilityConsumption", compatibilityConsumptionJson());
         root.add("renderSafety", renderSafetyJson());
         root.addProperty("runDirectory", runDirectory.toAbsolutePath().toString());
@@ -368,6 +369,14 @@ public final class ResourcePackCompatDiagnostics {
             warnings.add(warning("warning", "active_ctm_dependency_summary_truncated",
                 "The active CTM dependency aggregate was truncated."));
         }
+        JsonObject options = object(root, "optionsProvenance");
+        if (boolProperty(options, "liveCompatibilityLikelyUnloadedFromPersistedOptions")) {
+            warnings.add(warning("warning", "material_compat_live_options_disagree_with_persisted_options",
+                "Persisted material compatibility options are enabled, but the live report flags are disabled."));
+        } else if (boolProperty(options, "materialCompatFlagsMismatch")) {
+            warnings.add(warning("warning", "material_compat_option_flag_mismatch",
+                "Live material compatibility flags differ from persisted radiance/options.properties."));
+        }
         dump.addProperty("warningCount", warnings.size());
         dump.add("warnings", warnings);
         return dump;
@@ -380,7 +389,102 @@ public final class ResourcePackCompatDiagnostics {
         dump.addProperty("runDirectory", stringProperty(root, "runDirectory"));
         dump.addProperty("renderingConsumesCompatibility", boolProperty(root, "renderingConsumesCompatibility"));
         dump.add("flags", copyObject(object(root, "flags")));
+        dump.add("optionsProvenance", copyObject(object(root, "optionsProvenance")));
         return dump;
+    }
+
+    private static JsonObject optionsProvenanceJson(Path runDirectory) {
+        JsonObject json = new JsonObject();
+        JsonObject liveFlags = flagsJson();
+        boolean liveConsumes = renderingConsumesCompatibility();
+        json.addProperty("liveOptionsVersion", Options.optionsVersion);
+        json.addProperty("currentOptionsVersion", Options.CURRENT_OPTIONS_VERSION);
+        json.addProperty("liveRenderingConsumesCompatibility", liveConsumes);
+        json.add("liveFlags", copyObject(liveFlags));
+
+        Path optionsPath = optionsPropertiesPath(runDirectory);
+        json.addProperty("persistedPath", optionsPath.toAbsolutePath().toString());
+        json.addProperty("persistedPresent", Files.isRegularFile(optionsPath));
+        if (!Files.isRegularFile(optionsPath)) {
+            json.addProperty("persistedRenderingConsumesCompatibility", false);
+            json.addProperty("materialCompatFlagsMismatch", false);
+            json.addProperty("liveCompatibilityLikelyUnloadedFromPersistedOptions", false);
+            json.addProperty("diagnosticState", "persisted_options_missing");
+            return json;
+        }
+
+        Properties props = new Properties();
+        try (BufferedReader reader = Files.newBufferedReader(optionsPath, StandardCharsets.UTF_8)) {
+            props.load(reader);
+        } catch (IOException e) {
+            json.addProperty("persistedReadError", e.getClass().getSimpleName() + ": " + e.getMessage());
+            json.addProperty("persistedRenderingConsumesCompatibility", false);
+            json.addProperty("materialCompatFlagsMismatch", false);
+            json.addProperty("liveCompatibilityLikelyUnloadedFromPersistedOptions", false);
+            json.addProperty("diagnosticState", "persisted_options_unreadable");
+            return json;
+        }
+
+        json.addProperty("persistedOptionsVersion", parseInt(props.getProperty("optionsVersion"), -1));
+        JsonObject persistedFlags = persistedFlagsJson(props);
+        boolean persistedConsumes = persistedRenderingConsumesCompatibility(persistedFlags);
+        boolean flagsMismatch = !materialCompatFlagsMatch(liveFlags, persistedFlags);
+        json.add("persistedFlags", persistedFlags);
+        json.addProperty("persistedRenderingConsumesCompatibility", persistedConsumes);
+        json.addProperty("materialCompatFlagsMismatch", flagsMismatch);
+        json.addProperty("liveCompatibilityLikelyUnloadedFromPersistedOptions", persistedConsumes && !liveConsumes);
+        json.addProperty("diagnosticState", flagsMismatch ? "live_options_differ_from_persisted" : "live_options_match_persisted");
+        return json;
+    }
+
+    private static Path optionsPropertiesPath(Path runDirectory) {
+        if (RadianceClient.radianceDir != null) {
+            return RadianceClient.radianceDir.resolve(Options.OPTION_PROPERTIES);
+        }
+        return runDirectory.resolve("radiance").resolve(Options.OPTION_PROPERTIES);
+    }
+
+    private static JsonObject persistedFlagsJson(Properties props) {
+        JsonObject json = new JsonObject();
+        json.addProperty("enabled", Boolean.parseBoolean(props.getProperty("materialCompatEnabled", "false")));
+        json.addProperty("ctm", Boolean.parseBoolean(props.getProperty("materialCompatCtmEnabled", "false")));
+        json.addProperty("random", Boolean.parseBoolean(props.getProperty("materialCompatRandomEnabled", "false")));
+        json.addProperty("natural", Boolean.parseBoolean(props.getProperty("materialCompatNaturalEnabled", "false")));
+        json.addProperty("colors", Boolean.parseBoolean(props.getProperty("materialCompatColorsEnabled", "false")));
+        json.addProperty("overlays", Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", "false")));
+        json.addProperty("legacyMcPatcher",
+            Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", "false")));
+        json.addProperty("physicalEmissive",
+            Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", "false")));
+        return json;
+    }
+
+    private static boolean persistedRenderingConsumesCompatibility(JsonObject flags) {
+        return boolProperty(flags, "enabled")
+            && (boolProperty(flags, "ctm")
+                || boolProperty(flags, "random")
+                || boolProperty(flags, "natural")
+                || boolProperty(flags, "colors")
+                || boolProperty(flags, "overlays")
+                || boolProperty(flags, "physicalEmissive"));
+    }
+
+    private static boolean materialCompatFlagsMatch(JsonObject live, JsonObject persisted) {
+        for (String key : List.of("enabled", "ctm", "random", "natural", "colors", "overlays",
+            "legacyMcPatcher", "physicalEmissive")) {
+            if (boolProperty(live, key) != boolProperty(persisted, key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return value == null ? fallback : Integer.parseInt(value.trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 
     private static JsonObject aggregateCounts(JsonArray packs) {
