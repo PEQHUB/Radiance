@@ -12,6 +12,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.client.texture.material.ResourceMaterialRegistry.Snapshot;
+import com.radiance.client.texture.material.ResourceMaterialResidencyUploader;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -167,9 +168,13 @@ public final class ResourcePackCompatDiagnostics {
         root.add("materialUniverse", materialUniverseJson(activeSelection, activePacks, activeCtm));
         Snapshot materialSnapshot =
             ResourceMaterialRegistry.publishFromCompatReport(root, TextureArrayBridge.getActiveTextureGeneration());
-        root.add("materialRegistry", materialSnapshot.toSummaryJson());
-        root.add("materialRecordSamples", materialSnapshot.recordsJson(SAMPLE_LIMIT));
         long materialRegistryNanos = System.nanoTime();
+        root.add("materialTextureResidencyUpload",
+            ResourceMaterialResidencyUploader.uploadFromCompatReport(root, materialSnapshot,
+                uploadNativeMaterialTable));
+        root.add("materialRegistry", ResourceMaterialRegistry.activeSummaryJson());
+        root.add("materialRecordSamples", ResourceMaterialRegistry.activeRecordsJson(SAMPLE_LIMIT));
+        long materialResidencyNanos = System.nanoTime();
         root.add("nativeMaterialTableUploadAfterCompatReport",
             nativeMaterialTableUploadJson(materialSnapshot, uploadNativeMaterialTable));
         long nativeUploadNanos = System.nanoTime();
@@ -180,6 +185,7 @@ public final class ResourcePackCompatDiagnostics {
             activePacksNanos,
             aggregateCtmNanos,
             materialRegistryNanos,
+            materialResidencyNanos,
             nativeUploadNanos));
 
         if (writeReport) {
@@ -198,6 +204,7 @@ public final class ResourcePackCompatDiagnostics {
         long activePacksNanos,
         long aggregateCtmNanos,
         long materialRegistryNanos,
+        long materialResidencyNanos,
         long nativeUploadNanos) {
         JsonObject json = new JsonObject();
         json.addProperty("activeSelectionMs", millis(startedNanos, activeSelectionNanos));
@@ -205,7 +212,8 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("activePackOrderingMs", millis(scanPacksNanos, activePacksNanos));
         json.addProperty("ctmDependencyAggregationMs", millis(activePacksNanos, aggregateCtmNanos));
         json.addProperty("materialRegistryPublishMs", millis(aggregateCtmNanos, materialRegistryNanos));
-        json.addProperty("nativeMaterialTableUploadMs", millis(materialRegistryNanos, nativeUploadNanos));
+        json.addProperty("materialTextureResidencyUploadMs", millis(materialRegistryNanos, materialResidencyNanos));
+        json.addProperty("nativeMaterialTableUploadMs", millis(materialResidencyNanos, nativeUploadNanos));
         json.addProperty("totalMaterialCompatReportMs", millis(startedNanos, nativeUploadNanos));
         json.addProperty("asyncSafe", true);
         return json;

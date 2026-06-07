@@ -220,6 +220,9 @@ public final class TextureArrayBridge {
         int heightRangePacked, long generation);
     public static native boolean nativeReceiveTextureRules(long dataPtr, int count, long generation);
     public static native boolean nativeReceiveMaterialTable(long dataPtr, int count, long generation);
+    public static native boolean nativeReceiveMaterialTexturePage(int page, int layerSize,
+        int layerCount, long albedoDataPtr, long specularDataPtr, long normalDataPtr,
+        long flagDataPtr, long generation);
 
     public static void updateAnimatedSprites(int animTick) {
         nativeTickAnimation(animTick, getActiveTextureGeneration());

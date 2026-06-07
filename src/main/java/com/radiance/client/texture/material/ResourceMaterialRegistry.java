@@ -38,9 +38,12 @@ public final class ResourceMaterialRegistry {
     public static final int MATERIAL_FLAG_HAS_NORMAL = 1 << 7;
     public static final int MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE = 1 << 8;
     public static final int MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED = 1 << 9;
+    public static final int MATERIAL_TEXTURE_PAGE_MAX = 16;
 
     private static final AtomicReference<Snapshot> ACTIVE =
         new AtomicReference<>(Snapshot.empty());
+    private static final AtomicReference<Map<Integer, ResidencyHandle>> ACTIVE_RESIDENCY =
+        new AtomicReference<>(Map.of());
 
     private ResourceMaterialRegistry() {
     }
@@ -50,12 +53,14 @@ public final class ResourceMaterialRegistry {
     }
 
     public static Snapshot publishVanillaSprites(List<Identifier> spriteIds, long generation) {
+        ACTIVE_RESIDENCY.set(Map.of());
         Snapshot snapshot = buildVanillaSnapshot(spriteIds, generation, "");
         ACTIVE.set(snapshot);
         return snapshot;
     }
 
     public static Snapshot publishFromCompatReport(JsonObject root, long generation) {
+        ACTIVE_RESIDENCY.set(Map.of());
         Snapshot snapshot = buildFromCompatReport(root, generation);
         ACTIVE.set(snapshot);
         return snapshot;
@@ -84,6 +89,23 @@ public final class ResourceMaterialRegistry {
             return materialIdForSpriteId(spriteId);
         }
         return fallbackSpriteId >= 0 ? materialIdForSpriteId(fallbackSpriteId) : -1;
+    }
+
+    public static int materialIdForCompatCtmAssetPathExact(String assetPath) {
+        if (assetPath == null || assetPath.isBlank()) {
+            return -1;
+        }
+        Snapshot snapshot = ACTIVE.get();
+        Integer materialId = snapshot.keyLookup().get(MaterialKey.compatCtmTile(assetPath).stableKey());
+        return materialId == null ? -1 : materialId;
+    }
+
+    public static void registerResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
+        if (handles == null || handles.isEmpty()) {
+            ACTIVE_RESIDENCY.set(Map.of());
+            return;
+        }
+        ACTIVE_RESIDENCY.set(Map.copyOf(handles));
     }
 
     public static int shaderTextureIdForMaterialId(int materialId) {
@@ -119,7 +141,8 @@ public final class ResourceMaterialRegistry {
         ByteBuffer buffer = ByteBuffer.allocateDirect(count * MATERIAL_ENTRY_SIZE)
             .order(ByteOrder.nativeOrder());
         for (int i = 0; i < count; i++) {
-            writeMaterialEntry(buffer, i, snapshot.records().get(i));
+            ResidencyHandle handle = ACTIVE_RESIDENCY.get().get(snapshot.records().get(i).materialId());
+            writeMaterialEntry(buffer, i, snapshot.records().get(i), handle);
         }
         try {
             return TextureArrayBridge.nativeReceiveMaterialTable(
@@ -253,40 +276,74 @@ public final class ResourceMaterialRegistry {
         return sprite == null ? -1 : TextureArrayBridge.resolveSpriteId(sprite.toString());
     }
 
-    private static void writeMaterialEntry(ByteBuffer buffer, int index, MaterialRecord record) {
+    private static void writeMaterialEntry(ByteBuffer buffer, int index, MaterialRecord record,
+        ResidencyHandle handle) {
         int off = index * MATERIAL_ENTRY_SIZE;
         int baseSprite = Math.max(0, record.baseSpriteId());
         int fallback = Math.max(0, record.fallbackMaterialId());
-        int specLayer = (record.flags() & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? baseSprite : -1;
-        int normalLayer = (record.flags() & MATERIAL_FLAG_HAS_NORMAL) != 0 ? baseSprite : -1;
-        int flagLayer = baseSprite;
+        int flags = effectiveFlags(record, handle);
+        int albedoPage = handle == null ? 0 : handle.albedoPage();
+        int albedoLayer = handle == null ? baseSprite : handle.albedoLayer();
+        int specPage = handle == null ? 0 : handle.specularPage();
+        int specLayer = handle == null
+            ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? baseSprite : -1)
+            : handle.specularLayer();
+        int normalPage = handle == null ? 0 : handle.normalPage();
+        int normalLayer = handle == null
+            ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0 ? baseSprite : -1)
+            : handle.normalLayer();
+        int flagPage = handle == null ? 0 : handle.flagPage();
+        int flagLayer = handle == null ? baseSprite : handle.flagLayer();
+        int heightRangePacked = handle != null && handle.heightRangePacked() >= 0
+            ? handle.heightRangePacked()
+            : record.heightRangePacked();
         buffer.putInt(off, record.materialId());
         buffer.putInt(off + 4, baseSprite);
         buffer.putInt(off + 8, fallback);
-        buffer.putInt(off + 12, record.flags());
-        buffer.putInt(off + 16, 0);
-        buffer.putInt(off + 20, baseSprite);
-        buffer.putInt(off + 24, 0);
+        buffer.putInt(off + 12, flags);
+        buffer.putInt(off + 16, albedoPage);
+        buffer.putInt(off + 20, albedoLayer);
+        buffer.putInt(off + 24, specPage);
         buffer.putInt(off + 28, specLayer);
-        buffer.putInt(off + 32, 0);
+        buffer.putInt(off + 32, normalPage);
         buffer.putInt(off + 36, normalLayer);
-        buffer.putInt(off + 40, 0);
+        buffer.putInt(off + 40, flagPage);
         buffer.putInt(off + 44, flagLayer);
         buffer.putInt(off + 48, -1);
-        buffer.putInt(off + 52, displacementPolicy(record));
-        buffer.putFloat(off + 56, (record.flags() & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0 ? 1.0f : 0.0f);
-        buffer.putInt(off + 60, record.heightRangePacked());
+        buffer.putInt(off + 52, displacementPolicy(flags));
+        buffer.putFloat(off + 56, (flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0 ? 1.0f : 0.0f);
+        buffer.putInt(off + 60, heightRangePacked);
         buffer.putFloat(off + 64, 1.0f);
         buffer.putFloat(off + 68, 1.0f);
         buffer.putFloat(off + 72, 0.0f);
         buffer.putFloat(off + 76, 0.0f);
     }
 
-    private static int displacementPolicy(MaterialRecord record) {
-        if ((record.flags() & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) {
+    private static int effectiveFlags(MaterialRecord record, ResidencyHandle handle) {
+        int flags = record.flags();
+        if (handle != null) {
+            flags |= MATERIAL_FLAG_GPU_RESIDENT | MATERIAL_FLAG_HAS_NORMAL;
+            flags &= ~MATERIAL_FLAG_PENDING_RESIDENCY;
+            flags &= ~MATERIAL_FLAG_FALLBACK;
+            if (handle.hasSpecular()) {
+                flags |= MATERIAL_FLAG_HAS_SPECULAR;
+            }
+            if (handle.displacementEligible() && handle.heightRangePacked() >= 0) {
+                flags |= MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE;
+                flags &= ~MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED;
+            } else if (handle.displacementBlocked()) {
+                flags &= ~MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE;
+                flags |= MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED;
+            }
+        }
+        return flags;
+    }
+
+    private static int displacementPolicy(int flags) {
+        if ((flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) {
             return 1;
         }
-        if ((record.flags() & MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED) != 0) {
+        if ((flags & MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED) != 0) {
             return 2;
         }
         return 0;
@@ -393,6 +450,56 @@ public final class ResourceMaterialRegistry {
             json.addProperty("nativeWrappedSpriteArray", nativeWrappedSpriteArray);
             return json;
         }
+
+        JsonObject toJson(ResidencyHandle handle) {
+            JsonObject json = toJson();
+            if (handle != null) {
+                json.add("residencyHandle", handle.toJson());
+                json.addProperty("effectiveFlags", effectiveFlags(this, handle));
+                json.addProperty("effectiveResidencyState", "renderer_pool_resident");
+            }
+            return json;
+        }
+    }
+
+    public record ResidencyHandle(int albedoPage,
+                                  int albedoLayer,
+                                  int specularPage,
+                                  int specularLayer,
+                                  int normalPage,
+                                  int normalLayer,
+                                  int flagPage,
+                                  int flagLayer,
+                                  int layerSize,
+                                  boolean hasSpecular,
+                                  boolean displacementEligible,
+                                  boolean displacementBlocked,
+                                  int heightRangePacked) {
+        public static ResidencyHandle sameLayer(int page, int layer, int layerSize,
+            boolean hasSpecular, boolean displacementEligible, boolean displacementBlocked,
+            int heightRangePacked) {
+            return new ResidencyHandle(page, layer, page, layer, page, layer, page, layer,
+                layerSize, hasSpecular, displacementEligible, displacementBlocked,
+                heightRangePacked);
+        }
+
+        JsonObject toJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("albedoPage", albedoPage);
+            json.addProperty("albedoLayer", albedoLayer);
+            json.addProperty("specularPage", specularPage);
+            json.addProperty("specularLayer", specularLayer);
+            json.addProperty("normalPage", normalPage);
+            json.addProperty("normalLayer", normalLayer);
+            json.addProperty("flagPage", flagPage);
+            json.addProperty("flagLayer", flagLayer);
+            json.addProperty("layerSize", layerSize);
+            json.addProperty("hasSpecular", hasSpecular);
+            json.addProperty("displacementEligible", displacementEligible);
+            json.addProperty("displacementBlocked", displacementBlocked);
+            json.addProperty("heightRangePacked", heightRangePacked);
+            return json;
+        }
     }
 
     public record Snapshot(long generation,
@@ -421,6 +528,7 @@ public final class ResourceMaterialRegistry {
 
         public JsonObject toSummaryJson() {
             JsonObject json = new JsonObject();
+            Map<Integer, ResidencyHandle> residency = ACTIVE_RESIDENCY.get();
             int gpuResident = 0;
             int pendingResidency = 0;
             int fallback = 0;
@@ -429,14 +537,15 @@ public final class ResourceMaterialRegistry {
             int compatVirtualResident = 0;
             int displacementEligible = 0;
             for (MaterialRecord record : records) {
-                if ((record.flags() & MATERIAL_FLAG_GPU_RESIDENT) != 0) gpuResident++;
-                if ((record.flags() & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) pendingResidency++;
-                if ((record.flags() & MATERIAL_FLAG_FALLBACK) != 0) fallback++;
-                if ((record.flags() & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) displacementEligible++;
-                if ((record.flags() & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0) {
+                int flags = effectiveFlags(record, residency.get(record.materialId()));
+                if ((flags & MATERIAL_FLAG_GPU_RESIDENT) != 0) gpuResident++;
+                if ((flags & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) pendingResidency++;
+                if ((flags & MATERIAL_FLAG_FALLBACK) != 0) fallback++;
+                if ((flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) displacementEligible++;
+                if ((flags & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0) {
                     compatVirtual++;
-                    if ((record.flags() & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) compatVirtualPending++;
-                    if ((record.flags() & MATERIAL_FLAG_GPU_RESIDENT) != 0) compatVirtualResident++;
+                    if ((flags & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) compatVirtualPending++;
+                    if ((flags & MATERIAL_FLAG_GPU_RESIDENT) != 0) compatVirtualResident++;
                 }
             }
             json.addProperty("generation", generation);
@@ -454,6 +563,7 @@ public final class ResourceMaterialRegistry {
             json.addProperty("compatVirtualMaterialCount", compatVirtual);
             json.addProperty("compatVirtualPendingResidencyCount", compatVirtualPending);
             json.addProperty("compatVirtualGpuResidentCount", compatVirtualResident);
+            json.addProperty("residentMaterialHandleCount", residency.size());
             json.addProperty("displacementEligibleMaterialCount", displacementEligible);
             json.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
             json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
@@ -461,7 +571,7 @@ public final class ResourceMaterialRegistry {
                 AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
             json.addProperty("vanillaIdsAliasSpriteIds", true);
             json.addProperty("compatIdsFallbackUntilRendererPoolResident", true);
-            json.addProperty("compatTextureResidencyBackend", "pending_renderer_owned_material_pools");
+            json.addProperty("compatTextureResidencyBackend", "renderer_owned_material_pages");
             json.addProperty("normalGameplayLoadingMode", "visible_first_progressive_residency");
             json.addProperty("fullPreloadAcceptanceMode", "diagnostic_required_zero_fallback_after_pool_backend");
             return json;
@@ -469,9 +579,11 @@ public final class ResourceMaterialRegistry {
 
         public JsonArray recordsJson(int limit) {
             JsonArray array = new JsonArray();
+            Map<Integer, ResidencyHandle> residency = ACTIVE_RESIDENCY.get();
             int count = Math.min(Math.max(0, limit), records.size());
             for (int i = 0; i < count; i++) {
-                array.add(records.get(i).toJson());
+                MaterialRecord record = records.get(i);
+                array.add(record.toJson(residency.get(record.materialId())));
             }
             return array;
         }

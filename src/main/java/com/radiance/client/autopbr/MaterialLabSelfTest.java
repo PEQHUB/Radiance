@@ -1668,6 +1668,19 @@ public final class MaterialLabSelfTest {
                 "material registry should report pending residency for present virtual CTM records");
             expect(materialSummary.get("fallbackMaterialCount").getAsInt() == 1,
                 "material registry should count virtual CTM fallback records");
+            ResourceMaterialRegistry.registerResidentMaterialHandles(Map.of(
+                virtualMaterialId,
+                ResourceMaterialRegistry.ResidencyHandle.sameLayer(
+                    1, 7, 128, true, true, false, 16 | (240 << 8))));
+            JsonObject residentSummary = ResourceMaterialRegistry.activeSummaryJson();
+            expect(residentSummary.get("compatVirtualPendingResidencyCount").getAsInt() == 0,
+                "resident virtual CTM material should clear pending residency");
+            expect(residentSummary.get("fallbackMaterialCount").getAsInt() == 0,
+                "resident virtual CTM material should stop counting as a material fallback");
+            expect(residentSummary.get("compatVirtualGpuResidentCount").getAsInt() == 1,
+                "resident virtual CTM material should count as GPU resident");
+            expect(residentSummary.get("displacementEligibleMaterialCount").getAsInt() >= 1,
+                "resident virtual CTM normal-alpha range should make displacement observable");
 
             FakeResourceManager manager = new FakeResourceManager();
             manager.add("minecraft:optifine/ctm/stone/stone.properties",
@@ -1686,6 +1699,7 @@ public final class MaterialLabSelfTest {
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
+            ResourceMaterialRegistry.registerResidentMaterialHandles(Map.of());
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);
