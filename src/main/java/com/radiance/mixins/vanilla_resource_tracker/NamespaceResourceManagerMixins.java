@@ -1,10 +1,13 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.radiance.client.texture.IdentifierInputStream;
+import com.radiance.client.texture.compat.ResourcePackModelFallback;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 import net.minecraft.resource.InputSupplier;
 import net.minecraft.resource.NamespaceResourceManager;
@@ -23,9 +26,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class NamespaceResourceManagerMixins {
 
     @Shadow
+    public abstract List<Resource> getAllResources(Identifier id);
+
+    @Shadow
     private static InputSupplier<InputStream> wrapForDebug(Identifier id, ResourcePack pack,
         InputSupplier<InputStream> supplier) {
         return null;
+    }
+
+    @Inject(method = "getResource", at = @At("HEAD"), cancellable = true)
+    private void fallbackMalformedModelJson(Identifier id,
+        CallbackInfoReturnable<Optional<Resource>> cir) {
+        if (!ResourcePackModelFallback.isModelJson(id)) {
+            return;
+        }
+        Optional<Resource> fallback = ResourcePackModelFallback.fallbackForMalformedTopModel(
+            id, this.getAllResources(id));
+        fallback.ifPresent(resource -> cir.setReturnValue(Optional.of(resource)));
     }
 
     @Inject(method = "createResource(Lnet/minecraft/resource/ResourcePack;Lnet/minecraft/util/Identifier;Lnet/minecraft/resource/InputSupplier;Lnet/minecraft/resource/InputSupplier;)Lnet/minecraft/resource/Resource;", at = @At(value = "HEAD"),

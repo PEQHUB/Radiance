@@ -21,6 +21,7 @@ import com.radiance.client.texture.compat.ResourcePackCompatAtlasSource;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
+import com.radiance.client.texture.compat.ResourcePackModelFallback;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
@@ -89,6 +90,7 @@ public final class MaterialLabSelfTest {
         textureNameFilterTreatsEmissiveAsAuxiliary();
         textureArrayLayerSizeUsesLargestSprite();
         missingSpriteFallbackUsesRenderableBlockSprite();
+        malformedModelJsonFallsBackToLowerPriorityResource();
         materialCompatFlagsDefaultEnabled();
         materialCompatScannerRecognizesCoreFeatures();
         materialCompatRunScanMarksActivePacksAndParsesRecords();
@@ -677,6 +679,54 @@ public final class MaterialLabSelfTest {
         } finally {
             TextureArrayBridge.setSortedSpriteIds(List.of(SPRITE, Identifier.ofVanilla("block/glass")));
         }
+    }
+
+    private static void malformedModelJsonFallsBackToLowerPriorityResource() {
+        Identifier modelId = Identifier.ofVanilla("models/block/oak_leaves.json");
+        Resource validLowerModel = resource("""
+            {
+              "parent": "minecraft:block/cube_all",
+              "textures": {
+                "all": "minecraft:block/oak_leaves"
+              }
+            }
+            """);
+        Resource malformedTopModel = resource("""
+            {
+              "parent": "minecraft:block/block",
+              "textures": {
+                "all": "minecraft:block/oak_leaves"
+              },
+              "elements": [
+                {
+                  "from": [0, 0, 0],
+                  "to": [16, 16, 16],
+                  "rotation": {
+                    "origin": [8, 8, 8],
+                    "angle": -35
+                  },
+                  "faces": {
+                    "north": {"texture": "#all"}
+                  }
+                }
+              ]
+            }
+            """);
+
+        Optional<Resource> fallback = ResourcePackModelFallback.selectFallbackForTest(
+            modelId, List.of(validLowerModel, malformedTopModel));
+        expect(fallback.isPresent(), "malformed high-priority model should use valid lower-priority model");
+        expect(readResourceString(fallback.get()).contains("cube_all"),
+            "model fallback should return the lower-priority valid resource");
+
+        Optional<Resource> unchanged = ResourcePackModelFallback.selectFallbackForTest(
+            modelId, List.of(validLowerModel, validLowerModel));
+        expect(unchanged.isEmpty(), "valid high-priority model should not be overridden");
+
+        Optional<Resource> nonModel = ResourcePackModelFallback.selectFallbackForTest(
+            Identifier.ofVanilla("textures/block/oak_leaves.png"),
+            List.of(validLowerModel, malformedTopModel));
+        expect(nonModel.isEmpty(), "model fallback must not affect texture resources");
     }
 
     private static void materialCompatFlagsDefaultEnabled() {
@@ -1829,6 +1879,20 @@ public final class MaterialLabSelfTest {
 
     private static Resource resource(byte[] bytes) {
         return new Resource(null, () -> new ByteArrayInputStream(bytes));
+    }
+
+    private static String readResourceString(Resource resource) {
+        try (var reader = resource.getReader()) {
+            StringBuilder builder = new StringBuilder();
+            char[] buffer = new char[256];
+            int read;
+            while ((read = reader.read(buffer)) >= 0) {
+                builder.append(buffer, 0, read);
+            }
+            return builder.toString();
+        } catch (IOException e) {
+            throw new AssertionError("failed to read resource fixture", e);
+        }
     }
 
     private static byte[] pngBytesForTest(int... argbs) {
