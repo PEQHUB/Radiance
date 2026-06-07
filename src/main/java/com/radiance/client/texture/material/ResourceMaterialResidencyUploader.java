@@ -75,10 +75,15 @@ public final class ResourceMaterialResidencyUploader {
         int bytesPerLayer = layerSize * layerSize * 4;
         int pageCapacity = pageCapacity(bytesPerLayer);
         int materialCapacity = pageCapacity * PAGE_BUDGET;
+        int pagesRequired = pagesRequired(items.size(), pageCapacity);
         json.addProperty("attempted", true);
         json.addProperty("layerSize", layerSize);
         json.addProperty("bytesPerLayer", bytesPerLayer);
         json.addProperty("pageCapacity", pageCapacity);
+        json.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
+        json.addProperty("pagesRequired", pagesRequired);
+        json.addProperty("percentOfPageBudgetRequired",
+            PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
         json.addProperty("materialCapacity", materialCapacity);
         json.addProperty("candidateMaterialCount", items.size());
 
@@ -95,6 +100,17 @@ public final class ResourceMaterialResidencyUploader {
         LOGGER.info("[MaterialCompat] Material page upload starting: {} candidate materials, layerSize={}, "
                 + "pageCapacity={}, pageBudget={}, generation={}",
             items.size(), layerSize, pageCapacity, PAGE_BUDGET, generation);
+        JsonObject startEvent = new JsonObject();
+        startEvent.addProperty("candidateMaterialCount", items.size());
+        startEvent.addProperty("layerSize", layerSize);
+        startEvent.addProperty("pageCapacity", pageCapacity);
+        startEvent.addProperty("pageBudget", PAGE_BUDGET);
+        startEvent.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
+        startEvent.addProperty("pagesRequired", pagesRequired);
+        startEvent.addProperty("percentOfPageBudgetRequired",
+            PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
+        startEvent.addProperty("materialCapacity", materialCapacity);
+        ResourceMaterialRuntimeStatus.write("residencyStarted", generation, startEvent);
 
         ByteBuffer defaultNormal = defaultNormalLayer(bytesPerLayer);
         long defaultNormalPtr = memAddress(defaultNormal);
@@ -165,10 +181,14 @@ public final class ResourceMaterialResidencyUploader {
                 ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
                 boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
                 pageReport.addProperty("materialTableUploaded", materialTableUploaded);
+                writePageStatus(generation, "residencyPageUploaded", page, layer, uploadedPages,
+                    handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired);
                 LOGGER.info("[MaterialCompat] Material page {} uploaded: {} layers, {} total resident handles",
                     page, layer, handles.size());
             } else {
                 nativePageFailures++;
+                writePageStatus(generation, "residencyPageFailed", page, layer, uploadedPages,
+                    handles.size(), items.size(), nextItem, false, pagesRequired);
                 LOGGER.warn("[MaterialCompat] Material page {} upload failed: {} layers", page, layer);
             }
             pageReports.add(pageReport);
@@ -184,9 +204,34 @@ public final class ResourceMaterialResidencyUploader {
         json.addProperty("displacementBlockedMaterials", displacementBlocked);
         json.addProperty("deferredCandidateMaterials", Math.max(0, items.size() - nextItem));
         json.add("pages", pageReports);
+        ResourceMaterialRuntimeStatus.write("residencyUploadFinished", generation, json);
         LOGGER.info("[MaterialCompat] Material page upload: {} materials across {} pages, {} deferred",
             handles.size(), uploadedPages, Math.max(0, items.size() - nextItem));
         return json;
+    }
+
+    private static int pagesRequired(int materialCount, int pageCapacity) {
+        if (materialCount <= 0 || pageCapacity <= 0) {
+            return 0;
+        }
+        return (materialCount + pageCapacity - 1) / pageCapacity;
+    }
+
+    private static void writePageStatus(long generation, String status, int page, int layerCount,
+        int uploadedPages, int uploadedMaterials, int candidateMaterialCount, int nextItem,
+        boolean materialTableUploaded, int pagesRequired) {
+        JsonObject event = new JsonObject();
+        event.addProperty("page", page);
+        event.addProperty("layerCount", layerCount);
+        event.addProperty("uploadedPages", uploadedPages);
+        event.addProperty("uploadedMaterials", uploadedMaterials);
+        event.addProperty("candidateMaterialCount", candidateMaterialCount);
+        event.addProperty("remainingCandidateMaterials", Math.max(0, candidateMaterialCount - nextItem));
+        event.addProperty("pageBudget", PAGE_BUDGET);
+        event.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
+        event.addProperty("pagesRequired", pagesRequired);
+        event.addProperty("materialTableUploaded", materialTableUploaded);
+        ResourceMaterialRuntimeStatus.write(status, generation, event);
     }
 
     private static List<UploadItem> collectUploadItems(JsonObject root) {

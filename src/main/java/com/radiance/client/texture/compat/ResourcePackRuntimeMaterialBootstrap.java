@@ -6,6 +6,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.client.texture.material.ResourceMaterialResidencyUploader;
+import com.radiance.client.texture.material.ResourceMaterialRuntimeStatus;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Comparator;
@@ -59,6 +60,12 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         RuntimeRoot root = buildRoot(resourceManager, generation);
         if (root.dependencyCount() <= 0) {
             PUBLISHED_GENERATION.compareAndSet(PUBLISHED_GENERATION.get(), generation);
+            JsonObject statusEvent = new JsonObject();
+            statusEvent.addProperty("dependencyCount", 0);
+            statusEvent.addProperty("presentDependencyCount", root.presentDependencyCount());
+            statusEvent.addProperty("propertyCount", root.propertyCount());
+            statusEvent.addProperty("reason", "no_ctm_dependencies");
+            ResourceMaterialRuntimeStatus.write("bootstrapSkipped", generation, statusEvent);
             return new BootstrapResult(true, false, generation, 0,
                 root.presentDependencyCount(), root.propertyCount(), "no_ctm_dependencies", 0.0,
                 false);
@@ -69,6 +76,14 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         boolean tableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
         PUBLISHED_GENERATION.set(generation);
         double ms = millis(startedNanos);
+        JsonObject statusEvent = new JsonObject();
+        statusEvent.addProperty("dependencyCount", root.dependencyCount());
+        statusEvent.addProperty("presentDependencyCount", root.presentDependencyCount());
+        statusEvent.addProperty("propertyCount", root.propertyCount());
+        statusEvent.addProperty("elapsedMs", ms);
+        statusEvent.addProperty("materialTableUploaded", tableUploaded);
+        statusEvent.addProperty("packStackHash", packStackHash(generation, root.dependencyCount()));
+        ResourceMaterialRuntimeStatus.write("bootstrapPublished", generation, statusEvent);
         LOGGER.info("[MaterialCompat] Runtime material bootstrap published {} CTM materials from {} property files "
                 + "for generation {} in {} ms (tableUploaded={})",
             root.dependencyCount(), root.propertyCount(), generation, String.format(Locale.ROOT, "%.2f", ms),
@@ -279,12 +294,20 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                     ResourceMaterialResidencyUploader.uploadFromCompatReport(root, snapshot, true);
                 boolean tableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
                 int uploadedMaterials = intProperty(upload, "uploadedMaterials");
+                JsonObject statusEvent = new JsonObject();
+                statusEvent.add("upload", upload.deepCopy());
+                statusEvent.addProperty("materialTableUploaded", tableUploaded);
+                statusEvent.addProperty("totalMs", millis(startedNanos));
+                ResourceMaterialRuntimeStatus.write("residencyComplete", generation, statusEvent);
                 LOGGER.info("[MaterialCompat] Runtime material residency complete for generation {}: "
                         + "{} materials resident, tableUploaded={}, totalMs={}",
                     generation, uploadedMaterials, tableUploaded,
                     String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
                 scheduleChunkRefresh();
             } catch (Throwable t) {
+                JsonObject statusEvent = new JsonObject();
+                statusEvent.addProperty("error", t.toString());
+                ResourceMaterialRuntimeStatus.write("residencyFailed", generation, statusEvent);
                 LOGGER.warn("[MaterialCompat] Runtime material residency failed for generation {}: {}",
                     generation, t.toString());
             }

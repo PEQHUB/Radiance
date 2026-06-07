@@ -545,20 +545,26 @@ public final class ResourceMaterialRegistry {
             int gpuResident = 0;
             int pendingResidency = 0;
             int fallback = 0;
+            int fallbackPointer = 0;
             int compatVirtual = 0;
             int compatVirtualPending = 0;
             int compatVirtualResident = 0;
+            int compatVirtualFallback = 0;
             int displacementEligible = 0;
             for (MaterialRecord record : records) {
                 int flags = effectiveFlags(record, residency.get(record.materialId()));
                 if ((flags & MATERIAL_FLAG_GPU_RESIDENT) != 0) gpuResident++;
                 if ((flags & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) pendingResidency++;
                 if ((flags & MATERIAL_FLAG_FALLBACK) != 0) fallback++;
+                if (record.fallbackMaterialId() >= 0 && record.fallbackMaterialId() != record.materialId()) {
+                    fallbackPointer++;
+                }
                 if ((flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) displacementEligible++;
                 if ((flags & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0) {
                     compatVirtual++;
                     if ((flags & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) compatVirtualPending++;
                     if ((flags & MATERIAL_FLAG_GPU_RESIDENT) != 0) compatVirtualResident++;
+                    if ((flags & MATERIAL_FLAG_FALLBACK) != 0) compatVirtualFallback++;
                 }
             }
             json.addProperty("generation", generation);
@@ -573,9 +579,12 @@ public final class ResourceMaterialRegistry {
             json.addProperty("gpuResidentMaterialCount", gpuResident);
             json.addProperty("pendingResidencyMaterialCount", pendingResidency);
             json.addProperty("fallbackMaterialCount", fallback);
+            json.addProperty("materialsWithFallbackPointer", fallbackPointer);
+            json.addProperty("materialsCurrentlyUsingFallback", fallback);
             json.addProperty("compatVirtualMaterialCount", compatVirtual);
             json.addProperty("compatVirtualPendingResidencyCount", compatVirtualPending);
             json.addProperty("compatVirtualGpuResidentCount", compatVirtualResident);
+            json.addProperty("compatVirtualCurrentlyUsingFallbackCount", compatVirtualFallback);
             json.addProperty("residentMaterialHandleCount", residency.size());
             json.addProperty("displacementEligibleMaterialCount", displacementEligible);
             json.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
