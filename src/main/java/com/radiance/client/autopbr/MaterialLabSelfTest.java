@@ -1685,6 +1685,16 @@ public final class MaterialLabSelfTest {
         expect(ResourcePackBlockLayerResolver.resolveBlockAlphaModeForTest(blockProperties, "minecraft:gold_block")
                 == -1,
             "unlisted blocks should leave the vanilla render-layer alpha mode alone");
+        expect(ResourcePackBlockLayerResolver.resolveMergedBlockAlphaModeForTest(
+                "layer.solid=glass\nlayer.cutout=oak_leaves",
+                "layer.translucent=glass\nlayer.cutout_mipped=ice",
+                "minecraft:glass") == PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT,
+            "active resource-pack block.properties should override shader-pack block layer defaults");
+        expect(ResourcePackBlockLayerResolver.resolveMergedBlockAlphaModeForTest(
+                "layer.solid=glass\nlayer.cutout=oak_leaves",
+                "layer.translucent=glass\nlayer.cutout_mipped=ice",
+                "minecraft:oak_leaves") == PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT,
+            "shader-pack block layer defaults should still apply when resource packs do not override them");
     }
 
     private static void colorPropertiesResolverParsesFlatBlockPalettes() {

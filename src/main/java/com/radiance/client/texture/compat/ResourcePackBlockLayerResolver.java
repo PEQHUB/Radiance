@@ -4,13 +4,17 @@ import com.radiance.client.RadianceClient;
 import com.radiance.client.option.Options;
 import com.radiance.client.pipeline.Pipeline;
 import com.radiance.client.vertex.PBRVertexFormatElements;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -18,7 +22,10 @@ import java.util.Properties;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import net.minecraft.block.BlockState;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.registry.Registries;
+import net.minecraft.resource.Resource;
+import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -50,43 +57,66 @@ public final class ResourcePackBlockLayerResolver {
         return parse(blockPropertiesText).alphaMode(normalizeBlockToken(blockId));
     }
 
+    public static int resolveMergedBlockAlphaModeForTest(String shaderBlockPropertiesText,
+        String resourcePackBlockPropertiesText, String blockId) {
+        return parseAll(List.of(shaderBlockPropertiesText, resourcePackBlockPropertiesText))
+            .alphaMode(normalizeBlockToken(blockId));
+    }
+
     public static int ruleCountForTest(String blockPropertiesText) {
         return parse(blockPropertiesText).rules().size();
     }
 
     private static LayerIndex activeIndex() {
+        ResourceManager resourceManager = currentResourceManager();
         Path path = activeShaderPackPath();
-        String key = cacheKey(path);
+        String key = cacheKey(path, resourceManager);
         Cache local = cache;
         if (Objects.equals(local.key(), key)) {
             return local.index();
         }
-        String text = readBlockProperties(path);
-        LayerIndex next = parse(text);
+        List<String> texts = new ArrayList<>();
+        texts.add(readBlockProperties(path));
+        texts.addAll(readResourcePackBlockProperties(resourceManager));
+        LayerIndex next = parseAll(texts);
         cache = new Cache(key, next);
         if (!next.rules().isEmpty()) {
-            LOGGER.info("[MaterialCompat] Shader block layer resolver compiled {} layer entries from {}",
+            LOGGER.info("[MaterialCompat] Block layer resolver compiled {} layer entries from {}",
                 next.rules().size(), key);
         }
         return next;
     }
 
-    private static String cacheKey(@Nullable Path shaderPackPath) {
-        if (shaderPackPath == null) {
-            return "";
-        }
-        Path watched = shaderPackPath;
-        if (Files.isDirectory(shaderPackPath)) {
-            watched = shaderPackPath.resolve("shaders").resolve("block.properties");
+    private static String cacheKey(@Nullable Path shaderPackPath, @Nullable ResourceManager resourceManager) {
+        StringBuilder key = new StringBuilder();
+        key.append(shaderPackPath == null ? "" : shaderPackPath.toString());
+        Path watched = null;
+        if (shaderPackPath != null) {
+            watched = Files.isDirectory(shaderPackPath)
+                ? shaderPackPath.resolve("shaders").resolve("block.properties")
+                : shaderPackPath;
         }
         long modified = 0L;
         try {
-            if (Files.exists(watched)) {
+            if (watched != null && Files.exists(watched)) {
                 modified = Files.getLastModifiedTime(watched).toMillis();
             }
         } catch (IOException ignored) {
         }
-        return shaderPackPath + "|" + modified;
+        key.append("|").append(modified);
+        key.append("|rm=").append(resourceManager == null ? 0 : System.identityHashCode(resourceManager));
+        key.append("|tex=").append(TextureArrayBridge.getActiveTextureGeneration());
+        return key.toString();
+    }
+
+    @Nullable
+    private static ResourceManager currentResourceManager() {
+        try {
+            MinecraftClient client = MinecraftClient.getInstance();
+            return client == null ? null : client.getResourceManager();
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     @Nullable
@@ -132,23 +162,72 @@ public final class ResourcePackBlockLayerResolver {
         }
     }
 
+    private static List<String> readResourcePackBlockProperties(@Nullable ResourceManager resourceManager) {
+        if (resourceManager == null) {
+            return List.of();
+        }
+        ArrayList<String> texts = new ArrayList<>();
+        readAllResources(resourceManager, Identifier.ofVanilla("optifine/block.properties"), texts);
+        if (Options.materialCompatLegacyMcPatcherEnabled) {
+            readAllResources(resourceManager, Identifier.ofVanilla("mcpatcher/block.properties"), texts);
+        }
+        return texts;
+    }
+
+    private static void readAllResources(ResourceManager resourceManager, Identifier id, List<String> out) {
+        try {
+            for (Resource resource : resourceManager.getAllResources(id)) {
+                String text = readResourceText(resource);
+                if (!text.isBlank()) {
+                    out.add(text);
+                }
+            }
+        } catch (IOException e) {
+            LOGGER.warn("[MaterialCompat] Failed to read {}", id, e);
+        }
+    }
+
+    private static String readResourceText(Resource resource) throws IOException {
+        try (BufferedReader reader = resource.getReader()) {
+            StringBuilder out = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                out.append(line).append('\n');
+            }
+            return out.toString();
+        }
+    }
+
     private static LayerIndex parse(String text) {
-        if (text == null || text.isBlank()) {
+        return parseAll(List.of(text));
+    }
+
+    private static LayerIndex parseAll(List<String> texts) {
+        if (texts == null || texts.isEmpty()) {
             return LayerIndex.empty();
+        }
+        Map<String, Integer> rules = new HashMap<>();
+        for (String text : texts) {
+            parseInto(rules, text);
+        }
+        return rules.isEmpty() ? LayerIndex.empty() : new LayerIndex(Map.copyOf(rules));
+    }
+
+    private static void parseInto(Map<String, Integer> rules, String text) {
+        if (text == null || text.isBlank()) {
+            return;
         }
         Properties props = new Properties();
         try {
             props.load(new StringReader(text));
         } catch (IOException e) {
-            return LayerIndex.empty();
+            return;
         }
 
-        Map<String, Integer> rules = new HashMap<>();
         addLayer(rules, props.getProperty("layer.solid"), PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE);
         addLayer(rules, props.getProperty("layer.cutout"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
         addLayer(rules, props.getProperty("layer.cutout_mipped"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
         addLayer(rules, props.getProperty("layer.translucent"), PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT);
-        return rules.isEmpty() ? LayerIndex.empty() : new LayerIndex(Map.copyOf(rules));
     }
 
     private static void addLayer(Map<String, Integer> rules, @Nullable String raw, int alphaMode) {
