@@ -2,9 +2,11 @@ package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
 import com.radiance.client.proxy.vulkan.TextureProxy;
+import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -35,7 +37,7 @@ public enum AuxiliaryTextures {
         String subfolderPath = sameDirPath.replace("textures/", "textures/specular/");
         Identifier subfolderId = Identifier.of(namespace, subfolderPath);
 
-        return List.of(sameDirId, subfolderId);
+        return withCtmSidecarCandidate(identifier, "_s", sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getSpecularNativeImage,
         INativeImageExt::neoVoxelRT$setSpecularNativeImage,
         INativeImageExt::neoVoxelRT$getSpecularUploadedLevelsMask,
@@ -58,7 +60,7 @@ public enum AuxiliaryTextures {
         String subfolderPath = sameDirPath.replace("textures/", "textures/normal/");
         Identifier subfolderId = Identifier.of(namespace, subfolderPath);
 
-        return List.of(sameDirId, subfolderId);
+        return withCtmSidecarCandidate(identifier, "_n", sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getNormalNativeImage,
         INativeImageExt::neoVoxelRT$setNormalNativeImage,
         INativeImageExt::neoVoxelRT$getNormalUploadedLevelsMask,
@@ -82,7 +84,7 @@ public enum AuxiliaryTextures {
         String subfolderPath = sameDirPath.replace("textures/", "textures/flag/");
         Identifier subfolderId = Identifier.of(namespace, subfolderPath);
 
-        return List.of(sameDirId, subfolderId);
+        return withCtmSidecarCandidate(identifier, "_f", sameDirId, subfolderId);
     }, INativeImageExt::neoVoxelRT$getFlagNativeImage,
         INativeImageExt::neoVoxelRT$setFlagNativeImage,
         INativeImageExt::neoVoxelRT$getFlagUploadedLevelsMask,
@@ -99,6 +101,22 @@ public enum AuxiliaryTextures {
     private final IntSetter uploadedLevelsMaskSetter;
     private final String name;
     private final int[] GLIDMapping;
+
+    private static List<Identifier> withCtmSidecarCandidate(Identifier identifier, String suffix,
+        Identifier... fallbackIds) {
+        Identifier ctmSidecar = ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(identifier, suffix);
+        if (ctmSidecar == null) {
+            return List.of(fallbackIds);
+        }
+        ArrayList<Identifier> candidates = new ArrayList<>(fallbackIds.length + 1);
+        candidates.add(ctmSidecar);
+        for (Identifier fallback : fallbackIds) {
+            if (!ctmSidecar.equals(fallback)) {
+                candidates.add(fallback);
+            }
+        }
+        return List.copyOf(candidates);
+    }
 
     AuxiliaryTextures(String name, String suffix,
         IdentifierCandidateProvider identifierCandidateProvider, Getter getter, Setter setter,

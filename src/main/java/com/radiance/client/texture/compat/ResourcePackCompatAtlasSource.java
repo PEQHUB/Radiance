@@ -58,6 +58,7 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
 
     private static AdmissionSummary admitCtmSprites(ResourceManager resourceManager, SpriteRegions regions,
         int limit) {
+        ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
         if (resourceManager == null || regions == null) {
             return AdmissionSummary.empty();
         }
@@ -150,6 +151,8 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
             Identifier baseSpriteId =
                 Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(baseAssetPath));
             ResourcePackEmissiveTextureResolver.registerOverlaySprite(spriteId, baseSpriteId);
+        } else if (!emissive) {
+            ResourcePackCompatCtmTiles.registerCtmSpriteAssetPath(spriteId, assetPath);
         }
         regions.add(spriteId, resource.get());
         counters.added++;

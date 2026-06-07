@@ -1241,7 +1241,11 @@ public final class MaterialLabSelfTest {
                 "assets/minecraft/optifine/ctm/glass/1.png"));
             expect(expected != null && regions.resources.containsKey(expected),
                 "CTM atlas source should use the utility synthetic sprite id");
+            expect(Identifier.ofVanilla("optifine/ctm/glass/1_n.png").equals(
+                    ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(expected, "_n")),
+                "admitted synthetic CTM sprites should resolve real pack-authored normal sidecars");
         } finally {
+            ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
             Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
         }
     }

@@ -5,12 +5,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.CRC32;
 import net.minecraft.util.Identifier;
 
 public final class ResourcePackCompatCtmTiles {
     private static final int TILE_EXPANSION_LIMIT = 512;
+    private static final Map<Identifier, String> REGISTERED_CTM_SPRITE_ASSET_PATHS =
+        new ConcurrentHashMap<>();
 
     private ResourcePackCompatCtmTiles() {
     }
@@ -164,6 +168,32 @@ public final class ResourcePackCompatCtmTiles {
         return path.endsWith(".png")
             && !ResourcePackTextureNames.hasPbrAuxiliarySuffix(path)
             && (path.startsWith("optifine/ctm/") || path.startsWith("mcpatcher/ctm/"));
+    }
+
+    public static void clearRegisteredCtmSpriteAssetPaths() {
+        REGISTERED_CTM_SPRITE_ASSET_PATHS.clear();
+    }
+
+    public static void registerCtmSpriteAssetPath(Identifier spriteId, String assetPath) {
+        if (spriteId == null || assetPath == null || assetPath.isBlank()) {
+            return;
+        }
+        String normalized = normalize(assetPath);
+        if (!requiresAtlasAdmission(normalized)) {
+            return;
+        }
+        REGISTERED_CTM_SPRITE_ASSET_PATHS.put(spriteId, normalized);
+    }
+
+    public static Identifier ctmSidecarResourceIdentifier(Identifier spriteId, String suffix) {
+        if (spriteId == null || suffix == null || suffix.isBlank()) {
+            return null;
+        }
+        String assetPath = REGISTERED_CTM_SPRITE_ASSET_PATHS.get(spriteId);
+        if (assetPath == null || assetPath.isBlank()) {
+            return null;
+        }
+        return resourceIdentifierFromAssetPath(sidecarPath(assetPath, suffix));
     }
 
     public static String sidecarPath(String assetPath, String suffix) {
