@@ -119,6 +119,7 @@ public final class MaterialLabSelfTest {
         ctmAtlasSourceCollectsPresentTiles();
         emissiveTextureResolverMapsSuffixesAndAtlasAdmission();
         textureVariantResolverRegistryReportsCompiledRules();
+        textureVariantResolverHonorsDeterministicRulePrecedence();
         textureVariantResolverSelectsFixedAndRandomSprites();
         textureVariantResolverRespectsBiomeAndHeightPredicates();
         textureVariantResolverSelectsRepeatSprites();
@@ -1957,6 +1958,13 @@ public final class MaterialLabSelfTest {
                 "variant registry should expose a stable schema");
             expect(registry.get("ruleCount").getAsInt() == 3,
                 "variant registry should report compiled rule count");
+            JsonObject precedencePolicy = registry.getAsJsonObject("precedencePolicy");
+            expect("resource_manager_effective_resource".equals(precedencePolicy.get("samePath").getAsString()),
+                "variant registry should document same-path resource-manager precedence");
+            expect("property_id_ascending_within_root".equals(precedencePolicy.get("ruleOrder").getAsString()),
+                "variant registry should document property path rule ordering");
+            expect("first_enabled_matching_rule".equals(precedencePolicy.get("nonOverlayResolution").getAsString()),
+                "variant registry should document first-match non-overlay resolution");
             expect(registry.getAsJsonObject("methodCounts").get("fixed").getAsInt() == 1,
                 "variant registry should count fixed rules");
             expect(registry.getAsJsonObject("methodCounts").get("random").getAsInt() == 1,
@@ -1966,6 +1974,12 @@ public final class MaterialLabSelfTest {
 
             JsonArray rules = registry.getAsJsonArray("rules");
             JsonObject fixedRule = ruleWithMethod(rules, "fixed");
+            expect("optifine/ctm".equals(fixedRule.get("root").getAsString()),
+                "variant registry should expose rule root");
+            expect("unknown".equals(fixedRule.get("sourcePack").getAsString()),
+                "variant registry should expose unknown source pack for null-pack fixtures");
+            expect(fixedRule.get("precedenceOrdinal").getAsInt() == fixedRule.get("ordinal").getAsInt(),
+                "variant registry should expose stable rule precedence ordinal");
             expect(fixedRule.get("enabledByOptions").getAsBoolean(),
                 "fixed rule should report option-enabled status");
             expect("tile_as_block".equals(fixedRule.get("connectMode").getAsString()),
@@ -2004,6 +2018,60 @@ public final class MaterialLabSelfTest {
             expect(overlayRule.getAsJsonObject("heights").getAsJsonArray("ranges")
                     .get(0).getAsJsonObject().get("min").getAsInt() == 60,
                 "variant registry should expose height predicates");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverHonorsDeterministicRulePrecedence() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier first = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/precedence/first.png"));
+            Identifier second = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/precedence/second.png"));
+            expect(first != null && second != null,
+                "variant precedence fixture identifiers should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, first, second));
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+            Options.materialCompatRandomEnabled = true;
+            Options.materialCompatOverlaysEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/precedence/10-second.properties",
+                "method=fixed\nmatchTiles=stone\ntiles=second\n".getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/ctm/precedence/00-first.properties",
+                "method=fixed\nmatchTiles=stone\ntiles=first\n".getBytes(StandardCharsets.UTF_8));
+
+            ResourcePackTextureVariantResolver.ResolverIndex index =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            expect(index.ruleCountForTest() == 2,
+                "variant precedence fixture should compile both matching rules");
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            int firstId = TextureArrayBridge.resolveSpriteId(first.toString());
+            expect(index.resolveForTest(stone, stoneId, new BlockPos(2, 64, 2), Direction.NORTH) == firstId,
+                "variant resolver should use the first matching rule after explicit property-id ordering");
+
+            JsonObject registry = JsonParser.parseString(
+                ResourcePackTextureVariantResolver.registryJsonForTest(manager, false, 8)).getAsJsonObject();
+            JsonArray rules = registry.getAsJsonArray("rules");
+            expect(rules.get(0).getAsJsonObject().get("id").getAsString().endsWith("00-first.properties"),
+                "variant registry should report property-id sorted precedence first");
+            expect(rules.get(0).getAsJsonObject().get("precedenceOrdinal").getAsInt() == 0
+                    && rules.get(1).getAsJsonObject().get("precedenceOrdinal").getAsInt() == 1,
+                "variant registry should expose monotonic precedence ordinals");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;

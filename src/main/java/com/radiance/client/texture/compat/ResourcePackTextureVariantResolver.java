@@ -26,6 +26,7 @@ import net.minecraft.client.texture.Sprite;
 import net.minecraft.registry.Registries;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
+import net.minecraft.resource.ResourcePack;
 import net.minecraft.state.property.Property;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
@@ -328,12 +329,13 @@ public final class ResourcePackTextureVariantResolver {
             .sorted(Comparator.comparing(entry -> entry.getKey().toString()))
             .forEach(entry -> {
                 if (rules.size() < RULE_LIMIT) {
-                    parseRule(entry.getKey(), entry.getValue()).ifPresent(rules::add);
+                    parseRule(root, rules.size(), entry.getKey(), entry.getValue()).ifPresent(rules::add);
                 }
             });
     }
 
-    private static Optional<VariantRule> parseRule(Identifier propertyId, Resource resource) {
+    private static Optional<VariantRule> parseRule(String root, int precedenceOrdinal, Identifier propertyId,
+        Resource resource) {
         Properties props = new Properties();
         try (BufferedReader reader = resource.getReader()) {
             props.load(reader);
@@ -410,12 +412,25 @@ public final class ResourcePackTextureVariantResolver {
         int[] ctmReplacementMap = parseCtmReplacementMap(props);
         BiomePredicate biomePredicate = parseBiomePredicate(props.getProperty("biomes", ""));
         HeightPredicate heightPredicate = parseHeightPredicate(props);
-        return Optional.of(new VariantRule(propertyId.toString(), ruleMethod, matchTiles, matchBlocks,
+        return Optional.of(new VariantRule(propertyId.toString(), root, safePackId(resource), precedenceOrdinal,
+            ruleMethod, matchTiles, matchBlocks,
             connectTiles, connectBlocks,
             faces, connectMode, List.copyOf(outputs), List.copyOf(choices), weights, randomLoops, randomSymmetry,
             linkedRandom,
             repeatOrientation, repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
             ctmReplacementMap, biomePredicate, heightPredicate));
+    }
+
+    private static String safePackId(Resource resource) {
+        if (resource == null) {
+            return "unknown";
+        }
+        try {
+            ResourcePack pack = resource.getPack();
+            return pack == null ? "unknown" : pack.getId();
+        } catch (RuntimeException e) {
+            return "unknown";
+        }
     }
 
     private static List<TileChoice> tileChoices(String propertyAssetPath, String tilesValue, RuleMethod method) {
@@ -1092,6 +1107,9 @@ public final class ResourcePackTextureVariantResolver {
         JsonObject json = new JsonObject();
         json.addProperty("ordinal", ordinal);
         json.addProperty("id", rule.id());
+        json.addProperty("root", rule.root());
+        json.addProperty("sourcePack", rule.sourcePack());
+        json.addProperty("precedenceOrdinal", rule.precedenceOrdinal());
         json.addProperty("method", methodName(rule.method()));
         json.addProperty("overlayRule", rule.method().overlayRule());
         json.addProperty("enabledByOptions", Options.materialCompatEnabled && rule.enabledByOptions());
@@ -1245,6 +1263,16 @@ public final class ResourcePackTextureVariantResolver {
         return object.has(key) ? object.get(key).getAsInt() : 0;
     }
 
+    private static JsonObject precedencePolicyJson() {
+        JsonObject json = new JsonObject();
+        json.addProperty("samePath", "resource_manager_effective_resource");
+        json.addProperty("rootOrder", "optifine/ctm before optional mcpatcher/ctm");
+        json.addProperty("ruleOrder", "property_id_ascending_within_root");
+        json.addProperty("nonOverlayResolution", "first_enabled_matching_rule");
+        json.addProperty("overlayResolution", "first_enabled_matching_overlay_group");
+        return json;
+    }
+
     private static String methodName(RuleMethod method) {
         return switch (method) {
             case CTM -> "ctm";
@@ -1296,6 +1324,7 @@ public final class ResourcePackTextureVariantResolver {
             json.addProperty("ruleCount", rules.size());
             json.addProperty("reported", max);
             json.add("options", optionsJson());
+            json.add("precedencePolicy", precedencePolicyJson());
             JsonObject methodCounts = new JsonObject();
             JsonArray ruleArray = new JsonArray();
             for (int i = 0; i < rules.size(); i++) {
@@ -1712,6 +1741,9 @@ public final class ResourcePackTextureVariantResolver {
     }
 
     private record VariantRule(String id,
+                               String root,
+                               String sourcePack,
+                               int precedenceOrdinal,
                                RuleMethod method,
                                List<String> matchTiles,
                                List<BlockPredicate> matchBlocks,
