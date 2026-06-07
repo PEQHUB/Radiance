@@ -54,6 +54,7 @@ import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.Blo
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.CompactCtmQuadrants;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
+import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import java.nio.ByteOrder;
 import java.util.stream.Collectors;
 import net.minecraft.block.BlockState;
@@ -574,16 +575,18 @@ public class PBRVertexConsumer implements VertexConsumer {
             (this.pendingVertexFlags & ~PBR_FLAG_ALPHA_MODE_MASK) | packAlphaMode(alphaMode);
     }
 
-    private void applyRegisteredEmissiveOverlayMask(int spriteId, boolean preserveExistingMask) {
+    private void applyRegisteredEmissiveOverlayMask(int materialId, boolean preserveExistingMask) {
         boolean enabled = preserveExistingMask && (this.pendingVertexFlags & PBR_FLAG_OVERLAY_ALPHA_MASK) != 0;
-        Identifier sprite = TextureArrayBridge.spriteIdentifier(spriteId);
+        int baseSpriteId = ResourceMaterialRegistry.shaderTextureIdForMaterialId(materialId);
+        Identifier sprite = TextureArrayBridge.spriteIdentifier(baseSpriteId);
         if (ResourcePackEmissiveTextureResolver.usesShaderOverlayForBaseSprite(sprite)) {
             enabled = true;
         }
         setPendingOverlayAlphaMask(enabled);
     }
 
-    private int geometryEmissiveOverlaySpriteId(int baseSpriteId) {
+    private int geometryEmissiveOverlaySpriteId(int materialId) {
+        int baseSpriteId = ResourceMaterialRegistry.shaderTextureIdForMaterialId(materialId);
         Identifier baseSprite = TextureArrayBridge.spriteIdentifier(baseSpriteId);
         if (!ResourcePackEmissiveTextureResolver.requiresGeometryOverlayForBaseSprite(baseSprite)) {
             return -1;
@@ -628,8 +631,11 @@ public class PBRVertexConsumer implements VertexConsumer {
                 repeatTextureBasis)
             : new ResolvedBlockSprite(TextureArrayBridge.resolveRenderableSpriteId(id),
                 false, 0xFFFFFF, false, -1);
-        int spriteId = resolved.spriteId();
-        if (spriteId < 0) spriteId = TextureArrayBridge.resolveRenderableSpriteId(id);
+        int materialId = resolved.spriteId();
+        if (materialId < 0) {
+            materialId = ResourceMaterialRegistry.materialIdForSpriteId(TextureArrayBridge.resolveRenderableSpriteId(id));
+        }
+        int shaderSpriteId = ResourceMaterialRegistry.shaderTextureIdForMaterialId(materialId);
         if (this.blockGeometryContextDepth > 0) {
             int alphaMode = resolved.alphaMode() >= 0
                 ? resolved.alphaMode()
@@ -641,15 +647,15 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.pendingNaturalUvTransform = this.blockGeometryContextDepth > 0
             ? ResourcePackNaturalTextureResolver.resolveBlockTransform(
                 sprite,
-                spriteId,
+                shaderSpriteId,
                 this.pendingBlockPos,
                 face)
             : NaturalTransform.identity();
         this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
-        if (spriteId >= 0 && sprite != null) {
-            this.pendingTextureOverride = spriteId;
+        if (materialId >= 0 && sprite != null) {
+            this.pendingTextureOverride = materialId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
-            applyRegisteredEmissiveOverlayMask(spriteId, true);
+            applyRegisteredEmissiveOverlayMask(materialId, true);
             this.pendingSpriteUvRemap = true;
             this.pendingSpriteMinU = sprite.getMinU();
             this.pendingSpriteMaxU = sprite.getMaxU();

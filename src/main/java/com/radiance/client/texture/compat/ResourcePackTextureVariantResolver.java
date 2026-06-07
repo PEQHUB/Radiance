@@ -376,7 +376,7 @@ public final class ResourcePackTextureVariantResolver {
         List<TileChoice> choices = ruleMethod.overlayRule()
             ? tileChoices(propertyAssetPath, props.getProperty("tiles", ""), ruleMethod, repeatWidth, repeatHeight)
             : List.of();
-        List<Identifier> outputs = ruleMethod.overlayRule()
+        List<TileOutput> outputs = ruleMethod.overlayRule()
             ? List.of()
             : outputSprites(propertyAssetPath, props.getProperty("tiles", ""), ruleMethod, repeatWidth, repeatHeight);
         if (outputs.isEmpty() && !ruleMethod.overlayRule()) {
@@ -475,7 +475,7 @@ public final class ResourcePackTextureVariantResolver {
         return choices;
     }
 
-    private static List<Identifier> outputSprites(String propertyAssetPath, String tilesValue, RuleMethod method,
+    private static List<TileOutput> outputSprites(String propertyAssetPath, String tilesValue, RuleMethod method,
         int repeatWidth, int repeatHeight) {
         String value = tilesValue == null ? "" : tilesValue.trim();
         if (value.isEmpty()) {
@@ -484,14 +484,14 @@ public final class ResourcePackTextureVariantResolver {
         if (propertyAssetPath == null || value.isBlank()) {
             return List.of();
         }
-        ArrayList<Identifier> outputs = new ArrayList<>();
+        ArrayList<TileOutput> outputs = new ArrayList<>();
         for (String rawToken : value.split("[\\s,]+")) {
             String token = rawToken.trim();
             if (token.isEmpty()) {
                 continue;
             }
             if (isDefaultTileToken(token)) {
-                outputs.add(DEFAULT_TILE_OUTPUT);
+                outputs.add(TileOutput.defaultTile());
                 if (outputs.size() >= CHOICE_EXPANSION_LIMIT) {
                     break;
                 }
@@ -530,15 +530,15 @@ public final class ResourcePackTextureVariantResolver {
         String assetPath = ResourcePackCompatCtmTiles.resolveCtmTileAssetPath(propertyAssetPath, token);
         Identifier sprite = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(assetPath));
         if (sprite != null) {
-            choices.add(TileChoice.sprite(sprite));
+            choices.add(TileChoice.sprite(sprite, assetPath));
         }
     }
 
-    private static void addOutputSprite(List<Identifier> outputs, String propertyAssetPath, String token) {
+    private static void addOutputSprite(List<TileOutput> outputs, String propertyAssetPath, String token) {
         String assetPath = ResourcePackCompatCtmTiles.resolveCtmTileAssetPath(propertyAssetPath, token);
         Identifier sprite = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(assetPath));
         if (sprite != null) {
-            outputs.add(sprite);
+            outputs.add(TileOutput.sprite(sprite, assetPath));
         }
     }
 
@@ -1206,9 +1206,9 @@ public final class ResourcePackTextureVariantResolver {
         return json;
     }
 
-    private static JsonArray outputArray(List<Identifier> outputs) {
+    private static JsonArray outputArray(List<TileOutput> outputs) {
         JsonArray array = new JsonArray();
-        for (Identifier output : outputs) {
+        for (TileOutput output : outputs) {
             array.add(spriteBindingJson(output, false));
         }
         return array;
@@ -1222,7 +1222,7 @@ public final class ResourcePackTextureVariantResolver {
             json.addProperty("index", i);
             json.addProperty("skip", choice.skip());
             if (choice.sprite() != null) {
-                JsonObject binding = spriteBindingJson(choice.sprite(), false);
+                JsonObject binding = spriteBindingJson(choice, false);
                 for (String key : binding.keySet()) {
                     json.add(key, binding.get(key));
                 }
@@ -1239,7 +1239,19 @@ public final class ResourcePackTextureVariantResolver {
         return array;
     }
 
-    private static JsonObject spriteBindingJson(Identifier sprite, boolean skipped) {
+    private static JsonObject spriteBindingJson(TileChoice choice, boolean skipped) {
+        return spriteBindingJson(choice == null ? null : choice.sprite(),
+            choice == null ? "" : choice.assetPath(), skipped);
+    }
+
+    private static JsonObject spriteBindingJson(TileOutput output, boolean skipped) {
+        if (output == null || output.defaultOutput()) {
+            return spriteBindingJson(DEFAULT_TILE_OUTPUT, "", skipped);
+        }
+        return spriteBindingJson(output.sprite(), output.assetPath(), skipped);
+    }
+
+    private static JsonObject spriteBindingJson(Identifier sprite, String assetPath, boolean skipped) {
         JsonObject json = new JsonObject();
         boolean defaultTile = isDefaultTileOutput(sprite);
         int spriteId = skipped || sprite == null || defaultTile
@@ -1248,9 +1260,13 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("sprite", defaultTile ? "<default>" : sprite == null ? "" : sprite.toString());
         json.addProperty("defaultTile", defaultTile);
         json.addProperty("spriteId", spriteId);
-        int materialId = spriteId >= 0 ? ResourceMaterialRegistry.materialIdForSpriteId(spriteId) : -1;
+        int materialId = spriteId >= 0
+            ? ResourceMaterialRegistry.materialIdForSpriteId(spriteId)
+            : ResourceMaterialRegistry.materialIdForCtmAssetPath(assetPath, -1);
         json.addProperty("materialSetId", materialId);
-        json.addProperty("baseSpriteId", spriteId);
+        json.addProperty("baseSpriteId",
+            materialId >= 0 ? ResourceMaterialRegistry.shaderTextureIdForMaterialId(materialId) : spriteId);
+        json.addProperty("materialAssetPath", assetPath == null ? "" : assetPath);
         addMaterialSetBinding(json, spriteId, materialId);
         json.addProperty("resolved", defaultTile || spriteId >= 0);
         return json;
@@ -1862,7 +1878,7 @@ public final class ResourcePackTextureVariantResolver {
                                List<BlockPredicate> connectBlocks,
                                EnumSet<Direction> faces,
                                ConnectMode connectMode,
-                               List<Identifier> outputs,
+                               List<TileOutput> outputs,
                                List<TileChoice> choices,
                                int[] weights,
                                int randomLoops,
@@ -1959,15 +1975,15 @@ public final class ResourcePackTextureVariantResolver {
             }
             for (int i = 0; i < outputs.size(); i++) {
                 int index = (outputIndex + i) % outputs.size();
-                Identifier sprite = outputs.get(index);
-                if (isDefaultTileOutput(sprite)) {
+                TileOutput output = outputs.get(index);
+                if (output.defaultOutput()) {
                     return new ResolvedBlockSprite(sourceSpriteId, true, 0xFFFFFF, false, -1);
                 }
-                int spriteId = TextureArrayBridge.resolveSpriteId(sprite.toString());
-                if (spriteId >= 0) {
+                int materialId = materialIdForOutput(output, -1);
+                if (materialId >= 0) {
                     boolean tintOverride = tintOverride();
                     int tintRgb = tintOverride ? overlayTintRgb(world, state, pos) : 0xFFFFFF;
-                    return new ResolvedBlockSprite(spriteId, true, tintRgb, tintOverride, alphaMode);
+                    return new ResolvedBlockSprite(materialId, true, tintRgb, tintOverride, alphaMode);
                 }
             }
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
@@ -2048,9 +2064,9 @@ public final class ResourcePackTextureVariantResolver {
                 if (tileIndex < 0 || tileIndex >= choices.size()) {
                     continue;
                 }
-                int spriteId = spriteIdForChoice(tileIndex, fallbackFromSelected);
-                if (spriteId >= 0) {
-                    overlays.add(new BlockOverlaySprite(spriteId, tintRgb & 0x00FFFFFF, alphaMode));
+                int materialId = materialIdForChoice(tileIndex, fallbackFromSelected);
+                if (materialId >= 0) {
+                    overlays.add(new BlockOverlaySprite(materialId, tintRgb & 0x00FFFFFF, alphaMode));
                 }
             }
             return overlays.toArray(BlockOverlaySprite[]::new);
@@ -2062,19 +2078,19 @@ public final class ResourcePackTextureVariantResolver {
             }
             for (int i = 0; i < outputs.size(); i++) {
                 int index = Math.floorMod(outputIndex + i, outputs.size());
-                Identifier sprite = outputs.get(index);
-                if (isDefaultTileOutput(sprite)) {
+                TileOutput output = outputs.get(index);
+                if (output.defaultOutput()) {
                     return -2;
                 }
-                int spriteId = TextureArrayBridge.resolveSpriteId(sprite.toString());
-                if (spriteId >= 0) {
-                    return spriteId;
+                int materialId = materialIdForOutput(output, -1);
+                if (materialId >= 0) {
+                    return materialId;
                 }
             }
             return -1;
         }
 
-        private int spriteIdForChoice(int tileIndex, boolean fallbackFromSelected) {
+        private int materialIdForChoice(int tileIndex, boolean fallbackFromSelected) {
             int count = fallbackFromSelected ? choices.size() : 1;
             for (int i = 0; i < count; i++) {
                 int index = Math.floorMod(tileIndex + i, choices.size());
@@ -2087,10 +2103,27 @@ public final class ResourcePackTextureVariantResolver {
                 }
                 int spriteId = TextureArrayBridge.resolveSpriteId(choice.sprite().toString());
                 if (spriteId >= 0) {
-                    return spriteId;
+                    return ResourceMaterialRegistry.materialIdForSpriteId(spriteId);
+                }
+                int materialId = ResourceMaterialRegistry.materialIdForCtmAssetPath(choice.assetPath(), -1);
+                if (materialId >= 0) {
+                    return materialId;
                 }
             }
             return -1;
+        }
+
+        private int materialIdForOutput(TileOutput output, int fallbackSpriteId) {
+            if (output == null || output.defaultOutput()) {
+                return fallbackSpriteId >= 0
+                    ? ResourceMaterialRegistry.materialIdForSpriteId(fallbackSpriteId)
+                    : -1;
+            }
+            int spriteId = output.sprite() == null ? -1 : TextureArrayBridge.resolveSpriteId(output.sprite().toString());
+            if (spriteId >= 0) {
+                return ResourceMaterialRegistry.materialIdForSpriteId(spriteId);
+            }
+            return ResourceMaterialRegistry.materialIdForCtmAssetPath(output.assetPath(), fallbackSpriteId);
         }
 
         private NeighborConnector neighborConnector(Identifier source, @Nullable BlockRenderView world,
@@ -2769,13 +2802,23 @@ public final class ResourcePackTextureVariantResolver {
     private record DirectionPair(Direction negative, Direction positive) {
     }
 
-    private record TileChoice(@Nullable Identifier sprite, boolean skip) {
-        static TileChoice sprite(Identifier sprite) {
-            return new TileChoice(sprite, false);
+    private record TileOutput(@Nullable Identifier sprite, String assetPath, boolean defaultOutput) {
+        static TileOutput sprite(Identifier sprite, String assetPath) {
+            return new TileOutput(sprite, assetPath == null ? "" : assetPath, false);
+        }
+
+        static TileOutput defaultTile() {
+            return new TileOutput(DEFAULT_TILE_OUTPUT, "", true);
+        }
+    }
+
+    private record TileChoice(@Nullable Identifier sprite, String assetPath, boolean skip) {
+        static TileChoice sprite(Identifier sprite, String assetPath) {
+            return new TileChoice(sprite, assetPath == null ? "" : assetPath, false);
         }
 
         static TileChoice skipped() {
-            return new TileChoice(null, true);
+            return new TileChoice(null, "", true);
         }
     }
 

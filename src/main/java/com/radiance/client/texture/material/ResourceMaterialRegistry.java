@@ -67,6 +67,25 @@ public final class ResourceMaterialRegistry {
         return record != null && record.baseSpriteId() == spriteId ? record.materialId() : spriteId;
     }
 
+    public static int materialIdForCtmAssetPath(String assetPath, int fallbackSpriteId) {
+        if (assetPath == null || assetPath.isBlank()) {
+            return fallbackSpriteId >= 0 ? materialIdForSpriteId(fallbackSpriteId) : -1;
+        }
+        Snapshot snapshot = ACTIVE.get();
+        Integer materialId = snapshot.keyLookup().get(MaterialKey.compatCtmTile(assetPath).stableKey());
+        if (materialId != null) {
+            return materialId;
+        }
+
+        String natural = ResourcePackCompatCtmTiles.naturalAtlasSpriteIdentifier(assetPath);
+        Identifier naturalId = Identifier.tryParse(natural);
+        int spriteId = TextureArrayBridge.resolveSpriteId(naturalId == null ? "" : naturalId.toString());
+        if (spriteId >= 0) {
+            return materialIdForSpriteId(spriteId);
+        }
+        return fallbackSpriteId >= 0 ? materialIdForSpriteId(fallbackSpriteId) : -1;
+    }
+
     public static int shaderTextureIdForMaterialId(int materialId) {
         Snapshot snapshot = ACTIVE.get();
         MaterialRecord record = snapshot.recordByMaterialId(materialId);
@@ -394,6 +413,24 @@ public final class ResourceMaterialRegistry {
 
         public JsonObject toSummaryJson() {
             JsonObject json = new JsonObject();
+            int gpuResident = 0;
+            int pendingResidency = 0;
+            int fallback = 0;
+            int compatVirtual = 0;
+            int compatVirtualPending = 0;
+            int compatVirtualResident = 0;
+            int displacementEligible = 0;
+            for (MaterialRecord record : records) {
+                if ((record.flags() & MATERIAL_FLAG_GPU_RESIDENT) != 0) gpuResident++;
+                if ((record.flags() & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) pendingResidency++;
+                if ((record.flags() & MATERIAL_FLAG_FALLBACK) != 0) fallback++;
+                if ((record.flags() & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) displacementEligible++;
+                if ((record.flags() & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0) {
+                    compatVirtual++;
+                    if ((record.flags() & MATERIAL_FLAG_PENDING_RESIDENCY) != 0) compatVirtualPending++;
+                    if ((record.flags() & MATERIAL_FLAG_GPU_RESIDENT) != 0) compatVirtualResident++;
+                }
+            }
             json.addProperty("generation", generation);
             json.addProperty("packStackHash", packStackHash);
             json.addProperty("materialEntrySize", MATERIAL_ENTRY_SIZE);
@@ -403,12 +440,22 @@ public final class ResourceMaterialRegistry {
             json.addProperty("declaredPresentCompatMaterialCount", declaredPresentCompatMaterialCount);
             json.addProperty("recordedCompatMaterialCount", recordedCompatMaterialCount);
             json.addProperty("recordedMaterialCount", records.size());
+            json.addProperty("gpuResidentMaterialCount", gpuResident);
+            json.addProperty("pendingResidencyMaterialCount", pendingResidency);
+            json.addProperty("fallbackMaterialCount", fallback);
+            json.addProperty("compatVirtualMaterialCount", compatVirtual);
+            json.addProperty("compatVirtualPendingResidencyCount", compatVirtualPending);
+            json.addProperty("compatVirtualGpuResidentCount", compatVirtualResident);
+            json.addProperty("displacementEligibleMaterialCount", displacementEligible);
             json.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
             json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
             json.addProperty("nativeMaterialTablePresent",
                 AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
             json.addProperty("vanillaIdsAliasSpriteIds", true);
             json.addProperty("compatIdsFallbackUntilRendererPoolResident", true);
+            json.addProperty("compatTextureResidencyBackend", "pending_renderer_owned_material_pools");
+            json.addProperty("normalGameplayLoadingMode", "visible_first_progressive_residency");
+            json.addProperty("fullPreloadAcceptanceMode", "diagnostic_required_zero_fallback_after_pool_backend");
             return json;
         }
 

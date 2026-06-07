@@ -34,6 +34,7 @@ import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.BlockOverlaySprite;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
+import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.client.vertex.PBRVertexFormatElements;
 import com.radiance.client.vertex.PBRVertexConsumer;
 import java.io.ByteArrayInputStream;
@@ -113,6 +114,7 @@ public final class MaterialLabSelfTest {
         materialCompatScannerDetectsWrapperZipPacks();
         materialCompatRunScanMarksActivePacksAndParsesRecords();
         materialCompatWritesParserArtifactDumps();
+        materialCompatVirtualCtmRulesResolveMaterialIds();
         materialCompatDiagnosticsDetectPersistedOptionDivergence();
         materialCompatDiagnosticsReportNaturalConsumption();
         materialCompatDiagnosticsReportColorConsumption();
@@ -1611,6 +1613,70 @@ public final class MaterialLabSelfTest {
             if (run != null) {
                 deleteTree(run);
             }
+        }
+    }
+
+    private static void materialCompatVirtualCtmRulesResolveMaterialIds() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone));
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            String ctmPath = "assets/minecraft/optifine/ctm/stone/0.png";
+            Identifier ctmSynthetic = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(ctmPath));
+
+            JsonObject root = new JsonObject();
+            root.addProperty("packStackHash", "virtual-ctm-fixture");
+            JsonObject activeCtm = new JsonObject();
+            JsonArray dependencies = new JsonArray();
+            JsonObject dependency = new JsonObject();
+            dependency.addProperty("path", ctmPath);
+            dependency.addProperty("atlasSprite", ctmSynthetic == null ? "" : ctmSynthetic.toString());
+            dependency.addProperty("present", true);
+            dependency.addProperty("specularPresent", true);
+            dependency.addProperty("normalPresent", true);
+            dependencies.add(dependency);
+            activeCtm.add("dependencies", dependencies);
+            root.add("activeCtmAtlasDependencies", activeCtm);
+            JsonObject materialUniverse = new JsonObject();
+            materialUniverse.addProperty("virtualCompatMaterials", 1);
+            materialUniverse.addProperty("virtualCompatMaterialsPresent", 1);
+            root.add("materialUniverse", materialUniverse);
+            ResourceMaterialRegistry.publishFromCompatReport(root, TextureArrayBridge.getActiveTextureGeneration());
+
+            int virtualMaterialId = ResourceMaterialRegistry.materialIdForCtmAssetPath(ctmPath, -1);
+            expect(virtualMaterialId > stoneId,
+                "compat CTM dependency should publish a virtual material id beyond vanilla sprites");
+            JsonObject materialSummary = ResourceMaterialRegistry.activeSummaryJson();
+            expect(materialSummary.get("compatVirtualMaterialCount").getAsInt() == 1,
+                "material registry should count virtual CTM records");
+            expect(materialSummary.get("compatVirtualPendingResidencyCount").getAsInt() == 1,
+                "material registry should report pending residency for present virtual CTM records");
+            expect(materialSummary.get("fallbackMaterialCount").getAsInt() == 1,
+                "material registry should count virtual CTM fallback records");
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/stone/stone.properties",
+                "method=fixed\nmatchTiles=stone\ntiles=0\nconnect=block\n".getBytes(StandardCharsets.UTF_8));
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+            ResourcePackTextureVariantResolver.ResolverIndex index =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            ResolvedBlockSprite resolved =
+                index.resolveDetailedForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH);
+            expect(resolved.ruleMatched(), "virtual CTM material rule should still report a consumed rule");
+            expect(resolved.spriteId() == virtualMaterialId,
+                "non-atlas CTM rule output should emit the virtual material id");
+            expect(ResourceMaterialRegistry.shaderTextureIdForMaterialId(virtualMaterialId) == stoneId,
+                "virtual CTM material should retain the fallback base sprite for shader lookup");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
         }
     }
 
