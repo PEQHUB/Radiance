@@ -1048,6 +1048,12 @@ public final class MaterialLabSelfTest {
                     .get("shaderBlockPropertiesLayerAlphaModes").getAsBoolean(),
                 "diagnostics should expose shader block.properties layer alpha mode consumption");
             expect(status.getAsJsonObject("compatibilityConsumption")
+                    .get("shaderSideRuleParsing").getAsBoolean(),
+                "diagnostics should expose parsed shader block.N side rules");
+            expect(!status.getAsJsonObject("compatibilityConsumption")
+                    .get("shaderSideRuleNativeBinding").getAsBoolean(),
+                "diagnostics should keep shader block.N native binding separate until the ABI carries it");
+            expect(status.getAsJsonObject("compatibilityConsumption")
                     .get("overlayLayerEmission").getAsBoolean(),
                 "diagnostics should expose CTM overlay layer emission consumption");
             expect(status.getAsJsonObject("compatibilityConsumption")
@@ -1715,6 +1721,12 @@ public final class MaterialLabSelfTest {
         expect(ResourcePackBlockLayerResolver.resolveBlockAlphaModeForTest(blockProperties, "minecraft:stone")
                 == PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE,
             "layer.solid should map to opaque alpha mode");
+        expect(ResourcePackBlockLayerResolver.resolveBlockAlphaModeForTest(blockProperties,
+                "minecraft:dirt", Map.of("snowy", "false")) == PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE,
+            "layer.solid should honor matching block-state predicates");
+        expect(ResourcePackBlockLayerResolver.resolveBlockAlphaModeForTest(blockProperties,
+                "minecraft:dirt", Map.of("snowy", "true")) == -1,
+            "layer.solid should reject mismatched block-state predicates");
         expect(ResourcePackBlockLayerResolver.resolveBlockAlphaModeForTest(blockProperties, "minecraft:oak_leaves")
                 == PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT,
             "layer.cutout should map to cutout alpha mode");
@@ -1737,6 +1749,24 @@ public final class MaterialLabSelfTest {
                 "layer.translucent=glass\nlayer.cutout_mipped=ice",
                 "minecraft:oak_leaves") == PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT,
             "shader-pack block layer defaults should still apply when resource packs do not override them");
+
+        String shaderBlockRules = String.join("\n",
+            "block.1003=minecraft:stone minecraft:dirt[snowy=false]",
+            "block.1004=minecraft:glass block/white_stained_glass"
+        );
+        expect(ResourcePackBlockLayerResolver.shaderBlockRuleCountForTest(shaderBlockRules) == 4,
+            "shader block.N parser should index every named block token");
+        expect(ResourcePackBlockLayerResolver.resolveShaderBlockIdForTest(shaderBlockRules, "minecraft:stone") == 1003,
+            "shader block.N parser should resolve plain block ids");
+        expect(ResourcePackBlockLayerResolver.resolveShaderBlockIdForTest(shaderBlockRules,
+                "minecraft:dirt", Map.of("snowy", "false")) == 1003,
+            "shader block.N parser should honor matching block-state predicates");
+        expect(ResourcePackBlockLayerResolver.resolveShaderBlockIdForTest(shaderBlockRules,
+                "minecraft:dirt", Map.of("snowy", "true")) == -1,
+            "shader block.N parser should reject mismatched block-state predicates");
+        expect(ResourcePackBlockLayerResolver.resolveShaderBlockIdForTest(shaderBlockRules,
+                "minecraft:white_stained_glass") == 1004,
+            "shader block.N parser should normalize block/ prefixed tokens");
     }
 
     private static void colorPropertiesResolverParsesFlatBlockPalettes() {

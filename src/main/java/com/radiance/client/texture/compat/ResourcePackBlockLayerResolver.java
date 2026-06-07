@@ -13,12 +13,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Optional;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import net.minecraft.block.BlockState;
@@ -26,6 +29,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.registry.Registries;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
+import net.minecraft.state.property.Property;
 import net.minecraft.util.Identifier;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -43,28 +47,47 @@ public final class ResourcePackBlockLayerResolver {
             return -1;
         }
         LayerIndex index = activeIndex();
-        if (index.rules().isEmpty()) {
+        if (index.layerRules().isEmpty()) {
             return -1;
         }
         Identifier id = Registries.BLOCK.getId(state.getBlock());
         if (id == null) {
             return -1;
         }
-        return index.alphaMode(id.toString());
+        return index.alphaMode(state);
     }
 
     public static int resolveBlockAlphaModeForTest(String blockPropertiesText, String blockId) {
-        return parse(blockPropertiesText).alphaMode(normalizeBlockToken(blockId));
+        return parse(blockPropertiesText).alphaMode(normalizeBlockToken(blockId), Map.of());
+    }
+
+    public static int resolveBlockAlphaModeForTest(String blockPropertiesText, String blockId,
+        Map<String, String> stateValues) {
+        return parse(blockPropertiesText).alphaMode(normalizeBlockToken(blockId), normalizeStateValues(stateValues));
     }
 
     public static int resolveMergedBlockAlphaModeForTest(String shaderBlockPropertiesText,
         String resourcePackBlockPropertiesText, String blockId) {
         return parseAll(List.of(shaderBlockPropertiesText, resourcePackBlockPropertiesText))
-            .alphaMode(normalizeBlockToken(blockId));
+            .alphaMode(normalizeBlockToken(blockId), Map.of());
+    }
+
+    public static int resolveShaderBlockIdForTest(String blockPropertiesText, String blockId) {
+        return parse(blockPropertiesText).shaderBlockId(normalizeBlockToken(blockId), Map.of());
+    }
+
+    public static int resolveShaderBlockIdForTest(String blockPropertiesText, String blockId,
+        Map<String, String> stateValues) {
+        return parse(blockPropertiesText).shaderBlockId(normalizeBlockToken(blockId),
+            normalizeStateValues(stateValues));
     }
 
     public static int ruleCountForTest(String blockPropertiesText) {
-        return parse(blockPropertiesText).rules().size();
+        return parse(blockPropertiesText).layerRules().size();
+    }
+
+    public static int shaderBlockRuleCountForTest(String blockPropertiesText) {
+        return parse(blockPropertiesText).shaderBlockRules().size();
     }
 
     private static LayerIndex activeIndex() {
@@ -80,9 +103,9 @@ public final class ResourcePackBlockLayerResolver {
         texts.addAll(readResourcePackBlockProperties(resourceManager));
         LayerIndex next = parseAll(texts);
         cache = new Cache(key, next);
-        if (!next.rules().isEmpty()) {
-            LOGGER.info("[MaterialCompat] Block layer resolver compiled {} layer entries from {}",
-                next.rules().size(), key);
+        if (next.totalRuleCount() > 0) {
+            LOGGER.info("[MaterialCompat] Block layer resolver compiled {} block.properties entries from {}",
+                next.totalRuleCount(), key);
         }
         return next;
     }
@@ -206,14 +229,17 @@ public final class ResourcePackBlockLayerResolver {
         if (texts == null || texts.isEmpty()) {
             return LayerIndex.empty();
         }
-        Map<String, Integer> rules = new HashMap<>();
+        ArrayList<LayerRule> layerRules = new ArrayList<>();
+        ArrayList<ShaderBlockRule> shaderBlockRules = new ArrayList<>();
         for (String text : texts) {
-            parseInto(rules, text);
+            parseInto(layerRules, shaderBlockRules, text);
         }
-        return rules.isEmpty() ? LayerIndex.empty() : new LayerIndex(Map.copyOf(rules));
+        return layerRules.isEmpty() && shaderBlockRules.isEmpty()
+            ? LayerIndex.empty()
+            : new LayerIndex(List.copyOf(layerRules), List.copyOf(shaderBlockRules));
     }
 
-    private static void parseInto(Map<String, Integer> rules, String text) {
+    private static void parseInto(List<LayerRule> layerRules, List<ShaderBlockRule> shaderBlockRules, String text) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -224,26 +250,107 @@ public final class ResourcePackBlockLayerResolver {
             return;
         }
 
-        addLayer(rules, props.getProperty("layer.solid"), PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE);
-        addLayer(rules, props.getProperty("layer.cutout"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
-        addLayer(rules, props.getProperty("layer.cutout_mipped"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
-        addLayer(rules, props.getProperty("layer.translucent"), PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT);
+        addLayer(layerRules, props.getProperty("layer.solid"), PBRVertexFormatElements.PBR_ALPHA_MODE_OPAQUE);
+        addLayer(layerRules, props.getProperty("layer.cutout"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
+        addLayer(layerRules, props.getProperty("layer.cutout_mipped"), PBRVertexFormatElements.PBR_ALPHA_MODE_CUTOUT);
+        addLayer(layerRules, props.getProperty("layer.translucent"), PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT);
+        addShaderBlockRules(shaderBlockRules, props);
     }
 
-    private static void addLayer(Map<String, Integer> rules, @Nullable String raw, int alphaMode) {
+    private static void addLayer(List<LayerRule> rules, @Nullable String raw, int alphaMode) {
         if (raw == null || raw.isBlank()) {
             return;
         }
-        for (String piece : raw.split("[\\s,]+")) {
-            String block = normalizeBlockToken(piece);
-            if (!block.isEmpty()) {
-                rules.put(block, alphaMode);
+        for (String piece : splitBlockTokens(raw)) {
+            parseBlockPredicate(piece).ifPresent(predicate -> rules.add(new LayerRule(predicate, alphaMode)));
+        }
+    }
+
+    private static void addShaderBlockRules(List<ShaderBlockRule> rules, Properties props) {
+        for (String key : props.stringPropertyNames()) {
+            if (!key.startsWith("block.")) {
+                continue;
+            }
+            int shaderBlockId;
+            try {
+                shaderBlockId = Integer.parseInt(key.substring("block.".length()).trim());
+            } catch (NumberFormatException ignored) {
+                continue;
+            }
+            if (shaderBlockId < 0) {
+                continue;
+            }
+            String raw = props.getProperty(key);
+            if (raw == null || raw.isBlank()) {
+                continue;
+            }
+            for (String piece : splitBlockTokens(raw)) {
+                parseBlockPredicate(piece)
+                    .ifPresent(predicate -> rules.add(new ShaderBlockRule(predicate, shaderBlockId)));
             }
         }
     }
 
     private static String normalizeBlockToken(String raw) {
-        String token = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        return parseBlockPredicate(raw).map(BlockPredicate::blockId).orElse("");
+    }
+
+    private static List<String> splitBlockTokens(String value) {
+        ArrayList<String> tokens = new ArrayList<>();
+        int start = -1;
+        int bracketDepth = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '[') {
+                bracketDepth++;
+            } else if (ch == ']' && bracketDepth > 0) {
+                bracketDepth--;
+            }
+            boolean separator = bracketDepth == 0 && (Character.isWhitespace(ch) || ch == ',');
+            if (separator) {
+                if (start >= 0) {
+                    tokens.add(value.substring(start, i));
+                    start = -1;
+                }
+            } else if (start < 0) {
+                start = i;
+            }
+        }
+        if (start >= 0) {
+            tokens.add(value.substring(start));
+        }
+        return tokens;
+    }
+
+    private static Optional<BlockPredicate> parseBlockPredicate(String raw) {
+        String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
+        if (token.isEmpty() || token.startsWith("#")) {
+            return Optional.empty();
+        }
+        String stateExpression = "";
+        int bracket = token.indexOf('[');
+        if (bracket >= 0) {
+            int end = token.lastIndexOf(']');
+            if (end > bracket) {
+                stateExpression = token.substring(bracket + 1, end);
+            }
+            token = token.substring(0, bracket);
+        }
+        int firstColon = token.indexOf(':');
+        int secondColon = firstColon < 0 ? -1 : token.indexOf(':', firstColon + 1);
+        if (stateExpression.isEmpty() && secondColon > 0 && token.substring(secondColon + 1).contains("=")) {
+            stateExpression = token.substring(secondColon + 1);
+            token = token.substring(0, secondColon);
+        }
+        String blockId = normalizeBlockIdToken(token);
+        if (blockId.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new BlockPredicate(blockId, parseStatePredicates(stateExpression)));
+    }
+
+    private static String normalizeBlockIdToken(String raw) {
+        String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
         if (token.isEmpty() || token.startsWith("#")) {
             return "";
         }
@@ -251,29 +358,167 @@ public final class ResourcePackBlockLayerResolver {
         if (bracket >= 0) {
             token = token.substring(0, bracket);
         }
+        int firstColon = token.indexOf(':');
+        int secondColon = firstColon < 0 ? -1 : token.indexOf(':', firstColon + 1);
+        if (secondColon > 0 && token.substring(secondColon + 1).contains("=")) {
+            token = token.substring(0, secondColon);
+        }
         if (token.startsWith("block/")) {
             token = token.substring("block/".length());
-        }
-        int secondColon = token.indexOf(':', token.indexOf(':') + 1);
-        if (secondColon > 0) {
-            token = token.substring(0, secondColon);
         }
         if (token.isEmpty()) {
             return "";
         }
-        if (!token.contains(":")) {
+        int colon = token.indexOf(':');
+        if (colon > 0) {
+            String namespace = token.substring(0, colon);
+            String path = token.substring(colon + 1);
+            if (path.startsWith("block/")) {
+                path = path.substring("block/".length());
+            }
+            token = namespace + ":" + path;
+        } else {
             token = "minecraft:" + token;
         }
         return Identifier.tryParse(token) == null ? "" : token;
     }
 
-    private record LayerIndex(Map<String, Integer> rules) {
+    private static List<StatePredicate> parseStatePredicates(String expression) {
+        if (expression == null || expression.isBlank()) {
+            return List.of();
+        }
+        ArrayList<StatePredicate> predicates = new ArrayList<>();
+        for (String clause : expression.split(",")) {
+            int equals = clause.indexOf('=');
+            if (equals <= 0 || equals == clause.length() - 1) {
+                continue;
+            }
+            String name = clause.substring(0, equals).trim().toLowerCase(Locale.ROOT);
+            if (name.isEmpty()) {
+                continue;
+            }
+            LinkedHashSet<String> values = new LinkedHashSet<>();
+            for (String value : clause.substring(equals + 1).split("\\|")) {
+                String normalized = value.trim().toLowerCase(Locale.ROOT);
+                if (!normalized.isEmpty()) {
+                    values.add(normalized);
+                }
+            }
+            if (!values.isEmpty()) {
+                predicates.add(new StatePredicate(name, Set.copyOf(values)));
+            }
+        }
+        return List.copyOf(predicates);
+    }
+
+    private static Map<String, String> normalizeStateValues(Map<String, String> stateValues) {
+        if (stateValues == null || stateValues.isEmpty()) {
+            return Map.of();
+        }
+        LinkedHashMap<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : stateValues.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            normalized.put(entry.getKey().trim().toLowerCase(Locale.ROOT),
+                entry.getValue().trim().toLowerCase(Locale.ROOT));
+        }
+        return Map.copyOf(normalized);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static String propertyValueName(Property property, Comparable value) {
+        return property.name(value).toLowerCase(Locale.ROOT);
+    }
+
+    private record LayerIndex(List<LayerRule> layerRules, List<ShaderBlockRule> shaderBlockRules) {
         static LayerIndex empty() {
-            return new LayerIndex(Map.of());
+            return new LayerIndex(List.of(), List.of());
         }
 
-        int alphaMode(String blockId) {
-            return rules.getOrDefault(blockId, -1);
+        int totalRuleCount() {
+            return layerRules.size() + shaderBlockRules.size();
+        }
+
+        int alphaMode(BlockState state) {
+            for (int i = layerRules.size() - 1; i >= 0; i--) {
+                LayerRule rule = layerRules.get(i);
+                if (rule.predicate().matches(state)) {
+                    return rule.alphaMode();
+                }
+            }
+            return -1;
+        }
+
+        int alphaMode(String blockId, Map<String, String> stateValues) {
+            for (int i = layerRules.size() - 1; i >= 0; i--) {
+                LayerRule rule = layerRules.get(i);
+                if (rule.predicate().matches(blockId, stateValues)) {
+                    return rule.alphaMode();
+                }
+            }
+            return -1;
+        }
+
+        int shaderBlockId(String blockId, Map<String, String> stateValues) {
+            for (int i = shaderBlockRules.size() - 1; i >= 0; i--) {
+                ShaderBlockRule rule = shaderBlockRules.get(i);
+                if (rule.predicate().matches(blockId, stateValues)) {
+                    return rule.shaderBlockId();
+                }
+            }
+            return -1;
+        }
+    }
+
+    private record LayerRule(BlockPredicate predicate, int alphaMode) {
+    }
+
+    private record ShaderBlockRule(BlockPredicate predicate, int shaderBlockId) {
+    }
+
+    private record BlockPredicate(String blockId, List<StatePredicate> states) {
+        boolean matches(BlockState state) {
+            if (!blockId.equals(Registries.BLOCK.getId(state.getBlock()).toString())) {
+                return false;
+            }
+            for (StatePredicate predicate : states) {
+                if (!predicate.matches(state)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        boolean matches(String actualBlockId, Map<String, String> stateValues) {
+            if (!blockId.equals(actualBlockId)) {
+                return false;
+            }
+            for (StatePredicate predicate : states) {
+                if (!predicate.matches(stateValues)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private record StatePredicate(String name, Set<String> values) {
+        boolean matches(BlockState state) {
+            for (Map.Entry<Property<?>, Comparable<?>> entry : state.getEntries().entrySet()) {
+                Property<?> property = entry.getKey();
+                if (!name.equals(property.getName())) {
+                    continue;
+                }
+                String valueName = propertyValueName(property, entry.getValue());
+                return values.contains(valueName) || values.contains("*");
+            }
+            return false;
+        }
+
+        boolean matches(Map<String, String> stateValues) {
+            String value = stateValues.get(name);
+            return value != null && (values.contains(value) || values.contains("*"));
         }
     }
 

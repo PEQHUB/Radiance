@@ -167,7 +167,8 @@ public final class ResourcePackCompatDiagnostics {
             Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
         json.addProperty("shaderBlockPropertiesLayerAlphaModes",
             Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
-        json.addProperty("shaderSideRuleParsing", false);
+        json.addProperty("shaderSideRuleParsing", Options.materialCompatEnabled);
+        json.addProperty("shaderSideRuleNativeBinding", false);
         return json;
     }
 
