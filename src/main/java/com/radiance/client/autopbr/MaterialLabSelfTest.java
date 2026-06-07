@@ -103,7 +103,7 @@ public final class MaterialLabSelfTest {
         textureRuleEntrySizeStaysStable();
         textureNameFilterTreatsEmissiveAsAuxiliary();
         scalarPbrSidecarsComposeLabPbrLayers();
-        textureArrayLayerSizeUsesLargestSprite();
+        textureArrayLayerSizeUsesDominantResolution();
         missingSpriteFallbackUsesRenderableBlockSprite();
         malformedModelJsonFallsBackToLowerPriorityResource();
         modelTextureReferenceRepairAvoidsMissingSprites();
@@ -949,16 +949,22 @@ public final class MaterialLabSelfTest {
         }
     }
 
-    private static void textureArrayLayerSizeUsesLargestSprite() {
+    private static void textureArrayLayerSizeUsesDominantResolution() {
         expect(VanillaTextureManifest.chooseFixedLayerSizeFromCountsForTest(
             16, 974,
             64, 824,
             128, 14,
             256, 4,
-            1024, 3) == 256,
-            "texture array layer size should preserve authored high-resolution sprites up to the runtime cap");
+            1024, 3) == 64,
+            "texture array layer size should preserve the dominant authored resolution instead of outliers");
+        expect(VanillaTextureManifest.chooseFixedLayerSizeFromCountsForTest(
+            16, 887,
+            32, 101,
+            128, 804,
+            256, 3) == 128,
+            "Patrix-style 128x packs should not inflate every sprite to 256x because of a few outliers");
         expect(VanillaTextureManifest.chooseFixedLayerSizeForTest(16, 16, 64, 64, 128, 128) == 128,
-            "small diagnostic atlases should choose the largest authored square size");
+            "small diagnostic atlases should choose the dominant authored square size");
         expect(VanillaTextureManifest.chooseFixedLayerSizeForTest(512, 512, 1024, 1024) == 256,
             "texture array layer size should cap extreme outliers for runtime memory stability");
         expect(VanillaTextureManifest.chooseFixedLayerSizeForTest(16, 32, 64, 16) == 64,

@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.texture.NativeImage;
@@ -29,17 +30,19 @@ public final class VanillaTextureManifest {
     private final int atlasWidth;
     private final int atlasHeight;
     private final int fixedLayerSize;
+    private final String sizeBucketsSummary;
     private final List<SpriteEntry> sprites;
     private final List<String> errors;
     private final List<String> warnings;
 
     private VanillaTextureManifest(Identifier atlasId, int atlasWidth, int atlasHeight,
-                                   int fixedLayerSize, List<SpriteEntry> sprites,
+                                   int fixedLayerSize, String sizeBucketsSummary, List<SpriteEntry> sprites,
                                    List<String> errors, List<String> warnings) {
         this.atlasId = atlasId;
         this.atlasWidth = atlasWidth;
         this.atlasHeight = atlasHeight;
         this.fixedLayerSize = fixedLayerSize;
+        this.sizeBucketsSummary = sizeBucketsSummary;
         this.sprites = Collections.unmodifiableList(sprites);
         this.errors = Collections.unmodifiableList(errors);
         this.warnings = Collections.unmodifiableList(warnings);
@@ -67,7 +70,8 @@ public final class VanillaTextureManifest {
                 + " exceeds native capacity " + TextureTracker.MAX_SPRITES);
         }
 
-        int layerSize = chooseFixedLayerSize(sortedSprites);
+        SizeChoice sizeChoice = chooseFixedLayerSize(sortedSprites);
+        int layerSize = sizeChoice.layerSize;
         for (int i = 0; i < sortedSprites.size(); i++) {
             Map.Entry<Identifier, Sprite> mapEntry = sortedSprites.get(i);
             Sprite sprite = mapEntry.getValue();
@@ -115,52 +119,96 @@ public final class VanillaTextureManifest {
         }
 
         return new VanillaTextureManifest(atlasId, atlasWidth, atlasHeight, layerSize,
-            entries, errors, warnings);
+            sizeChoice.summary, entries, errors, warnings);
     }
 
-    private static int chooseFixedLayerSize(List<Map.Entry<Identifier, Sprite>> sortedSprites) {
-        int layerSize = 0;
+    private static SizeChoice chooseFixedLayerSize(List<Map.Entry<Identifier, Sprite>> sortedSprites) {
+        HashMap<Integer, SizeBucket> buckets = new HashMap<>();
         for (Map.Entry<Identifier, Sprite> mapEntry : sortedSprites) {
             SpriteContents contents = mapEntry.getValue().getContents();
-            layerSize = chooseQualityLayerSize(layerSize,
-                Math.max(contents.getWidth(), contents.getHeight()));
+            addSizeSample(buckets, contents.getWidth(), contents.getHeight(), 1);
         }
-        return layerSize;
+        return chooseFixedLayerSize(buckets);
     }
 
     public static int chooseFixedLayerSizeForTest(int... widthHeightPairs) {
         if (widthHeightPairs == null || widthHeightPairs.length % 2 != 0) {
             throw new IllegalArgumentException("widthHeightPairs must contain width/height pairs");
         }
-        int layerSize = 0;
+        HashMap<Integer, SizeBucket> buckets = new HashMap<>();
         for (int i = 0; i < widthHeightPairs.length; i += 2) {
             int width = widthHeightPairs[i];
             int height = widthHeightPairs[i + 1];
-            layerSize = chooseQualityLayerSize(layerSize, Math.max(width, height));
+            addSizeSample(buckets, width, height, 1);
         }
-        return layerSize;
+        return chooseFixedLayerSize(buckets).layerSize;
     }
 
     public static int chooseFixedLayerSizeFromCountsForTest(int... sizeCountPairs) {
         if (sizeCountPairs == null || sizeCountPairs.length % 2 != 0) {
             throw new IllegalArgumentException("sizeCountPairs must contain size/count pairs");
         }
-        int layerSize = 0;
+        HashMap<Integer, SizeBucket> buckets = new HashMap<>();
         for (int i = 0; i < sizeCountPairs.length; i += 2) {
             int size = sizeCountPairs[i];
             int count = Math.max(0, sizeCountPairs[i + 1]);
             if (count > 0) {
-                layerSize = chooseQualityLayerSize(layerSize, size);
+                addSizeSample(buckets, size, size, count);
             }
         }
-        return layerSize;
+        return chooseFixedLayerSize(buckets).layerSize;
     }
 
-    private static int chooseQualityLayerSize(int current, int candidate) {
-        if (candidate <= 0) {
-            return current;
+    private static void addSizeSample(Map<Integer, SizeBucket> buckets, int width, int height, int count) {
+        if (width <= 0 || height <= 0 || count <= 0) {
+            return;
         }
-        return Math.max(current, Math.min(candidate, MAX_DEFAULT_LAYER_SIZE));
+        int candidate = qualityLayerSizeFor(width, height);
+        if (candidate <= 0) {
+            return;
+        }
+        SizeBucket bucket = buckets.computeIfAbsent(candidate, SizeBucket::new);
+        bucket.count += count;
+        bucket.score += (long) candidate * candidate * count;
+    }
+
+    private static SizeChoice chooseFixedLayerSize(Map<Integer, SizeBucket> buckets) {
+        SizeBucket best = null;
+        ArrayList<SizeBucket> sortedBuckets = new ArrayList<>(buckets.values());
+        sortedBuckets.sort((a, b) -> Integer.compare(a.size, b.size));
+        for (SizeBucket bucket : sortedBuckets) {
+            if (best == null
+                || bucket.score > best.score
+                || (bucket.score == best.score && bucket.size > best.size)) {
+                best = bucket;
+            }
+        }
+        int layerSize = best != null ? best.size : 0;
+        return new SizeChoice(layerSize, summarizeBuckets(sortedBuckets));
+    }
+
+    private static String summarizeBuckets(List<SizeBucket> buckets) {
+        if (buckets.isEmpty()) {
+            return "";
+        }
+        StringBuilder summary = new StringBuilder();
+        for (int i = 0; i < buckets.size(); i++) {
+            SizeBucket bucket = buckets.get(i);
+            if (i > 0) {
+                summary.append(", ");
+            }
+            summary.append(bucket.size).append("x").append(bucket.size)
+                .append(":").append(bucket.count);
+        }
+        return summary.toString();
+    }
+
+    private static int qualityLayerSizeFor(int width, int height) {
+        int candidate = Math.max(width, height);
+        if (candidate <= 0) {
+            return 0;
+        }
+        return Math.min(candidate, MAX_DEFAULT_LAYER_SIZE);
     }
 
     public boolean isValid() {
@@ -192,6 +240,7 @@ public final class VanillaTextureManifest {
             + " sprites=" + sprites.size()
             + " atlasSize=" + atlasWidth + "x" + atlasHeight
             + " layerSize=" + fixedLayerSize
+            + " sizeBuckets=[" + sizeBucketsSummary + "]"
             + " baseBytes=" + baseLayerBytes()
             + " warnings=" + warnings.size()
             + " errors=" + errors.size();
@@ -207,6 +256,7 @@ public final class VanillaTextureManifest {
                 writer.write("  \"atlasWidth\": " + atlasWidth + ",\n");
                 writer.write("  \"atlasHeight\": " + atlasHeight + ",\n");
                 writer.write("  \"fixedLayerSize\": " + fixedLayerSize + ",\n");
+                writer.write("  \"sizeBuckets\": \"" + json(sizeBucketsSummary) + "\",\n");
                 writer.write("  \"spriteCount\": " + sprites.size() + ",\n");
                 writer.write("  \"baseLayerBytes\": " + baseLayerBytes() + ",\n");
                 writeStringArray(writer, "errors", errors, true);
@@ -260,5 +310,18 @@ public final class VanillaTextureManifest {
 
     private record SpriteEntry(int id, Identifier identifier, int atlasX, int atlasY,
                                int width, int height, int frameCount, boolean hasImage) {
+    }
+
+    private static final class SizeBucket {
+        final int size;
+        int count;
+        long score;
+
+        SizeBucket(int size) {
+            this.size = size;
+        }
+    }
+
+    private record SizeChoice(int layerSize, String summary) {
     }
 }
