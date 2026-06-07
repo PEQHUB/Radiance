@@ -689,11 +689,15 @@ public final class MaterialLabSelfTest {
     }
 
     private static void missingSpriteFallbackUsesRenderableBlockSprite() {
+        Map<Identifier, Integer> oldTextureIds = new LinkedHashMap<>(TextureTracker.textureID2GLID);
         TextureArrayBridge.setSortedSpriteIds(List.of(
             MissingSprite.getMissingSpriteId(),
             Identifier.ofVanilla("block/dirt"),
             Identifier.ofVanilla("block/stone")));
         try {
+            TextureTracker.textureID2GLID.clear();
+            TextureTracker.textureID2GLID.put(MissingSprite.getMissingSpriteId(), 11);
+            TextureTracker.textureID2GLID.put(Identifier.ofVanilla("textures/atlas/blocks.png"), 22);
             int missing = TextureArrayBridge.resolveSpriteId(MissingSprite.getMissingSpriteId().toString());
             int dirt = TextureArrayBridge.resolveSpriteId("minecraft:block/dirt");
             expect(missing == 0, "diagnostic sprite lookup should still expose missingno");
@@ -704,7 +708,15 @@ public final class MaterialLabSelfTest {
                 "renderable missing lookup should fall back to dirt");
             expect(TextureArrayBridge.resolveRenderableSpriteId(Identifier.ofVanilla("block/does_not_exist")) == dirt,
                 "unknown renderable lookup should fall back to dirt");
+            expect(TextureArrayBridge.resolveRenderableTextureGlId(MissingSprite.getMissingSpriteId(), 11) == 22,
+                "renderable GL texture lookup should replace explicit missing texture bindings");
+            expect(TextureArrayBridge.resolveRenderableTextureGlId(Identifier.ofVanilla("textures/entity/missing.png"), 11) == 22,
+                "renderable GL texture lookup should replace missing GL ids from invalid texture resources");
+            expect(TextureArrayBridge.resolveRenderableTextureGlId(Identifier.ofVanilla("textures/entity/cow/cow.png"), 33) == 33,
+                "renderable GL texture lookup should keep valid texture bindings");
         } finally {
+            TextureTracker.textureID2GLID.clear();
+            TextureTracker.textureID2GLID.putAll(oldTextureIds);
             TextureArrayBridge.setSortedSpriteIds(List.of(SPRITE, Identifier.ofVanilla("block/glass")));
         }
     }

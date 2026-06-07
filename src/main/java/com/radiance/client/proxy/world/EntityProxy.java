@@ -10,6 +10,7 @@ import com.radiance.client.fpv.FirstPersonView;
 import com.radiance.client.constant.Constants;
 import com.radiance.client.constant.Constants.RayTracingFlags;
 import com.radiance.client.proxy.vulkan.BufferProxy;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.SpectralColor;
 import com.radiance.client.vertex.PBRVertexConsumer;
@@ -1136,7 +1137,8 @@ public class EntityProxy {
                         .orElse(MissingSprite.getMissingSpriteId());
                     int geometryTypeID = Constants.GeometryTypes.getGeometryType(renderLayer, entityRenderLayer.reflect)
                         .getValue();
-                    int geometryTextureID = textureManager.getTexture(identifier).getGlId();
+                    int geometryTextureID = TextureArrayBridge.resolveRenderableTextureGlId(identifier,
+                        textureManager.getTexture(identifier).getGlId());
                     int vertexFormatID = Constants.VertexFormats.getValue(vertexBuffer.getDrawParameters().format());
                     int indexFormatID = Constants.DrawModes.getValue(vertexBuffer.getDrawParameters().mode());
 
@@ -1328,8 +1330,9 @@ public class EntityProxy {
                         .getValue();
                 int
                     geometryTextureID =
-                    textureManager.getTexture(identifier)
-                        .getGlId();
+                    TextureArrayBridge.resolveRenderableTextureGlId(identifier,
+                        textureManager.getTexture(identifier)
+                            .getGlId());
                 int
                     vertexFormatID =
                     Constants.VertexFormats.getValue(vertexBuffer.getDrawParameters()

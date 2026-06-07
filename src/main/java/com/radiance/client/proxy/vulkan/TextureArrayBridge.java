@@ -1,11 +1,13 @@
 package com.radiance.client.proxy.vulkan;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.util.Identifier;
+import com.radiance.client.texture.TextureTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,6 +25,9 @@ public final class TextureArrayBridge {
         Identifier.ofVanilla("block/stone"),
         Identifier.ofVanilla("block/oak_planks"),
         Identifier.ofVanilla("block/debug"));
+    private static final List<Identifier> MISSING_RENDER_TEXTURE_FALLBACKS = List.of(
+        Identifier.ofVanilla("textures/atlas/blocks.png"),
+        Identifier.ofVanilla("textures/atlas/gui.png"));
 
     private TextureArrayBridge() {
     }
@@ -83,6 +88,37 @@ public final class TextureArrayBridge {
             return spriteId;
         }
         return missingSpriteFallbackId;
+    }
+
+    public static int resolveRenderableTextureGlId(Identifier id, int glId) {
+        if (id != null && !MissingSprite.getMissingSpriteId().equals(id)
+            && glId >= 0 && !isMissingTextureGlId(glId)) {
+            return glId;
+        }
+        int fallback = renderTextureFallbackGlIdForTest();
+        return fallback >= 0 ? fallback : glId;
+    }
+
+    public static int renderTextureFallbackGlIdForTest() {
+        for (Identifier candidate : MISSING_RENDER_TEXTURE_FALLBACKS) {
+            Integer glId = TextureTracker.textureID2GLID.get(candidate);
+            if (glId != null && glId >= 0 && !isMissingTextureGlId(glId)) {
+                return glId;
+            }
+        }
+        return TextureTracker.textureID2GLID.entrySet().stream()
+            .filter(entry -> entry.getValue() != null && entry.getValue() >= 0)
+            .filter(entry -> !MissingSprite.getMissingSpriteId().equals(entry.getKey()))
+            .filter(entry -> !isMissingTextureGlId(entry.getValue()))
+            .sorted(Comparator.comparing(entry -> entry.getKey().toString()))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse(-1);
+    }
+
+    private static boolean isMissingTextureGlId(int glId) {
+        Integer missingGlId = TextureTracker.textureID2GLID.get(MissingSprite.getMissingSpriteId());
+        return missingGlId != null && missingGlId == glId;
     }
 
     public static int missingSpriteFallbackIdForTest() {

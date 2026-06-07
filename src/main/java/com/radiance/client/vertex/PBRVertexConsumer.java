@@ -146,10 +146,11 @@ public class PBRVertexConsumer implements VertexConsumer {
                 multiPhase.phases.texture.getId()
                     .orElse(MissingSprite.getMissingSpriteId());
             textureID =
-                MinecraftClient.getInstance()
-                    .getTextureManager()
-                    .getTexture(identifier)
-                    .getGlId();
+                TextureArrayBridge.resolveRenderableTextureGlId(identifier,
+                    MinecraftClient.getInstance()
+                        .getTextureManager()
+                        .getTexture(identifier)
+                        .getGlId());
         }
     }
 
@@ -816,10 +817,11 @@ public class PBRVertexConsumer implements VertexConsumer {
                     ((RenderLayer.MultiPhase) glintRenderLayer).phases.texture.getId()
                         .orElse(MissingSprite.getMissingSpriteId());
                 glintTextureID =
-                    MinecraftClient.getInstance()
-                        .getTextureManager()
-                        .getTexture(identifier)
-                        .getGlId();
+                    TextureArrayBridge.resolveRenderableTextureGlId(identifier,
+                        MinecraftClient.getInstance()
+                            .getTextureManager()
+                            .getTexture(identifier)
+                            .getGlId());
             }
         }
 
@@ -889,10 +891,11 @@ public class PBRVertexConsumer implements VertexConsumer {
                     ((RenderLayer.MultiPhase) glintRenderLayer).phases.texture.getId()
                         .orElse(MissingSprite.getMissingSpriteId());
                 glintTextureID =
-                    MinecraftClient.getInstance()
-                        .getTextureManager()
-                        .getTexture(identifier)
-                        .getGlId();
+                    TextureArrayBridge.resolveRenderableTextureGlId(identifier,
+                        MinecraftClient.getInstance()
+                            .getTextureManager()
+                            .getTexture(identifier)
+                            .getGlId());
             }
 
             this.inverseTextureMatrix = new Matrix4f(matrix.getPositionMatrix()).invert();

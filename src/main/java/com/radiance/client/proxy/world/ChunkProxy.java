@@ -33,6 +33,7 @@ import net.minecraft.client.render.chunk.ChunkRendererRegionBuilder;
 import net.minecraft.client.render.chunk.SectionBuilder;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.TextureManager;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkSectionPos;
 import net.minecraft.util.math.Direction;
@@ -342,11 +343,12 @@ public class ChunkProxy {
 
                     int geometryTypeID =
                         Constants.GeometryTypes.getGeometryType(renderLayer, true).getValue();
+                    Identifier textureId =
+                        ((RenderLayer.MultiPhase) renderLayer).phases.texture.getId()
+                            .orElse(MissingSprite.getMissingSpriteId());
                     int geometryTextureID =
-                        textureManager.getTexture(
-                                ((RenderLayer.MultiPhase) renderLayer).phases.texture.getId()
-                                    .orElse(MissingSprite.getMissingSpriteId()))
-                            .getGlId();
+                        TextureArrayBridge.resolveRenderableTextureGlId(textureId,
+                            textureManager.getTexture(textureId).getGlId());
                     int vertexFormatID = Constants.VertexFormats.getValue(
                         vertexBuffer.getDrawParameters().format());
 
