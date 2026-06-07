@@ -87,6 +87,8 @@ public final class ResourceMaterialResidencyUploader {
         json.addProperty("materialCapacity", materialCapacity);
         json.addProperty("candidateMaterialCount", items.size());
 
+        long uploadStartedNanos = System.nanoTime();
+        UploadStats totalStats = new UploadStats();
         Map<Integer, ResourceMaterialRegistry.ResidencyHandle> handles = new LinkedHashMap<>();
         JsonArray pageReports = new JsonArray();
         int nextItem = 0;
@@ -117,16 +119,22 @@ public final class ResourceMaterialResidencyUploader {
         for (int page = FIRST_COMPAT_PAGE;
              page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX && nextItem < items.size();
              page++) {
+            long pageStartedNanos = System.nanoTime();
+            UploadStats pageStats = new UploadStats();
+            long allocationStartedNanos = System.nanoTime();
             ByteBuffer albedo = directPageBuffer(pageCapacity, bytesPerLayer);
             ByteBuffer specular = directPageBuffer(pageCapacity, bytesPerLayer);
             ByteBuffer normal = directPageBuffer(pageCapacity, bytesPerLayer);
             ByteBuffer flag = directPageBuffer(pageCapacity, bytesPerLayer);
+            pageStats.pageAllocationNanos += elapsedNanos(allocationStartedNanos);
             long albedoPtr = memAddress(albedo);
             long specularPtr = memAddress(specular);
             long normalPtr = memAddress(normal);
             long flagPtr = memAddress(flag);
+            long initStartedNanos = System.nanoTime();
             memSet(specularPtr, 0, (long) pageCapacity * bytesPerLayer);
             memSet(flagPtr, 0, (long) pageCapacity * bytesPerLayer);
+            pageStats.pageInitNanos += elapsedNanos(initStartedNanos);
 
             JsonObject pageReport = new JsonObject();
             pageReport.addProperty("page", page);
@@ -139,7 +147,7 @@ public final class ResourceMaterialResidencyUploader {
                     specularPtr + (long) layer * bytesPerLayer,
                     normalPtr + (long) layer * bytesPerLayer,
                     flagPtr + (long) layer * bytesPerLayer,
-                    defaultNormalPtr, bytesPerLayer);
+                    defaultNormalPtr, bytesPerLayer, pageStats);
                 if (!result.uploaded()) {
                     if (result.missingAlbedo()) {
                         skippedMissingAlbedo++;
@@ -163,10 +171,15 @@ public final class ResourceMaterialResidencyUploader {
 
             pageReport.addProperty("layerCount", layer);
             if (layer == 0) {
+                pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
+                totalStats.add(pageStats);
+                pageReport.add("timingMs", pageStats.timingJson());
+                pageReport.add("displacement", pageStats.displacementJson());
                 pageReports.add(pageReport);
                 continue;
             }
             boolean uploaded;
+            long nativeStartedNanos = System.nanoTime();
             try {
                 uploaded = TextureArrayBridge.nativeReceiveMaterialTexturePage(
                     page, layerSize, layer,
@@ -174,23 +187,30 @@ public final class ResourceMaterialResidencyUploader {
             } catch (UnsatisfiedLinkError e) {
                 uploaded = false;
             }
+            pageStats.nativePageUploadNanos += elapsedNanos(nativeStartedNanos);
             pageReport.addProperty("uploaded", uploaded);
             if (uploaded) {
                 uploadedPages++;
                 handles.putAll(pageHandles);
+                long tableStartedNanos = System.nanoTime();
                 ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
                 boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
                 pageReport.addProperty("materialTableUploaded", materialTableUploaded);
                 writePageStatus(generation, "residencyPageUploaded", page, layer, uploadedPages,
-                    handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired);
+                    handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired, pageStats);
                 LOGGER.info("[MaterialCompat] Material page {} uploaded: {} layers, {} total resident handles",
                     page, layer, handles.size());
             } else {
                 nativePageFailures++;
                 writePageStatus(generation, "residencyPageFailed", page, layer, uploadedPages,
-                    handles.size(), items.size(), nextItem, false, pagesRequired);
+                    handles.size(), items.size(), nextItem, false, pagesRequired, pageStats);
                 LOGGER.warn("[MaterialCompat] Material page {} upload failed: {} layers", page, layer);
             }
+            pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
+            totalStats.add(pageStats);
+            pageReport.add("timingMs", pageStats.timingJson());
+            pageReport.add("displacement", pageStats.displacementJson());
             pageReports.add(pageReport);
         }
 
@@ -203,6 +223,9 @@ public final class ResourceMaterialResidencyUploader {
         json.addProperty("displacementEligibleMaterials", displacementEligible);
         json.addProperty("displacementBlockedMaterials", displacementBlocked);
         json.addProperty("deferredCandidateMaterials", Math.max(0, items.size() - nextItem));
+        totalStats.totalUploadNanos = elapsedNanos(uploadStartedNanos);
+        json.add("timingMs", totalStats.timingJson());
+        json.add("displacement", totalStats.displacementJson());
         json.add("pages", pageReports);
         ResourceMaterialRuntimeStatus.write("residencyUploadFinished", generation, json);
         LOGGER.info("[MaterialCompat] Material page upload: {} materials across {} pages, {} deferred",
@@ -219,7 +242,7 @@ public final class ResourceMaterialResidencyUploader {
 
     private static void writePageStatus(long generation, String status, int page, int layerCount,
         int uploadedPages, int uploadedMaterials, int candidateMaterialCount, int nextItem,
-        boolean materialTableUploaded, int pagesRequired) {
+        boolean materialTableUploaded, int pagesRequired, UploadStats pageStats) {
         JsonObject event = new JsonObject();
         event.addProperty("page", page);
         event.addProperty("layerCount", layerCount);
@@ -231,6 +254,10 @@ public final class ResourceMaterialResidencyUploader {
         event.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
         event.addProperty("pagesRequired", pagesRequired);
         event.addProperty("materialTableUploaded", materialTableUploaded);
+        if (pageStats != null) {
+            event.add("timingMs", pageStats.timingJson());
+            event.add("displacement", pageStats.displacementJson());
+        }
         ResourceMaterialRuntimeStatus.write(status, generation, event);
     }
 
@@ -265,39 +292,63 @@ public final class ResourceMaterialResidencyUploader {
 
     private static LayerResult writeLayer(ResourceManager resourceManager, UploadItem item,
         int layerSize, long albedoPtr, long specularPtr, long normalPtr, long flagPtr,
-        long defaultNormalPtr, int bytesPerLayer) {
+        long defaultNormalPtr, int bytesPerLayer, UploadStats stats) {
         NativeImage albedo = null;
         NativeImage specular = null;
         NativeImage normal = null;
         NativeImage flag = null;
         try {
-            albedo = readImage(resourceManager, item.albedoPath());
+            if (stats != null) {
+                stats.albedoRequested++;
+            }
+            albedo = readImage(resourceManager, item.albedoPath(), ImageChannel.ALBEDO, stats);
             if (albedo == null) {
+                if (stats != null) {
+                    stats.missingAlbedo++;
+                }
                 return LayerResult.missingAlbedoResult();
             }
             memCopy(defaultNormalPtr, normalPtr, bytesPerLayer);
-            writeImagePixels(albedo, layerSize, albedoPtr);
+            writeImagePixels(albedo, layerSize, albedoPtr, stats);
             boolean hasSpecular = false;
             if (item.specularPresent() && !item.specularPath().isBlank()) {
-                specular = readImage(resourceManager, item.specularPath());
+                if (stats != null) {
+                    stats.specularRequested++;
+                }
+                specular = readImage(resourceManager, item.specularPath(), ImageChannel.SPECULAR, stats);
                 if (specular != null) {
-                    writeImagePixels(specular, layerSize, specularPtr);
+                    if (stats != null) {
+                        stats.specularLoaded++;
+                    }
+                    writeImagePixels(specular, layerSize, specularPtr, stats);
                     hasSpecular = true;
                 }
             }
             if (item.normalPresent() && !item.normalPath().isBlank()) {
-                normal = readImage(resourceManager, item.normalPath());
+                if (stats != null) {
+                    stats.normalRequested++;
+                }
+                normal = readImage(resourceManager, item.normalPath(), ImageChannel.NORMAL, stats);
                 if (normal != null) {
-                    writeImagePixels(normal, layerSize, normalPtr);
+                    if (stats != null) {
+                        stats.normalLoaded++;
+                    }
+                    writeImagePixels(normal, layerSize, normalPtr, stats);
                 }
             }
             if (item.flagPresent() && !item.flagPath().isBlank()) {
-                flag = readImage(resourceManager, item.flagPath());
+                if (stats != null) {
+                    stats.flagRequested++;
+                }
+                flag = readImage(resourceManager, item.flagPath(), ImageChannel.FLAG, stats);
                 if (flag != null) {
-                    writeImagePixels(flag, layerSize, flagPtr);
+                    if (stats != null) {
+                        stats.flagLoaded++;
+                    }
+                    writeImagePixels(flag, layerSize, flagPtr, stats);
                 }
             }
-            HeightInfo height = heightInfo(item.albedoPath(), albedo, normal);
+            HeightInfo height = heightInfo(item.albedoPath(), albedo, normal, stats);
             return new LayerResult(true, false, hasSpecular,
                 height.eligible(), height.blocked(), height.rangePacked());
         } catch (IOException | RuntimeException e) {
@@ -311,29 +362,52 @@ public final class ResourceMaterialResidencyUploader {
         }
     }
 
-    private static NativeImage readImage(ResourceManager resourceManager, String assetPath)
+    private static NativeImage readImage(ResourceManager resourceManager, String assetPath,
+        ImageChannel channel, UploadStats stats)
         throws IOException {
         Identifier id = ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(assetPath);
         if (id == null) {
             return null;
         }
+        long lookupStartedNanos = System.nanoTime();
         Optional<Resource> optional = resourceManager.getResource(id);
+        if (stats != null) {
+            stats.resourceLookupNanos += elapsedNanos(lookupStartedNanos);
+        }
         if (optional.isEmpty()) {
             return null;
         }
+        long decodeStartedNanos = System.nanoTime();
         try (InputStream input = optional.get().getInputStream()) {
-            return NativeImage.read(input);
+            NativeImage image = NativeImage.read(input);
+            if (stats != null) {
+                long decodeNanos = elapsedNanos(decodeStartedNanos);
+                stats.pngDecodeNanos += decodeNanos;
+                if (channel == ImageChannel.ALBEDO) {
+                    stats.albedoDecodeNanos += decodeNanos;
+                    stats.albedoLoaded++;
+                } else {
+                    stats.sidecarDecodeNanos += decodeNanos;
+                }
+            }
+            return image;
         }
     }
 
-    private static void writeImagePixels(NativeImage image, int dstSize, long dstPtr) {
+    private static void writeImagePixels(NativeImage image, int dstSize, long dstPtr,
+        UploadStats stats) {
         if (image == null || dstSize <= 0 || dstPtr == 0L) {
             return;
         }
+        long startedNanos = System.nanoTime();
         if (image.getWidth() == dstSize && image.getHeight() == dstSize
             && image.getFormat().getChannelCount() == 4) {
             long srcPtr = ((INativeImageExt) (Object) image).neoVoxelRT$getPointer();
             memCopy(srcPtr, dstPtr, (long) dstSize * dstSize * 4L);
+            if (stats != null) {
+                stats.pixelTransferNanos += elapsedNanos(startedNanos);
+                stats.directPixelCopies++;
+            }
             return;
         }
         int sourceW = Math.max(1, image.getWidth());
@@ -350,14 +424,21 @@ public final class ResourceMaterialResidencyUploader {
                 memPutByte(dstPtr + offset + 3, (byte) ((argb >> 24) & 0xFF));
             }
         }
+        if (stats != null) {
+            stats.pixelTransferNanos += elapsedNanos(startedNanos);
+            stats.resizedPixelCopies++;
+        }
     }
 
-    private static HeightInfo heightInfo(String assetPath, NativeImage albedo, NativeImage normal) {
+    private static HeightInfo heightInfo(String assetPath, NativeImage albedo, NativeImage normal,
+        UploadStats stats) {
+        long startedNanos = System.nanoTime();
         if (normal == null || normal.getWidth() <= 0 || normal.getHeight() <= 0) {
+            if (stats != null) {
+                stats.heightClassificationNanos += elapsedNanos(startedNanos);
+                stats.heightMissingNormal++;
+            }
             return HeightInfo.none(false);
-        }
-        if (isKnownCutoutOrFluid(assetPath) || hasNonOpaqueAlpha(albedo)) {
-            return HeightInfo.none(true);
         }
         int min = 255;
         int max = 0;
@@ -367,6 +448,33 @@ public final class ResourceMaterialResidencyUploader {
                 min = Math.min(min, alpha);
                 max = Math.max(max, alpha);
             }
+        }
+        boolean nonUniform = max > min;
+        boolean uniform255 = min == 255 && max == 255;
+        boolean blockedByCutout = isKnownCutoutOrFluid(assetPath);
+        boolean blockedByAlpha = hasNonOpaqueAlpha(albedo);
+        if (stats != null) {
+            stats.heightClassificationNanos += elapsedNanos(startedNanos);
+            if (nonUniform) {
+                stats.normalAlphaNonUniform++;
+                stats.authoredHeightMaterials++;
+            } else if (uniform255) {
+                stats.normalAlphaUniform255++;
+            } else {
+                stats.normalAlphaUniformOther++;
+            }
+            if (blockedByCutout) {
+                stats.heightBlockedByCutoutOrFluid++;
+            }
+            if (blockedByAlpha) {
+                stats.heightBlockedByAlpha++;
+            }
+            if (!nonUniform) {
+                stats.heightBlockedByUniformAlpha++;
+            }
+        }
+        if (blockedByCutout || blockedByAlpha) {
+            return HeightInfo.none(nonUniform);
         }
         if (max <= min) {
             return HeightInfo.none(false);
@@ -424,6 +532,14 @@ public final class ResourceMaterialResidencyUploader {
         return (int) Math.max(1L, Math.min(TARGET_PAGE_CAPACITY, capacity));
     }
 
+    private static long elapsedNanos(long startedNanos) {
+        return Math.max(0L, System.nanoTime() - startedNanos);
+    }
+
+    private static double millis(long nanos) {
+        return nanos / 1_000_000.0;
+    }
+
     private static void removeHandlesForPage(Map<Integer, ResourceMaterialRegistry.ResidencyHandle> handles,
         int page) {
         handles.entrySet().removeIf(entry -> entry.getValue().albedoPage() == page);
@@ -475,6 +591,127 @@ public final class ResourceMaterialResidencyUploader {
                               boolean specularPresent,
                               boolean normalPresent,
                               boolean flagPresent) {
+    }
+
+    private enum ImageChannel {
+        ALBEDO,
+        SPECULAR,
+        NORMAL,
+        FLAG
+    }
+
+    private static final class UploadStats {
+        long totalUploadNanos;
+        long pageTotalNanos;
+        long pageAllocationNanos;
+        long pageInitNanos;
+        long resourceLookupNanos;
+        long pngDecodeNanos;
+        long albedoDecodeNanos;
+        long sidecarDecodeNanos;
+        long pixelTransferNanos;
+        long heightClassificationNanos;
+        long nativePageUploadNanos;
+        long materialTableReuploadNanos;
+
+        int albedoRequested;
+        int albedoLoaded;
+        int missingAlbedo;
+        int specularRequested;
+        int specularLoaded;
+        int normalRequested;
+        int normalLoaded;
+        int flagRequested;
+        int flagLoaded;
+        int directPixelCopies;
+        int resizedPixelCopies;
+        int heightMissingNormal;
+        int normalAlphaUniform255;
+        int normalAlphaUniformOther;
+        int normalAlphaNonUniform;
+        int authoredHeightMaterials;
+        int heightBlockedByCutoutOrFluid;
+        int heightBlockedByAlpha;
+        int heightBlockedByUniformAlpha;
+
+        void add(UploadStats other) {
+            if (other == null) {
+                return;
+            }
+            totalUploadNanos += other.totalUploadNanos;
+            pageTotalNanos += other.pageTotalNanos;
+            pageAllocationNanos += other.pageAllocationNanos;
+            pageInitNanos += other.pageInitNanos;
+            resourceLookupNanos += other.resourceLookupNanos;
+            pngDecodeNanos += other.pngDecodeNanos;
+            albedoDecodeNanos += other.albedoDecodeNanos;
+            sidecarDecodeNanos += other.sidecarDecodeNanos;
+            pixelTransferNanos += other.pixelTransferNanos;
+            heightClassificationNanos += other.heightClassificationNanos;
+            nativePageUploadNanos += other.nativePageUploadNanos;
+            materialTableReuploadNanos += other.materialTableReuploadNanos;
+
+            albedoRequested += other.albedoRequested;
+            albedoLoaded += other.albedoLoaded;
+            missingAlbedo += other.missingAlbedo;
+            specularRequested += other.specularRequested;
+            specularLoaded += other.specularLoaded;
+            normalRequested += other.normalRequested;
+            normalLoaded += other.normalLoaded;
+            flagRequested += other.flagRequested;
+            flagLoaded += other.flagLoaded;
+            directPixelCopies += other.directPixelCopies;
+            resizedPixelCopies += other.resizedPixelCopies;
+            heightMissingNormal += other.heightMissingNormal;
+            normalAlphaUniform255 += other.normalAlphaUniform255;
+            normalAlphaUniformOther += other.normalAlphaUniformOther;
+            normalAlphaNonUniform += other.normalAlphaNonUniform;
+            authoredHeightMaterials += other.authoredHeightMaterials;
+            heightBlockedByCutoutOrFluid += other.heightBlockedByCutoutOrFluid;
+            heightBlockedByAlpha += other.heightBlockedByAlpha;
+            heightBlockedByUniformAlpha += other.heightBlockedByUniformAlpha;
+        }
+
+        JsonObject timingJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("totalUploadMs", millis(totalUploadNanos));
+            json.addProperty("pageTotalMs", millis(pageTotalNanos));
+            json.addProperty("pageAllocationMs", millis(pageAllocationNanos));
+            json.addProperty("pageInitMs", millis(pageInitNanos));
+            json.addProperty("resourceLookupMs", millis(resourceLookupNanos));
+            json.addProperty("pngDecodeMs", millis(pngDecodeNanos));
+            json.addProperty("albedoPngDecodeMs", millis(albedoDecodeNanos));
+            json.addProperty("sidecarPngDecodeMs", millis(sidecarDecodeNanos));
+            json.addProperty("pixelTransferMs", millis(pixelTransferNanos));
+            json.addProperty("heightClassificationMs", millis(heightClassificationNanos));
+            json.addProperty("nativePageUploadMs", millis(nativePageUploadNanos));
+            json.addProperty("materialTableReuploadMs", millis(materialTableReuploadNanos));
+            return json;
+        }
+
+        JsonObject displacementJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("albedoRequested", albedoRequested);
+            json.addProperty("albedoLoaded", albedoLoaded);
+            json.addProperty("missingAlbedo", missingAlbedo);
+            json.addProperty("specularSidecarRequested", specularRequested);
+            json.addProperty("specularSidecarResident", specularLoaded);
+            json.addProperty("normalSidecarRequested", normalRequested);
+            json.addProperty("normalSidecarResident", normalLoaded);
+            json.addProperty("flagSidecarRequested", flagRequested);
+            json.addProperty("flagSidecarResident", flagLoaded);
+            json.addProperty("directPixelCopies", directPixelCopies);
+            json.addProperty("resizedPixelCopies", resizedPixelCopies);
+            json.addProperty("heightMissingNormal", heightMissingNormal);
+            json.addProperty("normalAlphaUniform255", normalAlphaUniform255);
+            json.addProperty("normalAlphaUniformOther", normalAlphaUniformOther);
+            json.addProperty("normalAlphaNonUniform", normalAlphaNonUniform);
+            json.addProperty("authoredHeightMaterials", authoredHeightMaterials);
+            json.addProperty("heightBlockedByCutoutOrFluid", heightBlockedByCutoutOrFluid);
+            json.addProperty("heightBlockedByAlpha", heightBlockedByAlpha);
+            json.addProperty("heightBlockedByUniformAlpha", heightBlockedByUniformAlpha);
+            return json;
+        }
     }
 
     private record LayerResult(boolean uploaded,
