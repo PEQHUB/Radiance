@@ -83,6 +83,7 @@ public final class MaterialLabSelfTest {
         expandedTextureRuleAbiCarriesAdvancedFields();
         shapedThicknessMinMaxGammaAffectsRule();
         aoIsHiddenContractAndPreservedByDefault();
+        heightOnlyNormalBakeUsesFlatLabPbrFallback();
         generatedMasksAreDeterministic();
         histogramClampAndSmoothingAreDeterministic();
         dropdownRowSelectionUsesClickCoordinates();
@@ -464,6 +465,27 @@ public final class MaterialLabSelfTest {
         MaterialBakePlan plan = MaterialRecipeCompiler.evaluate(0, recipe);
         expect(plan.ok && plan.surface != null, "height-only plan should evaluate");
         expect(!plan.surface.aoOverride, "AO page is hidden and _n.B must be preserved by default");
+    }
+
+    private static void heightOnlyNormalBakeUsesFlatLabPbrFallback() {
+        NativeImage previous = TextureTracker.spriteNormalCache.remove(0);
+        try {
+            MaterialRecipe recipe = MaterialRecipe.defaults();
+            recipe.heightOverride = true;
+            recipe.heightSource = "flat";
+            recipe.heightFlat = 0.25f;
+            int pixel = MaterialRecipeCompiler.bakeNormalPixelForTest(0, recipe, 0, 0);
+            expect(((pixel >>> 16) & 0xFF) == 128,
+                "height-only bake without pack normal should preserve flat normal X");
+            expect(((pixel >>> 8) & 0xFF) == 128,
+                "height-only bake without pack normal should preserve flat normal Y");
+            expect((pixel & 0xFF) == 255,
+                "height-only bake without pack normal should preserve LabPBR AO as fully open");
+        } finally {
+            if (previous != null) {
+                TextureTracker.spriteNormalCache.put(0, previous);
+            }
+        }
     }
 
     private static void previewLanesReflectBakePlan() {

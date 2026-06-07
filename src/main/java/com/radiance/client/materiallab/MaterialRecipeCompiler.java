@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 public final class MaterialRecipeCompiler {
     private static final Logger LOGGER = LoggerFactory.getLogger("MaterialLab");
+    private static final int FLAT_LABPBR_NORMAL_ARGB = 0xFF8080FF;
 
     private MaterialRecipeCompiler() {
     }
@@ -481,6 +482,19 @@ public final class MaterialRecipeCompiler {
         return new MaterialUploadResult(plan, specOk, normalOk, heightOk, rulesOk, diagnostics);
     }
 
+    public static int bakeNormalPixelForTest(int spriteId, MaterialRecipe recipe, int x, int y) {
+        MaterialBakePlan plan = evaluate(spriteId, recipe);
+        if (!plan.ok || plan.surface == null || plan.size <= 0) {
+            return 0;
+        }
+        try (NativeImage normal = new NativeImage(NativeImage.Format.RGBA, plan.size, plan.size, false)) {
+            bakeNormal(spriteId, plan.surface, normal);
+            int px = MathHelper.clamp(x, 0, plan.size - 1);
+            int py = MathHelper.clamp(y, 0, plan.size - 1);
+            return normal.getColorArgb(px, py);
+        }
+    }
+
     private static boolean uploadCustomSpecular(int spriteId, AutoPbrValue.Surface surface, int size,
                                                 long generation, List<String> diagnostics) {
         int bytes = size * size * 4;
@@ -577,7 +591,7 @@ public final class MaterialRecipeCompiler {
         NativeImage image = new NativeImage(NativeImage.Format.RGBA, size, size, false);
         for (int y = 0; y < size; y++) {
             for (int x = 0; x < size; x++) {
-                image.setColorArgb(x, y, 0xFF8080FF);
+                image.setColorArgb(x, y, FLAT_LABPBR_NORMAL_ARGB);
             }
         }
         return image;
@@ -691,7 +705,7 @@ public final class MaterialRecipeCompiler {
                 out[y * size + x] = 0xFF000000
                     | (Math.round(nx * 255.0f) << 16)
                     | (Math.round(ny * 255.0f) << 8)
-                    | 0x80;
+                    | 0xFF;
             }
         }
         return out;
@@ -881,7 +895,7 @@ public final class MaterialRecipeCompiler {
         for (int y = 0; y < size; y++) {
             for (int x = 0; x < size; x++) {
                 int index = y * size + x;
-                int src = existing == null ? 0xFFFF8080 : sample(existing, x, y, size);
+                int src = existing == null ? FLAT_LABPBR_NORMAL_ARGB : sample(existing, x, y, size);
                 int evaluated = surface.normal == null || index >= surface.normal.length ? src : surface.normal[index];
                 int a = surface.heightOverride
                     ? MathHelper.clamp(Math.round(value(surface.heightMap, index, 0.5f) * 255.0f), 0, 255)
