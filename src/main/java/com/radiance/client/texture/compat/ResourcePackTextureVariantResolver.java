@@ -179,6 +179,11 @@ public final class ResourcePackTextureVariantResolver {
             .orElse(false);
     }
 
+    public static int weightForTest(String raw, int count, int index) {
+        int[] weights = parseWeights(raw, count);
+        return index >= 0 && index < weights.length ? weights[index] : -1;
+    }
+
     private static ResourceManager currentResourceManager() {
         try {
             MinecraftClient client = MinecraftClient.getInstance();
@@ -288,21 +293,23 @@ public final class ResourcePackTextureVariantResolver {
         ConnectMode connectMode = parseConnectMode(props.getProperty("connect", "block"));
         int[] weights = parseWeights(props.getProperty("weights", ""),
             ruleMethod.overlayRule() ? choices.size() : outputs.size());
-        int randomLoops = parsePositiveInt(props.getProperty("randomLoops", "1"), 1);
+        int randomLoops = parseNonNegativeInt(props.getProperty("randomLoops", "0"), 0);
         RandomSymmetry randomSymmetry = parseRandomSymmetry(props.getProperty("symmetry", ""));
+        boolean linkedRandom = parseBoolean(props.getProperty("linked", "false"));
         int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
         int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         int tintIndex = parseInt(props.getProperty("tintIndex", "-1"), -1);
         String tintBlock = normalizeBlockIdToken(props.getProperty("tintBlock", ""));
         int alphaMode = parseLayerAlphaMode(props.getProperty("layer", ""));
         int[] ctmReplacementMap = parseCtmReplacementMap(props);
-        List<String> biomes = parseBiomeTokens(props.getProperty("biomes", ""));
+        BiomePredicate biomePredicate = parseBiomePredicate(props.getProperty("biomes", ""));
         HeightPredicate heightPredicate = parseHeightPredicate(props);
         return Optional.of(new VariantRule(propertyId.toString(), ruleMethod, matchTiles, matchBlocks,
             connectTiles, connectBlocks,
             faces, connectMode, List.copyOf(outputs), List.copyOf(choices), weights, randomLoops, randomSymmetry,
+            linkedRandom,
             repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
-            ctmReplacementMap, List.copyOf(biomes), heightPredicate));
+            ctmReplacementMap, biomePredicate, heightPredicate));
     }
 
     private static List<TileChoice> tileChoices(String propertyAssetPath, String tilesValue, RuleMethod method) {
@@ -684,6 +691,33 @@ public final class ResourcePackTextureVariantResolver {
         }
     }
 
+    private record BiomePredicate(boolean inverted, List<String> biomes) {
+        static BiomePredicate any() {
+            return new BiomePredicate(false, List.of());
+        }
+
+        boolean matches(@Nullable BlockRenderView world, @Nullable BlockPos pos, @Nullable String biomeId) {
+            if (biomes.isEmpty()) {
+                return true;
+            }
+            String actual = normalizeBiomeToken(biomeId);
+            if (actual.isEmpty() && world instanceof WorldView worldView && pos != null) {
+                try {
+                    actual = worldView.getBiome(pos).getKey()
+                        .map(key -> normalizeBiomeToken(key.getValue().toString()))
+                        .orElse("");
+                } catch (Throwable ignored) {
+                    actual = "";
+                }
+            }
+            if (actual.isEmpty()) {
+                return false;
+            }
+            boolean listed = biomes.contains(actual);
+            return inverted ? !listed : listed;
+        }
+    }
+
     private static String normalizeMatchToken(String raw) {
         String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
         if (token.endsWith(".png")) {
@@ -745,8 +779,20 @@ public final class ResourcePackTextureVariantResolver {
     private static int[] parseWeights(String raw, int count) {
         int[] weights = new int[count];
         String[] tokens = raw == null || raw.isBlank() ? new String[0] : raw.trim().split("[\\s,]+");
+        int explicitSum = 0;
+        int explicitCount = 0;
+        for (String token : tokens) {
+            int weight = parsePositiveInt(token, -1);
+            if (weight > 0) {
+                explicitSum += weight;
+                explicitCount++;
+            }
+        }
+        int defaultWeight = explicitCount == 0
+            ? 1
+            : Math.max(1, Math.round((float) explicitSum / explicitCount));
         for (int i = 0; i < count; i++) {
-            int weight = i < tokens.length ? parsePositiveInt(tokens[i], 1) : 1;
+            int weight = i < tokens.length ? parsePositiveInt(tokens[i], defaultWeight) : defaultWeight;
             weights[i] = Math.max(1, weight);
         }
         return weights;
@@ -759,6 +805,20 @@ public final class ResourcePackTextureVariantResolver {
         } catch (Exception ignored) {
             return fallback;
         }
+    }
+
+    private static int parseNonNegativeInt(String raw, int fallback) {
+        try {
+            int value = Integer.parseInt(raw.trim());
+            return value >= 0 ? value : fallback;
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private static boolean parseBoolean(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        return value.equals("true") || value.equals("1") || value.equals("yes") || value.equals("on");
     }
 
     private static int parseInt(String raw, int fallback) {
@@ -821,18 +881,23 @@ public final class ResourcePackTextureVariantResolver {
         return replacements;
     }
 
-    private static List<String> parseBiomeTokens(String raw) {
+    private static BiomePredicate parseBiomePredicate(String raw) {
         if (raw == null || raw.isBlank()) {
-            return List.of();
+            return BiomePredicate.any();
         }
+        boolean inverted = false;
         ArrayList<String> biomes = new ArrayList<>();
         for (String token : raw.trim().split("[\\s,]+")) {
+            if (token.startsWith("!")) {
+                inverted = true;
+                token = token.substring(1);
+            }
             String normalized = normalizeBiomeToken(token);
             if (!normalized.isEmpty()) {
                 biomes.add(normalized);
             }
         }
-        return List.copyOf(biomes);
+        return biomes.isEmpty() ? BiomePredicate.any() : new BiomePredicate(inverted, List.copyOf(biomes));
     }
 
     private static HeightPredicate parseHeightPredicate(Properties props) {
@@ -1119,13 +1184,14 @@ public final class ResourcePackTextureVariantResolver {
                                int[] weights,
                                int randomLoops,
                                RandomSymmetry randomSymmetry,
+                               boolean linkedRandom,
                                int repeatWidth,
                                int repeatHeight,
                                int tintIndex,
                                String tintBlock,
                                int alphaMode,
                                int[] ctmReplacementMap,
-                               List<String> biomes,
+                               BiomePredicate biomePredicate,
                                HeightPredicate heightPredicate) {
         boolean enabledByOptions() {
             return switch (method) {
@@ -1146,7 +1212,7 @@ public final class ResourcePackTextureVariantResolver {
             if (!heightPredicate.matches(pos)) {
                 return false;
             }
-            if (!biomeMatches(world, pos, biomeId)) {
+            if (!biomePredicate.matches(world, pos, biomeId)) {
                 return false;
             }
             if (!matchBlocks.isEmpty() && state != null) {
@@ -1164,24 +1230,6 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return false;
-        }
-
-        private boolean biomeMatches(@Nullable BlockRenderView world, @Nullable BlockPos pos,
-            @Nullable String biomeId) {
-            if (biomes.isEmpty()) {
-                return true;
-            }
-            String actual = normalizeBiomeToken(biomeId);
-            if (actual.isEmpty() && world instanceof WorldView worldView && pos != null) {
-                try {
-                    actual = worldView.getBiome(pos).getKey()
-                        .map(key -> normalizeBiomeToken(key.getValue().toString()))
-                        .orElse("");
-                } catch (Throwable ignored) {
-                    actual = "";
-                }
-            }
-            return !actual.isEmpty() && biomes.contains(actual);
         }
 
         ResolvedBlockSprite resolveSprite(Identifier source, int sourceSpriteId,
@@ -1685,6 +1733,9 @@ public final class ResourcePackTextureVariantResolver {
         }
 
         private long stableHash(Identifier source, @Nullable BlockPos pos, @Nullable Direction face) {
+            if (linkedRandom) {
+                return linkedStableHash(pos, face);
+            }
             long h = 0xcbf29ce484222325L;
             h = mix(h, id.hashCode());
             h = mix(h, source.hashCode());
@@ -1692,6 +1743,17 @@ public final class ResourcePackTextureVariantResolver {
             if (pos != null) {
                 h = mix(h, pos.getX());
                 h = mix(h, pos.getY());
+                h = mix(h, pos.getZ());
+            }
+            h = mix(h, symmetryFaceBucket(face));
+            return h;
+        }
+
+        private long linkedStableHash(@Nullable BlockPos pos, @Nullable Direction face) {
+            long h = 0xcbf29ce484222325L;
+            h = mix(h, randomLoops);
+            if (pos != null) {
+                h = mix(h, pos.getX());
                 h = mix(h, pos.getZ());
             }
             h = mix(h, symmetryFaceBucket(face));

@@ -1309,12 +1309,19 @@ public final class MaterialLabSelfTest {
                 "assets/minecraft/optifine/ctm/stone/0.png"));
             Identifier random1 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
                 "assets/minecraft/optifine/ctm/stone/1.png"));
+            Identifier random2 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/stone/2.png"));
+            Identifier random3 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/stone/3.png"));
+            Identifier dirt = Identifier.ofVanilla("block/dirt");
             Identifier lamp = Identifier.ofVanilla("block/redstone_lamp");
             Identifier litLamp = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
                 "assets/minecraft/optifine/ctm/lamp/lit.png"));
-            expect(fixed != null && random0 != null && random1 != null && litLamp != null,
+            expect(fixed != null && random0 != null && random1 != null && random2 != null && random3 != null
+                    && litLamp != null,
                 "variant fixture ids should parse");
-            TextureArrayBridge.setSortedSpriteIds(List.of(stone, fixed, random0, random1, lamp, litLamp));
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, fixed, random0, random1, random2, random3,
+                dirt, lamp, litLamp));
 
             Options.materialCompatEnabled = true;
             Options.materialCompatCtmEnabled = true;
@@ -1334,6 +1341,7 @@ public final class MaterialLabSelfTest {
                 ResourcePackTextureVariantResolver.buildForTest(fixedManager, false);
             expect(fixedIndex.ruleCountForTest() == 1, "fixed rule should compile");
             int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            int dirtId = TextureArrayBridge.resolveSpriteId(dirt.toString());
             int fixedId = TextureArrayBridge.resolveSpriteId(fixed.toString());
             expect(fixedIndex.resolveForTest(stone, stoneId, new BlockPos(1, 2, 3), Direction.NORTH) == fixedId,
                 "fixed rule should replace matching source sprite with admitted CTM tile");
@@ -1402,6 +1410,22 @@ public final class MaterialLabSelfTest {
                     && north == allIndex.resolveForTest(stone, stoneId, pos, Direction.UP)
                     && north == allIndex.resolveForTest(stone, stoneId, pos, Direction.DOWN),
                 "random symmetry=all should share variants across every face");
+
+            FakeResourceManager linkedManager = new FakeResourceManager();
+            linkedManager.add("minecraft:optifine/ctm/stone/linked.properties",
+                "method=random\nmatchTiles=stone dirt\ntiles=0 1 2 3\nweights=4 2\nlinked=true\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex linkedIndex =
+                ResourcePackTextureVariantResolver.buildForTest(linkedManager, false);
+            int linkedBase = linkedIndex.resolveForTest(stone, stoneId, new BlockPos(11, 64, 17), Direction.NORTH);
+            expect(linkedBase == linkedIndex.resolveForTest(stone, stoneId, new BlockPos(11, 65, 17), Direction.NORTH)
+                    && linkedBase == linkedIndex.resolveForTest(dirt, dirtId, new BlockPos(11, -12, 17),
+                        Direction.NORTH),
+                "linked random rules should share a column seed across source tiles and Y positions");
+            int averageDefaultWeight = ResourcePackTextureVariantResolver.weightForTest(
+                "4 2", 4, 2);
+            expect(averageDefaultWeight == 3,
+                "random weights omitted after explicit entries should default to the explicit average");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
@@ -1461,6 +1485,23 @@ public final class MaterialLabSelfTest {
                 "biome predicates should reject unmatched biome ids");
             expect(predicate.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH) == stoneId,
                 "biome predicates should not match when no biome context is available");
+
+            FakeResourceManager invertedBiomeManager = new FakeResourceManager();
+            invertedBiomeManager.add("minecraft:optifine/ctm/predicate/inverted_biome.properties",
+                String.join("\n",
+                    "method=fixed",
+                    "matchTiles=stone",
+                    "tiles=fixed",
+                    "biomes=!desert badlands"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex invertedBiome =
+                ResourcePackTextureVariantResolver.buildForTest(invertedBiomeManager, false);
+            expect(invertedBiome.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH,
+                    "minecraft:plains") == fixedId,
+                "inverted biome predicates should allow biomes outside the excluded list");
+            expect(invertedBiome.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH,
+                    "minecraft:desert") == stoneId,
+                "inverted biome predicates should reject explicitly excluded biomes");
 
             FakeResourceManager legacyManager = new FakeResourceManager();
             legacyManager.add("minecraft:optifine/ctm/predicate/legacy.properties",
