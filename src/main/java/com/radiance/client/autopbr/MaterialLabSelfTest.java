@@ -1516,6 +1516,10 @@ public final class MaterialLabSelfTest {
                 "written pack-index status should expose disabled CTM atlas admission");
             expect(status.getAsJsonObject("materialUniverse").get("virtualCompatMaterials").getAsInt() == 3,
                 "written pack-index status should expose virtual CTM material candidates");
+            JsonObject nativeUpload = status.getAsJsonObject("nativeMaterialTableUploadAfterCompatReport");
+            expect(nativeUpload != null, "pack-index status should expose post-compat native material upload state");
+            expect(!nativeUpload.get("requested").getAsBoolean(),
+                "test report writes should not attempt native material table upload");
 
             Path logs = run.resolve("radiance/logs");
             Path textureAssetsPath = logs.resolve("radser-texture-assets.json");
@@ -1568,6 +1572,12 @@ public final class MaterialLabSelfTest {
             expect(ctmRules.get("ruleCount").getAsInt() == 1, "CTM rule dump should contain parsed CTM rules");
             expect(ctmRules.getAsJsonObject("methodCounts").get("ctm").getAsInt() == 1,
                 "CTM rule dump should count CTM methods");
+            JsonObject firstDependency = ctmRules.getAsJsonArray("rules")
+                .get(0).getAsJsonObject()
+                .getAsJsonArray("tileDependencies")
+                .get(0).getAsJsonObject();
+            expect("minecraft:block/stone".equals(firstDependency.get("fallbackAtlasSprite").getAsString()),
+                "CTM dependency dump should retain matchTiles fallback sprite provenance");
 
             JsonObject precedence = JsonParser.parseString(Files.readString(precedencePath, StandardCharsets.UTF_8))
                 .getAsJsonObject();
@@ -1622,7 +1632,8 @@ public final class MaterialLabSelfTest {
         List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
         try {
             Identifier stone = Identifier.ofVanilla("block/stone");
-            TextureArrayBridge.setSortedSpriteIds(List.of(stone));
+            Identifier dirt = Identifier.ofVanilla("block/dirt");
+            TextureArrayBridge.setSortedSpriteIds(List.of(dirt, stone));
             int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
             String ctmPath = "assets/minecraft/optifine/ctm/stone/0.png";
             Identifier ctmSynthetic = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(ctmPath));
@@ -1634,6 +1645,7 @@ public final class MaterialLabSelfTest {
             JsonObject dependency = new JsonObject();
             dependency.addProperty("path", ctmPath);
             dependency.addProperty("atlasSprite", ctmSynthetic == null ? "" : ctmSynthetic.toString());
+            dependency.addProperty("fallbackAtlasSprite", stone.toString());
             dependency.addProperty("present", true);
             dependency.addProperty("specularPresent", true);
             dependency.addProperty("normalPresent", true);

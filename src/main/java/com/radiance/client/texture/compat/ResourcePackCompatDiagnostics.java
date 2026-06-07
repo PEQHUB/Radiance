@@ -64,11 +64,11 @@ public final class ResourcePackCompatDiagnostics {
     }
 
     public static String statusJson() {
-        return GSON.toJson(buildStatus(false));
+        return GSON.toJson(buildStatus(false, false));
     }
 
     public static String writeReportJson() {
-        JsonObject status = buildStatus(true);
+        JsonObject status = buildStatus(true, true);
         return GSON.toJson(status);
     }
 
@@ -91,11 +91,11 @@ public final class ResourcePackCompatDiagnostics {
     }
 
     public static String scanRunDirectoryJsonForTest(String path) {
-        return GSON.toJson(buildStatus(Path.of(path), false));
+        return GSON.toJson(buildStatus(Path.of(path), false, false));
     }
 
     public static String writeRunDirectoryReportsForTest(String path) {
-        return GSON.toJson(buildStatus(Path.of(path), true));
+        return GSON.toJson(buildStatus(Path.of(path), true, false));
     }
 
     public static String flagsSummary() {
@@ -128,11 +128,12 @@ public final class ResourcePackCompatDiagnostics {
         return renderingConsumesCompatibility();
     }
 
-    private static JsonObject buildStatus(boolean writeReport) {
-        return buildStatus(runDirectory(), writeReport);
+    private static JsonObject buildStatus(boolean writeReport, boolean uploadNativeMaterialTable) {
+        return buildStatus(runDirectory(), writeReport, uploadNativeMaterialTable);
     }
 
-    private static JsonObject buildStatus(Path runDirectory, boolean writeReport) {
+    private static JsonObject buildStatus(Path runDirectory, boolean writeReport,
+        boolean uploadNativeMaterialTable) {
         long startedNanos = System.nanoTime();
         JsonObject root = new JsonObject();
         root.addProperty("schema", "radser_material_compat_pack_scan_v1");
@@ -169,13 +170,17 @@ public final class ResourcePackCompatDiagnostics {
         root.add("materialRegistry", materialSnapshot.toSummaryJson());
         root.add("materialRecordSamples", materialSnapshot.recordsJson(SAMPLE_LIMIT));
         long materialRegistryNanos = System.nanoTime();
+        root.add("nativeMaterialTableUploadAfterCompatReport",
+            nativeMaterialTableUploadJson(materialSnapshot, uploadNativeMaterialTable));
+        long nativeUploadNanos = System.nanoTime();
         root.add("reloadStageTimings", reloadStageTimingsJson(
             startedNanos,
             activeSelectionNanos,
             scanPacksNanos,
             activePacksNanos,
             aggregateCtmNanos,
-            materialRegistryNanos));
+            materialRegistryNanos,
+            nativeUploadNanos));
 
         if (writeReport) {
             try {
@@ -192,15 +197,44 @@ public final class ResourcePackCompatDiagnostics {
         long scanPacksNanos,
         long activePacksNanos,
         long aggregateCtmNanos,
-        long materialRegistryNanos) {
+        long materialRegistryNanos,
+        long nativeUploadNanos) {
         JsonObject json = new JsonObject();
         json.addProperty("activeSelectionMs", millis(startedNanos, activeSelectionNanos));
         json.addProperty("resourcePackScanMs", millis(activeSelectionNanos, scanPacksNanos));
         json.addProperty("activePackOrderingMs", millis(scanPacksNanos, activePacksNanos));
         json.addProperty("ctmDependencyAggregationMs", millis(activePacksNanos, aggregateCtmNanos));
         json.addProperty("materialRegistryPublishMs", millis(aggregateCtmNanos, materialRegistryNanos));
-        json.addProperty("totalMaterialCompatReportMs", millis(startedNanos, materialRegistryNanos));
+        json.addProperty("nativeMaterialTableUploadMs", millis(materialRegistryNanos, nativeUploadNanos));
+        json.addProperty("totalMaterialCompatReportMs", millis(startedNanos, nativeUploadNanos));
         json.addProperty("asyncSafe", true);
+        return json;
+    }
+
+    private static JsonObject nativeMaterialTableUploadJson(Snapshot snapshot, boolean uploadNativeMaterialTable) {
+        JsonObject json = new JsonObject();
+        boolean attempted = uploadNativeMaterialTable
+            && AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT
+            && snapshot != null
+            && !snapshot.records().isEmpty();
+        boolean uploaded = attempted && ResourceMaterialRegistry.uploadActiveTableToNative();
+        json.addProperty("requested", uploadNativeMaterialTable);
+        json.addProperty("attempted", attempted);
+        json.addProperty("uploaded", uploaded);
+        json.addProperty("nativeMaterialTablePresent",
+            AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
+        json.addProperty("generation", snapshot == null ? 0 : snapshot.generation());
+        json.addProperty("recordedMaterialCount", snapshot == null ? 0 : snapshot.records().size());
+        json.addProperty("vanillaMaterialCount", snapshot == null ? 0 : snapshot.vanillaMaterialCount());
+        json.addProperty("compatVirtualMaterialCount",
+            snapshot == null ? 0 : snapshot.recordedCompatMaterialCount());
+        json.addProperty("bindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
+        json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
+        if (attempted) {
+            System.out.println("[ResourcePackCompat] Native material table upload after compat report: uploaded="
+                + uploaded + " generation=" + snapshot.generation()
+                + " records=" + snapshot.records().size());
+        }
         return json;
     }
 
@@ -1511,8 +1545,9 @@ public final class ResourcePackCompatDiagnostics {
                 JsonArray dependencies = new JsonArray();
                 int present = 0;
                 int missing = 0;
+                String fallbackAtlasSprite = fallbackAtlasSprite(record);
                 for (String dependencyPath : dependencyPaths) {
-                    CtmDependency dependency = ctmDependency(dependencyPath);
+                    CtmDependency dependency = ctmDependency(dependencyPath, fallbackAtlasSprite);
                     if (dependency.present) {
                         present++;
                     } else {
@@ -1522,7 +1557,10 @@ public final class ResourcePackCompatDiagnostics {
                         dependencies.add(dependency.toJson());
                     }
                     if (ctmDependencies.size() < CTM_DEPENDENCY_LIMIT) {
-                        ctmDependencies.putIfAbsent(dependency.path, dependency);
+                        CtmDependency existing = ctmDependencies.get(dependency.path);
+                        if (existing == null || existing.fallbackAtlasSprite.isBlank()) {
+                            ctmDependencies.put(dependency.path, dependency);
+                        }
                     } else {
                         ctmDependenciesTruncated = true;
                     }
@@ -1535,7 +1573,7 @@ public final class ResourcePackCompatDiagnostics {
             }
         }
 
-        private CtmDependency ctmDependency(String rawPath) {
+        private CtmDependency ctmDependency(String rawPath, String fallbackAtlasSprite) {
             String path = normalize(rawPath);
             String lower = path.toLowerCase(Locale.ROOT);
             Identifier resourceId = ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(path);
@@ -1557,6 +1595,7 @@ public final class ResourcePackCompatDiagnostics {
                 path,
                 resourceId == null ? "" : resourceId.toString(),
                 ResourcePackCompatCtmTiles.atlasSpriteIdentifier(path),
+                fallbackAtlasSprite == null ? "" : fallbackAtlasSprite,
                 ResourcePackCompatCtmTiles.requiresAtlasAdmission(path),
                 entryNames.contains(lower),
                 specularPath,
@@ -1578,6 +1617,83 @@ public final class ResourcePackCompatDiagnostics {
                 sidecarPresent(path, "_f"),
                 ResourcePackCompatCtmTiles.sidecarPath(path, "_e"),
                 sidecarPresent(path, "_e"));
+        }
+
+        private String fallbackAtlasSprite(JsonObject record) {
+            String token = firstMatchTile(record.has("matchTiles") ? record.get("matchTiles").getAsString() : "");
+            if (token.isBlank()) {
+                String propertyPath = record.has("path") ? record.get("path").getAsString() : "";
+                token = inferredMatchTileFromPropertyPath(propertyPath);
+            }
+            return atlasSpriteForMatchToken(token);
+        }
+
+        private String firstMatchTile(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return "";
+            }
+            for (String token : raw.split("[\\s,]+")) {
+                String cleaned = normalizeMatchTileToken(token);
+                if (!cleaned.isBlank()) {
+                    return cleaned;
+                }
+            }
+            return "";
+        }
+
+        private String inferredMatchTileFromPropertyPath(String propertyPath) {
+            String normalized = normalize(propertyPath == null ? "" : propertyPath);
+            int slash = normalized.lastIndexOf('/');
+            int dot = normalized.lastIndexOf('.');
+            if (dot <= slash) {
+                dot = normalized.length();
+            }
+            if (slash < 0 || slash + 1 >= dot) {
+                return "";
+            }
+            return normalizeMatchTileToken(normalized.substring(slash + 1, dot));
+        }
+
+        private String normalizeMatchTileToken(String raw) {
+            String token = normalize(raw == null ? "" : raw.trim());
+            if (token.isBlank()) {
+                return "";
+            }
+            if (token.endsWith(".png")) {
+                token = token.substring(0, token.length() - ".png".length());
+            }
+            if (token.startsWith("./")) {
+                token = token.substring(2);
+            }
+            if (token.startsWith("assets/")) {
+                String[] parts = token.split("/", 4);
+                if (parts.length == 4 && "textures".equals(parts[2])) {
+                    token = parts[1] + ":" + parts[3];
+                }
+            }
+            if (token.startsWith("textures/")) {
+                token = token.substring("textures/".length());
+            }
+            return token;
+        }
+
+        private String atlasSpriteForMatchToken(String raw) {
+            String token = normalizeMatchTileToken(raw);
+            if (token.isBlank() || token.indexOf('=') >= 0) {
+                return "";
+            }
+            String namespace = "minecraft";
+            String path = token;
+            Identifier parsed = Identifier.tryParse(token);
+            if (parsed != null && token.contains(":")) {
+                namespace = parsed.getNamespace();
+                path = parsed.getPath();
+            }
+            if (!path.startsWith("block/") && !path.startsWith("item/")) {
+                path = "block/" + path;
+            }
+            Identifier id = Identifier.tryParse(namespace + ":" + path);
+            return id == null ? "" : id.toString();
         }
 
         private boolean sidecarPresent(String path, String... suffixes) {
@@ -1863,6 +1979,7 @@ public final class ResourcePackCompatDiagnostics {
     private record CtmDependency(String path,
                                  String resource,
                                  String atlasSprite,
+                                 String fallbackAtlasSprite,
                                  boolean atlasAdmissionRequired,
                                  boolean present,
                                  String specularPath,
@@ -1889,6 +2006,7 @@ public final class ResourcePackCompatDiagnostics {
             json.addProperty("path", path);
             json.addProperty("resource", resource);
             json.addProperty("atlasSprite", atlasSprite);
+            json.addProperty("fallbackAtlasSprite", fallbackAtlasSprite);
             json.addProperty("atlasAdmissionRequired", atlasAdmissionRequired);
             json.addProperty("present", present);
             json.addProperty("specularPath", specularPath);

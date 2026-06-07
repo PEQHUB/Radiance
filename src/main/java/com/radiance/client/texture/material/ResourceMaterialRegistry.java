@@ -227,7 +227,11 @@ public final class ResourceMaterialRegistry {
     private static int resolveDependencyBaseSpriteId(JsonObject dependency) {
         String atlasSprite = stringProperty(dependency, "atlasSprite");
         Identifier sprite = Identifier.tryParse(atlasSprite);
-        int spriteId = TextureArrayBridge.resolveRenderableSpriteId(sprite);
+        int spriteId = resolveExactSpriteId(sprite);
+        if (spriteId >= 0) {
+            return spriteId;
+        }
+        spriteId = TextureArrayBridge.resolveSpriteId(stringProperty(dependency, "fallbackAtlasSprite"));
         if (spriteId >= 0) {
             return spriteId;
         }
@@ -237,12 +241,16 @@ public final class ResourceMaterialRegistry {
             String natural = ResourcePackCompatCtmTiles.naturalAtlasSpriteIdentifier(
                 ResourcePackCompatCtmTiles.assetPath(resource));
             Identifier naturalId = Identifier.tryParse(natural);
-            spriteId = TextureArrayBridge.resolveRenderableSpriteId(naturalId);
+            spriteId = resolveExactSpriteId(naturalId);
             if (spriteId >= 0) {
                 return spriteId;
             }
         }
         return TextureArrayBridge.missingSpriteFallbackIdForTest();
+    }
+
+    private static int resolveExactSpriteId(Identifier sprite) {
+        return sprite == null ? -1 : TextureArrayBridge.resolveSpriteId(sprite.toString());
     }
 
     private static void writeMaterialEntry(ByteBuffer buffer, int index, MaterialRecord record) {
