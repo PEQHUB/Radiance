@@ -113,6 +113,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsRepeatSprites();
         textureVariantResolverHonorsStateAxisRepeatOrientation();
         textureVariantResolverHonorsTextureRepeatOrientation();
+        textureVariantResolverSkipsOptifineOnlyRules();
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverSelectsOverlaySprites();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
@@ -1718,6 +1719,59 @@ public final class MaterialLabSelfTest {
         data[base + 2] = Float.floatToRawIntBits(z);
         data[base + 4] = Float.floatToRawIntBits(u);
         data[base + 5] = Float.floatToRawIntBits(v);
+    }
+
+    private static void textureVariantResolverSkipsOptifineOnlyRules() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier log = Identifier.ofVanilla("block/acacia_log");
+            Identifier optifineTile = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/optifine_only/optifine.png"));
+            Identifier textureTile = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/optifine_only/texture.png"));
+            expect(optifineTile != null && textureTile != null, "optifine-only fixture ids should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(log, optifineTile, textureTile));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/optifine_only/acacia_log1.properties",
+                String.join("\n",
+                    "method=repeat",
+                    "matchTiles=acacia_log",
+                    "tiles=optifine",
+                    "width=1",
+                    "height=1",
+                    "faces=north",
+                    "optifineOnly=true"
+                ).getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/ctm/optifine_only/acacia_log7.properties",
+                String.join("\n",
+                    "method=repeat",
+                    "matchTiles=acacia_log",
+                    "tiles=texture",
+                    "width=1",
+                    "height=1",
+                    "faces=north",
+                    "orient=texture"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex index =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            expect(index.ruleCountForTest() == 1, "optifineOnly CTM rules should be skipped by RadSER");
+            int sourceId = TextureArrayBridge.resolveSpriteId(log.toString());
+            expect(index.resolveForTest(log, sourceId, new BlockPos(0, 0, 0), Direction.NORTH)
+                    == TextureArrayBridge.resolveSpriteId(textureTile.toString()),
+                "texture-oriented fallback rule should win after skipping optifineOnly rules");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
     }
 
     private static void textureVariantResolverSelectsOverlayRandomSprites() {

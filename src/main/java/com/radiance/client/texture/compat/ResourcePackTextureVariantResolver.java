@@ -306,6 +306,9 @@ public final class ResourcePackTextureVariantResolver {
         if (ruleMethod == null) {
             return Optional.empty();
         }
+        if (parseBoolean(props.getProperty("optifineOnly", "false"))) {
+            return Optional.empty();
+        }
 
         String propertyAssetPath = ResourcePackCompatCtmTiles.assetPath(propertyId);
         List<String> tileAssetPaths = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(propertyAssetPath, props);
