@@ -218,6 +218,11 @@ public final class DebugInspectReporter {
         sb.append("categoryMaterials=removed\n");
         sb.append("authoredPbrPriority=_s/_n/_f_first\n");
         sb.append("generatedHeightDisplacement=removed\n");
+        sb.append("materialSetBindingPolicy=").append(AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY).append('\n');
+        sb.append("materialSetShaderLookupKey=").append(AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY).append('\n');
+        sb.append("nativeMaterialSetTablePresent=")
+            .append(AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT).append('\n');
+        sb.append("materialSetAliasesResolvedSprite=true\n");
         sb.append('\n');
     }
     private static void appendModelQuads(StringBuilder sb, MinecraftClient client, BlockState state,
@@ -279,6 +284,15 @@ public final class DebugInspectReporter {
                 .append('\n');
             sb.append("    javaSpriteSourceFlags=0x")
                 .append(Integer.toHexString(AutoPbrTextureCatalog.spriteSourceFlags(spriteIndex)))
+                .append('\n');
+            AutoPbrTextureCatalog.MaterialTextureSet materialSet =
+                AutoPbrTextureCatalog.materialTextureSet(spriteIndex);
+            sb.append("    javaMaterialSet id=").append(materialSet.materialSetId())
+                .append(" baseSpriteId=").append(materialSet.baseSpriteId())
+                .append(" policy=").append(materialSet.nativeBindingPolicy())
+                .append(" shaderLookupKey=").append(materialSet.shaderLookupKey())
+                .append(" nativeTable=").append(materialSet.nativeMaterialSetTablePresent())
+                .append(" aliasesResolvedSprite=").append(materialSet.materialSetAliasesResolvedSprite())
                 .append('\n');
             sb.append("    autoPbrTextureRule=")
                 .append(AutoPbrRuntime.textureRuleSummary(spriteIndex))
