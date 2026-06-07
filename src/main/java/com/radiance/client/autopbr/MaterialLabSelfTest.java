@@ -104,6 +104,7 @@ public final class MaterialLabSelfTest {
         materialCompatLegacyDisabledOptionsMigrateToDefaults();
         materialCompatScannerRecognizesCoreFeatures();
         materialCompatRunScanMarksActivePacksAndParsesRecords();
+        materialCompatWritesParserArtifactDumps();
         materialCompatDiagnosticsReportNaturalConsumption();
         materialCompatDiagnosticsReportColorConsumption();
         materialCompatDiagnosticsReportLightmapConsumption();
@@ -1058,6 +1059,124 @@ public final class MaterialLabSelfTest {
         }
     }
 
+    private static void materialCompatWritesParserArtifactDumps() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldNatural = Options.materialCompatNaturalEnabled;
+        boolean oldColors = Options.materialCompatColorsEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        boolean oldPhysical = Options.materialCompatPhysicalEmissiveEnabled;
+        Path run = null;
+        try {
+            run = Files.createTempDirectory("radser-material-compat-dumps");
+            Path active = run.resolve("resourcepacks/Active Pack");
+            Files.createDirectories(active.resolve("assets/minecraft/textures/block"));
+            Files.createDirectories(active.resolve("assets/minecraft/optifine/ctm/stone"));
+            Files.writeString(run.resolve("options.txt"),
+                "resourcePacks:[\"vanilla\",\"fabric\",\"file/Active Pack\"]\n"
+                    + "incompatibleResourcePacks:[\"file/Active Pack\"]\n", StandardCharsets.UTF_8);
+            Files.write(active.resolve("assets/minecraft/textures/block/stone.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/textures/block/stone_s.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/textures/block/stone_n.png"), new byte[] {0});
+            Files.writeString(active.resolve("assets/minecraft/optifine/texture.properties"),
+                "format=lab-pbr/1.3\n", StandardCharsets.UTF_8);
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/0.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/1.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/1_s.png"), new byte[] {0});
+            Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/1_n.png"), new byte[] {0});
+            Files.writeString(active.resolve("assets/minecraft/optifine/ctm/stone/stone.properties"),
+                "method=ctm\nmatchTiles=stone\ntiles=0-2\nconnect=block\n", StandardCharsets.UTF_8);
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatNaturalEnabled = false;
+            Options.materialCompatColorsEnabled = false;
+            Options.materialCompatOverlaysEnabled = false;
+            Options.materialCompatPhysicalEmissiveEnabled = false;
+
+            JsonObject status = JsonParser.parseString(
+                ResourcePackCompatDiagnostics.writeRunDirectoryReportsForTest(run.toString())).getAsJsonObject();
+            JsonObject reports = status.getAsJsonObject("diagnosticReports");
+            expect(reports != null && reports.has("packIndex"), "compat dump status should expose pack index path");
+            expect(reports.has("textureAssets"), "compat dump status should expose texture asset path");
+            expect(reports.has("materialSets"), "compat dump status should expose material set path");
+            expect(reports.has("ctmRules"), "compat dump status should expose CTM rule path");
+            expect(reports.has("rulePrecedence"), "compat dump status should expose rule precedence path");
+            expect(reports.has("parserWarnings"), "compat dump status should expose parser warning path");
+
+            Path logs = run.resolve("radiance/logs");
+            Path textureAssetsPath = logs.resolve("radser-texture-assets.json");
+            Path materialSetsPath = logs.resolve("radser-material-sets.json");
+            Path ctmRulesPath = logs.resolve("radser-ctm-rules.json");
+            Path precedencePath = logs.resolve("radser-rule-precedence.json");
+            Path warningsPath = logs.resolve("radser-parser-warnings.json");
+            expect(Files.isRegularFile(logs.resolve("radser-pack-index.json")), "pack index dump should be written");
+            expect(Files.isRegularFile(textureAssetsPath), "texture asset dump should be written");
+            expect(Files.isRegularFile(materialSetsPath), "material set dump should be written");
+            expect(Files.isRegularFile(ctmRulesPath), "CTM rule dump should be written");
+            expect(Files.isRegularFile(precedencePath), "rule precedence dump should be written");
+            expect(Files.isRegularFile(warningsPath), "parser warning dump should be written");
+
+            JsonObject assets = JsonParser.parseString(Files.readString(textureAssetsPath, StandardCharsets.UTF_8))
+                .getAsJsonObject();
+            expect("radser_texture_assets_v1".equals(assets.get("schema").getAsString()),
+                "texture asset dump should use stable schema");
+            expect(assets.getAsJsonObject("aggregateCounts").get("albedoPng").getAsInt() == 1,
+                "texture asset dump should aggregate active texture-directory albedo maps");
+            expect(assets.getAsJsonObject("aggregateLabpbrCoverage").get("albedoWithSpecularAndNormal").getAsInt() == 1,
+                "texture asset dump should aggregate paired LabPBR sidecars");
+
+            JsonObject materials = JsonParser.parseString(Files.readString(materialSetsPath, StandardCharsets.UTF_8))
+                .getAsJsonObject();
+            expect("direct_labpbr_normal_alpha".equals(
+                    materials.getAsJsonObject("source").get("displacementSource").getAsString()),
+                "material set dump should name direct LabPBR normal-alpha displacement");
+            expect("diagnostic_metadata_only".equals(
+                    materials.getAsJsonObject("source").get("heightAlphaRangeRole").getAsString()),
+                "material set dump must not present alpha range as shader normalization input");
+
+            JsonObject ctmRules = JsonParser.parseString(Files.readString(ctmRulesPath, StandardCharsets.UTF_8))
+                .getAsJsonObject();
+            expect("radser_ctm_rules_v1".equals(ctmRules.get("schema").getAsString()),
+                "CTM rule dump should use stable schema");
+            expect(ctmRules.get("ruleCount").getAsInt() == 1, "CTM rule dump should contain parsed CTM rules");
+            expect(ctmRules.getAsJsonObject("methodCounts").get("ctm").getAsInt() == 1,
+                "CTM rule dump should count CTM methods");
+
+            JsonObject precedence = JsonParser.parseString(Files.readString(precedencePath, StandardCharsets.UTF_8))
+                .getAsJsonObject();
+            JsonObject consumption = precedence.getAsJsonObject("compatibilityConsumption");
+            expect(consumption.get("javaSideRuleParsing").getAsBoolean(),
+                "rule precedence dump should expose Java-side rule parsing");
+            expect(consumption.get("javaChunkQuadRuleResolution").getAsBoolean(),
+                "rule precedence dump should expose chunk-side rule resolution");
+            expect(!consumption.get("shaderSideRuleParsing").getAsBoolean(),
+                "rule precedence dump should not claim shader-side rule parsing");
+            expect(!consumption.get("shaderSideRuleNativeBinding").getAsBoolean(),
+                "rule precedence dump should not claim raw shader rule binding");
+
+            JsonObject warnings = JsonParser.parseString(Files.readString(warningsPath, StandardCharsets.UTF_8))
+                .getAsJsonObject();
+            expect(warnings.get("warningCount").getAsInt() >= 1,
+                "parser warning dump should retain incompatible selected pack diagnostics");
+        } catch (IOException e) {
+            throw new AssertionError("material compat parser dump fixture failed", e);
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatNaturalEnabled = oldNatural;
+            Options.materialCompatColorsEnabled = oldColors;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
+            if (run != null) {
+                deleteTree(run);
+            }
+        }
+    }
+
     private static void materialCompatDiagnosticsReportNaturalConsumption() {
         boolean oldEnabled = Options.materialCompatEnabled;
         boolean oldCtm = Options.materialCompatCtmEnabled;
@@ -1264,11 +1383,20 @@ public final class MaterialLabSelfTest {
                     .get("shaderBlockPropertiesLayerAlphaModes").getAsBoolean(),
                 "diagnostics should expose shader block.properties layer alpha mode consumption");
             expect(status.getAsJsonObject("compatibilityConsumption")
-                    .get("shaderSideRuleParsing").getAsBoolean(),
-                "diagnostics should expose parsed shader block.N side rules");
+                    .get("javaSideRuleParsing").getAsBoolean(),
+                "diagnostics should expose Java-side shader block.N side rule parsing");
             expect(status.getAsJsonObject("compatibilityConsumption")
+                    .get("javaChunkQuadRuleResolution").getAsBoolean(),
+                "diagnostics should expose chunk-side rule resolution into packed vertex metadata");
+            expect(!status.getAsJsonObject("compatibilityConsumption")
+                    .get("shaderSideRuleParsing").getAsBoolean(),
+                "diagnostics should not claim shader-side rule parsing");
+            expect(!status.getAsJsonObject("compatibilityConsumption")
                     .get("shaderSideRuleNativeBinding").getAsBoolean(),
-                "diagnostics should expose shader block.N native binding into packed vertex metadata");
+                "diagnostics should not claim raw shader-side rule binding");
+            expect(status.getAsJsonObject("compatibilityConsumption")
+                    .get("shaderConsumesResolvedSpriteAndMaterialIds").getAsBoolean(),
+                "diagnostics should expose shader consumption of resolved sprite and material ids");
             expect(status.getAsJsonObject("compatibilityConsumption")
                     .get("overlayLayerEmission").getAsBoolean(),
                 "diagnostics should expose CTM overlay layer emission consumption");

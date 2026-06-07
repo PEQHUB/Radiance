@@ -32,10 +32,10 @@ import java.util.zip.ZipFile;
 import net.minecraft.client.MinecraftClient;
 
 /**
- * Read-only resource-pack compatibility diagnostics.
+ * Resource-pack compatibility parser diagnostics.
  *
- * This intentionally does not feed rendering yet. It gives the material system
- * a stable parser/audit foothold before CTM or variant decisions touch chunks.
+ * The dumps mirror the Java-side parser state that feeds chunk-side rule
+ * resolution. Shaders consume resolved sprite/material ids, not rule files.
  */
 public final class ResourcePackCompatDiagnostics {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -45,6 +45,13 @@ public final class ResourcePackCompatDiagnostics {
     private static final int CTM_DEPENDENCY_RECORD_LIMIT = 512;
     private static final int MAX_PROPERTY_BYTES = 1024 * 1024;
     private static final int VALUE_LIMIT = 256;
+    private static final List<String> DIAGNOSTIC_DUMP_FILES = List.of(
+        "radser-pack-index.json",
+        "radser-texture-assets.json",
+        "radser-material-sets.json",
+        "radser-ctm-rules.json",
+        "radser-rule-precedence.json",
+        "radser-parser-warnings.json");
 
     private ResourcePackCompatDiagnostics() {
     }
@@ -64,6 +71,10 @@ public final class ResourcePackCompatDiagnostics {
 
     public static String scanRunDirectoryJsonForTest(String path) {
         return GSON.toJson(buildStatus(Path.of(path), false));
+    }
+
+    public static String writeRunDirectoryReportsForTest(String path) {
+        return GSON.toJson(buildStatus(Path.of(path), true));
     }
 
     public static String flagsSummary() {
@@ -120,8 +131,7 @@ public final class ResourcePackCompatDiagnostics {
 
         if (writeReport) {
             try {
-                Path output = writeReport(runDirectory, root);
-                root.addProperty("reportPath", output.toAbsolutePath().toString());
+                writeReports(runDirectory, root);
             } catch (IOException e) {
                 root.addProperty("reportError", e.getClass().getSimpleName() + ": " + e.getMessage());
             }
@@ -176,8 +186,11 @@ public final class ResourcePackCompatDiagnostics {
             Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
         json.addProperty("shaderBlockPropertiesLayerAlphaModes",
             Options.materialCompatEnabled && Options.materialCompatOverlaysEnabled);
-        json.addProperty("shaderSideRuleParsing", Options.materialCompatEnabled);
-        json.addProperty("shaderSideRuleNativeBinding", Options.materialCompatEnabled);
+        json.addProperty("javaSideRuleParsing", Options.materialCompatEnabled);
+        json.addProperty("javaChunkQuadRuleResolution", renderingConsumesCompatibility());
+        json.addProperty("shaderSideRuleParsing", false);
+        json.addProperty("shaderSideRuleNativeBinding", false);
+        json.addProperty("shaderConsumesResolvedSpriteAndMaterialIds", renderingConsumesCompatibility());
         return json;
     }
 
@@ -196,14 +209,331 @@ public final class ResourcePackCompatDiagnostics {
         return json;
     }
 
-    private static Path writeReport(Path runDirectory, JsonObject root) throws IOException {
+    private static void writeReports(Path runDirectory, JsonObject root) throws IOException {
         Path base = RadianceClient.radianceDir != null
             ? RadianceClient.radianceDir
             : runDirectory.resolve("radiance");
-        Path output = base.resolve("logs").resolve("radser-pack-index.json");
-        Files.createDirectories(output.getParent());
-        Files.writeString(output, GSON.toJson(root), StandardCharsets.UTF_8);
-        return output;
+        Path logs = base.resolve("logs");
+        Files.createDirectories(logs);
+
+        JsonObject paths = new JsonObject();
+        for (String file : DIAGNOSTIC_DUMP_FILES) {
+            paths.addProperty(fileNameKey(file), logs.resolve(file).toAbsolutePath().toString());
+        }
+        root.add("diagnosticReports", paths);
+        root.addProperty("reportPath", logs.resolve("radser-pack-index.json").toAbsolutePath().toString());
+
+        Files.writeString(logs.resolve("radser-texture-assets.json"),
+            GSON.toJson(textureAssetsDump(root)), StandardCharsets.UTF_8);
+        Files.writeString(logs.resolve("radser-material-sets.json"),
+            GSON.toJson(materialSetsDump(root)), StandardCharsets.UTF_8);
+        Files.writeString(logs.resolve("radser-ctm-rules.json"),
+            GSON.toJson(ctmRulesDump(root)), StandardCharsets.UTF_8);
+        Files.writeString(logs.resolve("radser-rule-precedence.json"),
+            GSON.toJson(rulePrecedenceDump(root)), StandardCharsets.UTF_8);
+        Files.writeString(logs.resolve("radser-parser-warnings.json"),
+            GSON.toJson(parserWarningsDump(root)), StandardCharsets.UTF_8);
+        Files.writeString(logs.resolve("radser-pack-index.json"), GSON.toJson(root), StandardCharsets.UTF_8);
+    }
+
+    private static String fileNameKey(String fileName) {
+        return switch (fileName) {
+            case "radser-pack-index.json" -> "packIndex";
+            case "radser-texture-assets.json" -> "textureAssets";
+            case "radser-material-sets.json" -> "materialSets";
+            case "radser-ctm-rules.json" -> "ctmRules";
+            case "radser-rule-precedence.json" -> "rulePrecedence";
+            case "radser-parser-warnings.json" -> "parserWarnings";
+            default -> fileName.replace(".json", "");
+        };
+    }
+
+    private static JsonObject textureAssetsDump(JsonObject root) {
+        JsonArray active = array(root, "activePacks");
+        JsonObject dump = baseDump("radser_texture_assets_v1", root);
+        dump.addProperty("activePackCount", active.size());
+        dump.add("aggregateCounts", aggregateCounts(active));
+        dump.add("aggregateLabpbrCoverage", aggregateLabPbrCoverage(active));
+        dump.add("activePacks", packAssetSummaries(active));
+        return dump;
+    }
+
+    private static JsonObject materialSetsDump(JsonObject root) {
+        JsonArray active = array(root, "activePacks");
+        JsonObject dump = baseDump("radser_material_sets_v1", root);
+        JsonObject source = new JsonObject();
+        source.addProperty("materialFormat", "LabPBR");
+        source.addProperty("specularSource", "direct_labpbr_specular_s");
+        source.addProperty("normalSource", "direct_labpbr_normal_n");
+        source.addProperty("displacementSource", "direct_labpbr_normal_alpha");
+        source.addProperty("displacementNormalization", "none");
+        source.addProperty("heightAlphaRangeRole", "diagnostic_metadata_only");
+        dump.add("source", source);
+
+        JsonObject aggregate = aggregateLabPbrCoverage(active);
+        aggregate.addProperty("materialSetCandidates", intProperty(aggregate, "albedoBases"));
+        aggregate.addProperty("completeLabpbrCandidates", intProperty(aggregate, "albedoWithSpecularAndNormal"));
+        JsonObject ctm = object(root, "activeCtmAtlasDependencies");
+        aggregate.addProperty("ctmTileMaterialCandidates", intProperty(ctm, "presentTilesRequiringAtlasAdmission"));
+        dump.add("aggregate", aggregate);
+        dump.add("activePacks", packMaterialSummaries(active));
+        dump.add("renderSafety", copyObject(object(root, "renderSafety")));
+        return dump;
+    }
+
+    private static JsonObject ctmRulesDump(JsonObject root) {
+        JsonArray active = array(root, "activePacks");
+        JsonObject dump = baseDump("radser_ctm_rules_v1", root);
+        JsonArray rules = new JsonArray();
+        JsonObject methodCounts = new JsonObject();
+        for (JsonElement packElement : active) {
+            JsonObject pack = packElement.getAsJsonObject();
+            JsonArray records = array(pack, "compatRecords");
+            for (JsonElement recordElement : records) {
+                JsonObject record = recordElement.getAsJsonObject();
+                if (!"ctm".equals(stringProperty(record, "kind"))) {
+                    continue;
+                }
+                String method = stringProperty(record, "method");
+                if (method.isEmpty()) {
+                    method = "unspecified";
+                }
+                methodCounts.addProperty(method, intProperty(methodCounts, method) + 1);
+                JsonObject rule = copyObject(record);
+                addPackIdentity(rule, pack);
+                rules.add(rule);
+            }
+        }
+        dump.addProperty("ruleCount", rules.size());
+        dump.add("methodCounts", methodCounts);
+        dump.add("activeCtmAtlasDependencies", copyObject(object(root, "activeCtmAtlasDependencies")));
+        dump.add("rules", rules);
+        return dump;
+    }
+
+    private static JsonObject rulePrecedenceDump(JsonObject root) {
+        JsonObject dump = baseDump("radser_rule_precedence_v1", root);
+        JsonObject policy = new JsonObject();
+        policy.addProperty("packPriority", "minecraft_active_resource_stack_order");
+        policy.addProperty("ruleParsing", "java_side");
+        policy.addProperty("quadResolution", "chunk_build_side");
+        policy.addProperty("shaderInput", "resolved_sprite_and_material_ids");
+        policy.addProperty("legacyMcPatcher", "enabled_only_when_materialCompatLegacyMcPatcherEnabled");
+        policy.addProperty("ctmTileAtlasAdmission", "required_non_vanilla_ctm_tiles_are_admitted_before_resolution");
+        dump.add("policy", policy);
+        dump.add("activePackStack", copyObject(object(root, "activePackStack")));
+        dump.add("compatibilityConsumption", copyObject(object(root, "compatibilityConsumption")));
+        return dump;
+    }
+
+    private static JsonObject parserWarningsDump(JsonObject root) {
+        JsonObject dump = baseDump("radser_parser_warnings_v1", root);
+        JsonArray warnings = new JsonArray();
+        for (JsonElement packElement : array(root, "packs")) {
+            JsonObject pack = packElement.getAsJsonObject();
+            if (pack.has("error")) {
+                addWarning(warnings, "error", "pack_scan_error", pack, stringProperty(pack, "error"));
+            }
+            if (boolProperty(pack, "incompatibleSelected")) {
+                addWarning(warnings, "warning", "selected_pack_marked_incompatible", pack,
+                    "Minecraft options.txt marks this selected pack as incompatible.");
+            }
+            if (boolProperty(pack, "compatRecordsTruncated")) {
+                addWarning(warnings, "warning", "compat_records_truncated", pack,
+                    "The diagnostics record limit was reached for compatibility properties.");
+            }
+            JsonObject ctm = object(pack, "ctmAtlasDependencies");
+            if (boolProperty(ctm, "truncated")) {
+                addWarning(warnings, "warning", "ctm_dependencies_truncated", pack,
+                    "The CTM dependency diagnostics record limit was reached.");
+            }
+        }
+
+        JsonObject activeCtm = object(root, "activeCtmAtlasDependencies");
+        if (intProperty(activeCtm, "missingTiles") > 0) {
+            JsonObject warning = warning("warning", "active_ctm_missing_tiles",
+                "Active CTM rules reference tiles that are not present in the selected packs.");
+            warning.addProperty("missingTiles", intProperty(activeCtm, "missingTiles"));
+            warnings.add(warning);
+        }
+        if (boolProperty(activeCtm, "truncated")) {
+            warnings.add(warning("warning", "active_ctm_dependency_summary_truncated",
+                "The active CTM dependency aggregate was truncated."));
+        }
+        dump.addProperty("warningCount", warnings.size());
+        dump.add("warnings", warnings);
+        return dump;
+    }
+
+    private static JsonObject baseDump(String schema, JsonObject root) {
+        JsonObject dump = new JsonObject();
+        dump.addProperty("schema", schema);
+        dump.addProperty("createdAt", stringProperty(root, "createdAt"));
+        dump.addProperty("runDirectory", stringProperty(root, "runDirectory"));
+        dump.addProperty("renderingConsumesCompatibility", boolProperty(root, "renderingConsumesCompatibility"));
+        dump.add("flags", copyObject(object(root, "flags")));
+        return dump;
+    }
+
+    private static JsonObject aggregateCounts(JsonArray packs) {
+        JsonObject aggregate = new JsonObject();
+        List<String> keys = List.of(
+            "texturePng",
+            "albedoPng",
+            "specular_s",
+            "normal_n",
+            "flag_f",
+            "emissive_e",
+            "properties",
+            "textureProperties",
+            "optifineCtmProperties",
+            "mcpatcherCtmProperties",
+            "emissiveProperties",
+            "naturalProperties",
+            "colorProperties",
+            "blockColormapProperties",
+            "lightmapProperties",
+            "customLightmapPng",
+            "blockProperties",
+            "customAnimationEntries",
+            "citEntries",
+            "cemEntries",
+            "randomEntityEntries");
+        for (String key : keys) {
+            int sum = 0;
+            for (JsonElement element : packs) {
+                sum += intProperty(object(element.getAsJsonObject(), "counts"), key);
+            }
+            aggregate.addProperty(key, sum);
+        }
+        return aggregate;
+    }
+
+    private static JsonObject aggregateLabPbrCoverage(JsonArray packs) {
+        JsonObject aggregate = new JsonObject();
+        List<String> keys = List.of(
+            "albedoBases",
+            "specularBases",
+            "normalBases",
+            "flagBases",
+            "emissiveBases",
+            "albedoWithSpecular",
+            "albedoWithNormal",
+            "albedoWithSpecularAndNormal",
+            "orphanSpecular",
+            "orphanNormal",
+            "orphanEmissive");
+        for (String key : keys) {
+            int sum = 0;
+            for (JsonElement element : packs) {
+                sum += intProperty(object(element.getAsJsonObject(), "labpbrCoverage"), key);
+            }
+            aggregate.addProperty(key, sum);
+        }
+        return aggregate;
+    }
+
+    private static JsonArray packAssetSummaries(JsonArray packs) {
+        JsonArray summaries = new JsonArray();
+        for (JsonElement element : packs) {
+            JsonObject pack = element.getAsJsonObject();
+            JsonObject summary = new JsonObject();
+            addPackIdentity(summary, pack);
+            summary.add("counts", copyObject(object(pack, "counts")));
+            summary.add("labpbrCoverage", copyObject(object(pack, "labpbrCoverage")));
+            summary.add("compatFeatures", copyObject(object(pack, "compatFeatures")));
+            summaries.add(summary);
+        }
+        return summaries;
+    }
+
+    private static JsonArray packMaterialSummaries(JsonArray packs) {
+        JsonArray summaries = new JsonArray();
+        for (JsonElement element : packs) {
+            JsonObject pack = element.getAsJsonObject();
+            JsonObject coverage = object(pack, "labpbrCoverage");
+            JsonObject summary = new JsonObject();
+            addPackIdentity(summary, pack);
+            summary.addProperty("materialSetCandidates", intProperty(coverage, "albedoBases"));
+            summary.addProperty("completeLabpbrCandidates", intProperty(coverage, "albedoWithSpecularAndNormal"));
+            summary.addProperty("orphanSpecular", intProperty(coverage, "orphanSpecular"));
+            summary.addProperty("orphanNormal", intProperty(coverage, "orphanNormal"));
+            summary.add("labpbrCoverage", copyObject(coverage));
+            summaries.add(summary);
+        }
+        return summaries;
+    }
+
+    private static void addPackIdentity(JsonObject target, JsonObject pack) {
+        target.addProperty("packName", stringProperty(pack, "name"));
+        target.addProperty("packPath", stringProperty(pack, "path"));
+        target.addProperty("activeReference", stringProperty(pack, "activeReference"));
+        target.addProperty("incompatibleSelected", boolProperty(pack, "incompatibleSelected"));
+    }
+
+    private static void addWarning(JsonArray warnings, String severity, String code, JsonObject pack, String detail) {
+        JsonObject warning = warning(severity, code, detail);
+        addPackIdentity(warning, pack);
+        warnings.add(warning);
+    }
+
+    private static JsonObject warning(String severity, String code, String detail) {
+        JsonObject warning = new JsonObject();
+        warning.addProperty("severity", severity);
+        warning.addProperty("code", code);
+        warning.addProperty("detail", detail);
+        return warning;
+    }
+
+    private static JsonObject copyObject(JsonObject source) {
+        return source == null ? new JsonObject() : source.deepCopy();
+    }
+
+    private static JsonObject object(JsonObject parent, String name) {
+        if (parent == null || !parent.has(name) || !parent.get(name).isJsonObject()) {
+            return new JsonObject();
+        }
+        return parent.getAsJsonObject(name);
+    }
+
+    private static JsonArray array(JsonObject parent, String name) {
+        if (parent == null || !parent.has(name) || !parent.get(name).isJsonArray()) {
+            return new JsonArray();
+        }
+        return parent.getAsJsonArray(name);
+    }
+
+    private static int intProperty(JsonObject object, String name) {
+        if (object == null || !object.has(name) || !object.get(name).isJsonPrimitive()) {
+            return 0;
+        }
+        try {
+            return object.get(name).getAsInt();
+        } catch (RuntimeException ignored) {
+            return 0;
+        }
+    }
+
+    private static boolean boolProperty(JsonObject object, String name) {
+        if (object == null || !object.has(name) || !object.get(name).isJsonPrimitive()) {
+            return false;
+        }
+        try {
+            return object.get(name).getAsBoolean();
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private static String stringProperty(JsonObject object, String name) {
+        if (object == null || !object.has(name) || !object.get(name).isJsonPrimitive()) {
+            return "";
+        }
+        try {
+            return object.get(name).getAsString();
+        } catch (RuntimeException ignored) {
+            return "";
+        }
     }
 
     private static Path runDirectory() {
