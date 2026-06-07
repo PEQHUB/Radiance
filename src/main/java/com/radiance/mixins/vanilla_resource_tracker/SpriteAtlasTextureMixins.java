@@ -172,6 +172,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 if (baseIndex != null) {
                     overlayOf[i] = baseIndex.shortValue();
                     emissiveOverlay[i] = true;
+                    ResourcePackEmissiveTextureResolver.registerOverlaySprite(spriteId, baseId);
                 }
             }
         }

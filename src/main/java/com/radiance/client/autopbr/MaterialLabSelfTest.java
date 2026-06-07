@@ -1931,6 +1931,13 @@ public final class MaterialLabSelfTest {
                     Identifier.ofVanilla("textures/block/lamp_e.png")),
                 "default emissive suffix should recognize _e resources");
 
+            Identifier lamp = Identifier.ofVanilla("block/lamp");
+            Identifier lampGlow = Identifier.ofVanilla("block/lamp_glow");
+            ResourcePackEmissiveTextureResolver.clearRegisteredOverlaySprites();
+            ResourcePackEmissiveTextureResolver.registerOverlaySprite(lampGlow, lamp);
+            expect(lampGlow.equals(ResourcePackEmissiveTextureResolver.registeredOverlayForBaseSprite(lamp)),
+                "emissive resolver should map base sprites back to registered overlay sprites");
+
             Identifier syntheticBase = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
                 "assets/minecraft/optifine/ctm/lamp/0.png"));
             Identifier syntheticEmissive = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
@@ -1960,6 +1967,9 @@ public final class MaterialLabSelfTest {
             expect(syntheticBase != null && syntheticBase.equals(
                     ResourcePackEmissiveTextureResolver.baseSpriteForEmissiveSprite(syntheticEmissive, "_glow")),
                 "admitted CTM emissive sidecar should register its base sprite mapping");
+            expect(syntheticEmissive != null && syntheticEmissive.equals(
+                    ResourcePackEmissiveTextureResolver.registeredOverlayForBaseSprite(syntheticBase)),
+                "admitted CTM emissive sidecar should register its overlay sprite mapping");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;

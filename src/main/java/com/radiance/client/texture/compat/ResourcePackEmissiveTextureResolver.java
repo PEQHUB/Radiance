@@ -15,6 +15,7 @@ import org.jetbrains.annotations.Nullable;
 public final class ResourcePackEmissiveTextureResolver {
     private static final String DEFAULT_SUFFIX = "_e";
     private static final Map<Identifier, Identifier> REGISTERED_OVERLAY_BASES = new ConcurrentHashMap<>();
+    private static final Map<Identifier, Identifier> REGISTERED_BASE_OVERLAYS = new ConcurrentHashMap<>();
 
     private ResourcePackEmissiveTextureResolver() {
     }
@@ -33,12 +34,19 @@ public final class ResourcePackEmissiveTextureResolver {
 
     public static void clearRegisteredOverlaySprites() {
         REGISTERED_OVERLAY_BASES.clear();
+        REGISTERED_BASE_OVERLAYS.clear();
     }
 
     public static void registerOverlaySprite(Identifier emissiveSprite, Identifier baseSprite) {
         if (emissiveSprite != null && baseSprite != null) {
             REGISTERED_OVERLAY_BASES.put(emissiveSprite, baseSprite);
+            REGISTERED_BASE_OVERLAYS.put(baseSprite, emissiveSprite);
         }
+    }
+
+    @Nullable
+    public static Identifier registeredOverlayForBaseSprite(@Nullable Identifier baseSprite) {
+        return baseSprite == null ? null : REGISTERED_BASE_OVERLAYS.get(baseSprite);
     }
 
     public static boolean isDefaultEmissiveResource(Identifier id) {

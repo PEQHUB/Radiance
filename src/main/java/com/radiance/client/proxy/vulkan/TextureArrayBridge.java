@@ -112,6 +112,11 @@ public final class TextureArrayBridge {
         return missingSpriteFallbackId;
     }
 
+    public static Identifier spriteIdentifier(int spriteId) {
+        List<Identifier> ids = sortedSpriteIds;
+        return spriteId >= 0 && spriteId < ids.size() ? ids.get(spriteId) : null;
+    }
+
     public static int resolveRenderableTextureGlId(Identifier id, int glId) {
         if (id != null && !MissingSprite.getMissingSpriteId().equals(id)
             && glId >= 0 && !isMissingTextureGlId(glId)) {

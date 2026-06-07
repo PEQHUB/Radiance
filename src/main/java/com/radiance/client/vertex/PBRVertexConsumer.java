@@ -46,6 +46,7 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.packShaderBlock
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.compat.ResourcePackBlockLayerResolver;
 import com.radiance.client.texture.compat.ResourcePackColorPropertiesResolver;
+import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
@@ -572,6 +573,13 @@ public class PBRVertexConsumer implements VertexConsumer {
             (this.pendingVertexFlags & ~PBR_FLAG_ALPHA_MODE_MASK) | packAlphaMode(alphaMode);
     }
 
+    private void enableRegisteredEmissiveOverlayMask(int spriteId) {
+        Identifier sprite = TextureArrayBridge.spriteIdentifier(spriteId);
+        if (ResourcePackEmissiveTextureResolver.registeredOverlayForBaseSprite(sprite) != null) {
+            setPendingOverlayAlphaMask(true);
+        }
+    }
+
     public VertexConsumer emissiveBlockType(int type) {
         long p = beginElement(PBR_EMISSIVE_BLOCK_TYPE);
         if (p != -1L) {
@@ -629,6 +637,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (spriteId >= 0 && sprite != null) {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
+            enableRegisteredEmissiveOverlayMask(spriteId);
             this.pendingSpriteUvRemap = true;
             this.pendingSpriteMinU = sprite.getMinU();
             this.pendingSpriteMaxU = sprite.getMaxU();
@@ -647,6 +656,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (spriteId >= 0) {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
+            enableRegisteredEmissiveOverlayMask(spriteId);
             this.pendingSpriteUvRemap = false;
             this.pendingNaturalUvTransform = NaturalTransform.identity();
         } else {
@@ -662,6 +672,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (spriteId >= 0 && sourceSprite != null) {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
+            enableRegisteredEmissiveOverlayMask(spriteId);
             this.pendingSpriteUvRemap = true;
             this.pendingSpriteMinU = sourceSprite.getMinU();
             this.pendingSpriteMaxU = sourceSprite.getMaxU();
