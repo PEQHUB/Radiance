@@ -181,6 +181,7 @@ public final class ResourcePackCompatCtmTiles {
             case "horizontal+vertical", "vertical+horizontal" -> "0-6";
             case "top", "fixed" -> "0";
             case "overlay", "overlay_ctm" -> "0-16";
+            case "overlay_fixed" -> "0";
             default -> "";
         };
     }

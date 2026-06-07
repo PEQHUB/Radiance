@@ -110,6 +110,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsRepeatSprites();
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverSelectsOverlaySprites();
+        textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
         textureVariantResolverSelectsNeighborMasks();
         textureVariantResolverSelectsFullAndCompactCtm();
         shaderBlockLayerResolverParsesAlphaModes();
@@ -1193,6 +1194,21 @@ public final class MaterialLabSelfTest {
         expect(overlayRandom.size() == 4, "overlay_random CTM dependencies should preserve real tiles and ignore <skip>");
         expect("assets/minecraft/optifine/ctm/leaf_overlay/1.png".equals(overlayRandom.get(0)),
             "overlay_random numeric tiles should resolve relative to the property directory");
+
+        List<String> overlayCtm = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(
+            "assets/minecraft/optifine/ctm/leaf_overlay/sand_overlay.properties",
+            "", "overlay_ctm");
+        expect(overlayCtm.size() == 17, "overlay_ctm should infer the documented 17-tile overlay set");
+        List<String> overlayFixed = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(
+            "assets/minecraft/optifine/ctm/leaf_overlay/fixed.properties",
+            "", "overlay_fixed");
+        expect(overlayFixed.size() == 1 && overlayFixed.get(0).endsWith("/0.png"),
+            "overlay_fixed should infer a single overlay tile");
+        List<String> overlayRepeat = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(
+            "assets/minecraft/optifine/ctm/leaf_overlay/repeat.properties",
+            "0-3", "overlay_repeat");
+        expect(overlayRepeat.size() == 4 && overlayRepeat.get(3).endsWith("/3.png"),
+            "overlay_repeat dependencies should expand explicit repeat tiles");
     }
 
     private static void ctmAtlasSourceCollectsPresentTiles() {
@@ -1597,6 +1613,93 @@ public final class MaterialLabSelfTest {
             expect(overlays.resolveOverlaysWithConnectionsForTest(stone, stoneId, Direction.UP,
                 Set.of(Direction.WEST), Set.of()).length == 0,
                 "overlay should respect the overlay feature flag");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier overlayCtm8 = ctmFixtureId("overlay_ctm", 8);
+            Identifier overlayRepeat3 = ctmFixtureId("overlay_repeat", 3);
+            Identifier overlayFixed0 = ctmFixtureId("overlay_fixed", 0);
+            expect(overlayCtm8 != null && overlayRepeat3 != null && overlayFixed0 != null,
+                "overlay selector fixture ids should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, overlayCtm8, overlayRepeat3, overlayFixed0));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = false;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatOverlaysEnabled = true;
+
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+
+            FakeResourceManager overlayCtmManager = new FakeResourceManager();
+            overlayCtmManager.add("minecraft:optifine/ctm/overlay_ctm/overlay.properties",
+                String.join("\n",
+                    "method=overlay_ctm",
+                    "matchTiles=stone",
+                    "connectBlocks=sand"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex overlayCtm =
+                ResourcePackTextureVariantResolver.buildForTest(overlayCtmManager, false);
+            expect(overlayCtm.ruleCountForTest() == 1, "overlay_ctm rule should compile");
+            expect(overlayCtm.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.UP) == stoneId,
+                "overlay_ctm must not replace the base sprite");
+            int[] all = overlayCtm.resolveOverlaysWithConnectionsForTest(stone, stoneId, Direction.UP,
+                Set.of(Direction.WEST, Direction.SOUTH, Direction.EAST, Direction.NORTH), Set.of());
+            expect(all.length == 1 && all[0] == TextureArrayBridge.resolveSpriteId(overlayCtm8.toString()),
+                "overlay_ctm should use the 17-tile overlay mask selector");
+
+            FakeResourceManager overlayRepeatManager = new FakeResourceManager();
+            overlayRepeatManager.add("minecraft:optifine/ctm/overlay_repeat/repeat.properties",
+                String.join("\n",
+                    "method=overlay_repeat",
+                    "matchTiles=stone",
+                    "faces=top",
+                    "tiles=0-3",
+                    "width=2",
+                    "height=2"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex overlayRepeat =
+                ResourcePackTextureVariantResolver.buildForTest(overlayRepeatManager, false);
+            expect(overlayRepeat.ruleCountForTest() == 1, "overlay_repeat rule should compile");
+            expect(overlayRepeat.resolveOverlayForTest(stone, stoneId, new BlockPos(1, 64, 1), Direction.UP)
+                    == TextureArrayBridge.resolveSpriteId(overlayRepeat3.toString()),
+                "overlay_repeat should project repeat tiles on top faces");
+            expect(overlayRepeat.resolveOverlayForTest(stone, stoneId, new BlockPos(1, 64, 1), Direction.NORTH)
+                    == -1,
+                "overlay_repeat should respect faces predicates");
+
+            FakeResourceManager overlayFixedManager = new FakeResourceManager();
+            overlayFixedManager.add("minecraft:optifine/ctm/overlay_fixed/fixed.properties",
+                String.join("\n",
+                    "method=overlay_fixed",
+                    "matchTiles=stone",
+                    "faces=top"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex overlayFixed =
+                ResourcePackTextureVariantResolver.buildForTest(overlayFixedManager, false);
+            expect(overlayFixed.ruleCountForTest() == 1, "overlay_fixed rule should compile");
+            expect(overlayFixed.resolveOverlayForTest(stone, stoneId, new BlockPos(2, 64, 3), Direction.UP)
+                    == TextureArrayBridge.resolveSpriteId(overlayFixed0.toString()),
+                "overlay_fixed should emit its single overlay sprite");
+
+            Options.materialCompatOverlaysEnabled = false;
+            expect(overlayFixed.resolveOverlayForTest(stone, stoneId, new BlockPos(2, 64, 3), Direction.UP) == -1,
+                "overlay_fixed should respect the overlay feature flag");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;

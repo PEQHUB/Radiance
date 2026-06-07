@@ -246,7 +246,10 @@ public final class ResourcePackTextureVariantResolver {
             case "vertical+horizontal" -> RuleMethod.VERTICAL_THEN_HORIZONTAL;
             case "top" -> RuleMethod.TOP;
             case "overlay" -> RuleMethod.OVERLAY;
+            case "overlay_ctm" -> RuleMethod.OVERLAY_CTM;
             case "overlay_random" -> RuleMethod.OVERLAY_RANDOM;
+            case "overlay_repeat" -> RuleMethod.OVERLAY_REPEAT;
+            case "overlay_fixed" -> RuleMethod.OVERLAY_FIXED;
             default -> null;
         };
         if (ruleMethod == null) {
@@ -361,7 +364,8 @@ public final class ResourcePackTextureVariantResolver {
             case HORIZONTAL, VERTICAL -> "0-3";
             case HORIZONTAL_THEN_VERTICAL, VERTICAL_THEN_HORIZONTAL -> "0-6";
             case TOP, FIXED -> "0";
-            case OVERLAY -> "0-16";
+            case OVERLAY, OVERLAY_CTM -> "0-16";
+            case OVERLAY_FIXED -> "0";
             default -> "";
         };
     }
@@ -977,7 +981,8 @@ public final class ResourcePackTextureVariantResolver {
                 case RANDOM -> Options.materialCompatRandomEnabled;
                 case REPEAT, HORIZONTAL, VERTICAL, HORIZONTAL_THEN_VERTICAL, VERTICAL_THEN_HORIZONTAL, TOP ->
                     Options.materialCompatCtmEnabled;
-                case OVERLAY, OVERLAY_RANDOM -> Options.materialCompatOverlaysEnabled;
+                case OVERLAY, OVERLAY_CTM, OVERLAY_RANDOM, OVERLAY_REPEAT, OVERLAY_FIXED ->
+                    Options.materialCompatOverlaysEnabled;
             };
         }
 
@@ -1018,7 +1023,7 @@ public final class ResourcePackTextureVariantResolver {
                 case VERTICAL_THEN_HORIZONTAL ->
                     sevenTileIndex(connector, verticalDirections(face), horizontalDirections(face));
                 case TOP -> connector.connects(Direction.UP, connectMode) ? 0 : -1;
-                case OVERLAY, OVERLAY_RANDOM -> -1;
+                case OVERLAY, OVERLAY_CTM, OVERLAY_RANDOM, OVERLAY_REPEAT, OVERLAY_FIXED -> -1;
             };
             if (outputIndex < 0) {
                 return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
@@ -1040,11 +1045,23 @@ public final class ResourcePackTextureVariantResolver {
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
             NeighborConnector connector) {
             return switch (method) {
-                case OVERLAY -> overlaySprites(overlayTileIndices(world, state, pos, face, connector), false,
+                case OVERLAY, OVERLAY_CTM -> overlaySprites(
+                    overlayTileIndices(world, state, pos, face, connector), false,
                     overlayTintRgb(world, state, pos));
                 case OVERLAY_RANDOM -> randomOverlaySpriteIds(source, pos, face);
+                case OVERLAY_REPEAT -> indexedOverlaySpriteId(repeatIndex(pos, face), true,
+                    overlayTintRgb(world, state, pos));
+                case OVERLAY_FIXED -> indexedOverlaySpriteId(0, false, overlayTintRgb(world, state, pos));
                 default -> new BlockOverlaySprite[0];
             };
+        }
+
+        private BlockOverlaySprite[] indexedOverlaySpriteId(int outputIndex, boolean fallbackFromSelected,
+            int tintRgb) {
+            if (outputIndex < 0) {
+                return new BlockOverlaySprite[0];
+            }
+            return overlaySprites(List.of(outputIndex), fallbackFromSelected, tintRgb);
         }
 
         private BlockOverlaySprite[] randomOverlaySpriteIds(Identifier source, @Nullable BlockPos pos,
@@ -1535,10 +1552,17 @@ public final class ResourcePackTextureVariantResolver {
         VERTICAL_THEN_HORIZONTAL,
         TOP,
         OVERLAY,
-        OVERLAY_RANDOM;
+        OVERLAY_CTM,
+        OVERLAY_RANDOM,
+        OVERLAY_REPEAT,
+        OVERLAY_FIXED;
 
         boolean overlayRule() {
-            return this == OVERLAY || this == OVERLAY_RANDOM;
+            return this == OVERLAY
+                || this == OVERLAY_CTM
+                || this == OVERLAY_RANDOM
+                || this == OVERLAY_REPEAT
+                || this == OVERLAY_FIXED;
         }
     }
 
