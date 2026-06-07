@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 public final class ResourcePackCompatAtlasSource implements AtlasSource {
     public static final ResourcePackCompatAtlasSource INSTANCE = new ResourcePackCompatAtlasSource();
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
-    private static final int ADMISSION_LIMIT = 4096;
+    private static final int TEST_ADMISSION_LIMIT = 4096;
 
     private ResourcePackCompatAtlasSource() {
     }
@@ -40,13 +40,14 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
     }
 
     public static AdmissionSummary admitCtmSpritesForTest(ResourceManager resourceManager, SpriteRegions regions) {
-        return admitCtmSprites(resourceManager, regions, ADMISSION_LIMIT);
+        return admitCtmSprites(resourceManager, regions, TEST_ADMISSION_LIMIT);
     }
 
     @Override
     public void load(ResourceManager resourceManager, SpriteRegions regions) {
         ResourcePackEmissiveTextureResolver.clearRegisteredOverlaySprites();
-        AdmissionSummary summary = admitCtmSprites(resourceManager, regions, ADMISSION_LIMIT);
+        AdmissionSummary summary = admitCtmSprites(resourceManager, regions,
+            Math.max(0, Options.materialCompatCtmAtlasAdmissionLimit));
         if (summary.added() > 0 || summary.missing() > 0 || summary.invalid() > 0) {
             LOGGER.info("[MaterialCompat] CTM atlas admission: {}", summary);
         }
@@ -61,6 +62,9 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
         int limit) {
         ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
         if (resourceManager == null || regions == null) {
+            return AdmissionSummary.empty();
+        }
+        if (limit <= 0) {
             return AdmissionSummary.empty();
         }
 

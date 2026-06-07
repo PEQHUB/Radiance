@@ -816,6 +816,7 @@ public class Options {
     public static boolean materialCompatOverlaysEnabled = true;
     public static boolean materialCompatLegacyMcPatcherEnabled = true;
     public static boolean materialCompatPhysicalEmissiveEnabled = true;
+    public static int materialCompatCtmAtlasAdmissionLimit = 0;
 
     public static void setAutoPBREnabled(boolean enabled, boolean write) {
         com.radiance.client.debug.CrashContext.recordChange("autoPBREnabled=" + enabled);
@@ -1191,6 +1192,7 @@ public class Options {
             materialCompatOverlaysEnabled = Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", String.valueOf(materialCompatOverlaysEnabled)));
             materialCompatLegacyMcPatcherEnabled = Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled)));
             materialCompatPhysicalEmissiveEnabled = Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled)));
+            materialCompatCtmAtlasAdmissionLimit = Math.max(0, Integer.parseInt(props.getProperty("materialCompatCtmAtlasAdmissionLimit", String.valueOf(materialCompatCtmAtlasAdmissionLimit))));
             if (loadedOptionsVersion < 24 && legacyMaterialCompatAllDisabled(props)) {
                 enableMaterialCompatDefaults();
             }
@@ -1558,6 +1560,7 @@ public class Options {
         props.setProperty("materialCompatOverlaysEnabled", String.valueOf(materialCompatOverlaysEnabled));
         props.setProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled));
         props.setProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled));
+        props.setProperty("materialCompatCtmAtlasAdmissionLimit", String.valueOf(materialCompatCtmAtlasAdmissionLimit));
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));

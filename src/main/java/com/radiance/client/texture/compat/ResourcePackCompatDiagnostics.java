@@ -174,7 +174,10 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("optifineCustomLightmapsMetadataOnly", false);
         json.addProperty("horizontalVerticalTopNeighborMasks",
             Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
-        json.addProperty("ctmTileAtlasAdmission", renderingConsumesCompatibility());
+        json.addProperty("ctmTileAtlasAdmission", Options.materialCompatEnabled
+            && Options.materialCompatCtmEnabled
+            && Options.materialCompatCtmAtlasAdmissionLimit > 0);
+        json.addProperty("ctmTileAtlasAdmissionLimit", Options.materialCompatCtmAtlasAdmissionLimit);
         json.addProperty("full47CtmNeighborMasks", Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("compactCtmWholeQuadAndExplicitOverrides",
             Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
