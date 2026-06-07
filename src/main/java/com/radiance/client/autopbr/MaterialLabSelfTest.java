@@ -21,6 +21,8 @@ import com.radiance.client.texture.compat.ResourcePackCompatAtlasSource;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
+import com.radiance.client.texture.compat.ResourcePackLightmapResolver;
+import com.radiance.client.texture.compat.ResourcePackLightmapResolver.LightmapSample;
 import com.radiance.client.texture.compat.ResourcePackModelFallback;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
@@ -97,6 +99,7 @@ public final class MaterialLabSelfTest {
         materialCompatRunScanMarksActivePacksAndParsesRecords();
         materialCompatDiagnosticsReportNaturalConsumption();
         materialCompatDiagnosticsReportColorConsumption();
+        materialCompatDiagnosticsReportLightmapConsumption();
         materialCompatDiagnosticsReportPhysicalEmissiveConsumption();
         materialCompatDiagnosticsReportShaderBlockLayerConsumption();
         ctmAtlasAdmissionUtilitiesAreStable();
@@ -110,6 +113,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsFullAndCompactCtm();
         shaderBlockLayerResolverParsesAlphaModes();
         colorPropertiesResolverParsesFlatBlockPalettes();
+        lightmapResolverSamplesCustomPalettes();
         naturalTextureResolverParsesRulesAndTransformsUv();
         presetCatalogIsResourceBacked();
         System.out.println("Material Lab self-test passed");
@@ -771,6 +775,7 @@ public final class MaterialLabSelfTest {
             Files.createDirectories(root.resolve("assets/minecraft/textures/block"));
             Files.createDirectories(root.resolve("assets/minecraft/optifine/ctm/stone"));
             Files.createDirectories(root.resolve("assets/minecraft/optifine/colormap/blocks/terracotta"));
+            Files.createDirectories(root.resolve("assets/minecraft/optifine/lightmap"));
             Files.writeString(root.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":46,\"description\":\"fixture\"}}", StandardCharsets.UTF_8);
             Files.write(root.resolve("assets/minecraft/textures/block/stone_s.png"), new byte[] {0});
             Files.write(root.resolve("assets/minecraft/textures/block/stone_n.png"), new byte[] {0});
@@ -784,6 +789,8 @@ public final class MaterialLabSelfTest {
                 "format=fixed\ncolor=985e44\nblocks=terracotta\n", StandardCharsets.UTF_8);
             Files.writeString(root.resolve("assets/minecraft/optifine/ctm/stone/stone.properties"),
                 "method=ctm\nmatchTiles=stone\ntiles=0-46\nconnect=block\n", StandardCharsets.UTF_8);
+            Files.write(root.resolve("assets/minecraft/optifine/lightmap/world0.png"),
+                lightmapPngBytesForTest(0xFF220000, 0xFF002200, 0xFF660000, 0xFF006600));
 
             JsonObject report = JsonParser.parseString(
                 ResourcePackCompatDiagnostics.scanPackJsonForTest(root.toString())).getAsJsonObject();
@@ -796,8 +803,12 @@ public final class MaterialLabSelfTest {
             expect(counts.get("naturalProperties").getAsInt() == 1, "scanner should count natural.properties");
             expect(counts.get("blockColormapProperties").getAsInt() == 1,
                 "scanner should count OptiFine block colormap properties");
+            expect(counts.get("customLightmapPng").getAsInt() == 1,
+                "scanner should count OptiFine custom lightmap PNGs");
             expect(counts.get("optifineCtmProperties").getAsInt() == 1, "scanner should count OptiFine CTM properties");
             expect(report.getAsJsonObject("compatFeatures").get("ctm").getAsInt() == 1, "scanner should classify CTM records");
+            expect(report.getAsJsonObject("compatFeatures").get("custom_lightmap_images").getAsInt() == 1,
+                "scanner should classify custom lightmap image features");
             expect(report.getAsJsonObject("compatFeatures").get("block_colormap_properties").getAsInt() == 1,
                 "scanner should classify fixed block colormap records");
             expect(report.getAsJsonArray("compatRecords").size() >= 3, "scanner should emit structured compatibility records");
@@ -963,6 +974,48 @@ public final class MaterialLabSelfTest {
                 "diagnostics should not mark rendered biome palettes as metadata-only");
         } catch (IOException e) {
             throw new AssertionError("material compat color diagnostics fixture failed", e);
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatNaturalEnabled = oldNatural;
+            Options.materialCompatColorsEnabled = oldColors;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
+            if (run != null) {
+                deleteTree(run);
+            }
+        }
+    }
+
+    private static void materialCompatDiagnosticsReportLightmapConsumption() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldNatural = Options.materialCompatNaturalEnabled;
+        boolean oldColors = Options.materialCompatColorsEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        boolean oldPhysical = Options.materialCompatPhysicalEmissiveEnabled;
+        Path run = null;
+        try {
+            run = Files.createTempDirectory("radser-material-compat-lightmap-status");
+            Files.createDirectories(run.resolve("resourcepacks"));
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = false;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatNaturalEnabled = false;
+            Options.materialCompatColorsEnabled = true;
+            Options.materialCompatOverlaysEnabled = false;
+            Options.materialCompatPhysicalEmissiveEnabled = false;
+            JsonObject status = JsonParser.parseString(
+                ResourcePackCompatDiagnostics.scanRunDirectoryJsonForTest(run.toString())).getAsJsonObject();
+            JsonObject consumption = status.getAsJsonObject("compatibilityConsumption");
+            expect(consumption.get("optifineCustomLightmaps").getAsBoolean(),
+                "diagnostics should expose rendered OptiFine custom lightmap consumption");
+            expect(!consumption.get("optifineCustomLightmapsMetadataOnly").getAsBoolean(),
+                "diagnostics should not mark custom lightmaps as metadata-only");
+        } catch (IOException e) {
+            throw new AssertionError("material compat lightmap diagnostics fixture failed", e);
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
@@ -1815,6 +1868,37 @@ public final class MaterialLabSelfTest {
             "blocks without color.properties entries should keep vanilla tint");
     }
 
+    private static void lightmapResolverSamplesCustomPalettes() {
+        FakeResourceManager manager = new FakeResourceManager();
+        manager.add("minecraft:optifine/lightmap/world0.png",
+            lightmapPngBytesForTest(0xFF200000, 0xFF002000, 0xFF600000, 0xFF006000));
+        manager.add("minecraft:optifine/lightmap/world0_rain.png",
+            lightmapPngBytesForTest(0xFF000020, 0xFF000020, 0xFF000060, 0xFF000060));
+
+        ResourcePackLightmapResolver.LightmapIndex index =
+            ResourcePackLightmapResolver.buildForTest(manager, false);
+        expect(index.paletteCountForTest() == 2,
+            "lightmap resolver should count base and weather custom lightmap palettes");
+
+        LightmapSample base = ResourcePackLightmapResolver.resolveForTest(manager, "world0",
+            1.0f, 2.0f, 0.0f, 0.0f, 0.5f, false);
+        expect(base.enabled(), "custom lightmap sample should be enabled when world0.png exists");
+        expect(base.includesNightVision(), "64-row lightmap should advertise night-vision palette rows");
+        expect(close(base.skyRgb()[15 * 3], 64.0f / 255.0f),
+            "custom lightmap should sample and blend sky night-vision rows");
+        expect(close(base.blockRgb()[15 * 3 + 1], 64.0f / 255.0f),
+            "custom lightmap should sample and blend block night-vision rows");
+
+        LightmapSample rain = ResourcePackLightmapResolver.resolveForTest(manager, "world0",
+            1.0f, 2.0f, 1.0f, 0.0f, 0.5f, false);
+        expect(close(rain.skyRgb()[15 * 3 + 2], 64.0f / 255.0f),
+            "custom lightmap should use rain palette when rain factor reaches one");
+
+        LightmapSample missing = ResourcePackLightmapResolver.resolveForTest(manager, "world1",
+            1.0f, 2.0f, 0.0f, 0.0f, 0.0f, false);
+        expect(!missing.enabled(), "custom lightmap should stay disabled for dimensions without a palette");
+    }
+
     private static Identifier ctmFixtureId(String group, int tile) {
         return Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
             "assets/minecraft/optifine/ctm/" + group + "/" + tile + ".png"));
@@ -1998,6 +2082,35 @@ public final class MaterialLabSelfTest {
             return Files.readAllBytes(tmp);
         } catch (IOException e) {
             throw new AssertionError("failed to build PNG fixture", e);
+        } finally {
+            if (tmp != null) {
+                try {
+                    Files.deleteIfExists(tmp);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private static byte[] lightmapPngBytesForTest(int skyBaseArgb,
+        int blockBaseArgb,
+        int skyNightVisionArgb,
+        int blockNightVisionArgb) {
+        Path tmp = null;
+        try (NativeImage image = new NativeImage(NativeImage.Format.RGBA, 2, 64, false)) {
+            for (int x = 0; x < 2; x++) {
+                for (int y = 0; y < 16; y++) {
+                    image.setColorArgb(x, y, skyBaseArgb);
+                    image.setColorArgb(x, 16 + y, blockBaseArgb);
+                    image.setColorArgb(x, 32 + y, skyNightVisionArgb);
+                    image.setColorArgb(x, 48 + y, blockNightVisionArgb);
+                }
+            }
+            tmp = Files.createTempFile("radser-lightmap-palette", ".png");
+            image.writeTo(tmp);
+            return Files.readAllBytes(tmp);
+        } catch (IOException e) {
+            throw new AssertionError("failed to build lightmap PNG fixture", e);
         } finally {
             if (tmp != null) {
                 try {

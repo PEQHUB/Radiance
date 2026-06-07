@@ -16,6 +16,8 @@ import com.radiance.client.option.Options;
 import com.radiance.client.util.EmissiveBlock;
 import com.radiance.client.util.SpectralColor;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.compat.ResourcePackLightmapResolver;
+import com.radiance.client.texture.compat.ResourcePackLightmapResolver.LightmapSample;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import net.minecraft.client.MinecraftClient;
@@ -629,9 +631,11 @@ public class BufferProxy {
     public static void updateLightMapUniform(float ambientLightFactor, float skyFactor,
         float blockFactor, boolean useBrightLightmap, Vector3f skyLightColor,
         float nightVisionFactor, float darknessScale, float darkenWorldFactor,
-        float brightnessFactor) {
+        float brightnessFactor, ClientWorld world, float tickDelta) {
+        LightmapSample customLightmap = ResourcePackLightmapResolver.resolve(world, tickDelta,
+            skyFactor, blockFactor, nightVisionFactor);
         try (MemoryStack stack = stackPush()) {
-            int size = 48;
+            int size = 576;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -660,9 +664,32 @@ public class BufferProxy {
             baseAddr += Float.BYTES;
             bb.putFloat(baseAddr, brightnessFactor);
             baseAddr += Float.BYTES;
-            baseAddr += Integer.BYTES; // pad0
+            bb.putInt(baseAddr, customLightmap.enabled() ? 1 : 0);
+            baseAddr += Integer.BYTES;
+            bb.putInt(baseAddr, customLightmap.includesNightVision() ? 1 : 0);
+            baseAddr += Integer.BYTES;
+            baseAddr += Integer.BYTES * 3; // pad0..2; align vec4 arrays to 16 bytes
+
+            writeLightmapArray(bb, baseAddr, customLightmap.skyRgb());
+            baseAddr += 16 * Float.BYTES * 4;
+            writeLightmapArray(bb, baseAddr, customLightmap.blockRgb());
 
             updateLightMapUniform(addr);
+        }
+    }
+
+    private static void writeLightmapArray(ByteBuffer bb, int baseAddr, float[] rgb) {
+        int offset = baseAddr;
+        for (int level = 0; level < 16; level++) {
+            int source = level * 3;
+            bb.putFloat(offset, rgb[source]);
+            offset += Float.BYTES;
+            bb.putFloat(offset, rgb[source + 1]);
+            offset += Float.BYTES;
+            bb.putFloat(offset, rgb[source + 2]);
+            offset += Float.BYTES;
+            bb.putFloat(offset, 1.0f);
+            offset += Float.BYTES;
         }
     }
 

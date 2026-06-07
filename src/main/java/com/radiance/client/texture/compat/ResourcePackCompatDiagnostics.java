@@ -154,6 +154,9 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("colorPropertiesBiomePalettes",
             Options.materialCompatEnabled && Options.materialCompatColorsEnabled);
         json.addProperty("colorPropertiesBiomePalettesMetadataOnly", false);
+        json.addProperty("optifineCustomLightmaps",
+            Options.materialCompatEnabled && Options.materialCompatColorsEnabled);
+        json.addProperty("optifineCustomLightmapsMetadataOnly", false);
         json.addProperty("horizontalVerticalTopNeighborMasks",
             Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("ctmTileAtlasAdmission", renderingConsumesCompatibility());
@@ -468,6 +471,7 @@ public final class ResourcePackCompatDiagnostics {
         private int colorProperties;
         private int blockColormapProperties;
         private int lightmapProperties;
+        private int customLightmapPng;
         private int blockProperties;
         private int customAnimationEntries;
         private int citEntries;
@@ -520,6 +524,8 @@ public final class ResourcePackCompatDiagnostics {
             if (lower.contains("/optifine/colormap/blocks/") && lower.endsWith(".properties")) blockColormapProperties++;
             if (lower.contains("/mcpatcher/colormap/blocks/") && lower.endsWith(".properties")) blockColormapProperties++;
             if (lower.endsWith("/lightmap.properties") || lower.endsWith("lightmap.properties")) lightmapProperties++;
+            if ((lower.contains("/optifine/lightmap/") || lower.contains("/mcpatcher/lightmap/"))
+                && lower.endsWith(".png")) customLightmapPng++;
             if (lower.endsWith("/block.properties") || lower.endsWith("block.properties")) blockProperties++;
             if (lower.contains("/optifine/anim/") || lower.contains("/mcpatcher/anim/")) customAnimationEntries++;
             if (lower.contains("/optifine/cit/") || lower.contains("/mcpatcher/cit/")) citEntries++;
@@ -591,6 +597,7 @@ public final class ResourcePackCompatDiagnostics {
             if (lower.endsWith("emissive.properties")) return "emissive_properties";
             if (lower.endsWith("natural.properties")) return "natural_properties";
             if (lower.endsWith("color.properties")) return "color_properties";
+            if (lower.endsWith("lightmap.properties")) return "lightmap_properties";
             if (lower.endsWith("block.properties")) return "block_properties";
             return "properties";
         }
@@ -766,6 +773,7 @@ public final class ResourcePackCompatDiagnostics {
             counts.addProperty("colorProperties", colorProperties);
             counts.addProperty("blockColormapProperties", blockColormapProperties);
             counts.addProperty("lightmapProperties", lightmapProperties);
+            counts.addProperty("customLightmapPng", customLightmapPng);
             counts.addProperty("blockProperties", blockProperties);
             counts.addProperty("customAnimationEntries", customAnimationEntries);
             counts.addProperty("citEntries", citEntries);
@@ -842,6 +850,9 @@ public final class ResourcePackCompatDiagnostics {
             compatFeatureCounts.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .forEach(entry -> json.addProperty(entry.getKey(), entry.getValue()));
+            if (customLightmapPng > 0) {
+                json.addProperty("custom_lightmap_images", customLightmapPng);
+            }
             return json;
         }
 

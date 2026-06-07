@@ -472,7 +472,9 @@ public abstract class WorldRendererMixins {
             lightMapManagerExt.neoVoxelRT$getNightVisionFactor(),
             lightMapManagerExt.neoVoxelRT$getDarknessScale(),
             lightMapManagerExt.neoVoxelRT$getDarkenWorldFactor(),
-            lightMapManagerExt.neoVoxelRT$getBrightnessFactor());
+            lightMapManagerExt.neoVoxelRT$getBrightnessFactor(),
+            this.world,
+            tickDelta);
 
         // Entities
         jtT0 = System.nanoTime();
