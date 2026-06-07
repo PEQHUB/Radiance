@@ -115,6 +115,7 @@ public final class ResourceMaterialResidencyUploader {
             JsonObject pageReport = new JsonObject();
             pageReport.addProperty("page", page);
             int layer = 0;
+            Map<Integer, ResourceMaterialRegistry.ResidencyHandle> pageHandles = new LinkedHashMap<>();
             while (layer < pageCapacity && nextItem < items.size()) {
                 UploadItem item = items.get(nextItem++);
                 LayerResult result = writeLayer(resourceManager, item, layerSize,
@@ -137,7 +138,7 @@ public final class ResourceMaterialResidencyUploader {
                 if (result.displacementBlocked()) {
                     displacementBlocked++;
                 }
-                handles.put(item.materialId(), ResourceMaterialRegistry.ResidencyHandle.sameLayer(
+                pageHandles.put(item.materialId(), ResourceMaterialRegistry.ResidencyHandle.sameLayer(
                     page, layer, layerSize, result.hasSpecular(),
                     result.displacementEligible(), result.displacementBlocked(),
                     result.heightRangePacked()));
@@ -160,11 +161,14 @@ public final class ResourceMaterialResidencyUploader {
             pageReport.addProperty("uploaded", uploaded);
             if (uploaded) {
                 uploadedPages++;
+                handles.putAll(pageHandles);
+                ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
+                boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                pageReport.addProperty("materialTableUploaded", materialTableUploaded);
                 LOGGER.info("[MaterialCompat] Material page {} uploaded: {} layers, {} total resident handles",
                     page, layer, handles.size());
             } else {
                 nativePageFailures++;
-                removeHandlesForPage(handles, page);
                 LOGGER.warn("[MaterialCompat] Material page {} upload failed: {} layers", page, layer);
             }
             pageReports.add(pageReport);

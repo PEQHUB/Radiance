@@ -112,6 +112,15 @@ public final class ResourceMaterialRegistry {
         ACTIVE_RESIDENCY.set(Map.copyOf(handles));
     }
 
+    public static void mergeResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
+        if (handles == null || handles.isEmpty()) {
+            return;
+        }
+        Map<Integer, ResidencyHandle> next = new LinkedHashMap<>(ACTIVE_RESIDENCY.get());
+        next.putAll(handles);
+        ACTIVE_RESIDENCY.set(Map.copyOf(next));
+    }
+
     public static int shaderTextureIdForMaterialId(int materialId) {
         Snapshot snapshot = ACTIVE.get();
         MaterialRecord record = snapshot.recordByMaterialId(materialId);
