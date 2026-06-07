@@ -38,6 +38,11 @@ public final class ResourcePackRandomEntityTextureResolver {
 
     public static Identifier resolveTexture(Identifier baseTexture, int entityHash,
         double x, double y, double z) {
+        return resolveTexture(baseTexture, entityHash, x, y, z, -1);
+    }
+
+    public static Identifier resolveTexture(Identifier baseTexture, int entityHash,
+        double x, double y, double z, int optifineSize) {
         if (baseTexture == null || !Options.materialCompatEnabled || !Options.materialCompatRandomEnabled) {
             return baseTexture;
         }
@@ -46,7 +51,8 @@ public final class ResourcePackRandomEntityTextureResolver {
             return baseTexture;
         }
         String biomeId = biomeAt(x, y, z);
-        return activeIndex(resourceManager).resolve(baseTexture, entityHash, biomeId);
+        return activeIndex(resourceManager).resolve(baseTexture, entityHash, biomeId,
+            blockY(y), optifineSize);
     }
 
     public static void ensureTextureRegistered(TextureManager textureManager, Identifier textureId) {
@@ -90,6 +96,13 @@ public final class ResourcePackRandomEntityTextureResolver {
         } catch (Throwable ignored) {
             return "";
         }
+    }
+
+    private static int blockY(double y) {
+        if (!Double.isFinite(y)) {
+            return Integer.MIN_VALUE;
+        }
+        return BlockPos.ofFloored(0.0, y, 0.0).getY();
     }
 
     private static RandomEntityIndex activeIndex(ResourceManager resourceManager) {
@@ -176,7 +189,10 @@ public final class ResourcePackRandomEntityTextureResolver {
             }
             int[] weights = parseWeights(props.getProperty("weights." + group), choices.size());
             BiomePredicate biomes = BiomePredicate.parse(props.getProperty("biomes." + group, ""));
-            parsed.add(new RandomEntityRule(propertyId.toString() + "#" + group, choices, weights, biomes));
+            HeightPredicate heights = HeightPredicate.parse(props.getProperty("heights." + group, ""));
+            SizePredicate sizes = SizePredicate.parse(props.getProperty("sizes." + group, ""));
+            parsed.add(new RandomEntityRule(propertyId.toString() + "#" + group, choices, weights,
+                biomes, heights, sizes));
         }
         return parsed.isEmpty() ? Optional.empty() : Optional.of(new ParsedRules(baseTexture, parsed));
     }
@@ -218,7 +234,8 @@ public final class ResourcePackRandomEntityTextureResolver {
                 continue;
             }
             String name = key.substring(0, key.length() - suffix.length()).toLowerCase(Locale.ROOT);
-            if (!name.equals("textures") && !name.equals("weights") && !name.equals("biomes")) {
+            if (!name.equals("textures") && !name.equals("weights") && !name.equals("biomes")
+                && !name.equals("heights") && !name.equals("sizes")) {
                 return true;
             }
         }
@@ -367,13 +384,18 @@ public final class ResourcePackRandomEntityTextureResolver {
         }
 
         public Identifier resolve(Identifier baseTexture, int entityHash, @Nullable String biomeId) {
+            return resolve(baseTexture, entityHash, biomeId, Integer.MIN_VALUE, -1);
+        }
+
+        public Identifier resolve(Identifier baseTexture, int entityHash, @Nullable String biomeId,
+            int blockY, int optifineSize) {
             List<RandomEntityRule> textureRules = rules.get(baseTexture);
             if (textureRules == null || textureRules.isEmpty()) {
                 return baseTexture;
             }
             String normalizedBiome = normalizeBiomeToken(biomeId);
             for (RandomEntityRule rule : textureRules) {
-                if (rule.matches(normalizedBiome)) {
+                if (rule.matches(normalizedBiome, blockY, optifineSize)) {
                     return rule.pick(baseTexture, entityHash);
                 }
             }
@@ -385,9 +407,10 @@ public final class ResourcePackRandomEntityTextureResolver {
     }
 
     private record RandomEntityRule(String id, List<Identifier> choices, int[] weights,
-                                    BiomePredicate biomes) {
-        boolean matches(String biomeId) {
-            return biomes.matches(biomeId);
+                                    BiomePredicate biomes, HeightPredicate heights,
+                                    SizePredicate sizes) {
+        boolean matches(String biomeId, int blockY, int optifineSize) {
+            return biomes.matches(biomeId) && heights.matches(blockY) && sizes.matches(optifineSize);
         }
 
         Identifier pick(Identifier baseTexture, int entityHash) {
@@ -440,6 +463,84 @@ public final class ResourcePackRandomEntityTextureResolver {
 
         boolean matches(String biomeId) {
             return biomes.isEmpty() || biomes.contains(biomeId);
+        }
+    }
+
+    private record HeightPredicate(List<IntRange> ranges) {
+        static HeightPredicate parse(String raw) {
+            return new HeightPredicate(parseRanges(raw));
+        }
+
+        boolean matches(int y) {
+            if (ranges.isEmpty()) {
+                return true;
+            }
+            if (y == Integer.MIN_VALUE) {
+                return false;
+            }
+            for (IntRange range : ranges) {
+                if (range.matches(y)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private record SizePredicate(List<IntRange> ranges) {
+        static SizePredicate parse(String raw) {
+            return new SizePredicate(parseRanges(raw));
+        }
+
+        boolean matches(int optifineSize) {
+            if (ranges.isEmpty()) {
+                return true;
+            }
+            if (optifineSize < 0) {
+                return false;
+            }
+            for (IntRange range : ranges) {
+                if (range.matches(optifineSize)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private static List<IntRange> parseRanges(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        ArrayList<IntRange> ranges = new ArrayList<>();
+        for (String token : raw.trim().split("[\\s,]+")) {
+            IntRange.parse(token).ifPresent(ranges::add);
+        }
+        return List.copyOf(ranges);
+    }
+
+    private record IntRange(int min, int max) {
+        static Optional<IntRange> parse(String raw) {
+            String token = raw == null ? "" : raw.trim();
+            if (token.isEmpty()) {
+                return Optional.empty();
+            }
+            int dash = token.indexOf('-', 1);
+            try {
+                if (dash > 0 && dash < token.length() - 1) {
+                    int first = Integer.parseInt(token.substring(0, dash));
+                    int second = Integer.parseInt(token.substring(dash + 1));
+                    return Optional.of(first <= second ? new IntRange(first, second) : new IntRange(second, first));
+                }
+                int value = Integer.parseInt(token);
+                return Optional.of(new IntRange(value, value));
+            } catch (NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        }
+
+        boolean matches(int value) {
+            return value >= min && value <= max;
         }
     }
 

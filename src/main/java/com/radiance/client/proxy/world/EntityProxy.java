@@ -75,6 +75,7 @@ import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.mob.SlimeEntity;
 import net.minecraft.entity.player.BlockBreakingInfo;
 
 import net.minecraft.util.Colors;
@@ -121,6 +122,13 @@ public class EntityProxy {
         }
     }
 
+    private static int optifineRandomTextureSize(Entity entity) {
+        if (entity instanceof SlimeEntity slime) {
+            return Math.max(0, slime.getSize() - 1);
+        }
+        return -1;
+    }
+
     private static int resolveEntityLayerTextureId(TextureManager textureManager, Identifier identifier,
         EntityRenderData entityRenderData) {
         Identifier resolved = ResourcePackRandomEntityTextureResolver.resolveTexture(
@@ -128,7 +136,8 @@ public class EntityProxy {
             entityRenderData.hashCode,
             entityRenderData.x,
             entityRenderData.y,
-            entityRenderData.z);
+            entityRenderData.z,
+            entityRenderData.optifineRandomTextureSize);
         ResourcePackRandomEntityTextureResolver.ensureTextureRegistered(textureManager, resolved);
         return TextureArrayBridge.resolveRenderableTextureGlId(resolved,
             textureManager.getTexture(resolved).getGlId());
@@ -193,6 +202,30 @@ public class EntityProxy {
             -1,
             reflect,
             false,
+            -1,
+            entityRenderDataList);
+    }
+
+    public static void processWorldEntityRenderData(
+        StorageVertexConsumerProvider storageVertexConsumerProvider,
+        int hashCode,
+        double entityPosX,
+        double entityPosY,
+        double entityPosZ,
+        Constants.RayTracingFlags rtFlag,
+        boolean reflect,
+        int optifineRandomTextureSize,
+        EntityRenderDataList entityRenderDataList) {
+        processEntityRenderData(storageVertexConsumerProvider,
+            hashCode,
+            entityPosX,
+            entityPosY,
+            entityPosZ,
+            rtFlag.getValue(),
+            -1,
+            reflect,
+            false,
+            optifineRandomTextureSize,
             entityRenderDataList);
     }
 
@@ -212,6 +245,7 @@ public class EntityProxy {
             -1,
             false,
             true,
+            -1,
             entityRenderDataList);
     }
 
@@ -225,18 +259,19 @@ public class EntityProxy {
         int prebuiltBLAS,
         boolean reflect,
         boolean post,
+        int optifineRandomTextureSize,
         EntityRenderDataList entityRenderDataList) {
         Map<RenderLayer, VertexConsumer> layerBuffers = storageVertexConsumerProvider.getLayers();
         EntityRenderData
             entityRenderData =
             new EntityRenderData(hashCode, entityPosX, entityPosY,
                 entityPosZ,
-                rtFlag, prebuiltBLAS, post);
+                rtFlag, prebuiltBLAS, post, optifineRandomTextureSize);
         EntityRenderData
             waterMaskRenderData =
             new EntityRenderData(hashCode, entityPosX, entityPosY,
                 entityPosZ,
-                RayTracingFlags.BOAT_WATER_MASK.getValue(), prebuiltBLAS, post);
+                RayTracingFlags.BOAT_WATER_MASK.getValue(), prebuiltBLAS, post, optifineRandomTextureSize);
         for (Map.Entry<RenderLayer, VertexConsumer> layerBuffer : layerBuffers.entrySet()) {
             RenderLayer layer = layerBuffer.getKey();
             BuiltBuffer buffer = null;
@@ -330,6 +365,7 @@ public class EntityProxy {
 
             boolean isPlayerEntity = entity.equals(camera.getFocusedEntity());
             boolean fpvActive = isPlayerEntity && FirstPersonView.isActive();
+            int optifineRandomTextureSize = optifineRandomTextureSize(entity);
 
             // Update smooth crouch progress before FPV rendering
             if (fpvActive) {
@@ -374,7 +410,7 @@ public class EntityProxy {
                     System.identityHashCode(entity),
                     fpvPosX, fpvPosY, fpvPosZ,
                     Constants.RayTracingFlags.PLAYER,
-                    true, entityRenderDataList);
+                    true, optifineRandomTextureSize, entityRenderDataList);
 
                 // Pass 2: Head only (body hidden by PlayerEntityRendererMixins)
                 // Head uses same offset as body — one forward slider controls both.
@@ -394,7 +430,7 @@ public class EntityProxy {
                     System.identityHashCode(entity) ^ 0x48454144, // "HEAD" xor
                     fpvPosX, fpvPosY, fpvPosZ,
                     Constants.RayTracingFlags.PLAYER_HEAD,
-                    true, entityRenderDataList);
+                    true, optifineRandomTextureSize, entityRenderDataList);
 
                 // Submit held items with HAND flag (10-block range, hand.rmiss,
                 // no self-shadow, softer sun, ambient floor, correct DLSS guide buffers)
@@ -402,7 +438,7 @@ public class EntityProxy {
                     System.identityHashCode(entity) ^ 0x4954454D, // "ITEM" xor
                     fpvPosX, fpvPosY, fpvPosZ,
                     Constants.RayTracingFlags.HAND,
-                    true, entityRenderDataList);
+                    true, optifineRandomTextureSize, entityRenderDataList);
             } else {
                 // Normal render (non-player entities or third-person)
                 try {
@@ -417,13 +453,13 @@ public class EntityProxy {
                         System.identityHashCode(entity),
                         entityPosX, entityPosY, entityPosZ,
                         Constants.RayTracingFlags.PLAYER,
-                        true, entityRenderDataList);
+                        true, optifineRandomTextureSize, entityRenderDataList);
                 } else {
                     processWorldEntityRenderData(entityStorageVertexConsumerProvider,
                         System.identityHashCode(entity),
                         entityPosX, entityPosY, entityPosZ,
                         Constants.RayTracingFlags.WORLD,
-                        true, entityRenderDataList);
+                        true, optifineRandomTextureSize, entityRenderDataList);
                 }
             }
         }
@@ -1448,6 +1484,7 @@ public class EntityProxy {
         private final int hashCode;
         private final int rtFlag;
         private final int prebuiltBLAS;
+        private final int optifineRandomTextureSize;
         private final boolean post;
         private double x;
         private double y;
@@ -1464,6 +1501,13 @@ public class EntityProxy {
         public EntityRenderData(int hashCode, double x, double y, double z, int rtFlag,
             int prebuiltBLAS,
             boolean post) {
+            this(hashCode, x, y, z, rtFlag, prebuiltBLAS, post, -1);
+        }
+
+        public EntityRenderData(int hashCode, double x, double y, double z, int rtFlag,
+            int prebuiltBLAS,
+            boolean post,
+            int optifineRandomTextureSize) {
             this.hashCode = hashCode;
             this.x = x;
             this.y = y;
@@ -1471,6 +1515,7 @@ public class EntityProxy {
             this.rtFlag = rtFlag;
             this.prebuiltBLAS = prebuiltBLAS;
             this.post = post;
+            this.optifineRandomTextureSize = optifineRandomTextureSize;
         }
 
         public double getX() {
@@ -1507,6 +1552,10 @@ public class EntityProxy {
 
         public int getHashCode() {
             return hashCode;
+        }
+
+        public int getOptifineRandomTextureSize() {
+            return optifineRandomTextureSize;
         }
 
         public boolean isPost() {

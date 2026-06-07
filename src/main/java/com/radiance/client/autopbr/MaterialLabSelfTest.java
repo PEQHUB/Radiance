@@ -2280,17 +2280,21 @@ public final class MaterialLabSelfTest {
                 "textures.1=1-3\nweights.1=3 2 1\n".getBytes(StandardCharsets.UTF_8));
             manager.add("minecraft:optifine/random/entity/cow/cow_temperate2.png", new byte[] {1});
             manager.add("minecraft:optifine/random/entity/pig/pig_temperate.properties",
-                "textures.1=1 2\nsizes.1=0\ntextures.2=2\n".getBytes(StandardCharsets.UTF_8));
+                "textures.1=1\nsizes.1=0\ntextures.2=2\n".getBytes(StandardCharsets.UTF_8));
             manager.add("minecraft:optifine/random/entity/pig/pig_temperate2.png", new byte[] {2});
             manager.add("minecraft:optifine/random/entity/bear/polarbear.properties",
                 ("textures.1=1\nbiomes.1=snowy_plains ice_spikes\n"
                     + "textures.2=2\n").getBytes(StandardCharsets.UTF_8));
             manager.add("minecraft:optifine/random/entity/bear/polarbear2.png", new byte[] {3});
+            manager.add("minecraft:optifine/random/entity/zombie/zombie.properties",
+                ("textures.1=2\nheights.1=60-70\n"
+                    + "textures.2=1\n").getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/random/entity/zombie/zombie2.png", new byte[] {4});
 
             ResourcePackRandomEntityTextureResolver.RandomEntityIndex index =
                 ResourcePackRandomEntityTextureResolver.buildForTest(manager, false);
-            expect(index.ruleCountForTest() == 4,
-                "random entity resolver should parse supported rules and skip unsupported size predicates");
+            expect(index.ruleCountForTest() == 7,
+                "random entity resolver should parse weighted, biome, height, and size rules");
 
             Identifier cow = Identifier.ofVanilla("textures/entity/cow/cow_temperate.png");
             Identifier cow2 = Identifier.ofVanilla("optifine/random/entity/cow/cow_temperate2.png");
@@ -2307,9 +2311,11 @@ public final class MaterialLabSelfTest {
                 "random entity resolver should choose weighted base and alternate textures across stable hashes");
 
             Identifier pig = Identifier.ofVanilla("textures/entity/pig/pig_temperate.png");
+            expect(pig.equals(index.resolve(pig, 7, "", 64, 0)),
+                "random entity resolver should match OptiFine size predicates with NBT-style slime sizes");
             expect(Identifier.ofVanilla("optifine/random/entity/pig/pig_temperate2.png").equals(
-                    index.resolve(pig, 7, "")),
-                "random entity resolver should use fallback unconditioned groups after skipping unsupported predicates");
+                    index.resolve(pig, 7, "", 64, 1)),
+                "random entity resolver should fall through when OptiFine size predicates do not match");
 
             Identifier polarBear = Identifier.ofVanilla("textures/entity/bear/polarbear.png");
             expect(polarBear.equals(index.resolve(polarBear, 11, "minecraft:snowy_plains")),
@@ -2317,6 +2323,13 @@ public final class MaterialLabSelfTest {
             expect(Identifier.ofVanilla("optifine/random/entity/bear/polarbear2.png").equals(
                     index.resolve(polarBear, 11, "minecraft:plains")),
                 "random entity resolver should fall through to later groups when biome predicates do not match");
+
+            Identifier zombie = Identifier.ofVanilla("textures/entity/zombie/zombie.png");
+            expect(Identifier.ofVanilla("optifine/random/entity/zombie/zombie2.png").equals(
+                    index.resolve(zombie, 3, "", 65, -1)),
+                "random entity resolver should honor entity height predicates");
+            expect(zombie.equals(index.resolve(zombie, 3, "", 71, -1)),
+                "random entity resolver should fall through when entity height predicates do not match");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatRandomEnabled = oldRandom;
