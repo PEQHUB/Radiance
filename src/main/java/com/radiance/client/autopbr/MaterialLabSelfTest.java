@@ -1226,12 +1226,14 @@ public final class MaterialLabSelfTest {
             run = Files.createTempDirectory("radser-material-compat-run");
             Path resourcePacks = run.resolve("resourcepacks");
             Path active = resourcePacks.resolve("Active Pack");
+            Path later = resourcePacks.resolve("A Later Pack");
             Path inactive = resourcePacks.resolve("Inactive Pack");
             Files.createDirectories(active.resolve("assets/minecraft/textures/block"));
             Files.createDirectories(active.resolve("assets/minecraft/optifine/ctm/stone"));
+            Files.createDirectories(later.resolve("assets/minecraft/textures/block"));
             Files.createDirectories(inactive.resolve("assets/minecraft/textures/block"));
             Files.writeString(run.resolve("options.txt"),
-                "resourcePacks:[\"vanilla\",\"fabric\",\"file/Active Pack\"]\n"
+                "resourcePacks:[\"vanilla\",\"fabric\",\"file/Active Pack\",\"file/A Later Pack\"]\n"
                     + "incompatibleResourcePacks:[\"file/Active Pack\"]\n", StandardCharsets.UTF_8);
             Files.write(active.resolve("assets/minecraft/textures/block/stone.png"), new byte[] {0});
             Files.write(active.resolve("assets/minecraft/textures/block/stone_s.png"), new byte[] {0});
@@ -1252,14 +1254,22 @@ public final class MaterialLabSelfTest {
             Files.write(active.resolve("assets/minecraft/optifine/ctm/stone/2_height.png"), new byte[] {0});
             Files.writeString(active.resolve("assets/minecraft/optifine/ctm/stone/stone.properties"),
                 "method=ctm\nmatchTiles=stone\ntiles=textures/block/stone 0-2 custom_tile\nconnect=block\n", StandardCharsets.UTF_8);
+            Files.write(later.resolve("assets/minecraft/textures/block/sand.png"), new byte[] {0});
             Files.write(inactive.resolve("assets/minecraft/textures/block/dirt.png"), new byte[] {0});
 
             JsonObject status = JsonParser.parseString(
                 ResourcePackCompatDiagnostics.scanRunDirectoryJsonForTest(run.toString())).getAsJsonObject();
             JsonArray activePacks = status.getAsJsonArray("activePacks");
-            expect(activePacks.size() == 1, "run scan should expose only active file packs");
+            expect(activePacks.size() == 2, "run scan should expose only active file packs");
             JsonObject activePack = activePacks.get(0).getAsJsonObject();
+            JsonObject laterPack = activePacks.get(1).getAsJsonObject();
             expect("Active Pack".equals(activePack.get("name").getAsString()), "active pack name should round trip from options.txt");
+            expect("A Later Pack".equals(laterPack.get("name").getAsString()),
+                "active pack diagnostics must preserve options.txt order instead of directory sort");
+            expect(activePack.get("activeOrder").getAsInt() == 2, "active pack should carry selected-stack order");
+            expect(laterPack.get("activeOrder").getAsInt() == 3, "later active pack should carry selected-stack order");
+            expect(laterPack.get("activePriority").getAsInt() > activePack.get("activePriority").getAsInt(),
+                "later selected packs should report higher active priority");
             expect(activePack.get("active").getAsBoolean(), "active pack should be marked active");
             expect(activePack.get("incompatibleSelected").getAsBoolean(), "incompatible selected pack should be flagged");
             expect(activePack.getAsJsonObject("labpbrCoverage").get("albedoWithSpecularAndNormal").getAsInt() == 1,

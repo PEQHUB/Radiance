@@ -601,6 +601,8 @@ public final class ResourcePackCompatDiagnostics {
         target.addProperty("packName", stringProperty(pack, "name"));
         target.addProperty("packPath", stringProperty(pack, "path"));
         target.addProperty("activeReference", stringProperty(pack, "activeReference"));
+        target.addProperty("activeOrder", intProperty(pack, "activeOrder"));
+        target.addProperty("activePriority", intProperty(pack, "activePriority"));
         target.addProperty("incompatibleSelected", boolProperty(pack, "incompatibleSelected"));
     }
 
@@ -700,6 +702,8 @@ public final class ResourcePackCompatDiagnostics {
                     boolean active = activeSelection.activeFilePackNames.contains(fileName);
                     report.addProperty("active", active);
                     report.addProperty("activeReference", active ? "file/" + fileName : "");
+                    report.addProperty("activeOrder", active ? activeSelection.activeOrder(fileName) : -1);
+                    report.addProperty("activePriority", active ? activeSelection.activePriority(fileName) : -1);
                     report.addProperty("incompatibleSelected", activeSelection.incompatibleFilePackNames.contains(fileName));
                     packs.add(report);
                 }
@@ -713,12 +717,24 @@ public final class ResourcePackCompatDiagnostics {
     }
 
     private static JsonArray activePacks(JsonArray packs) {
-        JsonArray active = new JsonArray();
+        ArrayList<JsonObject> ordered = new ArrayList<>();
+        int fallbackOrder = 0;
         for (JsonElement element : packs) {
             JsonObject pack = element.getAsJsonObject();
             if (pack.has("active") && pack.get("active").getAsBoolean()) {
-                active.add(pack);
+                if (!pack.has("activeOrder")) {
+                    pack.addProperty("activeOrder", fallbackOrder);
+                }
+                ordered.add(pack);
+                fallbackOrder++;
             }
+        }
+        ordered.sort(Comparator
+            .comparingInt((JsonObject pack) -> intProperty(pack, "activeOrder"))
+            .thenComparing(pack -> stringProperty(pack, "name")));
+        JsonArray active = new JsonArray();
+        for (JsonObject pack : ordered) {
+            active.add(pack);
         }
         return active;
     }
@@ -846,6 +862,7 @@ public final class ResourcePackCompatDiagnostics {
         private final List<String> resourcePacks;
         private final List<String> incompatibleResourcePacks;
         private final Set<String> activeFilePackNames = new HashSet<>();
+        private final Map<String, Integer> activeFilePackOrder = new LinkedHashMap<>();
         private final Set<String> incompatibleFilePackNames = new HashSet<>();
         private final String source;
 
@@ -853,10 +870,12 @@ public final class ResourcePackCompatDiagnostics {
             this.resourcePacks = resourcePacks;
             this.incompatibleResourcePacks = incompatibleResourcePacks;
             this.source = source;
-            for (String entry : resourcePacks) {
+            for (int i = 0; i < resourcePacks.size(); i++) {
+                String entry = resourcePacks.get(i);
                 String fileName = filePackName(entry);
                 if (!fileName.isEmpty()) {
                     activeFilePackNames.add(fileName);
+                    activeFilePackOrder.putIfAbsent(fileName, i);
                 }
             }
             for (String entry : incompatibleResourcePacks) {
@@ -873,8 +892,28 @@ public final class ResourcePackCompatDiagnostics {
             json.add("resourcePacks", stringArray(resourcePacks));
             json.add("incompatibleResourcePacks", stringArray(incompatibleResourcePacks));
             json.add("activeFilePackNames", stringArray(activeFilePackNames.stream().sorted().toList()));
+            JsonArray ordered = new JsonArray();
+            activeFilePackOrder.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .forEach(entry -> {
+                    JsonObject item = new JsonObject();
+                    item.addProperty("name", entry.getKey());
+                    item.addProperty("activeOrder", entry.getValue());
+                    item.addProperty("activePriority", activePriority(entry.getKey()));
+                    ordered.add(item);
+                });
+            json.add("activeFilePackOrder", ordered);
             json.add("incompatibleFilePackNames", stringArray(incompatibleFilePackNames.stream().sorted().toList()));
             return json;
+        }
+
+        int activeOrder(String fileName) {
+            return activeFilePackOrder.getOrDefault(fileName, Integer.MAX_VALUE);
+        }
+
+        int activePriority(String fileName) {
+            int order = activeOrder(fileName);
+            return order == Integer.MAX_VALUE ? -1 : order;
         }
 
         private JsonArray stringArray(List<String> values) {
