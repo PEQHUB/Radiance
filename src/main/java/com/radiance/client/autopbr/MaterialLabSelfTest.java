@@ -127,6 +127,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverHonorsTextureRepeatOrientation();
         textureVariantResolverSkipsOptifineOnlyRules();
         textureVariantResolverSelectsOverlayRandomSprites();
+        textureVariantResolverStacksMatchingOverlayRules();
         textureVariantResolverSelectsOverlaySprites();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
         textureVariantResolverCarriesOverlayLayerAlphaModes();
@@ -1965,6 +1966,11 @@ public final class MaterialLabSelfTest {
                 "variant registry should document property path rule ordering");
             expect("first_enabled_matching_rule".equals(precedencePolicy.get("nonOverlayResolution").getAsString()),
                 "variant registry should document first-match non-overlay resolution");
+            expect("stack_enabled_matching_overlay_groups_in_precedence_order".equals(
+                    precedencePolicy.get("overlayResolution").getAsString()),
+                "variant registry should document stacked overlay resolution");
+            expect(precedencePolicy.get("overlayStackLimit").getAsInt() == 16,
+                "variant registry should document overlay stack cap");
             expect(registry.getAsJsonObject("methodCounts").get("fixed").getAsInt() == 1,
                 "variant registry should count fixed rules");
             expect(registry.getAsJsonObject("methodCounts").get("random").getAsInt() == 1,
@@ -2620,6 +2626,71 @@ public final class MaterialLabSelfTest {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
             Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverStacksMatchingOverlayRules() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier first = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/overlay_stack/first.png"));
+            Identifier second = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/overlay_stack/second.png"));
+            expect(first != null && second != null,
+                "overlay stack fixture identifiers should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, first, second));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatOverlaysEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/overlay_stack/10-second.properties",
+                String.join("\n",
+                    "method=overlay_fixed",
+                    "matchTiles=stone",
+                    "faces=top",
+                    "tiles=second"
+                ).getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/ctm/overlay_stack/00-first.properties",
+                String.join("\n",
+                    "method=overlay_fixed",
+                    "matchTiles=stone",
+                    "faces=top",
+                    "tiles=first",
+                    "layer=translucent"
+                ).getBytes(StandardCharsets.UTF_8));
+
+            ResourcePackTextureVariantResolver.ResolverIndex overlays =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            expect(overlays.ruleCountForTest() == 2,
+                "overlay stack fixture should compile both matching rules");
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            BlockOverlaySprite[] stacked =
+                overlays.resolveOverlayDetailsForTest(stone, stoneId, new BlockPos(4, 64, 4), Direction.UP);
+            expect(stacked.length == 2,
+                "matching overlay rules should stack instead of stopping after the first rule");
+            expect(stacked[0].spriteId() == TextureArrayBridge.resolveSpriteId(first.toString())
+                    && stacked[1].spriteId() == TextureArrayBridge.resolveSpriteId(second.toString()),
+                "overlay stack should preserve explicit property-id precedence order");
+            expect(stacked[0].alphaMode() == 2,
+                "stacked overlay should preserve per-rule translucent layer metadata");
+            expect(overlays.resolveOverlayDetailsForTest(stone, stoneId,
+                    new BlockPos(4, 64, 4), Direction.NORTH).length == 0,
+                "stacked overlay rules should still honor face predicates");
+
+            Options.materialCompatOverlaysEnabled = false;
+            expect(overlays.resolveOverlayDetailsForTest(stone, stoneId,
+                    new BlockPos(4, 64, 4), Direction.UP).length == 0,
+                "overlay stack should respect the overlay feature flag");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatOverlaysEnabled = oldOverlays;
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))

@@ -41,6 +41,7 @@ public final class ResourcePackTextureVariantResolver {
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
     private static final Gson GSON = new Gson();
     private static final int RULE_LIMIT = 4096;
+    private static final int OVERLAY_STACK_LIMIT = 16;
     private static final int CHOICE_EXPANSION_LIMIT = 512;
     // Indices are the OptiFine/Continuity 8-way CTM mask:
     // 128 64 32
@@ -1269,7 +1270,8 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("rootOrder", "optifine/ctm before optional mcpatcher/ctm");
         json.addProperty("ruleOrder", "property_id_ascending_within_root");
         json.addProperty("nonOverlayResolution", "first_enabled_matching_rule");
-        json.addProperty("overlayResolution", "first_enabled_matching_overlay_group");
+        json.addProperty("overlayResolution", "stack_enabled_matching_overlay_groups_in_precedence_order");
+        json.addProperty("overlayStackLimit", OVERLAY_STACK_LIMIT);
         return json;
     }
 
@@ -1695,6 +1697,7 @@ public final class ResourcePackTextureVariantResolver {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new BlockOverlaySprite[0];
             }
+            ArrayList<BlockOverlaySprite> stacked = new ArrayList<>();
             for (VariantRule rule : rules) {
                 if (!rule.method().overlayRule() || !rule.enabledByOptions()
                     || !rule.matches(source, world, state, pos, face, biomeId)) {
@@ -1703,10 +1706,15 @@ public final class ResourcePackTextureVariantResolver {
                 BlockOverlaySprite[] resolved =
                     rule.resolveOverlaySpriteIds(source, world, state, pos, face, connector, textureBasis);
                 if (resolved.length > 0) {
-                    return resolved;
+                    for (BlockOverlaySprite overlay : resolved) {
+                        if (stacked.size() >= OVERLAY_STACK_LIMIT) {
+                            return stacked.toArray(BlockOverlaySprite[]::new);
+                        }
+                        stacked.add(overlay);
+                    }
                 }
             }
-            return new BlockOverlaySprite[0];
+            return stacked.toArray(BlockOverlaySprite[]::new);
         }
 
         private boolean connects(@Nullable BlockRenderView world, @Nullable BlockState state,
