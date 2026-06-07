@@ -307,6 +307,7 @@ public final class ResourcePackTextureVariantResolver {
         if (local.resourceManager == resourceManager && local.textureGeneration == generation) {
             return local.index;
         }
+        ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(resourceManager, generation);
         ResolverIndex next = build(resourceManager, Options.materialCompatLegacyMcPatcherEnabled);
         cache = new Cache(resourceManager, generation, next);
         if (!next.rules.isEmpty()) {

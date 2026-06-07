@@ -92,6 +92,9 @@ public final class ResourceMaterialResidencyUploader {
         int displacementEligible = 0;
         int displacementBlocked = 0;
         long generation = snapshot.generation();
+        LOGGER.info("[MaterialCompat] Material page upload starting: {} candidate materials, layerSize={}, "
+                + "pageCapacity={}, pageBudget={}, generation={}",
+            items.size(), layerSize, pageCapacity, PAGE_BUDGET, generation);
 
         ByteBuffer defaultNormal = defaultNormalLayer(bytesPerLayer);
         long defaultNormalPtr = memAddress(defaultNormal);
@@ -157,9 +160,12 @@ public final class ResourceMaterialResidencyUploader {
             pageReport.addProperty("uploaded", uploaded);
             if (uploaded) {
                 uploadedPages++;
+                LOGGER.info("[MaterialCompat] Material page {} uploaded: {} layers, {} total resident handles",
+                    page, layer, handles.size());
             } else {
                 nativePageFailures++;
                 removeHandlesForPage(handles, page);
+                LOGGER.warn("[MaterialCompat] Material page {} upload failed: {} layers", page, layer);
             }
             pageReports.add(pageReport);
         }

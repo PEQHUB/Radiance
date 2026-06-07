@@ -74,9 +74,23 @@ public final class ResourcePackCompatDiagnostics {
     }
 
     public static void writeReportAsync(String reason) {
+        writeReportAsync(reason, true);
+    }
+
+    public static void writeReportAsync(String reason, boolean uploadNativeMaterialTable) {
         Thread thread = new Thread(() -> {
             try {
-                writeReportJson();
+                System.out.println("[ResourcePackCompat] async report started"
+                    + (reason == null || reason.isBlank() ? "" : " reason=" + reason)
+                    + " uploadNativeMaterialTable=" + uploadNativeMaterialTable);
+                JsonObject status = buildStatus(true, uploadNativeMaterialTable);
+                JsonObject timings = status.getAsJsonObject("reloadStageTimings");
+                double totalMs = timings == null || !timings.has("totalMaterialCompatReportMs")
+                    ? 0.0
+                    : timings.get("totalMaterialCompatReportMs").getAsDouble();
+                System.out.println("[ResourcePackCompat] async report complete"
+                    + (reason == null || reason.isBlank() ? "" : " reason=" + reason)
+                    + " totalMs=" + totalMs);
             } catch (Throwable t) {
                 System.err.println("[ResourcePackCompat] async report failed"
                     + (reason == null || reason.isBlank() ? "" : " reason=" + reason)
@@ -166,14 +180,19 @@ public final class ResourcePackCompatDiagnostics {
         root.add("compatibility", compatibilityJson(activePacks));
         root.add("labPbr", labPbrJson(activePacks));
         root.add("materialUniverse", materialUniverseJson(activeSelection, activePacks, activeCtm));
-        Snapshot materialSnapshot =
-            ResourceMaterialRegistry.publishFromCompatReport(root, TextureArrayBridge.getActiveTextureGeneration());
+        Snapshot materialSnapshot = uploadNativeMaterialTable
+            ? ResourceMaterialRegistry.publishFromCompatReport(root, TextureArrayBridge.getActiveTextureGeneration())
+            : ResourceMaterialRegistry.previewFromCompatReport(root, TextureArrayBridge.getActiveTextureGeneration());
         long materialRegistryNanos = System.nanoTime();
         root.add("materialTextureResidencyUpload",
             ResourceMaterialResidencyUploader.uploadFromCompatReport(root, materialSnapshot,
                 uploadNativeMaterialTable));
-        root.add("materialRegistry", ResourceMaterialRegistry.activeSummaryJson());
-        root.add("materialRecordSamples", ResourceMaterialRegistry.activeRecordsJson(SAMPLE_LIMIT));
+        root.add("materialRegistry", uploadNativeMaterialTable
+            ? ResourceMaterialRegistry.activeSummaryJson()
+            : materialSnapshot.toSummaryJson());
+        root.add("materialRecordSamples", uploadNativeMaterialTable
+            ? ResourceMaterialRegistry.activeRecordsJson(SAMPLE_LIMIT)
+            : materialSnapshot.recordsJson(SAMPLE_LIMIT));
         long materialResidencyNanos = System.nanoTime();
         root.add("nativeMaterialTableUploadAfterCompatReport",
             nativeMaterialTableUploadJson(materialSnapshot, uploadNativeMaterialTable));

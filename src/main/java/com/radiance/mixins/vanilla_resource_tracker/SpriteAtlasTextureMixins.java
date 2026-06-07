@@ -9,6 +9,7 @@ import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
 import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
+import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
@@ -424,6 +425,12 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 6: Finalize ----
         TextureArrayBridge.nativeTextureFinalize();
         TextureArrayBridge.publishTextureGeneration();
+        MinecraftClient mc = MinecraftClient.getInstance();
+        ResourcePackRuntimeMaterialBootstrap.BootstrapResult runtimeMaterialBootstrap =
+            ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(
+                mc == null ? null : mc.getResourceManager(),
+                TextureArrayBridge.getActiveTextureGeneration());
+        LOGGER.info("[TextureSystem] Runtime material bootstrap: {}", runtimeMaterialBootstrap.toJson());
         boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
         if (materialTableUploaded) {
             LOGGER.info("[TextureSystem] Uploaded material-id table: {}",
@@ -432,8 +439,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             LOGGER.info("[TextureSystem] Material-id table upload unavailable; Java registry remains active: {}",
                 ResourceMaterialRegistry.activeSummaryJson());
         }
-        ResourcePackCompatDiagnostics.writeReportAsync("block_atlas_finalize");
-        MinecraftClient mc = MinecraftClient.getInstance();
+        ResourcePackCompatDiagnostics.writeReportAsync("block_atlas_finalize", false);
         AutoPbrRuntime.RehydrateReport autoPbrReport = AutoPbrRuntime.rehydrateSavedSidecars(mc);
         if (autoPbrReport.discovered() > 0) {
             LOGGER.info("[TextureSystem] Material Lab recipes applied after finalize: {}", autoPbrReport);

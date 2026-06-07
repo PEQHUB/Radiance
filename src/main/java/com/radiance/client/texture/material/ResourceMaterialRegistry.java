@@ -66,6 +66,10 @@ public final class ResourceMaterialRegistry {
         return snapshot;
     }
 
+    public static Snapshot previewFromCompatReport(JsonObject root, long generation) {
+        return buildFromCompatReport(root, generation);
+    }
+
     public static int materialIdForSpriteId(int spriteId) {
         Snapshot snapshot = ACTIVE.get();
         MaterialRecord record = snapshot.recordByMaterialId(spriteId);
