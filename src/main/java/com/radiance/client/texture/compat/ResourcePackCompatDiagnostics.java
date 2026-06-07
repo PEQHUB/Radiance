@@ -144,6 +144,8 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("blockQuadVariantResolver", renderingConsumesCompatibility());
         json.addProperty("fixedReplacement", Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("randomReplacement", Options.materialCompatEnabled && Options.materialCompatRandomEnabled);
+        json.addProperty("randomEntityTextureReplacement",
+            Options.materialCompatEnabled && Options.materialCompatRandomEnabled);
         json.addProperty("repeatPatternReplacement", Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("naturalTextureUvTransforms",
             Options.materialCompatEnabled && Options.materialCompatNaturalEnabled);

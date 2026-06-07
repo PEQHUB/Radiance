@@ -12,6 +12,7 @@ import com.radiance.client.constant.Constants.RayTracingFlags;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.option.Options;
+import com.radiance.client.texture.compat.ResourcePackRandomEntityTextureResolver;
 import com.radiance.client.util.SpectralColor;
 import com.radiance.client.vertex.PBRVertexConsumer;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleExt;
@@ -118,6 +119,19 @@ public class EntityProxy {
         if (SVCP_POOL.size() < SVCP_POOL_CAP) {
             SVCP_POOL.offer(p);
         }
+    }
+
+    private static int resolveEntityLayerTextureId(TextureManager textureManager, Identifier identifier,
+        EntityRenderData entityRenderData) {
+        Identifier resolved = ResourcePackRandomEntityTextureResolver.resolveTexture(
+            identifier,
+            entityRenderData.hashCode,
+            entityRenderData.x,
+            entityRenderData.y,
+            entityRenderData.z);
+        ResourcePackRandomEntityTextureResolver.ensureTextureRegistered(textureManager, resolved);
+        return TextureArrayBridge.resolveRenderableTextureGlId(resolved,
+            textureManager.getTexture(resolved).getGlId());
     }
 
     // --- Native ByteBuffer pool for queueBuild (render-thread only) ---
@@ -1137,8 +1151,7 @@ public class EntityProxy {
                         .orElse(MissingSprite.getMissingSpriteId());
                     int geometryTypeID = Constants.GeometryTypes.getGeometryType(renderLayer, entityRenderLayer.reflect)
                         .getValue();
-                    int geometryTextureID = TextureArrayBridge.resolveRenderableTextureGlId(identifier,
-                        textureManager.getTexture(identifier).getGlId());
+                    int geometryTextureID = resolveEntityLayerTextureId(textureManager, identifier, entityRenderData);
                     int vertexFormatID = Constants.VertexFormats.getValue(vertexBuffer.getDrawParameters().format());
                     int indexFormatID = Constants.DrawModes.getValue(vertexBuffer.getDrawParameters().mode());
 
@@ -1330,9 +1343,7 @@ public class EntityProxy {
                         .getValue();
                 int
                     geometryTextureID =
-                    TextureArrayBridge.resolveRenderableTextureGlId(identifier,
-                        textureManager.getTexture(identifier)
-                            .getGlId());
+                    resolveEntityLayerTextureId(textureManager, identifier, entityRenderData);
                 int
                     vertexFormatID =
                     Constants.VertexFormats.getValue(vertexBuffer.getDrawParameters()

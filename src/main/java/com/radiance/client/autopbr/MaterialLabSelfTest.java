@@ -26,6 +26,7 @@ import com.radiance.client.texture.compat.ResourcePackLightmapResolver.LightmapS
 import com.radiance.client.texture.compat.ResourcePackModelFallback;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
+import com.radiance.client.texture.compat.ResourcePackRandomEntityTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
@@ -120,6 +121,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsNeighborMasks();
         textureVariantResolverHonorsExplicitConnectPredicates();
         textureVariantResolverSelectsFullAndCompactCtm();
+        randomEntityTextureResolverSelectsWeightedAndBiomeVariants();
         shaderBlockLayerResolverParsesAlphaModes();
         colorPropertiesResolverParsesFlatBlockPalettes();
         lightmapResolverSamplesCustomPalettes();
@@ -2263,6 +2265,61 @@ public final class MaterialLabSelfTest {
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);
+        }
+    }
+
+    private static void randomEntityTextureResolverSelectsWeightedAndBiomeVariants() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        try {
+            Options.materialCompatEnabled = true;
+            Options.materialCompatRandomEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/random/entity/cow/cow_temperate.properties",
+                "textures.1=1-3\nweights.1=3 2 1\n".getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/random/entity/cow/cow_temperate2.png", new byte[] {1});
+            manager.add("minecraft:optifine/random/entity/pig/pig_temperate.properties",
+                "textures.1=1 2\nsizes.1=0\ntextures.2=2\n".getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/random/entity/pig/pig_temperate2.png", new byte[] {2});
+            manager.add("minecraft:optifine/random/entity/bear/polarbear.properties",
+                ("textures.1=1\nbiomes.1=snowy_plains ice_spikes\n"
+                    + "textures.2=2\n").getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/random/entity/bear/polarbear2.png", new byte[] {3});
+
+            ResourcePackRandomEntityTextureResolver.RandomEntityIndex index =
+                ResourcePackRandomEntityTextureResolver.buildForTest(manager, false);
+            expect(index.ruleCountForTest() == 4,
+                "random entity resolver should parse supported rules and skip unsupported size predicates");
+
+            Identifier cow = Identifier.ofVanilla("textures/entity/cow/cow_temperate.png");
+            Identifier cow2 = Identifier.ofVanilla("optifine/random/entity/cow/cow_temperate2.png");
+            boolean sawCowBase = false;
+            boolean sawCowAlt = false;
+            for (int hash = 0; hash < 64; hash++) {
+                Identifier resolved = index.resolve(cow, hash, "");
+                expect(!Identifier.ofVanilla("optifine/random/entity/cow/cow_temperate3.png").equals(resolved),
+                    "random entity resolver should drop missing numbered choices");
+                sawCowBase |= cow.equals(resolved);
+                sawCowAlt |= cow2.equals(resolved);
+            }
+            expect(sawCowBase && sawCowAlt,
+                "random entity resolver should choose weighted base and alternate textures across stable hashes");
+
+            Identifier pig = Identifier.ofVanilla("textures/entity/pig/pig_temperate.png");
+            expect(Identifier.ofVanilla("optifine/random/entity/pig/pig_temperate2.png").equals(
+                    index.resolve(pig, 7, "")),
+                "random entity resolver should use fallback unconditioned groups after skipping unsupported predicates");
+
+            Identifier polarBear = Identifier.ofVanilla("textures/entity/bear/polarbear.png");
+            expect(polarBear.equals(index.resolve(polarBear, 11, "minecraft:snowy_plains")),
+                "random entity resolver should honor matching biome-specific groups");
+            expect(Identifier.ofVanilla("optifine/random/entity/bear/polarbear2.png").equals(
+                    index.resolve(polarBear, 11, "minecraft:plains")),
+                "random entity resolver should fall through to later groups when biome predicates do not match");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatRandomEnabled = oldRandom;
         }
     }
 
