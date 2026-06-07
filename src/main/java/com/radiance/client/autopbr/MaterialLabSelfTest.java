@@ -99,6 +99,7 @@ public final class MaterialLabSelfTest {
         missingSpriteFallbackUsesRenderableBlockSprite();
         malformedModelJsonFallsBackToLowerPriorityResource();
         materialCompatFlagsDefaultEnabled();
+        materialCompatLegacyDisabledOptionsMigrateToDefaults();
         materialCompatScannerRecognizesCoreFeatures();
         materialCompatRunScanMarksActivePacksAndParsesRecords();
         materialCompatDiagnosticsReportNaturalConsumption();
@@ -804,6 +805,65 @@ public final class MaterialLabSelfTest {
         expect(Options.materialCompatOverlaysEnabled, "overlay compatibility must default enabled");
         expect(Options.materialCompatLegacyMcPatcherEnabled, "legacy MCPatcher compatibility must default enabled");
         expect(Options.materialCompatPhysicalEmissiveEnabled, "physical emissive compatibility must default enabled");
+    }
+
+    private static void materialCompatLegacyDisabledOptionsMigrateToDefaults() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldNatural = Options.materialCompatNaturalEnabled;
+        boolean oldColors = Options.materialCompatColorsEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        boolean oldLegacy = Options.materialCompatLegacyMcPatcherEnabled;
+        boolean oldPhysical = Options.materialCompatPhysicalEmissiveEnabled;
+        try {
+            Properties props = new Properties();
+            props.setProperty("materialCompatEnabled", "false");
+            props.setProperty("materialCompatCtmEnabled", "false");
+            props.setProperty("materialCompatRandomEnabled", "false");
+            props.setProperty("materialCompatNaturalEnabled", "false");
+            props.setProperty("materialCompatColorsEnabled", "false");
+            props.setProperty("materialCompatOverlaysEnabled", "false");
+            props.setProperty("materialCompatLegacyMcPatcherEnabled", "false");
+            props.setProperty("materialCompatPhysicalEmissiveEnabled", "false");
+
+            expect(Options.materialCompatDefaultsMigrationAppliesForTest(23, props),
+                "v23 all-disabled material compatibility config should migrate to enabled defaults");
+            expect(!Options.materialCompatDefaultsMigrationAppliesForTest(24, props),
+                "current-version material compatibility config should preserve explicit toggles");
+            props.setProperty("materialCompatColorsEnabled", "true");
+            expect(!Options.materialCompatDefaultsMigrationAppliesForTest(23, props),
+                "legacy material compatibility migration should preserve partial opt-in configs");
+            props.setProperty("materialCompatColorsEnabled", "false");
+
+            Options.materialCompatEnabled = false;
+            Options.materialCompatCtmEnabled = false;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatNaturalEnabled = false;
+            Options.materialCompatColorsEnabled = false;
+            Options.materialCompatOverlaysEnabled = false;
+            Options.materialCompatLegacyMcPatcherEnabled = false;
+            Options.materialCompatPhysicalEmissiveEnabled = false;
+            Options.applyMaterialCompatDefaultsMigrationForTest(23, props);
+            expect(Options.materialCompatEnabled
+                    && Options.materialCompatCtmEnabled
+                    && Options.materialCompatRandomEnabled
+                    && Options.materialCompatNaturalEnabled
+                    && Options.materialCompatColorsEnabled
+                    && Options.materialCompatOverlaysEnabled
+                    && Options.materialCompatLegacyMcPatcherEnabled
+                    && Options.materialCompatPhysicalEmissiveEnabled,
+                "legacy material compatibility migration should enable the whole OptiFine/Iris feature set");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatNaturalEnabled = oldNatural;
+            Options.materialCompatColorsEnabled = oldColors;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            Options.materialCompatLegacyMcPatcherEnabled = oldLegacy;
+            Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
+        }
     }
 
     private static void materialCompatScannerRecognizesCoreFeatures() {

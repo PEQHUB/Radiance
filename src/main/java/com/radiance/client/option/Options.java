@@ -834,9 +834,22 @@ public class Options {
             && !Boolean.parseBoolean(props.getProperty("materialCompatCtmEnabled", "false"))
             && !Boolean.parseBoolean(props.getProperty("materialCompatRandomEnabled", "false"))
             && !Boolean.parseBoolean(props.getProperty("materialCompatNaturalEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatColorsEnabled", "false"))
             && !Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", "false"))
             && !Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", "false"))
             && !Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", "false"));
+    }
+
+    public static boolean materialCompatDefaultsMigrationAppliesForTest(int loadedOptionsVersion,
+        Properties props) {
+        return loadedOptionsVersion < 24 && legacyMaterialCompatAllDisabled(props);
+    }
+
+    public static void applyMaterialCompatDefaultsMigrationForTest(int loadedOptionsVersion,
+        Properties props) {
+        if (materialCompatDefaultsMigrationAppliesForTest(loadedOptionsVersion, props)) {
+            enableMaterialCompatDefaults();
+        }
     }
 
     private static void enableMaterialCompatDefaults() {
