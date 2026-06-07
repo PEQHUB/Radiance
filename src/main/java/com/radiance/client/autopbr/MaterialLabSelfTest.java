@@ -109,6 +109,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsFixedAndRandomSprites();
         textureVariantResolverRespectsBiomeAndHeightPredicates();
         textureVariantResolverSelectsRepeatSprites();
+        textureVariantResolverHonorsStateAxisRepeatOrientation();
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverSelectsOverlaySprites();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
@@ -1589,6 +1590,56 @@ public final class MaterialLabSelfTest {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
             Options.materialCompatRandomEnabled = oldRandom;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverHonorsStateAxisRepeatOrientation() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier basaltSide = Identifier.ofVanilla("block/basalt_side");
+            ArrayList<Identifier> sprites = new ArrayList<>();
+            sprites.add(basaltSide);
+            ArrayList<Identifier> tiles = new ArrayList<>();
+            for (int i = 0; i < 9; i++) {
+                Identifier tile = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                    "assets/minecraft/optifine/ctm/state_axis/" + i + ".png"));
+                expect(tile != null, "state-axis repeat fixture ids should parse");
+                tiles.add(tile);
+                sprites.add(tile);
+            }
+            TextureArrayBridge.setSortedSpriteIds(sprites);
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/state_axis/basalt_side.properties",
+                "method=repeat\nmatchTiles=basalt_side\ntiles=0-8\nwidth=3\nheight=3\norient=state_axis\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex index =
+                ResourcePackTextureVariantResolver.buildForTest(manager, false);
+            expect(index.ruleCountForTest() == 1, "state-axis repeat rule should compile");
+
+            int sourceId = TextureArrayBridge.resolveSpriteId(basaltSide.toString());
+            BlockPos pos = new BlockPos(5, 9, 7);
+
+            expect(index.resolveForTest(basaltSide, sourceId, Direction.Axis.Y, pos, Direction.SOUTH)
+                    == TextureArrayBridge.resolveSpriteId(tiles.get(1).toString()),
+                "state-axis repeat should preserve unrotated Y-axis side coordinates");
+            expect(index.resolveForTest(basaltSide, sourceId, Direction.Axis.Z, pos, Direction.SOUTH)
+                    == TextureArrayBridge.resolveSpriteId(tiles.get(2).toString()),
+                "state-axis repeat should remap Z-axis south faces through the local top plane");
+            expect(index.resolveForTest(basaltSide, sourceId, Direction.Axis.X, pos, Direction.EAST)
+                    == TextureArrayBridge.resolveSpriteId(tiles.get(2).toString()),
+                "state-axis repeat should remap X-axis east faces through the local top plane");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);

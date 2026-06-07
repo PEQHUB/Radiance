@@ -296,6 +296,7 @@ public final class ResourcePackTextureVariantResolver {
         int randomLoops = parseNonNegativeInt(props.getProperty("randomLoops", "0"), 0);
         RandomSymmetry randomSymmetry = parseRandomSymmetry(props.getProperty("symmetry", ""));
         boolean linkedRandom = parseBoolean(props.getProperty("linked", "false"));
+        RepeatOrientation repeatOrientation = parseRepeatOrientation(props.getProperty("orient", ""));
         int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
         int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         int tintIndex = parseInt(props.getProperty("tintIndex", "-1"), -1);
@@ -308,7 +309,7 @@ public final class ResourcePackTextureVariantResolver {
             connectTiles, connectBlocks,
             faces, connectMode, List.copyOf(outputs), List.copyOf(choices), weights, randomLoops, randomSymmetry,
             linkedRandom,
-            repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
+            repeatOrientation, repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
             ctmReplacementMap, biomePredicate, heightPredicate));
     }
 
@@ -580,6 +581,25 @@ public final class ResourcePackTextureVariantResolver {
         return property.name(value).toLowerCase(Locale.ROOT);
     }
 
+    private static Direction.Axis stateAxis(@Nullable BlockState state) {
+        if (state == null) {
+            return Direction.Axis.Y;
+        }
+        for (Map.Entry<Property<?>, Comparable<?>> entry : state.getEntries().entrySet()) {
+            Property<?> property = entry.getKey();
+            if (!"axis".equals(property.getName())) {
+                continue;
+            }
+            String value = propertyValueName(property, entry.getValue());
+            return switch (value) {
+                case "x" -> Direction.Axis.X;
+                case "z" -> Direction.Axis.Z;
+                default -> Direction.Axis.Y;
+            };
+        }
+        return Direction.Axis.Y;
+    }
+
     private record BlockPredicate(String blockId, List<StatePredicate> states) {
         boolean matches(BlockState state) {
             if (!blockId.equals(Registries.BLOCK.getId(state.getBlock()).toString())) {
@@ -821,6 +841,14 @@ public final class ResourcePackTextureVariantResolver {
         return value.equals("true") || value.equals("1") || value.equals("yes") || value.equals("on");
     }
 
+    private static RepeatOrientation parseRepeatOrientation(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "state_axis" -> RepeatOrientation.STATE_AXIS;
+            default -> RepeatOrientation.NONE;
+        };
+    }
+
     private static int parseInt(String raw, int fallback) {
         try {
             return Integer.parseInt(raw.trim());
@@ -955,6 +983,28 @@ public final class ResourcePackTextureVariantResolver {
             return resolve(source, sourceSpriteId, null, null, pos, face);
         }
 
+        public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face) {
+            return resolve(source, sourceSpriteId, null, state, pos, face);
+        }
+
+        public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable Direction.Axis stateAxis,
+            @Nullable BlockPos pos, @Nullable Direction face) {
+            NeighborConnector connector = new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return false;
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return false;
+                }
+            };
+            return resolveDetailed(source, sourceSpriteId, null, null, pos, face, connector, null, stateAxis)
+                .spriteId();
+        }
+
         public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable BlockPos pos,
             @Nullable Direction face, @Nullable String biomeId) {
             return resolveDetailed(source, sourceSpriteId, null, null, pos, face, biomeId).spriteId();
@@ -1078,6 +1128,13 @@ public final class ResourcePackTextureVariantResolver {
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
             @Nullable String biomeId) {
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, biomeId, null);
+        }
+
+        ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
+            @Nullable String biomeId, @Nullable Direction.Axis repeatAxisOverride) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
             }
@@ -1087,7 +1144,8 @@ public final class ResourcePackTextureVariantResolver {
                     continue;
                 }
                 ResolvedBlockSprite resolved =
-                    rule.resolveSprite(source, sourceSpriteId, world, state, pos, face, connector);
+                    rule.resolveSprite(source, sourceSpriteId, world, state, pos, face, connector,
+                        repeatAxisOverride);
                 if (resolved.spriteId() >= 0) {
                     return resolved;
                 }
@@ -1185,6 +1243,7 @@ public final class ResourcePackTextureVariantResolver {
                                int randomLoops,
                                RandomSymmetry randomSymmetry,
                                boolean linkedRandom,
+                               RepeatOrientation repeatOrientation,
                                int repeatWidth,
                                int repeatHeight,
                                int tintIndex,
@@ -1234,13 +1293,14 @@ public final class ResourcePackTextureVariantResolver {
 
         ResolvedBlockSprite resolveSprite(Identifier source, int sourceSpriteId,
             @Nullable BlockRenderView world, @Nullable BlockState state,
-            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector) {
+            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
+            @Nullable Direction.Axis repeatAxisOverride) {
             int outputIndex = switch (method) {
                 case CTM -> ctm47Index(connector, face);
                 case CTM_COMPACT -> compactCtmIndex(connector, face);
                 case FIXED -> 0;
                 case RANDOM -> weightedIndex(source, pos, face);
-                case REPEAT -> repeatIndex(pos, face);
+                case REPEAT -> repeatIndex(state, repeatAxisOverride, pos, face);
                 case HORIZONTAL -> twoBitIndex(connector, horizontalDirections(face));
                 case VERTICAL -> twoBitIndex(connector, verticalDirections(face));
                 case HORIZONTAL_THEN_VERTICAL ->
@@ -1274,7 +1334,7 @@ public final class ResourcePackTextureVariantResolver {
                     overlayTileIndices(world, state, pos, face, connector), false,
                     overlayTintRgb(world, state, pos));
                 case OVERLAY_RANDOM -> randomOverlaySpriteIds(source, pos, face);
-                case OVERLAY_REPEAT -> indexedOverlaySpriteId(repeatIndex(pos, face), true,
+                case OVERLAY_REPEAT -> indexedOverlaySpriteId(repeatIndex(state, null, pos, face), true,
                     overlayTintRgb(world, state, pos));
                 case OVERLAY_FIXED -> indexedOverlaySpriteId(0, false, overlayTintRgb(world, state, pos));
                 default -> new BlockOverlaySprite[0];
@@ -1689,40 +1749,42 @@ public final class ResourcePackTextureVariantResolver {
             return 0;
         }
 
-        private int repeatIndex(@Nullable BlockPos pos, @Nullable Direction face) {
+        private int repeatIndex(@Nullable BlockState state, @Nullable Direction.Axis axisOverride,
+            @Nullable BlockPos pos, @Nullable Direction face) {
             if (pos == null) {
                 return 0;
             }
+            RepeatBasis basis = repeatBasis(state, axisOverride, pos, face);
             int u;
             int v;
-            switch (face == null ? Direction.NORTH : face) {
+            switch (basis.face()) {
                 case NORTH -> {
-                    u = pos.getX();
-                    v = pos.getY();
+                    u = basis.x();
+                    v = basis.y();
                 }
                 case SOUTH -> {
-                    u = -pos.getX();
-                    v = pos.getY();
+                    u = -basis.x();
+                    v = basis.y();
                 }
                 case EAST -> {
-                    u = pos.getZ();
-                    v = pos.getY();
+                    u = basis.z();
+                    v = basis.y();
                 }
                 case WEST -> {
-                    u = -pos.getZ();
-                    v = pos.getY();
+                    u = -basis.z();
+                    v = basis.y();
                 }
                 case UP -> {
-                    u = pos.getX();
-                    v = pos.getZ();
+                    u = basis.x();
+                    v = basis.z();
                 }
                 case DOWN -> {
-                    u = pos.getX();
-                    v = -pos.getZ();
+                    u = basis.x();
+                    v = -basis.z();
                 }
                 default -> {
-                    u = pos.getX();
-                    v = pos.getY();
+                    u = basis.x();
+                    v = basis.y();
                 }
             }
             int width = Math.max(1, repeatWidth);
@@ -1730,6 +1792,44 @@ public final class ResourcePackTextureVariantResolver {
             int x = Math.floorMod(u, width);
             int y = Math.floorMod(v, height);
             return y * width + x;
+        }
+
+        private RepeatBasis repeatBasis(@Nullable BlockState state, @Nullable Direction.Axis axisOverride,
+            BlockPos pos, @Nullable Direction face) {
+            Direction direction = face == null ? Direction.NORTH : face;
+            if (repeatOrientation != RepeatOrientation.STATE_AXIS) {
+                return new RepeatBasis(pos.getX(), pos.getY(), pos.getZ(), direction);
+            }
+            Direction.Axis axis = axisOverride == null ? stateAxis(state) : axisOverride;
+            if (axis == Direction.Axis.X) {
+                return new RepeatBasis(-pos.getZ(), pos.getX(), -pos.getY(), localFaceForXAxis(direction));
+            }
+            if (axis == Direction.Axis.Z) {
+                return new RepeatBasis(pos.getX(), pos.getZ(), -pos.getY(), localFaceForZAxis(direction));
+            }
+            return new RepeatBasis(pos.getX(), pos.getY(), pos.getZ(), direction);
+        }
+
+        private Direction localFaceForXAxis(Direction face) {
+            return switch (face) {
+                case EAST -> Direction.UP;
+                case WEST -> Direction.DOWN;
+                case UP -> Direction.NORTH;
+                case DOWN -> Direction.SOUTH;
+                case SOUTH -> Direction.WEST;
+                case NORTH -> Direction.EAST;
+            };
+        }
+
+        private Direction localFaceForZAxis(Direction face) {
+            return switch (face) {
+                case EAST -> Direction.EAST;
+                case WEST -> Direction.WEST;
+                case UP -> Direction.NORTH;
+                case DOWN -> Direction.SOUTH;
+                case SOUTH -> Direction.UP;
+                case NORTH -> Direction.DOWN;
+            };
         }
 
         private long stableHash(Identifier source, @Nullable BlockPos pos, @Nullable Direction face) {
@@ -1811,10 +1911,18 @@ public final class ResourcePackTextureVariantResolver {
         TILE_AS_BLOCK
     }
 
+    private enum RepeatOrientation {
+        NONE,
+        STATE_AXIS
+    }
+
     private enum RandomSymmetry {
         NONE,
         OPPOSITE,
         ALL
+    }
+
+    private record RepeatBasis(int x, int y, int z, Direction face) {
     }
 
     private record DirectionPair(Direction negative, Direction positive) {
