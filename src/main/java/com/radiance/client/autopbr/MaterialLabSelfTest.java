@@ -845,6 +845,18 @@ public final class MaterialLabSelfTest {
                 "CTM normal lookup should prefer exact LabPBR sidecars");
             expect(ctmNormalCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_normal.png")),
                 "CTM normal lookup should include _normal sidecars");
+            List<Identifier> ctmRoughnessCandidates = AuxiliaryTextures.scalarCandidatesForTest(
+                "roughness", ctmSprite);
+            expect(ctmRoughnessCandidates.get(0).equals(Identifier.ofVanilla("optifine/ctm/glass/0_roughness.png")),
+                "CTM roughness lookup should prefer exact scalar sidecars");
+            expect(ctmRoughnessCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_rough.png")),
+                "CTM roughness lookup should include _rough sidecars");
+            List<Identifier> ctmHeightCandidates = AuxiliaryTextures.scalarCandidatesForTest(
+                "height", ctmSprite);
+            expect(ctmHeightCandidates.get(0).equals(Identifier.ofVanilla("optifine/ctm/glass/0_height.png")),
+                "CTM height lookup should prefer exact scalar sidecars");
+            expect(ctmHeightCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_disp.png")),
+                "CTM height lookup should include _disp sidecars");
         } finally {
             ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
         }
@@ -1732,6 +1744,12 @@ public final class MaterialLabSelfTest {
             expect(Identifier.ofVanilla("optifine/ctm/glass/1_n.png").equals(
                     ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(expected, "_n")),
                 "admitted synthetic CTM sprites should resolve real pack-authored normal sidecars");
+            expect(Identifier.ofVanilla("optifine/ctm/glass/1_roughness.png").equals(
+                    ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(expected, "_roughness")),
+                "admitted synthetic CTM sprites should resolve scalar roughness sidecars");
+            expect(Identifier.ofVanilla("optifine/ctm/glass/1_height.png").equals(
+                    ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(expected, "_height")),
+                "admitted synthetic CTM sprites should resolve scalar height sidecars");
         } finally {
             ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
             Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;
