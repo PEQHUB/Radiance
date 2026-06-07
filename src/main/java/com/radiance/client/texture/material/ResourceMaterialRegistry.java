@@ -1,0 +1,424 @@
+package com.radiance.client.texture.material;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.radiance.client.autopbr.AutoPbrTextureCatalog;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import net.minecraft.util.Identifier;
+
+/**
+ * Java-side material-id registry.
+ *
+ * <p>The first implementation deliberately wraps the existing sprite-array
+ * renderer: vanilla material ids equal sprite ids, while OptiFine CTM assets
+ * are recorded as virtual materials with explicit fallback handles. That makes
+ * the material universe observable and gives native code a stable ABI without
+ * exposing array layers as the long-term content identity.</p>
+ */
+public final class ResourceMaterialRegistry {
+    public static final int MATERIAL_ENTRY_SIZE = 80;
+    public static final int MATERIAL_MAX_ENTRIES = 65536;
+    public static final int MATERIAL_FLAG_VALID = 1 << 0;
+    public static final int MATERIAL_FLAG_VANILLA_SPRITE = 1 << 1;
+    public static final int MATERIAL_FLAG_COMPAT_VIRTUAL = 1 << 2;
+    public static final int MATERIAL_FLAG_GPU_RESIDENT = 1 << 3;
+    public static final int MATERIAL_FLAG_PENDING_RESIDENCY = 1 << 4;
+    public static final int MATERIAL_FLAG_FALLBACK = 1 << 5;
+    public static final int MATERIAL_FLAG_HAS_SPECULAR = 1 << 6;
+    public static final int MATERIAL_FLAG_HAS_NORMAL = 1 << 7;
+    public static final int MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE = 1 << 8;
+    public static final int MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED = 1 << 9;
+
+    private static final AtomicReference<Snapshot> ACTIVE =
+        new AtomicReference<>(Snapshot.empty());
+
+    private ResourceMaterialRegistry() {
+    }
+
+    public static Snapshot activeSnapshot() {
+        return ACTIVE.get();
+    }
+
+    public static Snapshot publishVanillaSprites(List<Identifier> spriteIds, long generation) {
+        Snapshot snapshot = buildVanillaSnapshot(spriteIds, generation, "");
+        ACTIVE.set(snapshot);
+        return snapshot;
+    }
+
+    public static Snapshot publishFromCompatReport(JsonObject root, long generation) {
+        Snapshot snapshot = buildFromCompatReport(root, generation);
+        ACTIVE.set(snapshot);
+        return snapshot;
+    }
+
+    public static int materialIdForSpriteId(int spriteId) {
+        Snapshot snapshot = ACTIVE.get();
+        MaterialRecord record = snapshot.recordByMaterialId(spriteId);
+        return record != null && record.baseSpriteId() == spriteId ? record.materialId() : spriteId;
+    }
+
+    public static int shaderTextureIdForMaterialId(int materialId) {
+        Snapshot snapshot = ACTIVE.get();
+        MaterialRecord record = snapshot.recordByMaterialId(materialId);
+        if (record == null) {
+            return TextureArrayBridge.missingSpriteFallbackIdForTest();
+        }
+        if (record.baseSpriteId() >= 0) {
+            return record.baseSpriteId();
+        }
+        MaterialRecord fallback = snapshot.recordByMaterialId(record.fallbackMaterialId());
+        if (fallback != null && fallback.baseSpriteId() >= 0) {
+            return fallback.baseSpriteId();
+        }
+        return TextureArrayBridge.missingSpriteFallbackIdForTest();
+    }
+
+    public static JsonObject activeSummaryJson() {
+        return ACTIVE.get().toSummaryJson();
+    }
+
+    public static JsonArray activeRecordsJson(int limit) {
+        return ACTIVE.get().recordsJson(limit);
+    }
+
+    public static boolean uploadActiveTableToNative() {
+        Snapshot snapshot = ACTIVE.get();
+        if (snapshot.records().isEmpty()) {
+            return false;
+        }
+        int count = Math.min(snapshot.records().size(), MATERIAL_MAX_ENTRIES);
+        ByteBuffer buffer = ByteBuffer.allocateDirect(count * MATERIAL_ENTRY_SIZE)
+            .order(ByteOrder.nativeOrder());
+        for (int i = 0; i < count; i++) {
+            writeMaterialEntry(buffer, i, snapshot.records().get(i));
+        }
+        try {
+            return TextureArrayBridge.nativeReceiveMaterialTable(
+                org.lwjgl.system.MemoryUtil.memAddress(buffer), count, snapshot.generation());
+        } catch (UnsatisfiedLinkError e) {
+            return false;
+        }
+    }
+
+    private static Snapshot buildVanillaSnapshot(List<Identifier> spriteIds, long generation,
+        String packStackHash) {
+        ArrayList<MaterialRecord> records = new ArrayList<>();
+        Map<String, Integer> keyLookup = new LinkedHashMap<>();
+        int count = spriteIds == null ? 0 : Math.min(spriteIds.size(), MATERIAL_MAX_ENTRIES);
+        for (int i = 0; i < count; i++) {
+            Identifier id = spriteIds.get(i);
+            AutoPbrTextureCatalog.DisplacementEligibility displacement =
+                AutoPbrTextureCatalog.displacementEligibility(i);
+            int flags = MATERIAL_FLAG_VALID | MATERIAL_FLAG_VANILLA_SPRITE | MATERIAL_FLAG_GPU_RESIDENT;
+            if (AutoPbrTextureCatalog.hasSpecularTexture(i)) flags |= MATERIAL_FLAG_HAS_SPECULAR;
+            if (AutoPbrTextureCatalog.hasNormalTexture(i)) flags |= MATERIAL_FLAG_HAS_NORMAL;
+            if (displacement.eligible()) flags |= MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE;
+            MaterialRecord record = new MaterialRecord(
+                i,
+                MaterialKey.vanillaSprite(id),
+                id == null ? "" : id.toString(),
+                i,
+                i,
+                flags,
+                "vanilla_block_atlas",
+                "sprite_array_layer",
+                "none",
+                "none",
+                displacement.reason(),
+                displacement.heightSource(),
+                AutoPbrTextureCatalog.heightAlphaRangePacked(i),
+                TextureTracker.currentSpriteLayerSize,
+                true);
+            records.add(record);
+            keyLookup.put(record.key().stableKey(), record.materialId());
+        }
+        return new Snapshot(generation, packStackHash == null ? "" : packStackHash,
+            count, 0, 0, 0, records, keyLookup);
+    }
+
+    private static Snapshot buildFromCompatReport(JsonObject root, long generation) {
+        String packStackHash = stringProperty(root, "packStackHash");
+        Snapshot vanilla = buildVanillaSnapshot(TextureArrayBridge.sortedSpriteIds, generation, packStackHash);
+        ArrayList<MaterialRecord> records = new ArrayList<>(vanilla.records());
+        Map<String, Integer> keyLookup = new LinkedHashMap<>(vanilla.keyLookup());
+        int fallback = Math.max(0, TextureArrayBridge.missingSpriteFallbackIdForTest());
+        JsonObject ctm = object(root, "activeCtmAtlasDependencies");
+        JsonArray dependencies = array(ctm, "dependencies");
+        int emittedCompat = 0;
+        for (JsonElement element : dependencies) {
+            if (records.size() >= MATERIAL_MAX_ENTRIES) {
+                break;
+            }
+            JsonObject dependency = element.getAsJsonObject();
+            String path = stringProperty(dependency, "path");
+            if (path.isBlank()) {
+                continue;
+            }
+            MaterialKey key = MaterialKey.compatCtmTile(path);
+            if (keyLookup.containsKey(key.stableKey())) {
+                continue;
+            }
+            int materialId = records.size();
+            int baseSpriteId = resolveDependencyBaseSpriteId(dependency);
+            boolean present = boolProperty(dependency, "present");
+            boolean hasSpecular = boolProperty(dependency, "specularPresent")
+                || boolProperty(dependency, "derivedSpecularPresent");
+            boolean hasNormal = boolProperty(dependency, "normalPresent")
+                || boolProperty(dependency, "derivedNormalPresent");
+            int flags = MATERIAL_FLAG_VALID | MATERIAL_FLAG_COMPAT_VIRTUAL | MATERIAL_FLAG_FALLBACK;
+            if (present) flags |= MATERIAL_FLAG_PENDING_RESIDENCY;
+            if (hasSpecular) flags |= MATERIAL_FLAG_HAS_SPECULAR;
+            if (hasNormal) flags |= MATERIAL_FLAG_HAS_NORMAL;
+            MaterialRecord record = new MaterialRecord(
+                materialId,
+                key,
+                path,
+                baseSpriteId,
+                fallback,
+                flags,
+                "optifine_ctm_tile",
+                present ? "renderer_pool_pending" : "missing_asset",
+                stringProperty(dependency, "specularPath"),
+                stringProperty(dependency, "normalPath"),
+                present ? "pending_renderer_pool_residency" : "missing_ctm_tile",
+                AutoPbrTextureCatalog.DISPLACEMENT_HEIGHT_SOURCE,
+                -1,
+                0,
+                false);
+            records.add(record);
+            keyLookup.put(key.stableKey(), materialId);
+            emittedCompat++;
+        }
+        int declaredCompat = intProperty(object(root, "materialUniverse"), "virtualCompatMaterials");
+        int presentCompat = intProperty(object(root, "materialUniverse"), "virtualCompatMaterialsPresent");
+        return new Snapshot(generation, packStackHash, vanilla.vanillaMaterialCount(),
+            Math.max(declaredCompat, emittedCompat), presentCompat, emittedCompat, records, keyLookup);
+    }
+
+    private static int resolveDependencyBaseSpriteId(JsonObject dependency) {
+        String atlasSprite = stringProperty(dependency, "atlasSprite");
+        Identifier sprite = Identifier.tryParse(atlasSprite);
+        int spriteId = TextureArrayBridge.resolveRenderableSpriteId(sprite);
+        if (spriteId >= 0) {
+            return spriteId;
+        }
+        Identifier resource = ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(
+            stringProperty(dependency, "path"));
+        if (resource != null) {
+            String natural = ResourcePackCompatCtmTiles.naturalAtlasSpriteIdentifier(
+                ResourcePackCompatCtmTiles.assetPath(resource));
+            Identifier naturalId = Identifier.tryParse(natural);
+            spriteId = TextureArrayBridge.resolveRenderableSpriteId(naturalId);
+            if (spriteId >= 0) {
+                return spriteId;
+            }
+        }
+        return TextureArrayBridge.missingSpriteFallbackIdForTest();
+    }
+
+    private static void writeMaterialEntry(ByteBuffer buffer, int index, MaterialRecord record) {
+        int off = index * MATERIAL_ENTRY_SIZE;
+        int baseSprite = Math.max(0, record.baseSpriteId());
+        int fallback = Math.max(0, record.fallbackMaterialId());
+        int specLayer = (record.flags() & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? baseSprite : -1;
+        int normalLayer = (record.flags() & MATERIAL_FLAG_HAS_NORMAL) != 0 ? baseSprite : -1;
+        int flagLayer = baseSprite;
+        buffer.putInt(off, record.materialId());
+        buffer.putInt(off + 4, baseSprite);
+        buffer.putInt(off + 8, fallback);
+        buffer.putInt(off + 12, record.flags());
+        buffer.putInt(off + 16, 0);
+        buffer.putInt(off + 20, baseSprite);
+        buffer.putInt(off + 24, 0);
+        buffer.putInt(off + 28, specLayer);
+        buffer.putInt(off + 32, 0);
+        buffer.putInt(off + 36, normalLayer);
+        buffer.putInt(off + 40, 0);
+        buffer.putInt(off + 44, flagLayer);
+        buffer.putInt(off + 48, -1);
+        buffer.putInt(off + 52, displacementPolicy(record));
+        buffer.putFloat(off + 56, (record.flags() & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0 ? 1.0f : 0.0f);
+        buffer.putInt(off + 60, record.heightRangePacked());
+        buffer.putFloat(off + 64, 1.0f);
+        buffer.putFloat(off + 68, 1.0f);
+        buffer.putFloat(off + 72, 0.0f);
+        buffer.putFloat(off + 76, 0.0f);
+    }
+
+    private static int displacementPolicy(MaterialRecord record) {
+        if ((record.flags() & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0) {
+            return 1;
+        }
+        if ((record.flags() & MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED) != 0) {
+            return 2;
+        }
+        return 0;
+    }
+
+    private static JsonObject object(JsonObject json, String key) {
+        if (json != null && json.has(key) && json.get(key).isJsonObject()) {
+            return json.getAsJsonObject(key);
+        }
+        return new JsonObject();
+    }
+
+    private static JsonArray array(JsonObject json, String key) {
+        if (json != null && json.has(key) && json.get(key).isJsonArray()) {
+            return json.getAsJsonArray(key);
+        }
+        return new JsonArray();
+    }
+
+    private static String stringProperty(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return "";
+        try {
+            return json.get(key).getAsString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
+    private static int intProperty(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return 0;
+        try {
+            return json.get(key).getAsInt();
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
+    private static boolean boolProperty(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return false;
+        try {
+            return json.get(key).getAsBoolean();
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public record MaterialKey(String namespace, String kind, String path) {
+        static MaterialKey vanillaSprite(Identifier id) {
+            return new MaterialKey(id == null ? "minecraft" : id.getNamespace(),
+                "vanilla_sprite", id == null ? "missing" : id.getPath());
+        }
+
+        static MaterialKey compatCtmTile(String assetPath) {
+            Identifier id = ResourcePackCompatCtmTiles.resourceIdentifierFromAssetPath(assetPath);
+            return new MaterialKey(id == null ? "minecraft" : id.getNamespace(),
+                "optifine_ctm_tile", assetPath);
+        }
+
+        String stableKey() {
+            return namespace + ":" + kind + ":" + path;
+        }
+
+        JsonObject toJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("namespace", namespace);
+            json.addProperty("kind", kind);
+            json.addProperty("path", path);
+            json.addProperty("stableKey", stableKey());
+            return json;
+        }
+    }
+
+    public record MaterialRecord(int materialId,
+                                 MaterialKey key,
+                                 String label,
+                                 int baseSpriteId,
+                                 int fallbackMaterialId,
+                                 int flags,
+                                 String provenance,
+                                 String residencyState,
+                                 String specularSource,
+                                 String normalSource,
+                                 String displacementReason,
+                                 String displacementHeightSource,
+                                 int heightRangePacked,
+                                 int authoredSize,
+                                 boolean nativeWrappedSpriteArray) {
+        JsonObject toJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("materialId", materialId);
+            json.add("key", key.toJson());
+            json.addProperty("label", label);
+            json.addProperty("baseSpriteId", baseSpriteId);
+            json.addProperty("fallbackMaterialId", fallbackMaterialId);
+            json.addProperty("flags", flags);
+            json.addProperty("provenance", provenance);
+            json.addProperty("residencyState", residencyState);
+            json.addProperty("specularSource", specularSource);
+            json.addProperty("normalSource", normalSource);
+            json.addProperty("displacementReason", displacementReason);
+            json.addProperty("displacementHeightSource", displacementHeightSource);
+            json.addProperty("heightRangePacked", heightRangePacked);
+            json.addProperty("authoredSize", authoredSize);
+            json.addProperty("nativeWrappedSpriteArray", nativeWrappedSpriteArray);
+            return json;
+        }
+    }
+
+    public record Snapshot(long generation,
+                           String packStackHash,
+                           int vanillaMaterialCount,
+                           int declaredCompatMaterialCount,
+                           int declaredPresentCompatMaterialCount,
+                           int recordedCompatMaterialCount,
+                           List<MaterialRecord> records,
+                           Map<String, Integer> keyLookup) {
+        static Snapshot empty() {
+            return new Snapshot(0, "", 0, 0, 0, 0, List.of(), Map.of());
+        }
+
+        public Snapshot {
+            records = List.copyOf(records);
+            keyLookup = Map.copyOf(keyLookup);
+        }
+
+        MaterialRecord recordByMaterialId(int materialId) {
+            if (materialId < 0 || materialId >= records.size()) {
+                return null;
+            }
+            return records.get(materialId);
+        }
+
+        public JsonObject toSummaryJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("generation", generation);
+            json.addProperty("packStackHash", packStackHash);
+            json.addProperty("materialEntrySize", MATERIAL_ENTRY_SIZE);
+            json.addProperty("maxMaterialEntries", MATERIAL_MAX_ENTRIES);
+            json.addProperty("vanillaMaterialCount", vanillaMaterialCount);
+            json.addProperty("declaredCompatMaterialCount", declaredCompatMaterialCount);
+            json.addProperty("declaredPresentCompatMaterialCount", declaredPresentCompatMaterialCount);
+            json.addProperty("recordedCompatMaterialCount", recordedCompatMaterialCount);
+            json.addProperty("recordedMaterialCount", records.size());
+            json.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
+            json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
+            json.addProperty("nativeMaterialTablePresent",
+                AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
+            json.addProperty("vanillaIdsAliasSpriteIds", true);
+            json.addProperty("compatIdsFallbackUntilRendererPoolResident", true);
+            return json;
+        }
+
+        public JsonArray recordsJson(int limit) {
+            JsonArray array = new JsonArray();
+            int count = Math.min(Math.max(0, limit), records.size());
+            for (int i = 0; i < count; i++) {
+                array.add(records.get(i).toJson());
+            }
+            return array;
+        }
+    }
+}

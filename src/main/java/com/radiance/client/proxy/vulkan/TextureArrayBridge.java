@@ -8,6 +8,7 @@ import java.util.Map;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.util.Identifier;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,6 +73,7 @@ public final class TextureArrayBridge {
         }
         spriteIdLookup = nextLookup;
         refreshMissingSpriteFallback(nextLookup);
+        ResourceMaterialRegistry.publishVanillaSprites(sortedSpriteIds, activeTextureGeneration);
         LOGGER.info("[TextureSystem] Sprite lookup refreshed: {} entries, renderable capacity {}",
             spriteIdLookup.size(), renderableSpriteCapacity);
     }
@@ -217,6 +219,7 @@ public final class TextureArrayBridge {
     public static native boolean nativeUpdateSpriteHeightMetadata(int spriteId, int flags,
         int heightRangePacked, long generation);
     public static native boolean nativeReceiveTextureRules(long dataPtr, int count, long generation);
+    public static native boolean nativeReceiveMaterialTable(long dataPtr, int count, long generation);
 
     public static void updateAnimatedSprites(int animTick) {
         nativeTickAnimation(animTick, getActiveTextureGeneration());

@@ -9,9 +9,9 @@ import net.minecraft.util.Identifier;
 
 public final class AutoPbrTextureCatalog {
     public static final String DISPLACEMENT_HEIGHT_SOURCE = "direct_labpbr_normal_alpha";
-    public static final String MATERIAL_SET_BINDING_POLICY = "resolved_sprite_id_material_set_v1";
-    public static final String MATERIAL_SET_SHADER_LOOKUP_KEY = "pbr_texture_id";
-    public static final boolean MATERIAL_SET_NATIVE_TABLE_PRESENT = false;
+    public static final String MATERIAL_SET_BINDING_POLICY = "global_material_id_table_v1";
+    public static final String MATERIAL_SET_SHADER_LOOKUP_KEY = "pbr_texture_id_material_id";
+    public static final boolean MATERIAL_SET_NATIVE_TABLE_PRESENT = true;
     private static final Identifier WATER_STILL = Identifier.ofVanilla("block/water_still");
     private static final Identifier WATER_FLOW = Identifier.ofVanilla("block/water_flow");
     private static final Identifier WATER_OVERLAY = Identifier.ofVanilla("block/water_overlay");

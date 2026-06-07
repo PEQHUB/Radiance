@@ -10,6 +10,8 @@ import com.radiance.client.RadianceClient;
 import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.material.ResourceMaterialRegistry;
+import com.radiance.client.texture.material.ResourceMaterialRegistry.Snapshot;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +49,7 @@ public final class ResourcePackCompatDiagnostics {
     private static final int SAMPLE_LIMIT = 24;
     private static final int COMPAT_RECORD_LIMIT = 4096;
     private static final int CTM_DEPENDENCY_LIMIT = 65536;
-    private static final int CTM_DEPENDENCY_RECORD_LIMIT = 512;
+    private static final int CTM_DEPENDENCY_RECORD_LIMIT = 65536;
     private static final int MAX_PROPERTY_BYTES = 1024 * 1024;
     private static final int VALUE_LIMIT = 256;
     private static final List<String> DIAGNOSTIC_DUMP_FILES = List.of(
@@ -68,6 +70,20 @@ public final class ResourcePackCompatDiagnostics {
     public static String writeReportJson() {
         JsonObject status = buildStatus(true);
         return GSON.toJson(status);
+    }
+
+    public static void writeReportAsync(String reason) {
+        Thread thread = new Thread(() -> {
+            try {
+                writeReportJson();
+            } catch (Throwable t) {
+                System.err.println("[ResourcePackCompat] async report failed"
+                    + (reason == null || reason.isBlank() ? "" : " reason=" + reason)
+                    + " error=" + t.getClass().getSimpleName() + ": " + t.getMessage());
+            }
+        }, "RadSER Material Compat Report");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     public static String scanPackJsonForTest(String path) {
@@ -117,6 +133,7 @@ public final class ResourcePackCompatDiagnostics {
     }
 
     private static JsonObject buildStatus(Path runDirectory, boolean writeReport) {
+        long startedNanos = System.nanoTime();
         JsonObject root = new JsonObject();
         root.addProperty("schema", "radser_material_compat_pack_scan_v1");
         root.addProperty("createdAt", Instant.now().toString());
@@ -131,18 +148,34 @@ public final class ResourcePackCompatDiagnostics {
         ActivePackSelection activeSelection = readActivePackSelection(runDirectory);
         root.addProperty("packStackHash", activeSelection.packStackHash());
         root.add("activePackStack", activeSelection.toJson());
+        long activeSelectionNanos = System.nanoTime();
         Path resourcePacks = runDirectory.resolve("resourcepacks");
         root.addProperty("resourcePacksDirectory", resourcePacks.toAbsolutePath().toString());
         JsonArray packs = scanResourcePackDirectory(resourcePacks, activeSelection);
+        long scanPacksNanos = System.nanoTime();
         root.add("packs", packs);
         JsonArray activePacks = activePacks(packs);
+        long activePacksNanos = System.nanoTime();
         root.add("activePacks", activePacks);
         JsonObject activeCtm = aggregateCtmDependencies(activePacks);
+        long aggregateCtmNanos = System.nanoTime();
         root.add("activeCtmAtlasDependencies", activeCtm);
         root.add("ctmAtlasAdmission", ctmAtlasAdmissionJson(activeCtm));
         root.add("compatibility", compatibilityJson(activePacks));
         root.add("labPbr", labPbrJson(activePacks));
         root.add("materialUniverse", materialUniverseJson(activeSelection, activePacks, activeCtm));
+        Snapshot materialSnapshot =
+            ResourceMaterialRegistry.publishFromCompatReport(root, TextureArrayBridge.getActiveTextureGeneration());
+        root.add("materialRegistry", materialSnapshot.toSummaryJson());
+        root.add("materialRecordSamples", materialSnapshot.recordsJson(SAMPLE_LIMIT));
+        long materialRegistryNanos = System.nanoTime();
+        root.add("reloadStageTimings", reloadStageTimingsJson(
+            startedNanos,
+            activeSelectionNanos,
+            scanPacksNanos,
+            activePacksNanos,
+            aggregateCtmNanos,
+            materialRegistryNanos));
 
         if (writeReport) {
             try {
@@ -152,6 +185,27 @@ public final class ResourcePackCompatDiagnostics {
             }
         }
         return root;
+    }
+
+    private static JsonObject reloadStageTimingsJson(long startedNanos,
+        long activeSelectionNanos,
+        long scanPacksNanos,
+        long activePacksNanos,
+        long aggregateCtmNanos,
+        long materialRegistryNanos) {
+        JsonObject json = new JsonObject();
+        json.addProperty("activeSelectionMs", millis(startedNanos, activeSelectionNanos));
+        json.addProperty("resourcePackScanMs", millis(activeSelectionNanos, scanPacksNanos));
+        json.addProperty("activePackOrderingMs", millis(scanPacksNanos, activePacksNanos));
+        json.addProperty("ctmDependencyAggregationMs", millis(activePacksNanos, aggregateCtmNanos));
+        json.addProperty("materialRegistryPublishMs", millis(aggregateCtmNanos, materialRegistryNanos));
+        json.addProperty("totalMaterialCompatReportMs", millis(startedNanos, materialRegistryNanos));
+        json.addProperty("asyncSafe", true);
+        return json;
+    }
+
+    private static double millis(long fromNanos, long toNanos) {
+        return Math.max(0.0, (toNanos - fromNanos) / 1_000_000.0);
     }
 
     private static boolean renderingConsumesCompatibility() {
@@ -435,6 +489,8 @@ public final class ResourcePackCompatDiagnostics {
         dump.add("aggregate", aggregate);
         dump.add("activePacks", packMaterialSummaries(active));
         dump.add("renderSafety", copyObject(object(root, "renderSafety")));
+        dump.add("materialRegistry", copyObject(object(root, "materialRegistry")));
+        dump.add("materialRecordSamples", copyArray(array(root, "materialRecordSamples")));
         return dump;
     }
 
@@ -474,7 +530,7 @@ public final class ResourcePackCompatDiagnostics {
         policy.addProperty("packPriority", "minecraft_active_resource_stack_order");
         policy.addProperty("ruleParsing", "java_side");
         policy.addProperty("quadResolution", "chunk_build_side");
-        policy.addProperty("shaderInput", "resolved_sprite_id_material_set_alias");
+        policy.addProperty("shaderInput", "global_material_id_with_sprite_array_compat_fallback");
         policy.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
         policy.addProperty("nativeMaterialSetTablePresent",
             AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
@@ -484,6 +540,7 @@ public final class ResourcePackCompatDiagnostics {
         dump.add("policy", policy);
         dump.add("activePackStack", copyObject(object(root, "activePackStack")));
         dump.add("materialUniverse", copyObject(object(root, "materialUniverse")));
+        dump.add("materialRegistry", copyObject(object(root, "materialRegistry")));
         dump.add("compatibilityConsumption", copyObject(object(root, "compatibilityConsumption")));
         return dump;
     }
@@ -793,6 +850,10 @@ public final class ResourcePackCompatDiagnostics {
 
     private static JsonObject copyObject(JsonObject source) {
         return source == null ? new JsonObject() : source.deepCopy();
+    }
+
+    private static JsonArray copyArray(JsonArray source) {
+        return source == null ? new JsonArray() : source.deepCopy();
     }
 
     private static JsonObject object(JsonObject parent, String name) {

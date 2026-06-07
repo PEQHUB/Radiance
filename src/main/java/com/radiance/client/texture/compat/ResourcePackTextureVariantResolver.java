@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.client.vertex.PBRVertexFormatElements;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -1247,8 +1248,10 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("sprite", defaultTile ? "<default>" : sprite == null ? "" : sprite.toString());
         json.addProperty("defaultTile", defaultTile);
         json.addProperty("spriteId", spriteId);
-        json.addProperty("materialSetId", spriteId);
-        addMaterialSetBinding(json, spriteId);
+        int materialId = spriteId >= 0 ? ResourceMaterialRegistry.materialIdForSpriteId(spriteId) : -1;
+        json.addProperty("materialSetId", materialId);
+        json.addProperty("baseSpriteId", spriteId);
+        addMaterialSetBinding(json, spriteId, materialId);
         json.addProperty("resolved", defaultTile || spriteId >= 0);
         return json;
     }
@@ -1258,11 +1261,15 @@ public final class ResourcePackTextureVariantResolver {
     }
 
     private static void addMaterialSetBinding(JsonObject json, int spriteId) {
+        addMaterialSetBinding(json, spriteId, spriteId);
+    }
+
+    private static void addMaterialSetBinding(JsonObject json, int spriteId, int materialId) {
         json.addProperty("materialSetBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
         json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
         json.addProperty("nativeMaterialSetTablePresent",
             AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
-        json.addProperty("materialSetAliasesResolvedSprite", spriteId >= 0);
+        json.addProperty("materialSetAliasesResolvedSprite", spriteId >= 0 && spriteId == materialId);
     }
 
     private static JsonArray blockPredicateArray(List<BlockPredicate> predicates) {

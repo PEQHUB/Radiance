@@ -7,7 +7,9 @@ import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.AuxiliaryTextures;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
+import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
+import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt;
@@ -114,8 +116,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     + "Overflow sprites will resolve to the material-safe fallback until texture paging lands.",
                 sortedIds.size(), renderableSpriteCapacity);
         }
-        TextureArrayBridge.setSortedSpriteIds(sortedIds);
         TextureArrayBridge.incrementTextureGeneration();
+        TextureArrayBridge.setSortedSpriteIds(sortedIds);
         int spriteSize = manifest.fixedLayerSize();
         if (spriteSize <= 0) return;
 
@@ -422,6 +424,15 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 6: Finalize ----
         TextureArrayBridge.nativeTextureFinalize();
         TextureArrayBridge.publishTextureGeneration();
+        boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+        if (materialTableUploaded) {
+            LOGGER.info("[TextureSystem] Uploaded material-id table: {}",
+                ResourceMaterialRegistry.activeSummaryJson());
+        } else {
+            LOGGER.info("[TextureSystem] Material-id table upload unavailable; Java registry remains active: {}",
+                ResourceMaterialRegistry.activeSummaryJson());
+        }
+        ResourcePackCompatDiagnostics.writeReportAsync("block_atlas_finalize");
         MinecraftClient mc = MinecraftClient.getInstance();
         AutoPbrRuntime.RehydrateReport autoPbrReport = AutoPbrRuntime.rehydrateSavedSidecars(mc);
         if (autoPbrReport.discovered() > 0) {
