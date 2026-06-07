@@ -27,6 +27,8 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_GLINT_UV;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_LIGHT_PACKED;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_NORM;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_OVERLAY_PACKED;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_PACKED_EMISSIVE_TYPE_NONE;
+import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_PACKED_SHADER_BLOCK_ID_MASK;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POS;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_POST_BASE;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_BACKGROUND;
@@ -39,6 +41,7 @@ import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_R
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXT_MODE_RGBA_SEE_THROUGH;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_ID;
 import static com.radiance.client.vertex.PBRVertexFormatElements.PBR_TEXTURE_UV;
+import static com.radiance.client.vertex.PBRVertexFormatElements.packShaderBlockId;
 
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.compat.ResourcePackBlockLayerResolver;
@@ -97,7 +100,7 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float baseY = 0;
     private float baseZ = 0;
     private float pendingEmission = 0.0f;
-    private int pendingEmissiveBlockType = 255; // 255 = no type
+    private int pendingEmissiveBlockType = PBR_PACKED_EMISSIVE_TYPE_NONE;
     private int pendingTextureOverride = -1;
     private int pendingVertexFlags = 0;
     private boolean pendingSpriteUvRemap = false;
@@ -356,6 +359,22 @@ public class PBRVertexConsumer implements VertexConsumer {
         return 0;
     }
 
+    private int pendingPackedBlockType() {
+        int packed = this.pendingEmissiveBlockType;
+        if (this.blockGeometryContextDepth > 0) {
+            int shaderBlockId = ResourcePackBlockLayerResolver.resolveShaderBlockId(this.pendingBlockState);
+            int packedShaderBlockId = packShaderBlockId(shaderBlockId);
+            if (packedShaderBlockId != 0) {
+                packed = (packed & ~PBR_PACKED_SHADER_BLOCK_ID_MASK) | packedShaderBlockId;
+            }
+        }
+        return packed;
+    }
+
+    private void writePendingPackedBlockType() {
+        emissiveBlockType(pendingPackedBlockType());
+    }
+
     long beginElement(VertexFormatElement element) {
         int mask = currentMask;
         int bit = element.getBit();
@@ -416,9 +435,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
         }
-        if (pendingEmissiveBlockType != 255) {
-            emissiveBlockType(pendingEmissiveBlockType & 0xFF);
-        }
+        writePendingPackedBlockType();
 
         return this;
     }
@@ -443,9 +460,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (pendingEmission != 0.0f) {
             albedoEmission(pendingEmission);
         }
-        if (pendingEmissiveBlockType != 255) {
-            emissiveBlockType(pendingEmissiveBlockType & 0xFF);
-        }
+        writePendingPackedBlockType();
 
         return this;
     }

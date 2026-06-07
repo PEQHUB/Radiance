@@ -57,6 +57,21 @@ public final class ResourcePackBlockLayerResolver {
         return index.alphaMode(state);
     }
 
+    public static int resolveShaderBlockId(@Nullable BlockState state) {
+        if (state == null || !Options.materialCompatEnabled) {
+            return -1;
+        }
+        LayerIndex index = activeIndex();
+        if (index.shaderBlockRules().isEmpty()) {
+            return -1;
+        }
+        Identifier id = Registries.BLOCK.getId(state.getBlock());
+        if (id == null) {
+            return -1;
+        }
+        return index.shaderBlockId(state);
+    }
+
     public static int resolveBlockAlphaModeForTest(String blockPropertiesText, String blockId) {
         return parse(blockPropertiesText).alphaMode(normalizeBlockToken(blockId), Map.of());
     }
@@ -464,6 +479,16 @@ public final class ResourcePackBlockLayerResolver {
             for (int i = shaderBlockRules.size() - 1; i >= 0; i--) {
                 ShaderBlockRule rule = shaderBlockRules.get(i);
                 if (rule.predicate().matches(blockId, stateValues)) {
+                    return rule.shaderBlockId();
+                }
+            }
+            return -1;
+        }
+
+        int shaderBlockId(BlockState state) {
+            for (int i = shaderBlockRules.size() - 1; i >= 0; i--) {
+                ShaderBlockRule rule = shaderBlockRules.get(i);
+                if (rule.predicate().matches(state)) {
                     return rule.shaderBlockId();
                 }
             }

@@ -32,9 +32,28 @@ public class PBRVertexFormatElements {
     public static final int PBR_TEXT_MODE_INTENSITY_POLYGON_OFFSET = 7;
     public static final int PBR_TEXT_MODE_RGBA_POLYGON_OFFSET = 8;
 
+    public static final int PBR_PACKED_EMISSIVE_TYPE_NONE = 255;
+    public static final int PBR_PACKED_EMISSIVE_TYPE_MASK = 0xFF;
+    public static final int PBR_PACKED_SHADER_BLOCK_ID_SHIFT = 17;
+    public static final int PBR_PACKED_SHADER_BLOCK_ID_MAX = 0x3FFF;
+    public static final int PBR_PACKED_SHADER_BLOCK_ID_MASK =
+        PBR_PACKED_SHADER_BLOCK_ID_MAX << PBR_PACKED_SHADER_BLOCK_ID_SHIFT;
+    public static final int PBR_PACKED_THIN_CUTOUT_PLANT = 1 << 31;
+
     public static int fluidGeometryFlags(boolean isWater) {
         int flags = PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY;
         return isWater ? (flags | PBR_FLAG_WATER_GEOMETRY) : flags;
+    }
+
+    public static int packShaderBlockId(int shaderBlockId) {
+        if (shaderBlockId <= 0 || shaderBlockId > PBR_PACKED_SHADER_BLOCK_ID_MAX) {
+            return 0;
+        }
+        return (shaderBlockId << PBR_PACKED_SHADER_BLOCK_ID_SHIFT) & PBR_PACKED_SHADER_BLOCK_ID_MASK;
+    }
+
+    public static int unpackShaderBlockId(int packedBlockType) {
+        return (packedBlockType & PBR_PACKED_SHADER_BLOCK_ID_MASK) >>> PBR_PACKED_SHADER_BLOCK_ID_SHIFT;
     }
 
     // --- Vertex format elements (order matches 96-byte PBRTriangle struct) ---

@@ -74,6 +74,7 @@ public final class MaterialLabSelfTest {
         diffuseModelRulesAreFlaggedAndPacked();
         diffuseModelOptionsMigrationIsStable();
         fluidGeometryFlagsDistinguishWaterAndLava();
+        packedBlockTypeCarriesShaderBlockIds();
         shaderPackDefaultsMatchVisualPolicy();
         shaderPackRayTraceTransformsAvoidShadercOptimizerTrap();
         measuredPresetsWritePhysicalValues();
@@ -272,6 +273,21 @@ public final class MaterialLabSelfTest {
         expect((lava & PBRVertexFormatElements.PBR_FLAG_BLOCK_GEOMETRY) != 0, "lava should be block geometry");
         expect((lava & PBRVertexFormatElements.PBR_FLAG_FLUID_GEOMETRY) != 0, "lava should be fluid geometry");
         expect((lava & PBRVertexFormatElements.PBR_FLAG_WATER_GEOMETRY) == 0, "lava must not carry water bit");
+    }
+
+    private static void packedBlockTypeCarriesShaderBlockIds() {
+        int packed = PBRVertexFormatElements.PBR_PACKED_EMISSIVE_TYPE_NONE
+            | PBRVertexFormatElements.packShaderBlockId(1003);
+        expect((packed & PBRVertexFormatElements.PBR_PACKED_EMISSIVE_TYPE_MASK)
+                == PBRVertexFormatElements.PBR_PACKED_EMISSIVE_TYPE_NONE,
+            "packed shader block metadata must preserve the no-emissive low byte");
+        expect(PBRVertexFormatElements.unpackShaderBlockId(packed) == 1003,
+            "packed shader block metadata should round-trip OptiFine/Iris block.N ids");
+        expect(PBRVertexFormatElements.packShaderBlockId(0) == 0,
+            "shader block id zero should leave the packed metadata empty");
+        expect(PBRVertexFormatElements.packShaderBlockId(PBRVertexFormatElements.PBR_PACKED_SHADER_BLOCK_ID_MAX + 1)
+                == 0,
+            "out-of-range shader block ids must not overflow packed vertex metadata");
     }
 
     private static void shaderPackDefaultsMatchVisualPolicy() {
@@ -1117,9 +1133,9 @@ public final class MaterialLabSelfTest {
             expect(status.getAsJsonObject("compatibilityConsumption")
                     .get("shaderSideRuleParsing").getAsBoolean(),
                 "diagnostics should expose parsed shader block.N side rules");
-            expect(!status.getAsJsonObject("compatibilityConsumption")
+            expect(status.getAsJsonObject("compatibilityConsumption")
                     .get("shaderSideRuleNativeBinding").getAsBoolean(),
-                "diagnostics should keep shader block.N native binding separate until the ABI carries it");
+                "diagnostics should expose shader block.N native binding into packed vertex metadata");
             expect(status.getAsJsonObject("compatibilityConsumption")
                     .get("overlayLayerEmission").getAsBoolean(),
                 "diagnostics should expose CTM overlay layer emission consumption");
