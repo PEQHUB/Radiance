@@ -55,6 +55,7 @@ import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.Com
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
+import com.radiance.client.texture.material.ResourceMaterialResidencyDemand;
 import java.nio.ByteOrder;
 import java.util.stream.Collectors;
 import net.minecraft.block.BlockState;
@@ -635,6 +636,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (materialId < 0) {
             materialId = ResourceMaterialRegistry.materialIdForSpriteId(TextureArrayBridge.resolveRenderableSpriteId(id));
         }
+        recordVisibleMaterialDemand(materialId);
         int shaderSpriteId = ResourceMaterialRegistry.shaderTextureIdForMaterialId(materialId);
         if (this.blockGeometryContextDepth > 0) {
             int alphaMode = resolved.alphaMode() >= 0
@@ -672,6 +674,7 @@ public class PBRVertexConsumer implements VertexConsumer {
     public void setPendingTextureSpriteId(int spriteId, int geometryFlags) {
         this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
         if (spriteId >= 0) {
+            recordVisibleMaterialDemand(spriteId);
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
             applyRegisteredEmissiveOverlayMask(spriteId, false);
@@ -688,6 +691,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         @Nullable Sprite sourceSprite, NaturalTransform uvTransform) {
         this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
         if (spriteId >= 0 && sourceSprite != null) {
+            recordVisibleMaterialDemand(spriteId);
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
             applyRegisteredEmissiveOverlayMask(spriteId, false);
@@ -709,6 +713,17 @@ public class PBRVertexConsumer implements VertexConsumer {
         this.pendingVertexFlags &= ~PBR_GEOMETRY_FLAG_MASK;
         this.pendingSpriteUvRemap = false;
         this.pendingNaturalUvTransform = NaturalTransform.identity();
+    }
+
+    private void recordVisibleMaterialDemand(int materialId) {
+        if (this.blockGeometryContextDepth <= 0 || materialId < 0) {
+            return;
+        }
+        if (!ResourceMaterialRegistry.isPendingCompatMaterialId(materialId)) {
+            return;
+        }
+        ResourceMaterialResidencyDemand.enqueueVisible(
+            ResourceMaterialRegistry.activeSnapshot().generation(), materialId);
     }
 
     public static float localSpriteUvForTest(float atlasUv, float min, float max) {

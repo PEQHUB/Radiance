@@ -17,11 +17,13 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.resource.Resource;
@@ -112,6 +114,7 @@ public final class ResourceMaterialResidencyUploader {
         startEvent.addProperty("percentOfPageBudgetRequired",
             PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
         startEvent.addProperty("materialCapacity", materialCapacity);
+        startEvent.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
         ResourceMaterialRuntimeStatus.write("residencyStarted", generation, startEvent);
 
         ByteBuffer defaultNormal = defaultNormalLayer(bytesPerLayer);
@@ -119,6 +122,7 @@ public final class ResourceMaterialResidencyUploader {
         for (int page = FIRST_COMPAT_PAGE;
              page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX && nextItem < items.size();
              page++) {
+            int visiblePendingCandidates = promoteVisibleItems(items, nextItem, generation);
             long pageStartedNanos = System.nanoTime();
             UploadStats pageStats = new UploadStats();
             long allocationStartedNanos = System.nanoTime();
@@ -138,6 +142,7 @@ public final class ResourceMaterialResidencyUploader {
 
             JsonObject pageReport = new JsonObject();
             pageReport.addProperty("page", page);
+            pageReport.addProperty("visiblePendingCandidates", visiblePendingCandidates);
             int layer = 0;
             Map<Integer, ResourceMaterialRegistry.ResidencyHandle> pageHandles = new LinkedHashMap<>();
             while (layer < pageCapacity && nextItem < items.size()) {
@@ -192,6 +197,7 @@ public final class ResourceMaterialResidencyUploader {
             if (uploaded) {
                 uploadedPages++;
                 handles.putAll(pageHandles);
+                ResourceMaterialResidencyDemand.recordResident(generation, pageHandles.keySet());
                 long tableStartedNanos = System.nanoTime();
                 ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
                 boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
@@ -226,6 +232,7 @@ public final class ResourceMaterialResidencyUploader {
         totalStats.totalUploadNanos = elapsedNanos(uploadStartedNanos);
         json.add("timingMs", totalStats.timingJson());
         json.add("displacement", totalStats.displacementJson());
+        json.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
         json.add("pages", pageReports);
         ResourceMaterialRuntimeStatus.write("residencyUploadFinished", generation, json);
         LOGGER.info("[MaterialCompat] Material page upload: {} materials across {} pages, {} deferred",
@@ -288,6 +295,30 @@ public final class ResourceMaterialResidencyUploader {
                 boolProperty(dependency, "flagPresent")));
         }
         return items;
+    }
+
+    private static int promoteVisibleItems(List<UploadItem> items, int startIndex, long generation) {
+        if (items == null || startIndex < 0 || startIndex >= items.size()) {
+            return 0;
+        }
+        Set<Integer> visibleMaterialIds = ResourceMaterialResidencyDemand.visibleMaterialIds(generation);
+        if (visibleMaterialIds.isEmpty()) {
+            return 0;
+        }
+        int writeIndex = startIndex;
+        int visiblePending = 0;
+        for (int scanIndex = startIndex; scanIndex < items.size(); scanIndex++) {
+            UploadItem item = items.get(scanIndex);
+            if (item != null && visibleMaterialIds.contains(item.materialId())) {
+                if (scanIndex != writeIndex) {
+                    Collections.swap(items, scanIndex, writeIndex);
+                }
+                writeIndex++;
+                visiblePending++;
+            }
+        }
+        ResourceMaterialResidencyDemand.recordPriorityCandidates(generation, visiblePending);
+        return visiblePending;
     }
 
     private static LayerResult writeLayer(ResourceManager resourceManager, UploadItem item,

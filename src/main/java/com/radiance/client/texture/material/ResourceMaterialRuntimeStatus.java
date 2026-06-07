@@ -38,6 +38,7 @@ public final class ResourceMaterialRuntimeStatus {
         root.addProperty("status", status == null || status.isBlank() ? "unknown" : status);
         root.addProperty("generation", generation);
         root.add("materialRegistry", ResourceMaterialRegistry.activeSummaryJson());
+        root.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
         if (event != null) {
             root.add("event", event.deepCopy());
         }

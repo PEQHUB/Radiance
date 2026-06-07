@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
+import com.radiance.client.texture.material.ResourceMaterialResidencyDemand;
 import com.radiance.client.texture.material.ResourceMaterialResidencyUploader;
 import com.radiance.client.texture.material.ResourceMaterialRuntimeStatus;
 import java.io.BufferedReader;
@@ -56,6 +57,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             return BootstrapResult.skipped(generation, "generation_already_published");
         }
 
+        ResourceMaterialResidencyDemand.resetForGeneration(generation);
         long startedNanos = System.nanoTime();
         RuntimeRoot root = buildRoot(resourceManager, generation);
         if (root.dependencyCount() <= 0) {

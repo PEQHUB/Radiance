@@ -104,6 +104,17 @@ public final class ResourceMaterialRegistry {
         return materialId == null ? -1 : materialId;
     }
 
+    public static boolean isPendingCompatMaterialId(int materialId) {
+        Snapshot snapshot = ACTIVE.get();
+        MaterialRecord record = snapshot.recordByMaterialId(materialId);
+        if (record == null) {
+            return false;
+        }
+        int flags = effectiveFlags(record, ACTIVE_RESIDENCY.get().get(materialId));
+        return (flags & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0
+            && (flags & MATERIAL_FLAG_GPU_RESIDENT) == 0;
+    }
+
     public static void registerResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
         if (handles == null || handles.isEmpty()) {
             ACTIVE_RESIDENCY.set(Map.of());
@@ -587,6 +598,7 @@ public final class ResourceMaterialRegistry {
             json.addProperty("compatVirtualCurrentlyUsingFallbackCount", compatVirtualFallback);
             json.addProperty("residentMaterialHandleCount", residency.size());
             json.addProperty("displacementEligibleMaterialCount", displacementEligible);
+            json.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
             json.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
             json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
             json.addProperty("nativeMaterialTablePresent",
