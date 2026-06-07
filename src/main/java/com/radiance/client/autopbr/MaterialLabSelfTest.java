@@ -1937,6 +1937,15 @@ public final class MaterialLabSelfTest {
             ResourcePackEmissiveTextureResolver.registerOverlaySprite(lampGlow, lamp);
             expect(lampGlow.equals(ResourcePackEmissiveTextureResolver.registeredOverlayForBaseSprite(lamp)),
                 "emissive resolver should map base sprites back to registered overlay sprites");
+            expect(ResourcePackEmissiveTextureResolver.usesShaderOverlayForBaseSprite(lamp),
+                "emissive overlays should use shader composition when the folded overlay slot is free");
+            expect(!ResourcePackEmissiveTextureResolver.requiresGeometryOverlayForBaseSprite(lamp),
+                "emissive overlays should not emit fallback geometry when the shader slot is free");
+            ResourcePackEmissiveTextureResolver.registerOverlaySprite(lampGlow, lamp, false);
+            expect(!ResourcePackEmissiveTextureResolver.usesShaderOverlayForBaseSprite(lamp),
+                "emissive overlays should not use shader composition when another overlay owns the slot");
+            expect(ResourcePackEmissiveTextureResolver.requiresGeometryOverlayForBaseSprite(lamp),
+                "emissive overlays should request geometry fallback when the folded overlay slot is occupied");
 
             Identifier syntheticBase = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
                 "assets/minecraft/optifine/ctm/lamp/0.png"));

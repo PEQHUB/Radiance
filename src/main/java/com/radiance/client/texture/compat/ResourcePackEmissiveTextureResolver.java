@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
@@ -16,6 +17,7 @@ public final class ResourcePackEmissiveTextureResolver {
     private static final String DEFAULT_SUFFIX = "_e";
     private static final Map<Identifier, Identifier> REGISTERED_OVERLAY_BASES = new ConcurrentHashMap<>();
     private static final Map<Identifier, Identifier> REGISTERED_BASE_OVERLAYS = new ConcurrentHashMap<>();
+    private static final Set<Identifier> GEOMETRY_OVERLAY_BASES = ConcurrentHashMap.newKeySet();
 
     private ResourcePackEmissiveTextureResolver() {
     }
@@ -35,18 +37,39 @@ public final class ResourcePackEmissiveTextureResolver {
     public static void clearRegisteredOverlaySprites() {
         REGISTERED_OVERLAY_BASES.clear();
         REGISTERED_BASE_OVERLAYS.clear();
+        GEOMETRY_OVERLAY_BASES.clear();
     }
 
     public static void registerOverlaySprite(Identifier emissiveSprite, Identifier baseSprite) {
+        registerOverlaySprite(emissiveSprite, baseSprite, true);
+    }
+
+    public static void registerOverlaySprite(Identifier emissiveSprite, Identifier baseSprite,
+        boolean shaderOverlaySlotAvailable) {
         if (emissiveSprite != null && baseSprite != null) {
             REGISTERED_OVERLAY_BASES.put(emissiveSprite, baseSprite);
             REGISTERED_BASE_OVERLAYS.put(baseSprite, emissiveSprite);
+            if (shaderOverlaySlotAvailable) {
+                GEOMETRY_OVERLAY_BASES.remove(baseSprite);
+            } else {
+                GEOMETRY_OVERLAY_BASES.add(baseSprite);
+            }
         }
     }
 
     @Nullable
     public static Identifier registeredOverlayForBaseSprite(@Nullable Identifier baseSprite) {
         return baseSprite == null ? null : REGISTERED_BASE_OVERLAYS.get(baseSprite);
+    }
+
+    public static boolean usesShaderOverlayForBaseSprite(@Nullable Identifier baseSprite) {
+        return registeredOverlayForBaseSprite(baseSprite) != null
+            && !GEOMETRY_OVERLAY_BASES.contains(baseSprite);
+    }
+
+    public static boolean requiresGeometryOverlayForBaseSprite(@Nullable Identifier baseSprite) {
+        return registeredOverlayForBaseSprite(baseSprite) != null
+            && GEOMETRY_OVERLAY_BASES.contains(baseSprite);
     }
 
     public static boolean isDefaultEmissiveResource(Identifier id) {

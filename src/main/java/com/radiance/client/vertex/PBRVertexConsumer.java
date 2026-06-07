@@ -85,6 +85,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         Identifier.ofVanilla("block/grass_block_side_overlay");
     private static final int PBR_GEOMETRY_FLAG_MASK =
         PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY | PBR_FLAG_WATER_GEOMETRY;
+    private static final float EMISSIVE_OVERLAY_REFERENCE_NITS = 200.0f;
 
     private final BufferAllocator allocator;
     private final VertexFormat format;
@@ -573,11 +574,22 @@ public class PBRVertexConsumer implements VertexConsumer {
             (this.pendingVertexFlags & ~PBR_FLAG_ALPHA_MODE_MASK) | packAlphaMode(alphaMode);
     }
 
-    private void enableRegisteredEmissiveOverlayMask(int spriteId) {
+    private void applyRegisteredEmissiveOverlayMask(int spriteId, boolean preserveExistingMask) {
+        boolean enabled = preserveExistingMask && (this.pendingVertexFlags & PBR_FLAG_OVERLAY_ALPHA_MASK) != 0;
         Identifier sprite = TextureArrayBridge.spriteIdentifier(spriteId);
-        if (ResourcePackEmissiveTextureResolver.registeredOverlayForBaseSprite(sprite) != null) {
-            setPendingOverlayAlphaMask(true);
+        if (ResourcePackEmissiveTextureResolver.usesShaderOverlayForBaseSprite(sprite)) {
+            enabled = true;
         }
+        setPendingOverlayAlphaMask(enabled);
+    }
+
+    private int geometryEmissiveOverlaySpriteId(int baseSpriteId) {
+        Identifier baseSprite = TextureArrayBridge.spriteIdentifier(baseSpriteId);
+        if (!ResourcePackEmissiveTextureResolver.requiresGeometryOverlayForBaseSprite(baseSprite)) {
+            return -1;
+        }
+        Identifier overlaySprite = ResourcePackEmissiveTextureResolver.registeredOverlayForBaseSprite(baseSprite);
+        return overlaySprite == null ? -1 : TextureArrayBridge.resolveSpriteId(overlaySprite.toString());
     }
 
     public VertexConsumer emissiveBlockType(int type) {
@@ -637,7 +649,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (spriteId >= 0 && sprite != null) {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
-            enableRegisteredEmissiveOverlayMask(spriteId);
+            applyRegisteredEmissiveOverlayMask(spriteId, true);
             this.pendingSpriteUvRemap = true;
             this.pendingSpriteMinU = sprite.getMinU();
             this.pendingSpriteMaxU = sprite.getMaxU();
@@ -656,7 +668,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (spriteId >= 0) {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
-            enableRegisteredEmissiveOverlayMask(spriteId);
+            applyRegisteredEmissiveOverlayMask(spriteId, false);
             this.pendingSpriteUvRemap = false;
             this.pendingNaturalUvTransform = NaturalTransform.identity();
         } else {
@@ -672,7 +684,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (spriteId >= 0 && sourceSprite != null) {
             this.pendingTextureOverride = spriteId;
             this.pendingVertexFlags |= geometryFlags & PBR_GEOMETRY_FLAG_MASK;
-            enableRegisteredEmissiveOverlayMask(spriteId);
+            applyRegisteredEmissiveOverlayMask(spriteId, false);
             this.pendingSpriteUvRemap = true;
             this.pendingSpriteMinU = sourceSprite.getMinU();
             this.pendingSpriteMaxU = sourceSprite.getMaxU();
@@ -809,10 +821,12 @@ public class PBRVertexConsumer implements VertexConsumer {
         float previousSpriteMaxV = this.pendingSpriteMaxV;
         NaturalTransform previousNaturalUvTransform = this.pendingNaturalUvTransform;
         RepeatTextureBasis previousRepeatTextureBasis = this.pendingRepeatTextureBasis;
+        float previousPendingEmission = this.pendingEmission;
         try {
             Sprite blockSprite = null;
             BlockOverlaySprite[] blockOverlaySprites = new BlockOverlaySprite[0];
             NaturalTransform blockOverlayUvTransform = NaturalTransform.identity();
+            int emissiveGeometryOverlaySpriteId = -1;
             float baseRed = red;
             float baseGreen = green;
             float baseBlue = blue;
@@ -881,6 +895,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                     ResolvedBlockSprite resolved =
                         setPendingTextureSprite(blockSprite, PBR_FLAG_BLOCK_GEOMETRY, quad.getFace(),
                             this.pendingRepeatTextureBasis);
+                    emissiveGeometryOverlaySpriteId = geometryEmissiveOverlaySpriteId(this.pendingTextureOverride);
                     if (resolved.tintOverride()) {
                         int tintRgb = resolved.tintRgb() & 0x00FFFFFF;
                         baseRed = ((tintRgb >> 16) & 0xFF) / 255.0F;
@@ -926,6 +941,18 @@ public class PBRVertexConsumer implements VertexConsumer {
                     overlay,
                     baseUseQuadColorData);
             }
+            if (!baseQuadRendered && emissiveGeometryOverlaySpriteId >= 0 && blockSprite != null) {
+                emitEmissiveGeometryOverlayQuad(
+                    matrixEntry,
+                    quad,
+                    brightnesses,
+                    alpha,
+                    lights,
+                    overlay,
+                    blockSprite,
+                    blockOverlayUvTransform,
+                    emissiveGeometryOverlaySpriteId);
+            }
             if (blockOverlaySprites.length > 0 && blockSprite != null) {
                 for (BlockOverlaySprite blockOverlay : blockOverlaySprites) {
                     int tintRgb = blockOverlay.tintRgb() & 0x00FFFFFF;
@@ -959,6 +986,57 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingSpriteMaxV = previousSpriteMaxV;
             this.pendingNaturalUvTransform = previousNaturalUvTransform;
             this.pendingRepeatTextureBasis = previousRepeatTextureBasis;
+            this.pendingEmission = previousPendingEmission;
+        }
+    }
+
+    private void emitEmissiveGeometryOverlayQuad(MatrixStack.Entry matrixEntry,
+        BakedQuad quad,
+        float[] brightnesses,
+        float alpha,
+        int[] lights,
+        int overlay,
+        Sprite sourceSprite,
+        NaturalTransform uvTransform,
+        int overlaySpriteId) {
+        int previousTextureOverride = this.pendingTextureOverride;
+        int previousVertexFlags = this.pendingVertexFlags;
+        boolean previousSpriteUvRemap = this.pendingSpriteUvRemap;
+        float previousSpriteMinU = this.pendingSpriteMinU;
+        float previousSpriteMaxU = this.pendingSpriteMaxU;
+        float previousSpriteMinV = this.pendingSpriteMinV;
+        float previousSpriteMaxV = this.pendingSpriteMaxV;
+        NaturalTransform previousNaturalUvTransform = this.pendingNaturalUvTransform;
+        float previousPendingEmission = this.pendingEmission;
+        try {
+            setPendingTextureSpriteIdWithSourceUv(
+                overlaySpriteId,
+                PBR_FLAG_BLOCK_GEOMETRY,
+                sourceSprite,
+                uvTransform);
+            setPendingOverlayAlphaMask(false);
+            setPendingAlphaMode(PBR_ALPHA_MODE_TRANSPARENT);
+            setPendingEmission(EMISSIVE_OVERLAY_REFERENCE_NITS);
+            VertexConsumer.super.quad(matrixEntry,
+                quad,
+                brightnesses,
+                1.0F,
+                1.0F,
+                1.0F,
+                alpha,
+                lights,
+                overlay,
+                false);
+        } finally {
+            this.pendingTextureOverride = previousTextureOverride;
+            this.pendingVertexFlags = previousVertexFlags;
+            this.pendingSpriteUvRemap = previousSpriteUvRemap;
+            this.pendingSpriteMinU = previousSpriteMinU;
+            this.pendingSpriteMaxU = previousSpriteMaxU;
+            this.pendingSpriteMinV = previousSpriteMinV;
+            this.pendingSpriteMaxV = previousSpriteMaxV;
+            this.pendingNaturalUvTransform = previousNaturalUvTransform;
+            this.pendingEmission = previousPendingEmission;
         }
     }
 

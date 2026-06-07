@@ -16,8 +16,10 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.texture.Sprite;
@@ -152,6 +154,19 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         for (int i = 0; i < count; i++) {
             spriteIndexById.put(sorted.get(i).getKey(), i);
         }
+        Set<Identifier> basesWithVanillaOverlay = new HashSet<>();
+        for (int i = 0; i < count; i++) {
+            Identifier spriteId = sorted.get(i).getKey();
+            String name = spriteId.toString();
+            if (!name.endsWith("_overlay")) {
+                continue;
+            }
+            String baseName = name.substring(0, name.length() - "_overlay".length());
+            Identifier baseId = Identifier.tryParse(baseName);
+            if (baseId != null && spriteIndexById.containsKey(baseId)) {
+                basesWithVanillaOverlay.add(baseId);
+            }
+        }
         String emissiveSuffix = ResourcePackEmissiveTextureResolver.suffix(
             MinecraftClient.getInstance().getResourceManager(),
             Options.materialCompatLegacyMcPatcherEnabled);
@@ -170,9 +185,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     ResourcePackEmissiveTextureResolver.baseSpriteForEmissiveSprite(spriteId, emissiveSuffix);
                 Integer baseIndex = baseId == null ? null : spriteIndexById.get(baseId);
                 if (baseIndex != null) {
-                    overlayOf[i] = baseIndex.shortValue();
+                    boolean shaderOverlaySlotAvailable = !basesWithVanillaOverlay.contains(baseId);
+                    if (shaderOverlaySlotAvailable) {
+                        overlayOf[i] = baseIndex.shortValue();
+                    }
                     emissiveOverlay[i] = true;
-                    ResourcePackEmissiveTextureResolver.registerOverlaySprite(spriteId, baseId);
+                    ResourcePackEmissiveTextureResolver.registerOverlaySprite(
+                        spriteId, baseId, shaderOverlaySlotAvailable);
                 }
             }
         }
