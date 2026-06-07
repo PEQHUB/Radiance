@@ -9,6 +9,7 @@ import net.minecraft.util.Identifier;
 
 public final class AutoPbrTextureCatalog {
     public static final String DISPLACEMENT_HEIGHT_SOURCE = "direct_labpbr_normal_alpha";
+    public static final String MATERIAL_SET_BINDING_POLICY = "sprite_id_alias_until_material_set_table";
     private static final Identifier WATER_STILL = Identifier.ofVanilla("block/water_still");
     private static final Identifier WATER_FLOW = Identifier.ofVanilla("block/water_flow");
     private static final Identifier WATER_OVERLAY = Identifier.ofVanilla("block/water_overlay");
@@ -248,6 +249,30 @@ public final class AutoPbrTextureCatalog {
             emissionAvailability(spriteId));
     }
 
+    public static MaterialTextureSet materialTextureSet(int spriteId) {
+        Identifier sprite = validSpriteId(spriteId) ? TextureArrayBridge.sortedSpriteIds.get(spriteId) : null;
+        DisplacementEligibility displacement = displacementEligibility(spriteId);
+        return new MaterialTextureSet(
+            spriteId,
+            spriteId,
+            sprite == null ? "" : sprite.toString(),
+            validSpriteId(spriteId),
+            MATERIAL_SET_BINDING_POLICY,
+            "labpbr_direct",
+            albedo(spriteId) != null,
+            auxChannelBinding("specular", hasSpecularTexture(spriteId), specularSource(spriteId)),
+            auxChannelBinding("normal", hasNormalTexture(spriteId), normalSource(spriteId)),
+            flagChannelBinding(spriteId),
+            hasAuthoredHeight(spriteId),
+            DISPLACEMENT_HEIGHT_SOURCE,
+            heightAlphaRangeLabel(spriteId),
+            displacement,
+            aoAvailability(spriteId),
+            emissionAvailability(spriteId),
+            spriteSourceFlags(spriteId),
+            spriteSize(spriteId));
+    }
+
     public static int spriteSize(int spriteId) {
         NativeImage image = albedo(spriteId);
         if (image != null) return image.getWidth();
@@ -310,6 +335,33 @@ public final class AutoPbrTextureCatalog {
             || source == TextureTracker.SOURCE_USER_CUSTOM;
     }
 
+    private static ChannelBinding auxChannelBinding(String role, boolean present, byte source) {
+        String binding = switch (source) {
+            case TextureTracker.SOURCE_PACK_AUTHORED -> "direct_labpbr_" + role + "_sidecar";
+            case TextureTracker.SOURCE_USER_CUSTOM -> "user_labpbr_" + role + "_sidecar";
+            case TextureTracker.SOURCE_GENERATED -> "generated_material_lab_" + role;
+            case TextureTracker.SOURCE_FLAT -> present ? "flat_labpbr_default" : "none";
+            default -> present ? "unknown_" + role + "_layer" : "none";
+        };
+        String fallbackReason = switch (source) {
+            case TextureTracker.SOURCE_PACK_AUTHORED, TextureTracker.SOURCE_USER_CUSTOM -> "none";
+            case TextureTracker.SOURCE_GENERATED -> "generated_from_material_recipe";
+            case TextureTracker.SOURCE_FLAT -> "no_pack_" + role + "_sidecar";
+            default -> present ? "unknown_source_" + source : "no_" + role + "_layer";
+        };
+        return new ChannelBinding(role, present, sourceName(source), binding, fallbackReason);
+    }
+
+    private static ChannelBinding flagChannelBinding(int spriteId) {
+        boolean present = hasFlagTexture(spriteId);
+        return new ChannelBinding(
+            "flags",
+            present,
+            present ? "pack_or_generated" : "flat",
+            present ? "direct_flag_layer" : "none",
+            present ? "none" : "no_flag_layer");
+    }
+
     private static boolean hasLabPbrEmissionAlpha(NativeImage image) {
         if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) return false;
         int stepX = Math.max(1, image.getWidth() / 16);
@@ -364,5 +416,20 @@ public final class AutoPbrTextureCatalog {
                 + " visibleHeightRange=" + hasVisibleHeightRange
                 + " alphaRange=" + heightAlphaRange;
         }
+    }
+
+    public record ChannelBinding(String role, boolean present, String source, String binding,
+                                 String fallbackReason) {
+    }
+
+    public record MaterialTextureSet(int materialSetId, int baseSpriteId, String sprite,
+                                     boolean valid, String nativeBindingPolicy, String decodeMode,
+                                     boolean hasAlbedo, ChannelBinding specular,
+                                     ChannelBinding normal, ChannelBinding flags,
+                                     boolean hasAuthoredHeight, String heightSource,
+                                     String heightAlphaRange,
+                                     DisplacementEligibility displacement,
+                                     String aoAvailability, String emissionAvailability,
+                                     int sourceFlags, int size) {
     }
 }

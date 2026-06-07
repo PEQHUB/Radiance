@@ -171,8 +171,27 @@ public final class AutoPbrRuntime {
         root.add("channels", channelSummary(sprite, spriteId, evaluation));
         root.add("textureRule", textureRuleJson(spriteId));
         root.add("nativeTexture", nativeTextureJson(spriteId));
+        root.add("materialSet", materialSetJson(AutoPbrTextureCatalog.materialTextureSet(spriteId)));
         root.add("shaderReachability", shaderReachabilityJson(spriteId, evaluation));
         root.add("displacement", displacementJson(displacement));
+        return GSON.toJson(root);
+    }
+
+    public static String materialSetRegistryJson(int limit) {
+        int spriteCount = Math.min(TextureArrayBridge.sortedSpriteIds.size(), TextureTracker.MAX_TEXTURES);
+        int max = limit <= 0 ? spriteCount : Math.min(limit, spriteCount);
+        JsonObject root = new JsonObject();
+        JsonArray items = new JsonArray();
+        for (int i = 0; i < max; i++) {
+            items.add(materialSetJson(AutoPbrTextureCatalog.materialTextureSet(i)));
+        }
+        root.addProperty("schema", "radser_runtime_material_set_registry_v1");
+        root.addProperty("textureGeneration", TextureArrayBridge.getActiveTextureGeneration());
+        root.addProperty("spriteCount", spriteCount);
+        root.addProperty("reported", max);
+        root.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
+        root.addProperty("decodeMode", "labpbr_direct");
+        root.add("items", items);
         return GSON.toJson(root);
     }
 
@@ -206,6 +225,7 @@ public final class AutoPbrRuntime {
             item.addProperty("sprite", sprite.toString());
             item.addProperty("ok", compileUpload ? upload != null && upload.uploadOk : result != null && result.ok);
             item.addProperty("compiled", compileUpload);
+            item.add("materialSet", materialSetJson(AutoPbrTextureCatalog.materialTextureSet(spriteId)));
             if (upload != null) {
                 item.addProperty("uploadOk", upload.uploadOk);
                 item.addProperty("uploadStatus", upload.statusText);
@@ -434,6 +454,39 @@ public final class AutoPbrRuntime {
         json.addProperty("hasNormal", AutoPbrTextureCatalog.hasNormalTexture(spriteId));
         json.addProperty("hasFlags", AutoPbrTextureCatalog.hasFlagTexture(spriteId));
         json.addProperty("sourceFlags", AutoPbrTextureCatalog.spriteSourceFlags(spriteId));
+        return json;
+    }
+
+    private static JsonObject materialSetJson(AutoPbrTextureCatalog.MaterialTextureSet set) {
+        JsonObject json = new JsonObject();
+        json.addProperty("materialSetId", set.materialSetId());
+        json.addProperty("baseSpriteId", set.baseSpriteId());
+        json.addProperty("sprite", set.sprite());
+        json.addProperty("valid", set.valid());
+        json.addProperty("nativeBindingPolicy", set.nativeBindingPolicy());
+        json.addProperty("decodeMode", set.decodeMode());
+        json.addProperty("hasAlbedo", set.hasAlbedo());
+        json.add("specular", channelBindingJson(set.specular()));
+        json.add("normal", channelBindingJson(set.normal()));
+        json.add("flags", channelBindingJson(set.flags()));
+        json.addProperty("hasAuthoredHeight", set.hasAuthoredHeight());
+        json.addProperty("heightSource", set.heightSource());
+        json.addProperty("heightAlphaRange", set.heightAlphaRange());
+        json.add("displacement", displacementJson(set.displacement()));
+        json.addProperty("aoAvailability", set.aoAvailability());
+        json.addProperty("emissionAvailability", set.emissionAvailability());
+        json.addProperty("sourceFlags", set.sourceFlags());
+        json.addProperty("size", set.size());
+        return json;
+    }
+
+    private static JsonObject channelBindingJson(AutoPbrTextureCatalog.ChannelBinding binding) {
+        JsonObject json = new JsonObject();
+        json.addProperty("role", binding.role());
+        json.addProperty("present", binding.present());
+        json.addProperty("source", binding.source());
+        json.addProperty("binding", binding.binding());
+        json.addProperty("fallbackReason", binding.fallbackReason());
         return json;
     }
 

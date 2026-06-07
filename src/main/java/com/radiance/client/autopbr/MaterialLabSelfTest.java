@@ -91,6 +91,7 @@ public final class MaterialLabSelfTest {
         shapedThicknessMinMaxGammaAffectsRule();
         aoIsHiddenContractAndPreservedByDefault();
         heightOnlyNormalBakeUsesFlatLabPbrFallback();
+        materialSetRegistryReportsDirectLabPbrSidecars();
         generatedMasksAreDeterministic();
         histogramClampAndSmoothingAreDeterministic();
         dropdownRowSelectionUsesClickCoordinates();
@@ -520,6 +521,88 @@ public final class MaterialLabSelfTest {
             if (previous != null) {
                 TextureTracker.spriteNormalCache.put(0, previous);
             }
+        }
+    }
+
+    private static void materialSetRegistryReportsDirectLabPbrSidecars() {
+        List<Identifier> previousSprites = new ArrayList<>(TextureArrayBridge.sortedSpriteIds);
+        byte[] previousSpecularSources = TextureTracker.spriteSpecularSource.clone();
+        byte[] previousNormalSources = TextureTracker.spriteNormalSource.clone();
+        NativeImage previousAlbedo = TextureTracker.spriteAlbedoCache.remove(0);
+        NativeImage previousSpecular = TextureTracker.spriteSpecularCache.remove(0);
+        NativeImage previousNormal = TextureTracker.spriteNormalCache.remove(0);
+        NativeImage previousFlag = TextureTracker.spriteFlagCache.remove(0);
+        NativeImage albedo = null;
+        NativeImage specular = null;
+        NativeImage normal = null;
+        try {
+            TextureArrayBridge.setSortedSpriteIds(List.of(SPRITE, Identifier.ofVanilla("block/glass")));
+            albedo = new NativeImage(NativeImage.Format.RGBA, 2, 1, false);
+            specular = new NativeImage(NativeImage.Format.RGBA, 2, 1, false);
+            normal = new NativeImage(NativeImage.Format.RGBA, 2, 1, false);
+            albedo.setColorArgb(0, 0, 0xFFFFFFFF);
+            albedo.setColorArgb(1, 0, 0xFFFFFFFF);
+            specular.setColorArgb(0, 0, 0xFF202020);
+            specular.setColorArgb(1, 0, 0xFF202020);
+            normal.setColorArgb(0, 0, 0xF58080FF);
+            normal.setColorArgb(1, 0, 0xFF8080FF);
+            TextureTracker.spriteAlbedoCache.put(0, albedo);
+            TextureTracker.spriteSpecularCache.put(0, specular);
+            TextureTracker.spriteNormalCache.put(0, normal);
+            TextureTracker.spriteSpecularSource[0] = TextureTracker.SOURCE_PACK_AUTHORED;
+            TextureTracker.spriteNormalSource[0] = TextureTracker.SOURCE_PACK_AUTHORED;
+
+            JsonObject audit = JsonParser.parseString(AutoPbrRuntime.materialAuditJson("0")).getAsJsonObject();
+            JsonObject materialSet = audit.getAsJsonObject("materialSet");
+            expect(materialSet != null, "material audit should expose material-set binding");
+            expect(materialSet.get("materialSetId").getAsInt() == 0, "material set id should alias sprite id");
+            expect("sprite_id_alias_until_material_set_table".equals(
+                    materialSet.get("nativeBindingPolicy").getAsString()),
+                "material-set binding policy should be explicit");
+            expect("labpbr_direct".equals(materialSet.get("decodeMode").getAsString()),
+                "material set should use direct LabPBR decode mode");
+            expect("direct_labpbr_normal_alpha".equals(materialSet.get("heightSource").getAsString()),
+                "material set should identify direct LabPBR normal-alpha displacement");
+            expect("245..255".equals(materialSet.get("heightAlphaRange").getAsString()),
+                "material set should report normal alpha range as diagnostics");
+            expect(materialSet.getAsJsonObject("displacement").get("eligible").getAsBoolean(),
+                "authored normal alpha should be displacement eligible");
+            expect("direct_labpbr_specular_sidecar".equals(
+                    materialSet.getAsJsonObject("specular").get("binding").getAsString()),
+                "pack-authored specular should bind directly");
+            expect("direct_labpbr_normal_sidecar".equals(
+                    materialSet.getAsJsonObject("normal").get("binding").getAsString()),
+                "pack-authored normal should bind directly");
+
+            JsonObject registry = JsonParser.parseString(AutoPbrRuntime.materialSetRegistryJson(1)).getAsJsonObject();
+            expect("radser_runtime_material_set_registry_v1".equals(registry.get("schema").getAsString()),
+                "material set registry should expose a stable schema");
+            expect(registry.get("reported").getAsInt() == 1,
+                "bounded material set registry should honor the requested limit");
+            JsonObject item = registry.getAsJsonArray("items").get(0).getAsJsonObject();
+            expect("minecraft:block/oak_planks".equals(item.get("sprite").getAsString()),
+                "material set registry should preserve sprite labels");
+            expect("direct_labpbr_normal_alpha".equals(item.get("heightSource").getAsString()),
+                "material set registry should retain direct LabPBR height source");
+        } finally {
+            TextureTracker.spriteAlbedoCache.remove(0);
+            TextureTracker.spriteSpecularCache.remove(0);
+            TextureTracker.spriteNormalCache.remove(0);
+            TextureTracker.spriteFlagCache.remove(0);
+            if (albedo != null) albedo.close();
+            if (specular != null) specular.close();
+            if (normal != null) normal.close();
+            if (previousAlbedo != null) TextureTracker.spriteAlbedoCache.put(0, previousAlbedo);
+            if (previousSpecular != null) TextureTracker.spriteSpecularCache.put(0, previousSpecular);
+            if (previousNormal != null) TextureTracker.spriteNormalCache.put(0, previousNormal);
+            if (previousFlag != null) TextureTracker.spriteFlagCache.put(0, previousFlag);
+            System.arraycopy(previousSpecularSources, 0, TextureTracker.spriteSpecularSource, 0,
+                TextureTracker.spriteSpecularSource.length);
+            System.arraycopy(previousNormalSources, 0, TextureTracker.spriteNormalSource, 0,
+                TextureTracker.spriteNormalSource.length);
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
         }
     }
 
