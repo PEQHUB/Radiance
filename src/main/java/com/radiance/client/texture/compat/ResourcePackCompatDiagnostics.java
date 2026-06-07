@@ -356,6 +356,14 @@ public final class ResourcePackCompatDiagnostics {
             if (pack.has("error")) {
                 addWarning(warnings, "error", "pack_scan_error", pack, stringProperty(pack, "error"));
             }
+            if (boolProperty(pack, "wrapperArchive")) {
+                JsonObject warning = warning("warning", "wrapper_zip_resource_pack",
+                    "This zip contains nested resource-pack archives and no root pack.mcmeta; Minecraft and RadSER will not load the inner packs from this wrapper.");
+                addPackIdentity(warning, pack);
+                warning.addProperty("nestedArchiveCount", intProperty(pack, "nestedArchiveCount"));
+                warning.add("nestedArchives", array(pack, "nestedArchives").deepCopy());
+                warnings.add(warning);
+            }
             if (boolProperty(pack, "incompatibleSelected")) {
                 addWarning(warnings, "warning", "selected_pack_marked_incompatible", pack,
                     "Minecraft options.txt marks this selected pack as incompatible.");
@@ -1021,9 +1029,12 @@ public final class ResourcePackCompatDiagnostics {
         private int randomEntityEntries;
         private int properties;
         private int packMcmeta;
+        private int rootPackMcmeta;
+        private int nestedArchiveCount;
         private boolean compatRecordsTruncated;
         private boolean ctmDependenciesTruncated;
         private boolean ctmDependenciesFinalized;
+        private final JsonArray nestedArchives = new JsonArray();
 
         PackCounters(Path pack, int sampleLimit) {
             this.pack = pack;
@@ -1037,6 +1048,13 @@ public final class ResourcePackCompatDiagnostics {
             entryNames.add(lower);
 
             if (lower.endsWith("pack.mcmeta")) packMcmeta++;
+            if ("pack.mcmeta".equals(lower)) rootPackMcmeta++;
+            if (lower.endsWith(".zip")) {
+                nestedArchiveCount++;
+                if (nestedArchives.size() < sampleLimit) {
+                    nestedArchives.add(name);
+                }
+            }
             if (lower.endsWith(".png") && lower.contains("/textures/")) {
                 texturePng++;
                 String base = textureBase(lower);
@@ -1350,6 +1368,12 @@ public final class ResourcePackCompatDiagnostics {
             if (error != null) json.addProperty("error", error);
             json.addProperty("entries", entries);
             json.addProperty("packMcmeta", packMcmeta);
+            json.addProperty("rootPackMcmeta", rootPackMcmeta);
+            json.addProperty("nestedPackMcmeta", Math.max(0, packMcmeta - rootPackMcmeta));
+            json.addProperty("nestedArchiveCount", nestedArchiveCount);
+            json.addProperty("wrapperArchive", wrapperArchive());
+            json.addProperty("packLayout", packLayout());
+            json.add("nestedArchives", nestedArchives);
             JsonObject counts = new JsonObject();
             counts.addProperty("texturePng", texturePng);
             counts.addProperty("albedoPng", albedoPng);
@@ -1385,6 +1409,26 @@ public final class ResourcePackCompatDiagnostics {
             json.add("propertyKeys", propertyKeysJson());
             json.add("samples", samples);
             return json;
+        }
+
+        private boolean wrapperArchive() {
+            return "zip".equals(kind) && rootPackMcmeta == 0 && nestedArchiveCount > 0;
+        }
+
+        private String packLayout() {
+            if (!"zip".equals(kind)) {
+                return rootPackMcmeta > 0 ? "directory_resource_pack" : "directory_without_root_pack_mcmeta";
+            }
+            if (rootPackMcmeta > 0) {
+                return "root_resource_pack";
+            }
+            if (nestedArchiveCount > 0) {
+                return "nested_archive_wrapper";
+            }
+            if (packMcmeta > 0) {
+                return "nested_directory_wrapper";
+            }
+            return "zip_without_root_pack_mcmeta";
         }
 
         private JsonObject ctmAtlasDependenciesJson() {

@@ -51,6 +51,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import net.minecraft.client.texture.atlas.AtlasSource;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.client.texture.NativeImage;
@@ -108,6 +110,7 @@ public final class MaterialLabSelfTest {
         materialCompatFlagsDefaultEnabled();
         materialCompatLegacyDisabledOptionsMigrateToDefaults();
         materialCompatScannerRecognizesCoreFeatures();
+        materialCompatScannerDetectsWrapperZipPacks();
         materialCompatRunScanMarksActivePacksAndParsesRecords();
         materialCompatWritesParserArtifactDumps();
         materialCompatDiagnosticsDetectPersistedOptionDivergence();
@@ -1241,6 +1244,41 @@ public final class MaterialLabSelfTest {
             expect(report.getAsJsonArray("samples").size() >= 3, "scanner should retain property samples");
         } catch (IOException e) {
             throw new AssertionError("material compat scanner fixture failed", e);
+        } finally {
+            if (root != null) {
+                deleteTree(root);
+            }
+        }
+    }
+
+    private static void materialCompatScannerDetectsWrapperZipPacks() {
+        Path root = null;
+        try {
+            root = Files.createTempDirectory("radser-material-compat-wrapper");
+            Path wrapper = root.resolve("Patrix128x-wrapper.zip");
+            try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(wrapper))) {
+                zip.putNextEntry(new ZipEntry("Patrix128x/Patrix_1.20.4_128x_basic.zip"));
+                zip.write(new byte[] {0, 1, 2, 3});
+                zip.closeEntry();
+                zip.putNextEntry(new ZipEntry("Patrix128x/Patrix_1.20.4_128x_items.zip"));
+                zip.write(new byte[] {4, 5, 6, 7});
+                zip.closeEntry();
+            }
+
+            JsonObject report = JsonParser.parseString(
+                ResourcePackCompatDiagnostics.scanPackJsonForTest(wrapper.toString())).getAsJsonObject();
+            expect(report.get("scannable").getAsBoolean(), "wrapper zip fixture should be scannable");
+            expect("zip".equals(report.get("kind").getAsString()), "wrapper zip fixture should report zip kind");
+            expect(report.get("packMcmeta").getAsInt() == 0, "wrapper zip should not pretend to have pack metadata");
+            expect(report.get("rootPackMcmeta").getAsInt() == 0, "wrapper zip should expose missing root pack.mcmeta");
+            expect(report.get("nestedArchiveCount").getAsInt() == 2, "wrapper zip should count inner pack archives");
+            expect(report.get("wrapperArchive").getAsBoolean(), "wrapper zip should be flagged as a nested archive wrapper");
+            expect("nested_archive_wrapper".equals(report.get("packLayout").getAsString()),
+                "wrapper zip should report its nested archive layout");
+            expect(report.getAsJsonArray("nestedArchives").size() == 2,
+                "wrapper zip should retain inner archive samples for diagnostics");
+        } catch (IOException e) {
+            throw new AssertionError("material compat wrapper zip fixture failed", e);
         } finally {
             if (root != null) {
                 deleteTree(root);
