@@ -105,6 +105,12 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             return;
         }
 
+        int renderableSpriteCapacity = TextureArrayBridge.refreshNativeRenderableSpriteCapacity();
+        if (sortedIds.size() > renderableSpriteCapacity) {
+            LOGGER.warn("[TextureRefactor] Block atlas has {} sprites but native texture arrays can render {}. "
+                    + "Overflow sprites will resolve to the material-safe fallback until texture paging lands.",
+                sortedIds.size(), renderableSpriteCapacity);
+        }
         TextureArrayBridge.setSortedSpriteIds(sortedIds);
         TextureArrayBridge.incrementTextureGeneration();
         int spriteSize = manifest.fixedLayerSize();

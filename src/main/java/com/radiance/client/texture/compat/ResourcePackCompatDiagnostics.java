@@ -187,6 +187,12 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("filtersPbrAuxiliarySuffixes", "_s,_n,_f,_e");
         json.addProperty("missingSpriteFallbackId", TextureArrayBridge.missingSpriteFallbackIdForTest());
         json.addProperty("missingSpriteFallbackSprite", TextureArrayBridge.missingSpriteFallbackLabel());
+        json.addProperty("javaSpriteCount", TextureArrayBridge.sortedSpriteIds.size());
+        json.addProperty("nativeRenderableSpriteCapacity", TextureArrayBridge.renderableSpriteCapacityForTest());
+        int overflow = Math.max(0,
+            TextureArrayBridge.sortedSpriteIds.size() - TextureArrayBridge.renderableSpriteCapacityForTest());
+        json.addProperty("overflowSpriteCount", overflow);
+        json.addProperty("overflowSpritesFallbackToMissingSafeSprite", true);
         return json;
     }
 

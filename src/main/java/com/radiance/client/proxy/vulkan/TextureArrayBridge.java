@@ -20,6 +20,7 @@ public final class TextureArrayBridge {
     private static Map<Identifier, Integer> spriteIdLookup = new HashMap<>();
     private static volatile int missingSpriteFallbackId = -1;
     private static volatile Identifier missingSpriteFallbackSprite = null;
+    private static volatile int renderableSpriteCapacity = TextureTracker.MAX_SPRITES;
     private static final List<Identifier> MISSING_SPRITE_FALLBACKS = List.of(
         Identifier.ofVanilla("block/dirt"),
         Identifier.ofVanilla("block/stone"),
@@ -48,6 +49,21 @@ public final class TextureArrayBridge {
         }
     }
 
+    public static int refreshNativeRenderableSpriteCapacity() {
+        int capacity = TextureTracker.MAX_SPRITES;
+        try {
+            int nativeCapacity = nativeMaxRenderableSpriteCount();
+            if (nativeCapacity > 0) {
+                capacity = Math.min(nativeCapacity, TextureTracker.MAX_SPRITES);
+            }
+        } catch (UnsatisfiedLinkError e) {
+            LOGGER.debug("[TextureSystem] Native sprite capacity query skipped", e);
+        }
+        renderableSpriteCapacity = Math.max(0, capacity);
+        refreshMissingSpriteFallback(spriteIdLookup);
+        return renderableSpriteCapacity;
+    }
+
     public static void setSortedSpriteIds(List<Identifier> spriteIds) {
         sortedSpriteIds = new ArrayList<>(spriteIds);
         Map<Identifier, Integer> nextLookup = new HashMap<>();
@@ -56,7 +72,8 @@ public final class TextureArrayBridge {
         }
         spriteIdLookup = nextLookup;
         refreshMissingSpriteFallback(nextLookup);
-        LOGGER.info("[TextureSystem] Sprite lookup refreshed: {} entries", spriteIdLookup.size());
+        LOGGER.info("[TextureSystem] Sprite lookup refreshed: {} entries, renderable capacity {}",
+            spriteIdLookup.size(), renderableSpriteCapacity);
     }
 
     private static void refreshMissingSpriteFallback(Map<Identifier, Integer> lookup) {
@@ -64,14 +81,15 @@ public final class TextureArrayBridge {
         missingSpriteFallbackSprite = null;
         for (Identifier candidate : MISSING_SPRITE_FALLBACKS) {
             Integer id = lookup.get(candidate);
-            if (id != null && id >= 0) {
+            if (isRenderableSpriteId(id)) {
                 missingSpriteFallbackId = id;
                 missingSpriteFallbackSprite = candidate;
                 return;
             }
         }
         for (Map.Entry<Identifier, Integer> entry : lookup.entrySet()) {
-            if (!MissingSprite.getMissingSpriteId().equals(entry.getKey())) {
+            if (!MissingSprite.getMissingSpriteId().equals(entry.getKey())
+                && isRenderableSpriteId(entry.getValue())) {
                 missingSpriteFallbackId = entry.getValue();
                 missingSpriteFallbackSprite = entry.getKey();
                 return;
@@ -79,12 +97,16 @@ public final class TextureArrayBridge {
         }
     }
 
+    private static boolean isRenderableSpriteId(Integer spriteId) {
+        return spriteId != null && spriteId >= 0 && spriteId < renderableSpriteCapacity;
+    }
+
     public static int resolveRenderableSpriteId(Identifier id) {
         if (id == null) {
             return -1;
         }
         Integer spriteId = spriteIdLookup.get(id);
-        if (spriteId != null && spriteId >= 0 && !MissingSprite.getMissingSpriteId().equals(id)) {
+        if (isRenderableSpriteId(spriteId) && !MissingSprite.getMissingSpriteId().equals(id)) {
             return spriteId;
         }
         return missingSpriteFallbackId;
@@ -129,6 +151,15 @@ public final class TextureArrayBridge {
         return missingSpriteFallbackSprite == null ? "none" : missingSpriteFallbackSprite.toString();
     }
 
+    public static int renderableSpriteCapacityForTest() {
+        return renderableSpriteCapacity;
+    }
+
+    public static void setRenderableSpriteCapacityForTest(int capacity) {
+        renderableSpriteCapacity = Math.max(0, Math.min(capacity, TextureTracker.MAX_SPRITES));
+        refreshMissingSpriteFallback(spriteIdLookup);
+    }
+
     public static int resolveSpriteId(String text) {
         if (text == null || text.isBlank()) {
             return -1;
@@ -136,7 +167,7 @@ public final class TextureArrayBridge {
         String token = text.trim();
         try {
             int numeric = Integer.parseInt(token);
-            return numeric >= 0 ? numeric : -1;
+            return numeric >= 0 && numeric < renderableSpriteCapacity ? numeric : -1;
         } catch (NumberFormatException ignored) {
         }
 
@@ -147,7 +178,8 @@ public final class TextureArrayBridge {
         if (id == null) {
             return -1;
         }
-        return spriteIdLookup.getOrDefault(id, -1);
+        Integer spriteId = spriteIdLookup.get(id);
+        return isRenderableSpriteId(spriteId) ? spriteId : -1;
     }
 
     public static void reset() {
@@ -155,8 +187,10 @@ public final class TextureArrayBridge {
         spriteIdLookup = new HashMap<>();
         missingSpriteFallbackId = -1;
         missingSpriteFallbackSprite = null;
+        renderableSpriteCapacity = TextureTracker.MAX_SPRITES;
     }
 
+    public static native int nativeMaxRenderableSpriteCount();
     public static native void nativeReceiveSpriteTable(long metaPtr, int count,
         int atlasWidth, int atlasHeight);
     public static native void nativeReceiveSpritePixels(long dataPtr, int totalBytes);

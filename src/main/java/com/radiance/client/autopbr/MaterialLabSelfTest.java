@@ -719,10 +719,12 @@ public final class MaterialLabSelfTest {
 
     private static void missingSpriteFallbackUsesRenderableBlockSprite() {
         Map<Identifier, Integer> oldTextureIds = new LinkedHashMap<>(TextureTracker.textureID2GLID);
+        int oldRenderableCapacity = TextureArrayBridge.renderableSpriteCapacityForTest();
         TextureArrayBridge.setSortedSpriteIds(List.of(
             MissingSprite.getMissingSpriteId(),
             Identifier.ofVanilla("block/dirt"),
-            Identifier.ofVanilla("block/stone")));
+            Identifier.ofVanilla("block/stone"),
+            Identifier.ofVanilla("block/overflow_ctm_tile")));
         try {
             TextureTracker.textureID2GLID.clear();
             TextureTracker.textureID2GLID.put(MissingSprite.getMissingSpriteId(), 11);
@@ -737,6 +739,16 @@ public final class MaterialLabSelfTest {
                 "renderable missing lookup should fall back to dirt");
             expect(TextureArrayBridge.resolveRenderableSpriteId(Identifier.ofVanilla("block/does_not_exist")) == dirt,
                 "unknown renderable lookup should fall back to dirt");
+            expect(TextureArrayBridge.resolveSpriteId("minecraft:block/overflow_ctm_tile") == 3,
+                "diagnostic sprite lookup should expose in-capacity CTM tiles");
+            TextureArrayBridge.setRenderableSpriteCapacityForTest(3);
+            expect(TextureArrayBridge.resolveSpriteId("minecraft:block/overflow_ctm_tile") == -1,
+                "overflow sprite lookup should reject ids the native texture array cannot upload");
+            expect(TextureArrayBridge.resolveRenderableSpriteId(
+                    Identifier.ofVanilla("block/overflow_ctm_tile")) == dirt,
+                "overflow renderable sprite lookup should fall back to a valid material-safe sprite");
+            expect(TextureArrayBridge.renderableSpriteCapacityForTest() == 3,
+                "diagnostics should expose the active native renderable sprite capacity");
             expect(TextureArrayBridge.resolveRenderableTextureGlId(MissingSprite.getMissingSpriteId(), 11) == 22,
                 "renderable GL texture lookup should replace explicit missing texture bindings");
             expect(TextureArrayBridge.resolveRenderableTextureGlId(Identifier.ofVanilla("textures/entity/missing.png"), 11) == 22,
@@ -746,6 +758,7 @@ public final class MaterialLabSelfTest {
         } finally {
             TextureTracker.textureID2GLID.clear();
             TextureTracker.textureID2GLID.putAll(oldTextureIds);
+            TextureArrayBridge.setRenderableSpriteCapacityForTest(oldRenderableCapacity);
             TextureArrayBridge.setSortedSpriteIds(List.of(SPRITE, Identifier.ofVanilla("block/glass")));
         }
     }
