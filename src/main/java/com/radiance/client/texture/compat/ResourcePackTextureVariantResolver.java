@@ -27,6 +27,7 @@ import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
 import net.minecraft.world.BlockRenderView;
+import net.minecraft.world.WorldView;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -295,11 +296,13 @@ public final class ResourcePackTextureVariantResolver {
         String tintBlock = normalizeBlockIdToken(props.getProperty("tintBlock", ""));
         int alphaMode = parseLayerAlphaMode(props.getProperty("layer", ""));
         int[] ctmReplacementMap = parseCtmReplacementMap(props);
+        List<String> biomes = parseBiomeTokens(props.getProperty("biomes", ""));
+        HeightPredicate heightPredicate = parseHeightPredicate(props);
         return Optional.of(new VariantRule(propertyId.toString(), ruleMethod, matchTiles, matchBlocks,
             connectTiles, connectBlocks,
             faces, connectMode, List.copyOf(outputs), List.copyOf(choices), weights, randomLoops, randomSymmetry,
             repeatWidth, repeatHeight, tintIndex, tintBlock, alphaMode,
-            ctmReplacementMap));
+            ctmReplacementMap, List.copyOf(biomes), heightPredicate));
     }
 
     private static List<TileChoice> tileChoices(String propertyAssetPath, String tilesValue, RuleMethod method) {
@@ -615,6 +618,72 @@ public final class ResourcePackTextureVariantResolver {
         }
     }
 
+    private record HeightPredicate(List<HeightRange> ranges) {
+        static HeightPredicate empty() {
+            return new HeightPredicate(List.of());
+        }
+
+        static HeightPredicate of(int min, int max) {
+            return new HeightPredicate(List.of(HeightRange.of(min, max)));
+        }
+
+        static HeightPredicate parse(String raw) {
+            if (raw == null || raw.isBlank()) {
+                return empty();
+            }
+            ArrayList<HeightRange> parsed = new ArrayList<>();
+            for (String token : raw.trim().split("[\\s,]+")) {
+                Optional<HeightRange> range = HeightRange.parse(token);
+                range.ifPresent(parsed::add);
+            }
+            return parsed.isEmpty() ? empty() : new HeightPredicate(List.copyOf(parsed));
+        }
+
+        boolean matches(@Nullable BlockPos pos) {
+            if (ranges.isEmpty()) {
+                return true;
+            }
+            if (pos == null) {
+                return false;
+            }
+            int y = pos.getY();
+            for (HeightRange range : ranges) {
+                if (range.matches(y)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    private record HeightRange(int min, int max) {
+        static HeightRange of(int min, int max) {
+            return min <= max ? new HeightRange(min, max) : new HeightRange(max, min);
+        }
+
+        static Optional<HeightRange> parse(String raw) {
+            String token = raw == null ? "" : raw.trim();
+            if (token.isEmpty()) {
+                return Optional.empty();
+            }
+            int dash = token.indexOf('-', 1);
+            try {
+                if (dash > 0 && dash < token.length() - 1) {
+                    return Optional.of(of(Integer.parseInt(token.substring(0, dash)),
+                        Integer.parseInt(token.substring(dash + 1))));
+                }
+                int value = Integer.parseInt(token);
+                return Optional.of(of(value, value));
+            } catch (NumberFormatException ignored) {
+                return Optional.empty();
+            }
+        }
+
+        boolean matches(int y) {
+            return y >= min && y <= max;
+        }
+    }
+
     private static String normalizeMatchToken(String raw) {
         String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
         if (token.endsWith(".png")) {
@@ -752,6 +821,50 @@ public final class ResourcePackTextureVariantResolver {
         return replacements;
     }
 
+    private static List<String> parseBiomeTokens(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        ArrayList<String> biomes = new ArrayList<>();
+        for (String token : raw.trim().split("[\\s,]+")) {
+            String normalized = normalizeBiomeToken(token);
+            if (!normalized.isEmpty()) {
+                biomes.add(normalized);
+            }
+        }
+        return List.copyOf(biomes);
+    }
+
+    private static HeightPredicate parseHeightPredicate(Properties props) {
+        String heights = props.getProperty("heights", "").trim();
+        if (!heights.isEmpty()) {
+            return HeightPredicate.parse(heights);
+        }
+        String min = props.getProperty("minHeight", "").trim();
+        String max = props.getProperty("maxHeight", "").trim();
+        if (min.isEmpty() && max.isEmpty()) {
+            return HeightPredicate.empty();
+        }
+        int minValue = min.isEmpty() ? Integer.MIN_VALUE : parseInt(min, Integer.MIN_VALUE);
+        int maxValue = max.isEmpty() ? Integer.MAX_VALUE : parseInt(max, Integer.MAX_VALUE);
+        return HeightPredicate.of(minValue, maxValue);
+    }
+
+    private static String normalizeBiomeToken(String raw) {
+        String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
+        if (token.isEmpty()) {
+            return "";
+        }
+        if (token.startsWith("biome/")) {
+            token = token.substring("biome/".length());
+        }
+        int colon = token.indexOf(':');
+        if (colon > 0) {
+            return token;
+        }
+        return "minecraft:" + token;
+    }
+
     private static Identifier spriteIdentifier(@Nullable Sprite sprite) {
         return sprite == null || sprite.getContents() == null ? null : sprite.getContents().getId();
     }
@@ -775,6 +888,11 @@ public final class ResourcePackTextureVariantResolver {
         public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable BlockPos pos,
             @Nullable Direction face) {
             return resolve(source, sourceSpriteId, null, null, pos, face);
+        }
+
+        public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable BlockPos pos,
+            @Nullable Direction face, @Nullable String biomeId) {
+            return resolveDetailed(source, sourceSpriteId, null, null, pos, face, biomeId).spriteId();
         }
 
         public ResolvedBlockSprite resolveDetailedForTest(Identifier source, int sourceSpriteId,
@@ -863,6 +981,23 @@ public final class ResourcePackTextureVariantResolver {
             return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector);
         }
 
+        ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, @Nullable String biomeId) {
+            NeighborConnector connector = new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return ResolverIndex.this.connects(world, state, pos, direction, mode);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return ResolverIndex.this.connects(world, state, pos, first, second, mode);
+                }
+            };
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, biomeId);
+        }
+
         int resolve(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector) {
             return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector).spriteId();
@@ -871,11 +1006,19 @@ public final class ResourcePackTextureVariantResolver {
         ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector) {
+            return resolveDetailed(source, sourceSpriteId, world, state, pos, face, connector, null);
+        }
+
+        ResolvedBlockSprite resolveDetailed(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
+            @Nullable String biomeId) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
             }
             for (VariantRule rule : rules) {
-                if (rule.method().overlayRule() || !rule.enabledByOptions() || !rule.matches(source, state, face)) {
+                if (rule.method().overlayRule() || !rule.enabledByOptions()
+                    || !rule.matches(source, world, state, pos, face, biomeId)) {
                     continue;
                 }
                 ResolvedBlockSprite resolved =
@@ -909,11 +1052,18 @@ public final class ResourcePackTextureVariantResolver {
         BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
             NeighborConnector connector) {
+            return resolveOverlay(source, sourceSpriteId, world, state, pos, face, connector, null);
+        }
+
+        BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
+            @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
+            NeighborConnector connector, @Nullable String biomeId) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
                 return new BlockOverlaySprite[0];
             }
             for (VariantRule rule : rules) {
-                if (!rule.method().overlayRule() || !rule.enabledByOptions() || !rule.matches(source, state, face)) {
+                if (!rule.method().overlayRule() || !rule.enabledByOptions()
+                    || !rule.matches(source, world, state, pos, face, biomeId)) {
                     continue;
                 }
                 BlockOverlaySprite[] resolved =
@@ -974,7 +1124,9 @@ public final class ResourcePackTextureVariantResolver {
                                int tintIndex,
                                String tintBlock,
                                int alphaMode,
-                               int[] ctmReplacementMap) {
+                               int[] ctmReplacementMap,
+                               List<String> biomes,
+                               HeightPredicate heightPredicate) {
         boolean enabledByOptions() {
             return switch (method) {
                 case CTM, CTM_COMPACT, FIXED -> Options.materialCompatCtmEnabled;
@@ -986,8 +1138,15 @@ public final class ResourcePackTextureVariantResolver {
             };
         }
 
-        boolean matches(Identifier source, @Nullable BlockState state, @Nullable Direction face) {
+        boolean matches(Identifier source, @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, @Nullable String biomeId) {
             if (face != null && !faces.contains(face)) {
+                return false;
+            }
+            if (!heightPredicate.matches(pos)) {
+                return false;
+            }
+            if (!biomeMatches(world, pos, biomeId)) {
                 return false;
             }
             if (!matchBlocks.isEmpty() && state != null) {
@@ -1005,6 +1164,24 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return false;
+        }
+
+        private boolean biomeMatches(@Nullable BlockRenderView world, @Nullable BlockPos pos,
+            @Nullable String biomeId) {
+            if (biomes.isEmpty()) {
+                return true;
+            }
+            String actual = normalizeBiomeToken(biomeId);
+            if (actual.isEmpty() && world instanceof WorldView worldView && pos != null) {
+                try {
+                    actual = worldView.getBiome(pos).getKey()
+                        .map(key -> normalizeBiomeToken(key.getValue().toString()))
+                        .orElse("");
+                } catch (Throwable ignored) {
+                    actual = "";
+                }
+            }
+            return !actual.isEmpty() && biomes.contains(actual);
         }
 
         ResolvedBlockSprite resolveSprite(Identifier source, int sourceSpriteId,

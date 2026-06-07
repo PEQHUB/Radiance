@@ -107,6 +107,7 @@ public final class MaterialLabSelfTest {
         ctmAtlasSourceCollectsPresentTiles();
         emissiveTextureResolverMapsSuffixesAndAtlasAdmission();
         textureVariantResolverSelectsFixedAndRandomSprites();
+        textureVariantResolverRespectsBiomeAndHeightPredicates();
         textureVariantResolverSelectsRepeatSprites();
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverSelectsOverlaySprites();
@@ -1406,6 +1407,80 @@ public final class MaterialLabSelfTest {
             Options.materialCompatCtmEnabled = oldCtm;
             Options.materialCompatRandomEnabled = oldRandom;
             Options.materialCompatLegacyMcPatcherEnabled = oldLegacy;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverRespectsBiomeAndHeightPredicates() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier fixed = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/predicate/fixed.png"));
+            Identifier legacy = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/predicate/legacy.png"));
+            expect(fixed != null && legacy != null, "predicate fixture ids should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, fixed, legacy));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+            Options.materialCompatRandomEnabled = false;
+
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            int fixedId = TextureArrayBridge.resolveSpriteId(fixed.toString());
+            int legacyId = TextureArrayBridge.resolveSpriteId(legacy.toString());
+
+            FakeResourceManager predicateManager = new FakeResourceManager();
+            predicateManager.add("minecraft:optifine/ctm/predicate/predicate.properties",
+                String.join("\n",
+                    "method=fixed",
+                    "matchTiles=stone",
+                    "tiles=fixed",
+                    "heights=64-70 80",
+                    "biomes=desert"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex predicate =
+                ResourcePackTextureVariantResolver.buildForTest(predicateManager, false);
+            expect(predicate.ruleCountForTest() == 1, "height and biome predicate rule should compile");
+            expect(predicate.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH,
+                    "minecraft:desert") == fixedId,
+                "height and biome predicates should allow matching positions");
+            expect(predicate.resolveForTest(stone, stoneId, new BlockPos(0, 63, 0), Direction.NORTH,
+                    "minecraft:desert") == stoneId,
+                "height predicates should reject positions below the allowed range");
+            expect(predicate.resolveForTest(stone, stoneId, new BlockPos(0, 80, 0), Direction.NORTH,
+                    "minecraft:desert") == fixedId,
+                "single-value height predicates should match exact Y values");
+            expect(predicate.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH,
+                    "minecraft:plains") == stoneId,
+                "biome predicates should reject unmatched biome ids");
+            expect(predicate.resolveForTest(stone, stoneId, new BlockPos(0, 64, 0), Direction.NORTH) == stoneId,
+                "biome predicates should not match when no biome context is available");
+
+            FakeResourceManager legacyManager = new FakeResourceManager();
+            legacyManager.add("minecraft:optifine/ctm/predicate/legacy.properties",
+                String.join("\n",
+                    "method=fixed",
+                    "matchTiles=stone",
+                    "tiles=legacy",
+                    "minHeight=-16",
+                    "maxHeight=-8"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex legacyIndex =
+                ResourcePackTextureVariantResolver.buildForTest(legacyManager, false);
+            expect(legacyIndex.resolveForTest(stone, stoneId, new BlockPos(0, -12, 0), Direction.UP) == legacyId,
+                "legacy minHeight/maxHeight predicates should allow in-range negative Y values");
+            expect(legacyIndex.resolveForTest(stone, stoneId, new BlockPos(0, -7, 0), Direction.UP) == stoneId,
+                "legacy minHeight/maxHeight predicates should reject out-of-range Y values");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);
