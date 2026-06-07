@@ -197,7 +197,8 @@ public final class ResourcePackCompatDiagnostics {
     private static JsonObject renderSafetyJson() {
         JsonObject json = new JsonObject();
         json.addProperty("filtersEmissiveAuxiliaryTexturesFromAtlas", true);
-        json.addProperty("filtersPbrAuxiliarySuffixes", "_s,_n,_f,_e");
+        json.addProperty("filtersPbrAuxiliarySuffixes",
+            ResourcePackTextureNames.PBR_AUXILIARY_SUFFIX_DESCRIPTION);
         json.addProperty("missingSpriteFallbackId", TextureArrayBridge.missingSpriteFallbackIdForTest());
         json.addProperty("missingSpriteFallbackSprite", TextureArrayBridge.missingSpriteFallbackLabel());
         json.addProperty("javaSpriteCount", TextureArrayBridge.sortedSpriteIds.size());
@@ -263,8 +264,8 @@ public final class ResourcePackCompatDiagnostics {
         JsonObject dump = baseDump("radser_material_sets_v1", root);
         JsonObject source = new JsonObject();
         source.addProperty("materialFormat", "LabPBR");
-        source.addProperty("specularSource", "direct_labpbr_specular_s");
-        source.addProperty("normalSource", "direct_labpbr_normal_n");
+        source.addProperty("specularSource", "direct_labpbr_specular_map");
+        source.addProperty("normalSource", "direct_labpbr_normal_map");
         source.addProperty("displacementSource", "direct_labpbr_normal_alpha");
         source.addProperty("displacementNormalization", "none");
         source.addProperty("heightAlphaRangeRole", "diagnostic_metadata_only");
@@ -380,10 +381,10 @@ public final class ResourcePackCompatDiagnostics {
         List<String> keys = List.of(
             "texturePng",
             "albedoPng",
-            "specular_s",
-            "normal_n",
+            "specularMaps",
+            "normalMaps",
             "flag_f",
-            "emissive_e",
+            "emissiveMaps",
             "properties",
             "textureProperties",
             "optifineCtmProperties",
@@ -838,16 +839,16 @@ public final class ResourcePackCompatDiagnostics {
             if (lower.endsWith(".png") && lower.contains("/textures/")) {
                 texturePng++;
                 String base = textureBase(lower);
-                if (lower.endsWith("_s.png")) {
+                if (ResourcePackTextureNames.isSpecularAuxiliaryPath(lower)) {
                     specularPng++;
                     specularBases.add(base);
-                } else if (lower.endsWith("_n.png")) {
+                } else if (ResourcePackTextureNames.isNormalAuxiliaryPath(lower)) {
                     normalPng++;
                     normalBases.add(base);
-                } else if (lower.endsWith("_f.png")) {
+                } else if (ResourcePackTextureNames.isFlagAuxiliaryPath(lower)) {
                     flagPng++;
                     flagBases.add(base);
-                } else if (lower.endsWith("_e.png")) {
+                } else if (ResourcePackTextureNames.isEmissiveAuxiliaryPath(lower)) {
                     emissivePng++;
                     emissiveBases.add(base);
                 } else {
@@ -1100,10 +1101,10 @@ public final class ResourcePackCompatDiagnostics {
             JsonObject counts = new JsonObject();
             counts.addProperty("texturePng", texturePng);
             counts.addProperty("albedoPng", albedoPng);
-            counts.addProperty("specular_s", specularPng);
-            counts.addProperty("normal_n", normalPng);
+            counts.addProperty("specularMaps", specularPng);
+            counts.addProperty("normalMaps", normalPng);
             counts.addProperty("flag_f", flagPng);
-            counts.addProperty("emissive_e", emissivePng);
+            counts.addProperty("emissiveMaps", emissivePng);
             counts.addProperty("properties", properties);
             counts.addProperty("textureProperties", textureProperties);
             counts.addProperty("optifineCtmProperties", optifineCtmProperties);
@@ -1247,8 +1248,10 @@ public final class ResourcePackCompatDiagnostics {
 
         private String textureBase(String lower) {
             String base = lower.substring(0, lower.length() - ".png".length());
-            if (base.endsWith("_s") || base.endsWith("_n") || base.endsWith("_f") || base.endsWith("_e")) {
-                return base.substring(0, base.length() - 2);
+            for (String suffix : ResourcePackTextureNames.PBR_AUXILIARY_SUFFIX_DESCRIPTION.split(",")) {
+                if (base.endsWith(suffix)) {
+                    return base.substring(0, base.length() - suffix.length());
+                }
             }
             return base;
         }

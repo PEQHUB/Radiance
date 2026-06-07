@@ -6,9 +6,9 @@ import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -19,73 +19,22 @@ import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
 
 public enum AuxiliaryTextures {
-    SPECULAR("specular", "_s", (identifier, source) -> {
-        String namespace = identifier.getNamespace();
-        String path = identifier.getPath();
-        String[] pathComponents = path.split("/");
-        String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String suffixedFileName = String.join("",
-            new String[]{fileNameComponents[0], "_s.", fileNameComponents[1]});
-
-        // Primary: same-directory LabPBR layout (e.g. textures/block/stone_s.png)
-        String[] sameDir = pathComponents.clone();
-        sameDir[sameDir.length - 1] = suffixedFileName;
-        String sameDirPath = String.join("/", sameDir);
-        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
-
-        // Fallback: separate subfolder layout (e.g. textures/specular/block/stone_s.png)
-        String subfolderPath = sameDirPath.replace("textures/", "textures/specular/");
-        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
-
-        return withCtmSidecarCandidate(identifier, "_s", sameDirId, subfolderId);
-    }, INativeImageExt::neoVoxelRT$getSpecularNativeImage,
+    SPECULAR("specular", (identifier, source) ->
+        auxiliaryCandidates(identifier, "specular", true, "_s", "_spec", "_specular"),
+        INativeImageExt::neoVoxelRT$getSpecularNativeImage,
         INativeImageExt::neoVoxelRT$setSpecularNativeImage,
         INativeImageExt::neoVoxelRT$getSpecularUploadedLevelsMask,
         INativeImageExt::neoVoxelRT$setSpecularUploadedLevelsMask,
-        TextureTracker.GLID2SpecularGLID), NORMAL("normal", "_n", (identifier, source) -> {
-        String namespace = identifier.getNamespace();
-        String path = identifier.getPath();
-        String[] pathComponents = path.split("/");
-        String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String suffixedFileName = String.join("",
-            new String[]{fileNameComponents[0], "_n.", fileNameComponents[1]});
-
-        // Primary: same-directory LabPBR layout (e.g. textures/block/stone_n.png)
-        String[] sameDir = pathComponents.clone();
-        sameDir[sameDir.length - 1] = suffixedFileName;
-        String sameDirPath = String.join("/", sameDir);
-        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
-
-        // Fallback: separate subfolder layout (e.g. textures/normal/block/stone_n.png)
-        String subfolderPath = sameDirPath.replace("textures/", "textures/normal/");
-        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
-
-        return withCtmSidecarCandidate(identifier, "_n", sameDirId, subfolderId);
-    }, INativeImageExt::neoVoxelRT$getNormalNativeImage,
+        TextureTracker.GLID2SpecularGLID), NORMAL("normal", (identifier, source) ->
+        auxiliaryCandidates(identifier, "normal", true, "_n", "_normal", "_norm"),
+        INativeImageExt::neoVoxelRT$getNormalNativeImage,
         INativeImageExt::neoVoxelRT$setNormalNativeImage,
         INativeImageExt::neoVoxelRT$getNormalUploadedLevelsMask,
         INativeImageExt::neoVoxelRT$setNormalUploadedLevelsMask,
         TextureTracker.GLID2NormalGLID), FLAG(
-        "flag", "_f", (identifier, source) -> {
-        String namespace = identifier.getNamespace();
-        String path = identifier.getPath();
-        String[] pathComponents = path.split("/");
-        String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String suffixedFileName = String.join("",
-            new String[]{fileNameComponents[0], "_f.", fileNameComponents[1]});
-
-        // Primary: same-directory layout (e.g. textures/block/stone_f.png)
-        String[] sameDir = pathComponents.clone();
-        sameDir[sameDir.length - 1] = suffixedFileName;
-        String sameDirPath = String.join("/", sameDir);
-        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
-
-        // Fallback: separate subfolder layout (e.g. textures/flag/block/stone_f.png)
-        String subfolderPath = sameDirPath.replace("textures/", "textures/flag/");
-        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
-
-        return withCtmSidecarCandidate(identifier, "_f", sameDirId, subfolderId);
-    }, INativeImageExt::neoVoxelRT$getFlagNativeImage,
+        "flag", (identifier, source) ->
+        auxiliaryCandidates(identifier, "flag", true, "_f"),
+        INativeImageExt::neoVoxelRT$getFlagNativeImage,
         INativeImageExt::neoVoxelRT$setFlagNativeImage,
         INativeImageExt::neoVoxelRT$getFlagUploadedLevelsMask,
         INativeImageExt::neoVoxelRT$setFlagUploadedLevelsMask,
@@ -93,7 +42,6 @@ public enum AuxiliaryTextures {
 
     private static final List<AuxiliaryTextures> ALL_TEXTURES = Collections.unmodifiableList(
         Arrays.stream(values()).collect(Collectors.toList()));
-    private final String suffix;
     private final IdentifierCandidateProvider identifierCandidateProvider;
     private final Getter getter;
     private final Setter setter;
@@ -102,27 +50,54 @@ public enum AuxiliaryTextures {
     private final String name;
     private final int[] GLIDMapping;
 
-    private static List<Identifier> withCtmSidecarCandidate(Identifier identifier, String suffix,
-        Identifier... fallbackIds) {
-        Identifier ctmSidecar = ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(identifier, suffix);
-        if (ctmSidecar == null) {
-            return List.of(fallbackIds);
+    private static List<Identifier> auxiliaryCandidates(Identifier identifier, String folder,
+        boolean includeUnsuffixedFolder, String... suffixes) {
+        if (identifier == null) {
+            return List.of();
         }
-        ArrayList<Identifier> candidates = new ArrayList<>(fallbackIds.length + 1);
-        candidates.add(ctmSidecar);
-        for (Identifier fallback : fallbackIds) {
-            if (!ctmSidecar.equals(fallback)) {
-                candidates.add(fallback);
+        String namespace = identifier.getNamespace();
+        String path = identifier.getPath();
+        int dot = path.lastIndexOf('.');
+        int slash = path.lastIndexOf('/');
+        LinkedHashSet<Identifier> fallbacks = new LinkedHashSet<>();
+
+        if (dot > slash) {
+            String basePath = path.substring(0, dot);
+            String extension = path.substring(dot);
+            for (String suffix : suffixes) {
+                fallbacks.add(Identifier.of(namespace, basePath + suffix + extension));
+            }
+            if (basePath.startsWith("textures/")) {
+                String folderBase = "textures/" + folder + "/" + basePath.substring("textures/".length());
+                for (String suffix : suffixes) {
+                    fallbacks.add(Identifier.of(namespace, folderBase + suffix + extension));
+                }
+                if (includeUnsuffixedFolder) {
+                    fallbacks.add(Identifier.of(namespace, folderBase + extension));
+                }
             }
         }
+
+        return withCtmSidecarCandidates(identifier, suffixes, fallbacks);
+    }
+
+    private static List<Identifier> withCtmSidecarCandidates(Identifier identifier, String[] suffixes,
+        LinkedHashSet<Identifier> fallbackIds) {
+        LinkedHashSet<Identifier> candidates = new LinkedHashSet<>();
+        for (String suffix : suffixes) {
+            Identifier ctmSidecar = ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(identifier, suffix);
+            if (ctmSidecar != null) {
+                candidates.add(ctmSidecar);
+            }
+        }
+        candidates.addAll(fallbackIds);
         return List.copyOf(candidates);
     }
 
-    AuxiliaryTextures(String name, String suffix,
+    AuxiliaryTextures(String name,
         IdentifierCandidateProvider identifierCandidateProvider, Getter getter, Setter setter,
         IntGetter uploadedLevelsMaskGetter, IntSetter uploadedLevelsMaskSetter,
         int[] GLIDMapping) {
-        this.suffix = suffix;
         this.identifierCandidateProvider = identifierCandidateProvider;
         this.getter = getter;
         this.setter = setter;
@@ -188,13 +163,7 @@ public enum AuxiliaryTextures {
         }
 
         if (identifier != null) {
-            if (ALL_TEXTURES.stream().anyMatch(texture -> {
-                String path = identifier.getPath();
-                int dotIndex = path.lastIndexOf('.');
-                String baseName = (dotIndex != -1) ? path.substring(0, dotIndex) : path;
-
-                return baseName.endsWith(texture.suffix);
-            })) {
+            if (ResourcePackTextureNames.hasNonEmissivePbrAuxiliarySuffix(identifier.getPath())) {
                 return;
             }
 
@@ -319,6 +288,13 @@ public enum AuxiliaryTextures {
             }
 
         }
+    }
+
+    public static List<Identifier> candidatesForTest(AuxiliaryTextures texture, Identifier identifier) {
+        if (texture == null) {
+            return List.of();
+        }
+        return texture.identifierCandidateProvider.get(identifier, null);
     }
 
     public interface IdentifierCandidateProvider {

@@ -13,6 +13,7 @@ import com.radiance.client.materiallab.MaterialUploadResult;
 import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.AuxiliaryTextures;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
 import com.radiance.client.texture.compat.ResourcePackBlockLayerResolver;
@@ -764,9 +765,25 @@ public final class MaterialLabSelfTest {
         expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
             Identifier.ofVanilla("textures/block/stone_s.png")), "_s should be atlas-filtered aux");
         expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
+            Identifier.ofVanilla("textures/block/stone_spec.png")), "_spec should be atlas-filtered aux");
+        expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
+            Identifier.ofVanilla("textures/block/stone_specular.png")), "_specular should be atlas-filtered aux");
+        expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
             Identifier.ofVanilla("textures/block/stone_n.png")), "_n should be atlas-filtered aux");
         expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
+            Identifier.ofVanilla("textures/block/stone_normal.png")), "_normal should be atlas-filtered aux");
+        expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
+            Identifier.ofVanilla("textures/block/stone_norm.png")), "_norm should be atlas-filtered aux");
+        expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
             Identifier.ofVanilla("textures/block/stone_f.png")), "_f should be atlas-filtered aux");
+        expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
+            Identifier.ofVanilla("textures/block/stone_height.png")), "_height should be atlas-filtered aux metadata");
+        expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
+            Identifier.ofVanilla("textures/block/stone_metallic.png")), "_metallic should be atlas-filtered aux metadata");
+        expect(ResourcePackTextureNames.hasNonEmissivePbrAuxiliarySuffix(
+            "textures/block/stone_normal.png"), "normal aliases should be non-emissive aux maps");
+        expect(!ResourcePackTextureNames.hasNonEmissivePbrAuxiliarySuffix(
+            "textures/block/lamp_e.png"), "emissive overlays must not be treated as scalar PBR aux maps");
         expect(ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(
             Identifier.ofVanilla("textures/block/lamp_e.png")), "_e should be atlas-filtered aux");
         Options.materialCompatEnabled = true;
@@ -785,6 +802,37 @@ public final class MaterialLabSelfTest {
             Identifier.ofVanilla("optifine/ctm/glass/0.png")), "CTM base tiles should load same-directory PBR sidecars");
         expect(!ResourcePackTextureNames.allowsPbrAuxiliaryLookup(
             Identifier.ofVanilla("optifine/ctm/glass/0_n.png")), "CTM normal sidecars must not recursively load aux maps");
+        expect(!ResourcePackTextureNames.allowsPbrAuxiliaryLookup(
+            Identifier.ofVanilla("optifine/ctm/glass/0_normal.png")), "CTM normal alias sidecars must not recursively load aux maps");
+
+        List<Identifier> normalCandidates = AuxiliaryTextures.candidatesForTest(
+            AuxiliaryTextures.NORMAL, Identifier.ofVanilla("textures/block/stone.png"));
+        expect(normalCandidates.contains(Identifier.ofVanilla("textures/block/stone_normal.png")),
+            "normal lookup should include same-directory _normal aliases");
+        expect(normalCandidates.contains(Identifier.ofVanilla("textures/normal/block/stone.png")),
+            "normal lookup should include unsuffixed textures/normal fallbacks");
+        List<Identifier> specularCandidates = AuxiliaryTextures.candidatesForTest(
+            AuxiliaryTextures.SPECULAR, Identifier.ofVanilla("textures/block/stone.png"));
+        expect(specularCandidates.contains(Identifier.ofVanilla("textures/block/stone_specular.png")),
+            "specular lookup should include same-directory _specular aliases");
+        expect(specularCandidates.contains(Identifier.ofVanilla("textures/specular/block/stone.png")),
+            "specular lookup should include unsuffixed textures/specular fallbacks");
+
+        try {
+            ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
+            Identifier ctmSprite = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/glass/0.png"));
+            ResourcePackCompatCtmTiles.registerCtmSpriteAssetPath(
+                ctmSprite, "assets/minecraft/optifine/ctm/glass/0.png");
+            List<Identifier> ctmNormalCandidates = AuxiliaryTextures.candidatesForTest(
+                AuxiliaryTextures.NORMAL, ctmSprite);
+            expect(ctmNormalCandidates.get(0).equals(Identifier.ofVanilla("optifine/ctm/glass/0_n.png")),
+                "CTM normal lookup should prefer exact LabPBR sidecars");
+            expect(ctmNormalCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_normal.png")),
+                "CTM normal lookup should include _normal sidecars");
+        } finally {
+            ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
+        }
     }
 
     private static void textureArrayLayerSizeUsesLargestSprite() {
@@ -1023,8 +1071,11 @@ public final class MaterialLabSelfTest {
             Files.createDirectories(root.resolve("assets/minecraft/optifine/colormap/blocks/terracotta"));
             Files.createDirectories(root.resolve("assets/minecraft/optifine/lightmap"));
             Files.writeString(root.resolve("pack.mcmeta"), "{\"pack\":{\"pack_format\":46,\"description\":\"fixture\"}}", StandardCharsets.UTF_8);
+            Files.write(root.resolve("assets/minecraft/textures/block/stone.png"), new byte[] {0});
             Files.write(root.resolve("assets/minecraft/textures/block/stone_s.png"), new byte[] {0});
             Files.write(root.resolve("assets/minecraft/textures/block/stone_n.png"), new byte[] {0});
+            Files.write(root.resolve("assets/minecraft/textures/block/stone_specular.png"), new byte[] {0});
+            Files.write(root.resolve("assets/minecraft/textures/block/stone_normal.png"), new byte[] {0});
             Files.writeString(root.resolve("assets/minecraft/texture.properties"),
                 "format=lab-pbr/1.3\n", StandardCharsets.UTF_8);
             Files.writeString(root.resolve("assets/minecraft/optifine/emissive.properties"),
@@ -1042,8 +1093,9 @@ public final class MaterialLabSelfTest {
                 ResourcePackCompatDiagnostics.scanPackJsonForTest(root.toString())).getAsJsonObject();
             JsonObject counts = report.getAsJsonObject("counts");
             expect(report.get("scannable").getAsBoolean(), "compat fixture should be scannable");
-            expect(counts.get("specular_s").getAsInt() == 1, "scanner should count _s maps");
-            expect(counts.get("normal_n").getAsInt() == 1, "scanner should count _n maps");
+            expect(counts.get("specularMaps").getAsInt() == 2, "scanner should count specular map aliases");
+            expect(counts.get("normalMaps").getAsInt() == 2, "scanner should count normal map aliases");
+            expect(counts.get("albedoPng").getAsInt() == 1, "scanner should not count PBR aliases as albedo");
             expect(counts.get("textureProperties").getAsInt() == 1, "scanner should count texture.properties");
             expect(counts.get("emissiveProperties").getAsInt() == 1, "scanner should count emissive.properties");
             expect(counts.get("naturalProperties").getAsInt() == 1, "scanner should count natural.properties");
