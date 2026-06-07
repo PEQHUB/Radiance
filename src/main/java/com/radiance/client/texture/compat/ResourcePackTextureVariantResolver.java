@@ -44,6 +44,8 @@ public final class ResourcePackTextureVariantResolver {
     private static final int RULE_LIMIT = 4096;
     private static final int OVERLAY_STACK_LIMIT = 16;
     private static final int CHOICE_EXPANSION_LIMIT = 512;
+    private static final Identifier DEFAULT_TILE_OUTPUT =
+        Identifier.of("radiance", "radser_internal/default_ctm_tile");
     // Indices are the OptiFine/Continuity 8-way CTM mask:
     // 128 64 32
     // 1   *  16
@@ -370,25 +372,16 @@ public final class ResourcePackTextureVariantResolver {
         int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
         int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         String propertyAssetPath = ResourcePackCompatCtmTiles.assetPath(propertyId);
-        List<String> tileAssetPaths = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(propertyAssetPath, props);
         List<TileChoice> choices = ruleMethod.overlayRule()
             ? tileChoices(propertyAssetPath, props.getProperty("tiles", ""), ruleMethod, repeatWidth, repeatHeight)
             : List.of();
-        if (tileAssetPaths.isEmpty() && !ruleMethod.overlayRule()) {
+        List<Identifier> outputs = ruleMethod.overlayRule()
+            ? List.of()
+            : outputSprites(propertyAssetPath, props.getProperty("tiles", ""), ruleMethod, repeatWidth, repeatHeight);
+        if (outputs.isEmpty() && !ruleMethod.overlayRule()) {
             return Optional.empty();
         }
         if (choices.isEmpty() && ruleMethod.overlayRule()) {
-            return Optional.empty();
-        }
-
-        List<Identifier> outputs = new ArrayList<>();
-        for (String assetPath : tileAssetPaths) {
-            Identifier output = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(assetPath));
-            if (output != null) {
-                outputs.add(output);
-            }
-        }
-        if (outputs.isEmpty() && !ruleMethod.overlayRule()) {
             return Optional.empty();
         }
 
@@ -481,12 +474,75 @@ public final class ResourcePackTextureVariantResolver {
         return choices;
     }
 
+    private static List<Identifier> outputSprites(String propertyAssetPath, String tilesValue, RuleMethod method,
+        int repeatWidth, int repeatHeight) {
+        String value = tilesValue == null ? "" : tilesValue.trim();
+        if (value.isEmpty()) {
+            value = inferredTilesForResolver(method, repeatWidth, repeatHeight);
+        }
+        if (propertyAssetPath == null || value.isBlank()) {
+            return List.of();
+        }
+        ArrayList<Identifier> outputs = new ArrayList<>();
+        for (String rawToken : value.split("[\\s,]+")) {
+            String token = rawToken.trim();
+            if (token.isEmpty()) {
+                continue;
+            }
+            if (isDefaultTileToken(token)) {
+                outputs.add(DEFAULT_TILE_OUTPUT);
+                if (outputs.size() >= CHOICE_EXPANSION_LIMIT) {
+                    break;
+                }
+                continue;
+            }
+            if (token.startsWith("<")) {
+                continue;
+            }
+            int dash = token.indexOf('-');
+            if (dash > 0 && dash < token.length() - 1
+                && isPositiveInt(token.substring(0, dash))
+                && isPositiveInt(token.substring(dash + 1))) {
+                int start = Integer.parseInt(token.substring(0, dash));
+                int end = Integer.parseInt(token.substring(dash + 1));
+                int step = start <= end ? 1 : -1;
+                for (int valueIndex = start; valueIndex != end + step; valueIndex += step) {
+                    addOutputSprite(outputs, propertyAssetPath, String.valueOf(valueIndex));
+                    if (outputs.size() >= CHOICE_EXPANSION_LIMIT) {
+                        break;
+                    }
+                }
+                if (outputs.size() >= CHOICE_EXPANSION_LIMIT) {
+                    break;
+                }
+                continue;
+            }
+            addOutputSprite(outputs, propertyAssetPath, token);
+            if (outputs.size() >= CHOICE_EXPANSION_LIMIT) {
+                break;
+            }
+        }
+        return outputs;
+    }
+
     private static void addTileChoice(List<TileChoice> choices, String propertyAssetPath, String token) {
         String assetPath = ResourcePackCompatCtmTiles.resolveCtmTileAssetPath(propertyAssetPath, token);
         Identifier sprite = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(assetPath));
         if (sprite != null) {
             choices.add(TileChoice.sprite(sprite));
         }
+    }
+
+    private static void addOutputSprite(List<Identifier> outputs, String propertyAssetPath, String token) {
+        String assetPath = ResourcePackCompatCtmTiles.resolveCtmTileAssetPath(propertyAssetPath, token);
+        Identifier sprite = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(assetPath));
+        if (sprite != null) {
+            outputs.add(sprite);
+        }
+    }
+
+    private static boolean isDefaultTileToken(String token) {
+        return "<default>".equalsIgnoreCase(token == null ? "" : token.trim());
     }
 
     private static String inferredTilesForResolver(RuleMethod method, int repeatWidth, int repeatHeight) {
@@ -1171,6 +1227,7 @@ public final class ResourcePackTextureVariantResolver {
                 }
             } else {
                 json.addProperty("sprite", "");
+                json.addProperty("defaultTile", false);
                 json.addProperty("spriteId", -1);
                 json.addProperty("materialSetId", -1);
                 addMaterialSetBinding(json, -1);
@@ -1183,13 +1240,21 @@ public final class ResourcePackTextureVariantResolver {
 
     private static JsonObject spriteBindingJson(Identifier sprite, boolean skipped) {
         JsonObject json = new JsonObject();
-        int spriteId = skipped || sprite == null ? -1 : TextureArrayBridge.resolveSpriteId(sprite.toString());
-        json.addProperty("sprite", sprite == null ? "" : sprite.toString());
+        boolean defaultTile = isDefaultTileOutput(sprite);
+        int spriteId = skipped || sprite == null || defaultTile
+            ? -1
+            : TextureArrayBridge.resolveSpriteId(sprite.toString());
+        json.addProperty("sprite", defaultTile ? "<default>" : sprite == null ? "" : sprite.toString());
+        json.addProperty("defaultTile", defaultTile);
         json.addProperty("spriteId", spriteId);
         json.addProperty("materialSetId", spriteId);
         addMaterialSetBinding(json, spriteId);
-        json.addProperty("resolved", spriteId >= 0);
+        json.addProperty("resolved", defaultTile || spriteId >= 0);
         return json;
+    }
+
+    private static boolean isDefaultTileOutput(Identifier sprite) {
+        return DEFAULT_TILE_OUTPUT.equals(sprite);
     }
 
     private static void addMaterialSetBinding(JsonObject json, int spriteId) {
@@ -1888,6 +1953,9 @@ public final class ResourcePackTextureVariantResolver {
             for (int i = 0; i < outputs.size(); i++) {
                 int index = (outputIndex + i) % outputs.size();
                 Identifier sprite = outputs.get(index);
+                if (isDefaultTileOutput(sprite)) {
+                    return new ResolvedBlockSprite(sourceSpriteId, true, 0xFFFFFF, false, -1);
+                }
                 int spriteId = TextureArrayBridge.resolveSpriteId(sprite.toString());
                 if (spriteId >= 0) {
                     boolean tintOverride = tintOverride();
@@ -1988,6 +2056,9 @@ public final class ResourcePackTextureVariantResolver {
             for (int i = 0; i < outputs.size(); i++) {
                 int index = Math.floorMod(outputIndex + i, outputs.size());
                 Identifier sprite = outputs.get(index);
+                if (isDefaultTileOutput(sprite)) {
+                    return -2;
+                }
                 int spriteId = TextureArrayBridge.resolveSpriteId(sprite.toString());
                 if (spriteId >= 0) {
                     return spriteId;

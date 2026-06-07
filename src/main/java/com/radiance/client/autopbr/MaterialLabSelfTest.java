@@ -33,6 +33,7 @@ import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.BlockOverlaySprite;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
 import com.radiance.client.vertex.PBRVertexFormatElements;
 import com.radiance.client.vertex.PBRVertexConsumer;
 import java.io.ByteArrayInputStream;
@@ -1884,6 +1885,12 @@ public final class MaterialLabSelfTest {
             "0-3", "overlay_repeat");
         expect(overlayRepeat.size() == 4 && overlayRepeat.get(3).endsWith("/3.png"),
             "overlay_repeat dependencies should expand explicit repeat tiles");
+        List<String> defaultRandom = ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(
+            "assets/minecraft/optifine/ctm/crops/beetroots_stage3.properties",
+            "<default> 14-16", "random");
+        expect(defaultRandom.size() == 3 && defaultRandom.get(0).endsWith("/14.png")
+                && defaultRandom.get(2).endsWith("/16.png"),
+            "random CTM dependencies should ignore <default> while preserving real tile dependencies");
 
         Properties inferredRepeatProps = new Properties();
         inferredRepeatProps.setProperty("method", "overlay_repeat");
@@ -2284,6 +2291,38 @@ public final class MaterialLabSelfTest {
             expect(a == TextureArrayBridge.resolveSpriteId(random0.toString())
                     || a == TextureArrayBridge.resolveSpriteId(random1.toString()),
                 "random rule should choose one of the admitted CTM variant sprites");
+            FakeResourceManager defaultRandomManager = new FakeResourceManager();
+            defaultRandomManager.add("minecraft:optifine/ctm/stone/default_random.properties",
+                "method=random\nmatchTiles=stone\ntiles=<default> 0 1\nrandomLoops=2\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex defaultRandomIndex =
+                ResourcePackTextureVariantResolver.buildForTest(defaultRandomManager, false);
+            expect(defaultRandomIndex.ruleCountForTest() == 1, "random <default> rule should compile");
+            boolean sawDefault = false;
+            boolean sawVariant = false;
+            for (int x = 0; x < 2048 && (!sawDefault || !sawVariant); x++) {
+                ResolvedBlockSprite resolved = defaultRandomIndex.resolveDetailedForTest(
+                    stone, stoneId, new BlockPos(x, 70, 5), Direction.NORTH);
+                if (resolved.spriteId() == stoneId) {
+                    expect(resolved.ruleMatched(),
+                        "random <default> selections should still count as a consumed CTM rule");
+                    sawDefault = true;
+                } else if (resolved.spriteId() == TextureArrayBridge.resolveSpriteId(random0.toString())
+                    || resolved.spriteId() == TextureArrayBridge.resolveSpriteId(random1.toString())) {
+                    sawVariant = true;
+                }
+            }
+            expect(sawDefault && sawVariant,
+                "random <default> rules should select both the original sprite and admitted variant tiles");
+            JsonObject defaultRandomRegistry = JsonParser.parseString(
+                ResourcePackTextureVariantResolver.registryJsonForTest(defaultRandomManager, false, 4))
+                .getAsJsonObject();
+            JsonObject defaultRandomRule = ruleWithMethod(defaultRandomRegistry.getAsJsonArray("rules"), "random");
+            expect(defaultRandomRule.get("outputCount").getAsInt() == 3,
+                "random <default> registry should preserve default plus variant output count");
+            expect(defaultRandomRule.getAsJsonArray("outputs").get(0).getAsJsonObject()
+                    .get("defaultTile").getAsBoolean(),
+                "random <default> registry should expose the runtime default tile choice");
             Options.materialCompatRandomEnabled = false;
             expect(randomIndex.resolveForTest(stone, stoneId, pos, Direction.EAST) == stoneId,
                 "random rule should respect random feature flag");
