@@ -15,6 +15,8 @@ public final class ResourcePackCompatCtmTiles {
     private static final int TILE_EXPANSION_LIMIT = 512;
     private static final Map<Identifier, String> REGISTERED_CTM_SPRITE_ASSET_PATHS =
         new ConcurrentHashMap<>();
+    private static final Map<Identifier, List<String>> REGISTERED_CTM_MATERIAL_FALLBACK_ASSET_PATHS =
+        new ConcurrentHashMap<>();
 
     private ResourcePackCompatCtmTiles() {
     }
@@ -172,9 +174,15 @@ public final class ResourcePackCompatCtmTiles {
 
     public static void clearRegisteredCtmSpriteAssetPaths() {
         REGISTERED_CTM_SPRITE_ASSET_PATHS.clear();
+        REGISTERED_CTM_MATERIAL_FALLBACK_ASSET_PATHS.clear();
     }
 
     public static void registerCtmSpriteAssetPath(Identifier spriteId, String assetPath) {
+        registerCtmSpriteAssetPath(spriteId, assetPath, List.of());
+    }
+
+    public static void registerCtmSpriteAssetPath(Identifier spriteId, String assetPath,
+        List<String> materialFallbackAssetPaths) {
         if (spriteId == null || assetPath == null || assetPath.isBlank()) {
             return;
         }
@@ -183,6 +191,12 @@ public final class ResourcePackCompatCtmTiles {
             return;
         }
         REGISTERED_CTM_SPRITE_ASSET_PATHS.put(spriteId, normalized);
+        List<String> fallbacks = normalizeFallbackAssetPaths(materialFallbackAssetPaths);
+        if (fallbacks.isEmpty()) {
+            REGISTERED_CTM_MATERIAL_FALLBACK_ASSET_PATHS.remove(spriteId);
+        } else {
+            REGISTERED_CTM_MATERIAL_FALLBACK_ASSET_PATHS.put(spriteId, fallbacks);
+        }
     }
 
     public static Identifier ctmSidecarResourceIdentifier(Identifier spriteId, String suffix) {
@@ -196,10 +210,94 @@ public final class ResourcePackCompatCtmTiles {
         return resourceIdentifierFromAssetPath(sidecarPath(assetPath, suffix));
     }
 
+    public static List<Identifier> ctmMaterialFallbackSidecarResourceIdentifiers(Identifier spriteId, String suffix) {
+        if (spriteId == null || suffix == null || suffix.isBlank()) {
+            return List.of();
+        }
+        List<String> assetPaths = REGISTERED_CTM_MATERIAL_FALLBACK_ASSET_PATHS.get(spriteId);
+        if (assetPaths == null || assetPaths.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Identifier> ids = new LinkedHashSet<>();
+        for (String assetPath : assetPaths) {
+            Identifier id = resourceIdentifierFromAssetPath(sidecarPath(assetPath, suffix));
+            if (id != null) {
+                ids.add(id);
+            }
+        }
+        return List.copyOf(ids);
+    }
+
+    public static List<String> materialFallbackAssetPaths(String propertyAssetPath, Properties props) {
+        if (propertyAssetPath == null || props == null) {
+            return List.of();
+        }
+        String value = props.getProperty("matchTiles", "").trim();
+        if (value.isEmpty()) {
+            String path = normalize(propertyAssetPath);
+            int slash = path.lastIndexOf('/');
+            int dot = path.lastIndexOf('.');
+            if (dot <= slash) {
+                dot = path.length();
+            }
+            value = slash >= 0 ? path.substring(slash + 1, dot) : path.substring(0, dot);
+        }
+        LinkedHashSet<String> paths = new LinkedHashSet<>();
+        for (String raw : value.split("[\\s,]+")) {
+            String path = materialFallbackAssetPathFromMatchTile(raw);
+            if (!path.isBlank()) {
+                paths.add(path);
+            }
+        }
+        return List.copyOf(paths);
+    }
+
+    public static String materialFallbackAssetPathFromMatchTile(String raw) {
+        String token = normalize(raw).trim();
+        if (token.isEmpty() || token.startsWith("<")) {
+            return "";
+        }
+        if (token.endsWith(".png")) {
+            token = token.substring(0, token.length() - 4);
+        }
+
+        String namespace = "minecraft";
+        int colon = token.indexOf(':');
+        if (colon > 0) {
+            namespace = token.substring(0, colon).toLowerCase(Locale.ROOT);
+            token = token.substring(colon + 1);
+        }
+        if (token.startsWith("textures/")) {
+            return "assets/" + namespace + "/" + token + ".png";
+        }
+        if (token.startsWith("block/") || token.startsWith("item/") || token.startsWith("entity/")) {
+            return "assets/" + namespace + "/textures/" + token + ".png";
+        }
+        if (token.contains("/")) {
+            return "assets/" + namespace + "/textures/" + token + ".png";
+        }
+        return "assets/" + namespace + "/textures/block/" + token + ".png";
+    }
+
     public static String sidecarPath(String assetPath, String suffix) {
         String normalized = normalize(assetPath);
         String base = normalized.endsWith(".png") ? normalized.substring(0, normalized.length() - 4) : normalized;
         return base + suffix + ".png";
+    }
+
+    private static List<String> normalizeFallbackAssetPaths(List<String> materialFallbackAssetPaths) {
+        if (materialFallbackAssetPaths == null || materialFallbackAssetPaths.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String assetPath : materialFallbackAssetPaths) {
+            String value = normalize(assetPath);
+            if (value.startsWith("assets/") && value.endsWith(".png")
+                && !ResourcePackTextureNames.hasPbrAuxiliarySuffix(value)) {
+                normalized.add(value);
+            }
+        }
+        return List.copyOf(normalized);
     }
 
     private static String inferredTilesValue(String methodValue) {

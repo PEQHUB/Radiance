@@ -271,6 +271,8 @@ public final class ResourcePackCompatDiagnostics {
         source.addProperty("normalSource", "direct_labpbr_normal_map");
         source.addProperty("scalarSpecularFallback", "roughness_or_metallic_sidecar_composed_to_labpbr_specular");
         source.addProperty("scalarNormalFallback", "height_or_ao_sidecar_composed_to_labpbr_normal");
+        source.addProperty("ctmTileMaterialFallback",
+            "selected_tile_sidecar_then_matchtiles_base_sidecar");
         source.addProperty("displacementSource", "direct_labpbr_normal_alpha");
         source.addProperty("displacementNormalization", "none");
         source.addProperty("heightAlphaRangeRole", "diagnostic_metadata_only");

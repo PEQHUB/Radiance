@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -98,14 +99,17 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
         }
 
         String propertyAssetPath = ResourcePackCompatCtmTiles.assetPath(propertyId);
+        List<String> materialFallbackAssetPaths =
+            ResourcePackCompatCtmTiles.materialFallbackAssetPaths(propertyAssetPath, props);
         for (String assetPath : ResourcePackCompatCtmTiles.ctmTileDependencyAssetPaths(propertyAssetPath, props)) {
-            admitAssetPath(resourceManager, regions, admittedSprites, counters, limit, assetPath, false);
+            admitAssetPath(resourceManager, regions, admittedSprites, counters, limit, assetPath, false,
+                null, materialFallbackAssetPaths);
             if (Options.materialCompatPhysicalEmissiveEnabled) {
                 String emissiveAssetPath =
                     ResourcePackEmissiveTextureResolver.emissiveAssetPath(assetPath, emissiveSuffix);
                 if (emissiveAssetPath != null) {
                     admitAssetPath(resourceManager, regions, admittedSprites, counters, limit,
-                        emissiveAssetPath, true, assetPath);
+                        emissiveAssetPath, true, assetPath, List.of());
                 }
             }
         }
@@ -113,12 +117,13 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
 
     private static void admitAssetPath(ResourceManager resourceManager, SpriteRegions regions,
         Set<String> admittedSprites, Counters counters, int limit, String assetPath, boolean emissive) {
-        admitAssetPath(resourceManager, regions, admittedSprites, counters, limit, assetPath, emissive, null);
+        admitAssetPath(resourceManager, regions, admittedSprites, counters, limit, assetPath, emissive, null,
+            List.of());
     }
 
     private static void admitAssetPath(ResourceManager resourceManager, SpriteRegions regions,
         Set<String> admittedSprites, Counters counters, int limit, String assetPath, boolean emissive,
-        String baseAssetPath) {
+        String baseAssetPath, List<String> materialFallbackAssetPaths) {
         if (counters.added >= limit) {
             counters.truncated = true;
             return;
@@ -152,7 +157,8 @@ public final class ResourcePackCompatAtlasSource implements AtlasSource {
                 Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(baseAssetPath));
             ResourcePackEmissiveTextureResolver.registerOverlaySprite(spriteId, baseSpriteId);
         } else if (!emissive) {
-            ResourcePackCompatCtmTiles.registerCtmSpriteAssetPath(spriteId, assetPath);
+            ResourcePackCompatCtmTiles.registerCtmSpriteAssetPath(spriteId, assetPath,
+                materialFallbackAssetPaths);
         }
         regions.add(spriteId, resource.get());
         counters.added++;

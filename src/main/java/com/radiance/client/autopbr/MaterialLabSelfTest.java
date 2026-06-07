@@ -858,23 +858,30 @@ public final class MaterialLabSelfTest {
             Identifier ctmSprite = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
                 "assets/minecraft/optifine/ctm/glass/0.png"));
             ResourcePackCompatCtmTiles.registerCtmSpriteAssetPath(
-                ctmSprite, "assets/minecraft/optifine/ctm/glass/0.png");
+                ctmSprite, "assets/minecraft/optifine/ctm/glass/0.png",
+                List.of("assets/minecraft/textures/block/glass.png"));
             List<Identifier> ctmNormalCandidates = AuxiliaryTextures.candidatesForTest(
                 AuxiliaryTextures.NORMAL, ctmSprite);
             expect(ctmNormalCandidates.get(0).equals(Identifier.ofVanilla("optifine/ctm/glass/0_n.png")),
                 "CTM normal lookup should prefer exact LabPBR sidecars");
+            expect(ctmNormalCandidates.indexOf(Identifier.ofVanilla("textures/block/glass_n.png")) > 0,
+                "CTM normal lookup should fall back to matched base LabPBR sidecars");
             expect(ctmNormalCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_normal.png")),
                 "CTM normal lookup should include _normal sidecars");
             List<Identifier> ctmRoughnessCandidates = AuxiliaryTextures.scalarCandidatesForTest(
                 "roughness", ctmSprite);
             expect(ctmRoughnessCandidates.get(0).equals(Identifier.ofVanilla("optifine/ctm/glass/0_roughness.png")),
                 "CTM roughness lookup should prefer exact scalar sidecars");
+            expect(ctmRoughnessCandidates.indexOf(Identifier.ofVanilla("textures/block/glass_roughness.png")) > 0,
+                "CTM roughness lookup should fall back to matched base scalar sidecars");
             expect(ctmRoughnessCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_rough.png")),
                 "CTM roughness lookup should include _rough sidecars");
             List<Identifier> ctmHeightCandidates = AuxiliaryTextures.scalarCandidatesForTest(
                 "height", ctmSprite);
             expect(ctmHeightCandidates.get(0).equals(Identifier.ofVanilla("optifine/ctm/glass/0_height.png")),
                 "CTM height lookup should prefer exact scalar sidecars");
+            expect(ctmHeightCandidates.indexOf(Identifier.ofVanilla("textures/block/glass_height.png")) > 0,
+                "CTM height lookup should fall back to matched base scalar sidecars");
             expect(ctmHeightCandidates.contains(Identifier.ofVanilla("optifine/ctm/glass/0_disp.png")),
                 "CTM height lookup should include _disp sidecars");
         } finally {
@@ -1431,6 +1438,9 @@ public final class MaterialLabSelfTest {
             expect("diagnostic_metadata_only".equals(
                     materials.getAsJsonObject("source").get("heightAlphaRangeRole").getAsString()),
                 "material set dump must not present alpha range as shader normalization input");
+            expect("selected_tile_sidecar_then_matchtiles_base_sidecar".equals(
+                    materials.getAsJsonObject("source").get("ctmTileMaterialFallback").getAsString()),
+                "material set dump should expose CTM tile companion fallback policy");
             expect("resolved_sprite_id_material_set_v1".equals(
                     materials.getAsJsonObject("source").get("materialSetBindingPolicy").getAsString()),
                 "material set dump should expose resolved-sprite alias binding");
@@ -1891,6 +1901,12 @@ public final class MaterialLabSelfTest {
             expect(Identifier.ofVanilla("optifine/ctm/glass/1_height.png").equals(
                     ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(expected, "_height")),
                 "admitted synthetic CTM sprites should resolve scalar height sidecars");
+            expect(ResourcePackCompatCtmTiles.ctmMaterialFallbackSidecarResourceIdentifiers(expected, "_n")
+                    .contains(Identifier.ofVanilla("textures/block/glass_n.png")),
+                "admitted synthetic CTM sprites should fall back to inferred base normal sidecars");
+            expect(ResourcePackCompatCtmTiles.ctmMaterialFallbackSidecarResourceIdentifiers(expected, "_s")
+                    .contains(Identifier.ofVanilla("textures/block/glass_s.png")),
+                "admitted synthetic CTM sprites should fall back to inferred base specular sidecars");
         } finally {
             ResourcePackCompatCtmTiles.clearRegisteredCtmSpriteAssetPaths();
             Options.materialCompatPhysicalEmissiveEnabled = oldPhysical;

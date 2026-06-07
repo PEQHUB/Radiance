@@ -99,6 +99,10 @@ public enum AuxiliaryTextures {
                 candidates.add(ctmSidecar);
             }
         }
+        for (String suffix : suffixes) {
+            candidates.addAll(ResourcePackCompatCtmTiles.ctmMaterialFallbackSidecarResourceIdentifiers(
+                identifier, suffix));
+        }
         candidates.addAll(fallbackIds);
         return List.copyOf(candidates);
     }
