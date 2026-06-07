@@ -63,7 +63,7 @@ public final class ResourcePackTextureVariantResolver {
     private ResourcePackTextureVariantResolver() {
     }
 
-    public record BlockOverlaySprite(int spriteId, int tintRgb) {
+    public record BlockOverlaySprite(int spriteId, int tintRgb, int alphaMode) {
     }
 
     public record ResolvedBlockSprite(int spriteId,
@@ -1126,6 +1126,11 @@ public final class ResourcePackTextureVariantResolver {
             return overlays.length == 0 ? -1 : overlays[0].spriteId();
         }
 
+        public BlockOverlaySprite[] resolveOverlayDetailsForTest(Identifier source, int sourceSpriteId,
+            @Nullable BlockPos pos, @Nullable Direction face) {
+            return resolveOverlay(source, sourceSpriteId, null, null, pos, face);
+        }
+
         public int[] resolveOverlaysWithConnectionsForTest(Identifier source, int sourceSpriteId,
             @Nullable Direction face, Set<Direction> connectedDirections,
             Set<String> connectedDiagonalDirections) {
@@ -1647,7 +1652,7 @@ public final class ResourcePackTextureVariantResolver {
                 }
                 int spriteId = spriteIdForChoice(tileIndex, fallbackFromSelected);
                 if (spriteId >= 0) {
-                    overlays.add(new BlockOverlaySprite(spriteId, tintRgb & 0x00FFFFFF));
+                    overlays.add(new BlockOverlaySprite(spriteId, tintRgb & 0x00FFFFFF, alphaMode));
                 }
             }
             return overlays.toArray(BlockOverlaySprite[]::new);

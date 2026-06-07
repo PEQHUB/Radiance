@@ -923,7 +923,9 @@ public class PBRVertexConsumer implements VertexConsumer {
                         PBR_FLAG_BLOCK_GEOMETRY,
                         blockSprite,
                         blockOverlayUvTransform);
-                    setPendingAlphaMode(PBR_ALPHA_MODE_CUTOUT);
+                    setPendingAlphaMode(blockOverlay.alphaMode() >= 0
+                        ? blockOverlay.alphaMode()
+                        : PBR_ALPHA_MODE_CUTOUT);
                     VertexConsumer.super.quad(matrixEntry,
                         quad,
                         brightnesses,

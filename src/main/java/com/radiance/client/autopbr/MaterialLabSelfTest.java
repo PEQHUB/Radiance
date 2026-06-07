@@ -29,6 +29,7 @@ import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.Nat
 import com.radiance.client.texture.compat.ResourcePackRandomEntityTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.BlockOverlaySprite;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.vertex.PBRVertexFormatElements;
 import com.radiance.client.vertex.PBRVertexConsumer;
@@ -119,6 +120,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsOverlayRandomSprites();
         textureVariantResolverSelectsOverlaySprites();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
+        textureVariantResolverCarriesOverlayLayerAlphaModes();
         textureVariantResolverSelectsNeighborMasks();
         textureVariantResolverHonorsExplicitConnectPredicates();
         textureVariantResolverSelectsFullAndCompactCtm();
@@ -2062,6 +2064,63 @@ public final class MaterialLabSelfTest {
             Options.materialCompatOverlaysEnabled = false;
             expect(overlayFixed.resolveOverlayForTest(stone, stoneId, new BlockPos(2, 64, 3), Direction.UP) == -1,
                 "overlay_fixed should respect the overlay feature flag");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverCarriesOverlayLayerAlphaModes() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier overlayFixed0 = ctmFixtureId("overlay_layer", 0);
+            expect(overlayFixed0 != null, "overlay layer fixture id should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, overlayFixed0));
+
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = false;
+            Options.materialCompatRandomEnabled = false;
+            Options.materialCompatOverlaysEnabled = true;
+
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            FakeResourceManager translucentManager = new FakeResourceManager();
+            translucentManager.add("minecraft:optifine/ctm/overlay_layer/translucent.properties",
+                String.join("\n",
+                    "method=overlay_fixed",
+                    "matchTiles=stone",
+                    "faces=top",
+                    "layer=translucent"
+                ).getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex translucent =
+                ResourcePackTextureVariantResolver.buildForTest(translucentManager, false);
+            BlockOverlaySprite[] translucentOverlays =
+                translucent.resolveOverlayDetailsForTest(stone, stoneId, new BlockPos(2, 64, 3), Direction.UP);
+            expect(translucentOverlays.length == 1
+                    && translucentOverlays[0].spriteId()
+                        == TextureArrayBridge.resolveSpriteId(overlayFixed0.toString()),
+                "layer=translucent overlay_fixed should emit its overlay sprite");
+            expect(translucentOverlays[0].alphaMode() == PBRVertexFormatElements.PBR_ALPHA_MODE_TRANSPARENT,
+                "overlay layer=translucent should carry transparent alpha mode to quad emission");
+
+            FakeResourceManager defaultManager = new FakeResourceManager();
+            defaultManager.add("minecraft:optifine/ctm/overlay_layer/default.properties",
+                "method=overlay_fixed\nmatchTiles=stone\nfaces=top\n".getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex defaults =
+                ResourcePackTextureVariantResolver.buildForTest(defaultManager, false);
+            BlockOverlaySprite[] defaultOverlays =
+                defaults.resolveOverlayDetailsForTest(stone, stoneId, new BlockPos(2, 64, 3), Direction.UP);
+            expect(defaultOverlays.length == 1 && defaultOverlays[0].alphaMode() == -1,
+                "overlay rules without layer should leave alpha mode unspecified for the consumer cutout fallback");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
