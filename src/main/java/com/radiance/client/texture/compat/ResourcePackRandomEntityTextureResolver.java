@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.TextureManager;
@@ -182,7 +183,7 @@ public final class ResourcePackRandomEntityTextureResolver {
             if (hasUnsupportedPredicate(props, group)) {
                 continue;
             }
-            List<Identifier> choices = parseChoices(props.getProperty("textures." + group),
+            List<Identifier> choices = parseChoices(textureChoices(props, group),
                 baseTexture, baseAssetStem, propertyId.getNamespace(), resourceManager);
             if (choices.isEmpty()) {
                 continue;
@@ -213,18 +214,35 @@ public final class ResourcePackRandomEntityTextureResolver {
     }
 
     private static List<Integer> sortedTextureGroups(Properties props) {
-        ArrayList<Integer> groups = new ArrayList<>();
+        TreeSet<Integer> groups = new TreeSet<>();
         for (String key : props.stringPropertyNames()) {
-            if (!key.startsWith("textures.")) {
-                continue;
+            Integer group = textureGroup(key, "textures.");
+            if (group == null) {
+                group = textureGroup(key, "skins.");
             }
-            try {
-                groups.add(Integer.parseInt(key.substring("textures.".length())));
-            } catch (NumberFormatException ignored) {
+            if (group != null) {
+                groups.add(group);
             }
         }
-        groups.sort(Integer::compareTo);
-        return groups;
+        return new ArrayList<>(groups);
+    }
+
+    @Nullable
+    private static Integer textureGroup(String key, String prefix) {
+        if (key == null || !key.startsWith(prefix)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(key.substring(prefix.length()));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    @Nullable
+    private static String textureChoices(Properties props, int group) {
+        String textures = props.getProperty("textures." + group);
+        return textures != null ? textures : props.getProperty("skins." + group);
     }
 
     private static boolean hasUnsupportedPredicate(Properties props, int group) {
@@ -234,7 +252,8 @@ public final class ResourcePackRandomEntityTextureResolver {
                 continue;
             }
             String name = key.substring(0, key.length() - suffix.length()).toLowerCase(Locale.ROOT);
-            if (!name.equals("textures") && !name.equals("weights") && !name.equals("biomes")
+            if (!name.equals("textures") && !name.equals("skins")
+                && !name.equals("weights") && !name.equals("biomes")
                 && !name.equals("heights") && !name.equals("sizes")) {
                 return true;
             }

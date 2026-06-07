@@ -3269,11 +3269,14 @@ public final class MaterialLabSelfTest {
                 ("textures.1=2\nheights.1=60-70\n"
                     + "textures.2=1\n").getBytes(StandardCharsets.UTF_8));
             manager.add("minecraft:optifine/random/entity/zombie/zombie2.png", new byte[] {4});
+            manager.add("minecraft:optifine/random/entity/wolf/wolf.properties",
+                "skins.1=1 2\nweights.1=1 1\n".getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/random/entity/wolf/wolf2.png", new byte[] {5});
 
             ResourcePackRandomEntityTextureResolver.RandomEntityIndex index =
                 ResourcePackRandomEntityTextureResolver.buildForTest(manager, false);
-            expect(index.ruleCountForTest() == 7,
-                "random entity resolver should parse weighted, biome, height, and size rules");
+            expect(index.ruleCountForTest() == 8,
+                "random entity resolver should parse weighted, biome, height, size, and skins-alias rules");
 
             Identifier cow = Identifier.ofVanilla("textures/entity/cow/cow_temperate.png");
             Identifier cow2 = Identifier.ofVanilla("optifine/random/entity/cow/cow_temperate2.png");
@@ -3309,6 +3312,18 @@ public final class MaterialLabSelfTest {
                 "random entity resolver should honor entity height predicates");
             expect(zombie.equals(index.resolve(zombie, 3, "", 71, -1)),
                 "random entity resolver should fall through when entity height predicates do not match");
+
+            Identifier wolf = Identifier.ofVanilla("textures/entity/wolf/wolf.png");
+            Identifier wolf2 = Identifier.ofVanilla("optifine/random/entity/wolf/wolf2.png");
+            boolean sawWolfBase = false;
+            boolean sawWolfAlt = false;
+            for (int hash = 0; hash < 64; hash++) {
+                Identifier resolved = index.resolve(wolf, hash, "");
+                sawWolfBase |= wolf.equals(resolved);
+                sawWolfAlt |= wolf2.equals(resolved);
+            }
+            expect(sawWolfBase && sawWolfAlt,
+                "random entity resolver should treat OptiFine skins.N as a texture choice alias");
         } finally {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatRandomEnabled = oldRandom;
