@@ -3,6 +3,7 @@ package com.radiance.client.texture.compat;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.vertex.PBRVertexFormatElements;
@@ -1164,6 +1165,7 @@ public final class ResourcePackTextureVariantResolver {
                 json.addProperty("sprite", "");
                 json.addProperty("spriteId", -1);
                 json.addProperty("materialSetId", -1);
+                addMaterialSetBinding(json, -1);
                 json.addProperty("resolved", false);
             }
             array.add(json);
@@ -1177,8 +1179,17 @@ public final class ResourcePackTextureVariantResolver {
         json.addProperty("sprite", sprite == null ? "" : sprite.toString());
         json.addProperty("spriteId", spriteId);
         json.addProperty("materialSetId", spriteId);
+        addMaterialSetBinding(json, spriteId);
         json.addProperty("resolved", spriteId >= 0);
         return json;
+    }
+
+    private static void addMaterialSetBinding(JsonObject json, int spriteId) {
+        json.addProperty("materialSetBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
+        json.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
+        json.addProperty("nativeMaterialSetTablePresent",
+            AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
+        json.addProperty("materialSetAliasesResolvedSprite", spriteId >= 0);
     }
 
     private static JsonArray blockPredicateArray(List<BlockPredicate> predicates) {

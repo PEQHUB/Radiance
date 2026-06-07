@@ -9,7 +9,9 @@ import net.minecraft.util.Identifier;
 
 public final class AutoPbrTextureCatalog {
     public static final String DISPLACEMENT_HEIGHT_SOURCE = "direct_labpbr_normal_alpha";
-    public static final String MATERIAL_SET_BINDING_POLICY = "sprite_id_alias_until_material_set_table";
+    public static final String MATERIAL_SET_BINDING_POLICY = "resolved_sprite_id_material_set_v1";
+    public static final String MATERIAL_SET_SHADER_LOOKUP_KEY = "pbr_texture_id";
+    public static final boolean MATERIAL_SET_NATIVE_TABLE_PRESENT = false;
     private static final Identifier WATER_STILL = Identifier.ofVanilla("block/water_still");
     private static final Identifier WATER_FLOW = Identifier.ofVanilla("block/water_flow");
     private static final Identifier WATER_OVERLAY = Identifier.ofVanilla("block/water_overlay");
@@ -262,6 +264,9 @@ public final class AutoPbrTextureCatalog {
             sprite == null ? "" : sprite.toString(),
             validSpriteId(spriteId),
             MATERIAL_SET_BINDING_POLICY,
+            MATERIAL_SET_SHADER_LOOKUP_KEY,
+            MATERIAL_SET_NATIVE_TABLE_PRESENT,
+            true,
             "labpbr_direct",
             albedo(spriteId) != null,
             auxChannelBinding("specular", hasSpecularTexture(spriteId), specularSource(spriteId)),
@@ -427,7 +432,10 @@ public final class AutoPbrTextureCatalog {
     }
 
     public record MaterialTextureSet(int materialSetId, int baseSpriteId, String sprite,
-                                     boolean valid, String nativeBindingPolicy, String decodeMode,
+                                     boolean valid, String nativeBindingPolicy, String shaderLookupKey,
+                                     boolean nativeMaterialSetTablePresent,
+                                     boolean materialSetAliasesResolvedSprite,
+                                     String decodeMode,
                                      boolean hasAlbedo, ChannelBinding specular,
                                      ChannelBinding normal, ChannelBinding flags,
                                      boolean hasAuthoredHeight, String heightSource,

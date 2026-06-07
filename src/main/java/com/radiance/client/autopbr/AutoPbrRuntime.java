@@ -190,6 +190,10 @@ public final class AutoPbrRuntime {
         root.addProperty("spriteCount", spriteCount);
         root.addProperty("reported", max);
         root.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
+        root.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
+        root.addProperty("nativeMaterialSetTablePresent",
+            AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
+        root.addProperty("materialSetAliasesResolvedSprite", true);
         root.addProperty("decodeMode", "labpbr_direct");
         root.add("items", items);
         return GSON.toJson(root);
@@ -464,6 +468,9 @@ public final class AutoPbrRuntime {
         json.addProperty("sprite", set.sprite());
         json.addProperty("valid", set.valid());
         json.addProperty("nativeBindingPolicy", set.nativeBindingPolicy());
+        json.addProperty("shaderLookupKey", set.shaderLookupKey());
+        json.addProperty("nativeMaterialSetTablePresent", set.nativeMaterialSetTablePresent());
+        json.addProperty("materialSetAliasesResolvedSprite", set.materialSetAliasesResolvedSprite());
         json.addProperty("decodeMode", set.decodeMode());
         json.addProperty("hasAlbedo", set.hasAlbedo());
         json.add("specular", channelBindingJson(set.specular()));

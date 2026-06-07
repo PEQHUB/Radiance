@@ -7,6 +7,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.radiance.client.RadianceClient;
+import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import java.io.BufferedReader;
@@ -273,6 +274,11 @@ public final class ResourcePackCompatDiagnostics {
         source.addProperty("displacementSource", "direct_labpbr_normal_alpha");
         source.addProperty("displacementNormalization", "none");
         source.addProperty("heightAlphaRangeRole", "diagnostic_metadata_only");
+        source.addProperty("materialSetBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
+        source.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
+        source.addProperty("nativeMaterialSetTablePresent",
+            AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
+        source.addProperty("materialSetAliasesResolvedSprite", true);
         dump.add("source", source);
 
         JsonObject aggregate = aggregateLabPbrCoverage(active);
@@ -326,7 +332,10 @@ public final class ResourcePackCompatDiagnostics {
         policy.addProperty("packPriority", "minecraft_active_resource_stack_order");
         policy.addProperty("ruleParsing", "java_side");
         policy.addProperty("quadResolution", "chunk_build_side");
-        policy.addProperty("shaderInput", "resolved_sprite_and_material_ids");
+        policy.addProperty("shaderInput", "resolved_sprite_id_material_set_alias");
+        policy.addProperty("shaderLookupKey", AutoPbrTextureCatalog.MATERIAL_SET_SHADER_LOOKUP_KEY);
+        policy.addProperty("nativeMaterialSetTablePresent",
+            AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
         policy.addProperty("legacyMcPatcher", "enabled_only_when_materialCompatLegacyMcPatcherEnabled");
         policy.addProperty("ctmTileAtlasAdmission", "required_non_vanilla_ctm_tiles_are_admitted_before_resolution");
         dump.add("policy", policy);

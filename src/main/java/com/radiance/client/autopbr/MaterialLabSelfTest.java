@@ -564,9 +564,15 @@ public final class MaterialLabSelfTest {
             JsonObject materialSet = audit.getAsJsonObject("materialSet");
             expect(materialSet != null, "material audit should expose material-set binding");
             expect(materialSet.get("materialSetId").getAsInt() == 0, "material set id should alias sprite id");
-            expect("sprite_id_alias_until_material_set_table".equals(
+            expect("resolved_sprite_id_material_set_v1".equals(
                     materialSet.get("nativeBindingPolicy").getAsString()),
                 "material-set binding policy should be explicit");
+            expect("pbr_texture_id".equals(materialSet.get("shaderLookupKey").getAsString()),
+                "material set should identify the shader lookup field");
+            expect(!materialSet.get("nativeMaterialSetTablePresent").getAsBoolean(),
+                "material set should not claim a separate native table");
+            expect(materialSet.get("materialSetAliasesResolvedSprite").getAsBoolean(),
+                "material set should explicitly alias the resolved sprite id");
             expect("labpbr_direct".equals(materialSet.get("decodeMode").getAsString()),
                 "material set should use direct LabPBR decode mode");
             expect("direct_labpbr_normal_alpha".equals(materialSet.get("heightSource").getAsString()),
@@ -604,6 +610,15 @@ public final class MaterialLabSelfTest {
             JsonObject item = registry.getAsJsonArray("items").get(0).getAsJsonObject();
             expect("minecraft:block/oak_planks".equals(item.get("sprite").getAsString()),
                 "material set registry should preserve sprite labels");
+            expect("resolved_sprite_id_material_set_v1".equals(
+                    registry.get("nativeBindingPolicy").getAsString()),
+                "material set registry should expose the alias binding policy");
+            expect("pbr_texture_id".equals(registry.get("shaderLookupKey").getAsString()),
+                "material set registry should expose the shader lookup field");
+            expect(!registry.get("nativeMaterialSetTablePresent").getAsBoolean(),
+                "material set registry should not claim a separate native table");
+            expect(registry.get("materialSetAliasesResolvedSprite").getAsBoolean(),
+                "material set registry should expose the resolved-sprite alias contract");
             expect("direct_labpbr_normal_alpha".equals(item.get("heightSource").getAsString()),
                 "material set registry should retain direct LabPBR height source");
         } finally {
@@ -1416,6 +1431,14 @@ public final class MaterialLabSelfTest {
             expect("diagnostic_metadata_only".equals(
                     materials.getAsJsonObject("source").get("heightAlphaRangeRole").getAsString()),
                 "material set dump must not present alpha range as shader normalization input");
+            expect("resolved_sprite_id_material_set_v1".equals(
+                    materials.getAsJsonObject("source").get("materialSetBindingPolicy").getAsString()),
+                "material set dump should expose resolved-sprite alias binding");
+            expect("pbr_texture_id".equals(
+                    materials.getAsJsonObject("source").get("shaderLookupKey").getAsString()),
+                "material set dump should expose shader lookup key");
+            expect(!materials.getAsJsonObject("source").get("nativeMaterialSetTablePresent").getAsBoolean(),
+                "material set dump should not claim a native material-set table");
 
             JsonObject ctmRules = JsonParser.parseString(Files.readString(ctmRulesPath, StandardCharsets.UTF_8))
                 .getAsJsonObject();
@@ -1427,6 +1450,13 @@ public final class MaterialLabSelfTest {
 
             JsonObject precedence = JsonParser.parseString(Files.readString(precedencePath, StandardCharsets.UTF_8))
                 .getAsJsonObject();
+            JsonObject policy = precedence.getAsJsonObject("policy");
+            expect("resolved_sprite_id_material_set_alias".equals(policy.get("shaderInput").getAsString()),
+                "rule precedence dump should describe resolved-sprite material aliasing");
+            expect("pbr_texture_id".equals(policy.get("shaderLookupKey").getAsString()),
+                "rule precedence dump should expose shader lookup key");
+            expect(!policy.get("nativeMaterialSetTablePresent").getAsBoolean(),
+                "rule precedence dump should not claim a native material-set table");
             JsonObject consumption = precedence.getAsJsonObject("compatibilityConsumption");
             expect(consumption.get("javaSideRuleParsing").getAsBoolean(),
                 "rule precedence dump should expose Java-side rule parsing");
@@ -2000,6 +2030,15 @@ public final class MaterialLabSelfTest {
                 "variant registry should resolve output sprite ids");
             expect(fixedOutput.get("materialSetId").getAsInt() == fixedId,
                 "variant registry should expose material-set id alias for outputs");
+            expect("resolved_sprite_id_material_set_v1".equals(
+                    fixedOutput.get("materialSetBindingPolicy").getAsString()),
+                "variant outputs should expose material-set alias policy");
+            expect("pbr_texture_id".equals(fixedOutput.get("shaderLookupKey").getAsString()),
+                "variant outputs should expose shader lookup key");
+            expect(!fixedOutput.get("nativeMaterialSetTablePresent").getAsBoolean(),
+                "variant outputs should not claim a native material-set table");
+            expect(fixedOutput.get("materialSetAliasesResolvedSprite").getAsBoolean(),
+                "variant outputs should mark material set as resolved sprite alias");
 
             JsonObject randomRule = ruleWithMethod(rules, "random");
             expect(randomRule.get("linkedRandom").getAsBoolean(),
