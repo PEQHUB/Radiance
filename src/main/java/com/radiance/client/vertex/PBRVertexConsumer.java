@@ -50,6 +50,7 @@ import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackNaturalTextureResolver.NaturalTransform;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.BlockOverlaySprite;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.CompactCtmQuadrants;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
 import java.nio.ByteOrder;
@@ -805,6 +806,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             float baseGreen = green;
             float baseBlue = blue;
             boolean baseUseQuadColorData = useQuadColorData;
+            boolean baseQuadRendered = false;
             if (this.blockGeometryContextDepth > 0) {
                 blockSprite = quad.getSprite();
                 this.pendingRepeatTextureBasis = repeatTextureBasis(quad);
@@ -817,31 +819,82 @@ public class PBRVertexConsumer implements VertexConsumer {
                         quad.getFace())) {
                     return;
                 }
-                ResolvedBlockSprite resolved =
-                    setPendingTextureSprite(blockSprite, PBR_FLAG_BLOCK_GEOMETRY, quad.getFace(),
-                        this.pendingRepeatTextureBasis);
-                if (resolved.tintOverride()) {
-                    int tintRgb = resolved.tintRgb() & 0x00FFFFFF;
-                    baseRed = ((tintRgb >> 16) & 0xFF) / 255.0F;
-                    baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
-                    baseBlue = (tintRgb & 0xFF) / 255.0F;
-                    baseUseQuadColorData = false;
-                } else {
-                    int vanillaRgb = rgbFromFloats(baseRed, baseGreen, baseBlue);
-                    int compatRgb = ResourcePackColorPropertiesResolver.resolveBlockColor(
-                        this.pendingBlockState,
+                CompactCtmQuadrants compactQuadrants =
+                    ResourcePackTextureVariantResolver.resolveCompactCtmQuadrants(
+                        blockSprite,
                         this.pendingBlockWorld,
+                        this.pendingBlockState,
                         this.pendingBlockPos,
-                        -1,
-                        vanillaRgb);
-                    if ((compatRgb & 0x00FFFFFF) != (vanillaRgb & 0x00FFFFFF)) {
-                        baseRed = ((compatRgb >> 16) & 0xFF) / 255.0F;
-                        baseGreen = ((compatRgb >> 8) & 0xFF) / 255.0F;
-                        baseBlue = (compatRgb & 0xFF) / 255.0F;
+                        quad.getFace());
+                if (compactQuadrants != null) {
+                    if (compactQuadrants.tintOverride()) {
+                        int tintRgb = compactQuadrants.tintRgb() & 0x00FFFFFF;
+                        baseRed = ((tintRgb >> 16) & 0xFF) / 255.0F;
+                        baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
+                        baseBlue = (tintRgb & 0xFF) / 255.0F;
                         baseUseQuadColorData = false;
+                    } else {
+                        int vanillaRgb = rgbFromFloats(baseRed, baseGreen, baseBlue);
+                        int compatRgb = ResourcePackColorPropertiesResolver.resolveBlockColor(
+                            this.pendingBlockState,
+                            this.pendingBlockWorld,
+                            this.pendingBlockPos,
+                            -1,
+                            vanillaRgb);
+                        if ((compatRgb & 0x00FFFFFF) != (vanillaRgb & 0x00FFFFFF)) {
+                            baseRed = ((compatRgb >> 16) & 0xFF) / 255.0F;
+                            baseGreen = ((compatRgb >> 8) & 0xFF) / 255.0F;
+                            baseBlue = (compatRgb & 0xFF) / 255.0F;
+                            baseUseQuadColorData = false;
+                        }
                     }
+                    int alphaMode = compactQuadrants.alphaMode() >= 0
+                        ? compactQuadrants.alphaMode()
+                        : ResourcePackBlockLayerResolver.resolveBlockAlphaMode(this.pendingBlockState);
+                    baseQuadRendered = emitCompactCtmSubQuads(
+                        matrixEntry,
+                        quad,
+                        brightnesses,
+                        baseRed,
+                        baseGreen,
+                        baseBlue,
+                        alpha,
+                        lights,
+                        overlay,
+                        baseUseQuadColorData,
+                        blockSprite,
+                        compactQuadrants,
+                        alphaMode);
                 }
-                blockOverlayUvTransform = this.pendingNaturalUvTransform;
+                if (!baseQuadRendered) {
+                    ResolvedBlockSprite resolved =
+                        setPendingTextureSprite(blockSprite, PBR_FLAG_BLOCK_GEOMETRY, quad.getFace(),
+                            this.pendingRepeatTextureBasis);
+                    if (resolved.tintOverride()) {
+                        int tintRgb = resolved.tintRgb() & 0x00FFFFFF;
+                        baseRed = ((tintRgb >> 16) & 0xFF) / 255.0F;
+                        baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
+                        baseBlue = (tintRgb & 0xFF) / 255.0F;
+                        baseUseQuadColorData = false;
+                    } else {
+                        int vanillaRgb = rgbFromFloats(baseRed, baseGreen, baseBlue);
+                        int compatRgb = ResourcePackColorPropertiesResolver.resolveBlockColor(
+                            this.pendingBlockState,
+                            this.pendingBlockWorld,
+                            this.pendingBlockPos,
+                            -1,
+                            vanillaRgb);
+                        if ((compatRgb & 0x00FFFFFF) != (vanillaRgb & 0x00FFFFFF)) {
+                            baseRed = ((compatRgb >> 16) & 0xFF) / 255.0F;
+                            baseGreen = ((compatRgb >> 8) & 0xFF) / 255.0F;
+                            baseBlue = (compatRgb & 0xFF) / 255.0F;
+                            baseUseQuadColorData = false;
+                        }
+                    }
+                    blockOverlayUvTransform = this.pendingNaturalUvTransform;
+                } else {
+                    blockOverlayUvTransform = NaturalTransform.identity();
+                }
                 blockOverlaySprites = ResourcePackTextureVariantResolver.resolveBlockOverlaySprites(
                     blockSprite,
                     this.pendingBlockWorld,
@@ -850,16 +903,18 @@ public class PBRVertexConsumer implements VertexConsumer {
                     quad.getFace(),
                     this.pendingRepeatTextureBasis);
             }
-            VertexConsumer.super.quad(matrixEntry,
-                quad,
-                brightnesses,
-                baseRed,
-                baseGreen,
-                baseBlue,
-                alpha,
-                lights,
-                overlay,
-                baseUseQuadColorData);
+            if (!baseQuadRendered) {
+                VertexConsumer.super.quad(matrixEntry,
+                    quad,
+                    brightnesses,
+                    baseRed,
+                    baseGreen,
+                    baseBlue,
+                    alpha,
+                    lights,
+                    overlay,
+                    baseUseQuadColorData);
+            }
             if (blockOverlaySprites.length > 0 && blockSprite != null) {
                 for (BlockOverlaySprite blockOverlay : blockOverlaySprites) {
                     int tintRgb = blockOverlay.tintRgb() & 0x00FFFFFF;
@@ -892,6 +947,202 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingNaturalUvTransform = previousNaturalUvTransform;
             this.pendingRepeatTextureBasis = previousRepeatTextureBasis;
         }
+    }
+
+    private boolean emitCompactCtmSubQuads(MatrixStack.Entry matrixEntry,
+        BakedQuad quad,
+        float[] brightnesses,
+        float red,
+        float green,
+        float blue,
+        float alpha,
+        int[] lights,
+        int overlay,
+        boolean useQuadColorData,
+        Sprite sourceSprite,
+        CompactCtmQuadrants quadrants,
+        int alphaMode) {
+        int[][] splitData = new int[4][];
+        for (int quadrant = 0; quadrant < 4; quadrant++) {
+            splitData[quadrant] = compactCtmSubQuadData(quad.getVertexData(), sourceSprite, quadrant);
+            if (splitData[quadrant] == null) {
+                return false;
+            }
+        }
+        for (int quadrant = 0; quadrant < 4; quadrant++) {
+            setPendingTextureSpriteIdWithSourceUv(
+                quadrants.spriteId(quadrant),
+                PBR_FLAG_BLOCK_GEOMETRY,
+                sourceSprite,
+                NaturalTransform.identity());
+            if (alphaMode >= 0) {
+                setPendingAlphaMode(alphaMode);
+            }
+            BakedQuad splitQuad = new BakedQuad(
+                splitData[quadrant],
+                quad.getTintIndex(),
+                quad.getFace(),
+                sourceSprite,
+                quad.hasShade(),
+                quad.getLightEmission());
+            VertexConsumer.super.quad(matrixEntry,
+                splitQuad,
+                brightnesses,
+                red,
+                green,
+                blue,
+                alpha,
+                lights,
+                overlay,
+                useQuadColorData);
+        }
+        return true;
+    }
+
+    @Nullable
+    private static int[] compactCtmSubQuadData(@Nullable int[] data, Sprite sourceSprite, int quadrant) {
+        if (data == null || data.length < 32 || sourceSprite == null) {
+            return null;
+        }
+        QuadSample[] corners = quadSamplesByLocalUvCorner(data, sourceSprite);
+        if (corners == null) {
+            return null;
+        }
+        float u0;
+        float u1;
+        float v0;
+        float v1;
+        switch (quadrant) {
+            case 0 -> {
+                u0 = 0.0f;
+                u1 = 0.5f;
+                v0 = 0.0f;
+                v1 = 0.5f;
+            }
+            case 1 -> {
+                u0 = 0.0f;
+                u1 = 0.5f;
+                v0 = 0.5f;
+                v1 = 1.0f;
+            }
+            case 2 -> {
+                u0 = 0.5f;
+                u1 = 1.0f;
+                v0 = 0.5f;
+                v1 = 1.0f;
+            }
+            default -> {
+                u0 = 0.5f;
+                u1 = 1.0f;
+                v0 = 0.0f;
+                v1 = 0.5f;
+            }
+        }
+
+        int[] split = data.clone();
+        for (int vertex = 0; vertex < 4; vertex++) {
+            int offset = vertex * 8;
+            float localU = localSpriteUvForTest(
+                Float.intBitsToFloat(data[offset + 4]),
+                sourceSprite.getMinU(),
+                sourceSprite.getMaxU());
+            float localV = localSpriteUvForTest(
+                Float.intBitsToFloat(data[offset + 5]),
+                sourceSprite.getMinV(),
+                sourceSprite.getMaxV());
+            float targetU = localU < 0.5f ? u0 : u1;
+            float targetV = localV < 0.5f ? v0 : v1;
+            writeInterpolatedQuadVertex(split, offset, corners, sourceSprite, targetU, targetV);
+        }
+        return split;
+    }
+
+    @Nullable
+    private static QuadSample[] quadSamplesByLocalUvCorner(int[] data, Sprite sourceSprite) {
+        QuadSample[] corners = new QuadSample[4];
+        for (int vertex = 0; vertex < 4; vertex++) {
+            int offset = vertex * 8;
+            float localU = localSpriteUvForTest(
+                Float.intBitsToFloat(data[offset + 4]),
+                sourceSprite.getMinU(),
+                sourceSprite.getMaxU());
+            float localV = localSpriteUvForTest(
+                Float.intBitsToFloat(data[offset + 5]),
+                sourceSprite.getMinV(),
+                sourceSprite.getMaxV());
+            if (!Float.isFinite(localU) || !Float.isFinite(localV)) {
+                return null;
+            }
+            int corner = localV < 0.5f
+                ? (localU < 0.5f ? 0 : 1)
+                : (localU < 0.5f ? 3 : 2);
+            if (corners[corner] != null) {
+                return null;
+            }
+            corners[corner] = new QuadSample(
+                Float.intBitsToFloat(data[offset]),
+                Float.intBitsToFloat(data[offset + 1]),
+                Float.intBitsToFloat(data[offset + 2]),
+                data[offset + 3],
+                data[offset + 6],
+                data[offset + 7]);
+        }
+        for (QuadSample corner : corners) {
+            if (corner == null) {
+                return null;
+            }
+        }
+        return corners;
+    }
+
+    private static void writeInterpolatedQuadVertex(int[] out, int offset, QuadSample[] corners,
+        Sprite sourceSprite, float u, float v) {
+        out[offset] = Float.floatToRawIntBits(bilinear(
+            corners[0].x(), corners[1].x(), corners[2].x(), corners[3].x(), u, v));
+        out[offset + 1] = Float.floatToRawIntBits(bilinear(
+            corners[0].y(), corners[1].y(), corners[2].y(), corners[3].y(), u, v));
+        out[offset + 2] = Float.floatToRawIntBits(bilinear(
+            corners[0].z(), corners[1].z(), corners[2].z(), corners[3].z(), u, v));
+        out[offset + 3] = bilinearPackedChannels(
+            corners[0].color(), corners[1].color(), corners[2].color(), corners[3].color(), u, v);
+        out[offset + 4] = Float.floatToRawIntBits(
+            sourceSprite.getMinU() + (sourceSprite.getMaxU() - sourceSprite.getMinU()) * u);
+        out[offset + 5] = Float.floatToRawIntBits(
+            sourceSprite.getMinV() + (sourceSprite.getMaxV() - sourceSprite.getMinV()) * v);
+        out[offset + 6] = bilinearPackedChannels(
+            corners[0].light(), corners[1].light(), corners[2].light(), corners[3].light(), u, v);
+        out[offset + 7] = nearestQuadSample(corners, u, v).normal();
+    }
+
+    private static float bilinear(float c00, float c10, float c11, float c01, float u, float v) {
+        float top = c00 + (c10 - c00) * u;
+        float bottom = c01 + (c11 - c01) * u;
+        return top + (bottom - top) * v;
+    }
+
+    private static int bilinearPackedChannels(int c00, int c10, int c11, int c01, float u, float v) {
+        int out = 0;
+        for (int shift = 0; shift < 32; shift += 8) {
+            float value = bilinear(
+                (c00 >>> shift) & 0xFF,
+                (c10 >>> shift) & 0xFF,
+                (c11 >>> shift) & 0xFF,
+                (c01 >>> shift) & 0xFF,
+                u,
+                v);
+            out |= Math.round(clamp01(value / 255.0f) * 255.0f) << shift;
+        }
+        return out;
+    }
+
+    private static QuadSample nearestQuadSample(QuadSample[] corners, float u, float v) {
+        if (v < 0.5f) {
+            return u < 0.5f ? corners[0] : corners[1];
+        }
+        return u < 0.5f ? corners[3] : corners[2];
+    }
+
+    private record QuadSample(float x, float y, float z, int color, int light, int normal) {
     }
 
     private static int rgbFromFloats(float red, float green, float blue) {

@@ -2159,12 +2159,15 @@ public final class MaterialLabSelfTest {
             Identifier compact0 = ctmFixtureId("compact", 0);
             Identifier compact1 = ctmFixtureId("compact", 1);
             Identifier compact2 = ctmFixtureId("compact", 2);
+            Identifier compact3 = ctmFixtureId("compact", 3);
+            Identifier compact4 = ctmFixtureId("compact", 4);
             Identifier compact5 = ctmFixtureId("compact", 5);
             expect(ctm0 != null && ctm15 != null && ctm26 != null && ctm46 != null
-                    && compact0 != null && compact1 != null && compact2 != null && compact5 != null,
+                    && compact0 != null && compact1 != null && compact2 != null
+                    && compact3 != null && compact4 != null && compact5 != null,
                 "full and compact CTM fixture ids should parse");
             TextureArrayBridge.setSortedSpriteIds(List.of(stone, ctm0, ctm15, ctm26, ctm46,
-                compact0, compact1, compact2, compact5));
+                compact0, compact1, compact2, compact3, compact4, compact5));
 
             Options.materialCompatEnabled = true;
             Options.materialCompatCtmEnabled = true;
@@ -2230,7 +2233,21 @@ public final class MaterialLabSelfTest {
                     Set.of(Direction.WEST, Direction.DOWN),
                     Set.of(ResourcePackTextureVariantResolver.ResolverIndex.diagonalKeyForTest(
                         Direction.WEST, Direction.DOWN))) == stoneId,
-                "compact CTM should leave mixed quadrant cases for a future split-quad pass");
+                "compact CTM whole-quad lookup should leave mixed quadrant cases for split-quad rendering");
+            ResourcePackTextureVariantResolver.CompactCtmQuadrants mixedQuadrants =
+                compact.resolveCompactCtmQuadrantsWithConnectionsForTest(stone, stoneId, null, Direction.NORTH,
+                    Set.of(Direction.WEST, Direction.DOWN),
+                    Set.of(ResourcePackTextureVariantResolver.ResolverIndex.diagonalKeyForTest(
+                        Direction.WEST, Direction.DOWN)));
+            expect(mixedQuadrants != null,
+                "compact CTM mixed quadrant cases should resolve split-quad sprite ids");
+            expect(java.util.Arrays.equals(mixedQuadrants.spriteIds(), new int[] {
+                    TextureArrayBridge.resolveSpriteId(compact3.toString()),
+                    TextureArrayBridge.resolveSpriteId(compact1.toString()),
+                    TextureArrayBridge.resolveSpriteId(compact2.toString()),
+                    TextureArrayBridge.resolveSpriteId(compact0.toString())
+                }),
+                "compact CTM should expose upper-left/lower-left/lower-right/upper-right sprite ids");
             expect(compact.resolveWithConnectionsForTest(stone, stoneId, null, Direction.NORTH,
                     Set.of(Direction.WEST, Direction.DOWN, Direction.EAST, Direction.UP),
                     Set.of(

@@ -73,6 +73,27 @@ public final class ResourcePackTextureVariantResolver {
                                       int alphaMode) {
     }
 
+    public record CompactCtmQuadrants(int[] spriteIds,
+                                      int tintRgb,
+                                      boolean tintOverride,
+                                      int alphaMode) {
+        public CompactCtmQuadrants {
+            if (spriteIds == null || spriteIds.length != 4) {
+                throw new IllegalArgumentException("Compact CTM quadrant sprite ids must have length 4");
+            }
+            spriteIds = spriteIds.clone();
+        }
+
+        @Override
+        public int[] spriteIds() {
+            return spriteIds.clone();
+        }
+
+        public int spriteId(int quadrant) {
+            return spriteIds[quadrant];
+        }
+    }
+
     public record RepeatTextureBasis(Direction.Axis uAxis,
                                      int uSign,
                                      Direction.Axis vAxis,
@@ -133,6 +154,26 @@ public final class ResourcePackTextureVariantResolver {
         }
         ResolverIndex index = activeIndex(resourceManager);
         return index.resolveDetailed(source, sourceSpriteId, world, state, pos, face, textureBasis);
+    }
+
+    @Nullable
+    public static CompactCtmQuadrants resolveCompactCtmQuadrants(@Nullable Sprite sourceSprite,
+        @Nullable BlockRenderView world,
+        @Nullable BlockState state,
+        @Nullable BlockPos pos,
+        @Nullable Direction face) {
+        Identifier source = spriteIdentifier(sourceSprite);
+        int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
+        if (source == null || sourceSpriteId < 0 || !Options.materialCompatEnabled
+            || !Options.materialCompatCtmEnabled) {
+            return null;
+        }
+        ResourceManager resourceManager = currentResourceManager();
+        if (resourceManager == null) {
+            return null;
+        }
+        ResolverIndex index = activeIndex(resourceManager);
+        return index.resolveCompactCtmQuadrants(source, sourceSpriteId, world, state, pos, face);
     }
 
     public static boolean hasBlockSpriteRule(@Nullable Sprite sourceSprite,
@@ -1134,6 +1175,25 @@ public final class ResourcePackTextureVariantResolver {
             return resolve(source, sourceSpriteId, null, state, null, face, connector);
         }
 
+        @Nullable
+        public CompactCtmQuadrants resolveCompactCtmQuadrantsWithConnectionsForTest(Identifier source,
+            int sourceSpriteId, @Nullable BlockState state, @Nullable Direction face,
+            Set<Direction> connectedDirections, Set<String> connectedDiagonalDirections) {
+            NeighborConnector connector = new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return connectedDirections != null && connectedDirections.contains(direction);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return connectedDiagonalDirections != null
+                        && connectedDiagonalDirections.contains(diagonalKeyForTest(first, second));
+                }
+            };
+            return resolveCompactCtmQuadrants(source, sourceSpriteId, null, state, null, face, connector, null);
+        }
+
         public int resolveWithNeighborStatesForTest(Identifier source, int sourceSpriteId,
             @Nullable BlockState state, @Nullable Direction face, Map<Direction, BlockState> neighborStates) {
             if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
@@ -1274,6 +1334,47 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
+        }
+
+        @Nullable
+        CompactCtmQuadrants resolveCompactCtmQuadrants(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face) {
+            NeighborConnector connector = new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return ResolverIndex.this.connects(world, state, pos, direction, mode);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return ResolverIndex.this.connects(world, state, pos, first, second, mode);
+                }
+            };
+            return resolveCompactCtmQuadrants(source, sourceSpriteId, world, state, pos, face, connector, null);
+        }
+
+        @Nullable
+        CompactCtmQuadrants resolveCompactCtmQuadrants(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
+            @Nullable String biomeId) {
+            if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
+                return null;
+            }
+            for (VariantRule rule : rules) {
+                if (rule.method() != RuleMethod.CTM_COMPACT || !rule.enabledByOptions()
+                    || !rule.matches(source, world, state, pos, face, biomeId)) {
+                    continue;
+                }
+                CompactCtmQuadrants quadrants =
+                    rule.resolveCompactCtmQuadrants(world, state, pos, face,
+                        rule.neighborConnector(source, world, state, pos, face, connector));
+                if (quadrants != null) {
+                    return quadrants;
+                }
+            }
+            return null;
         }
 
         BlockOverlaySprite[] resolveOverlay(Identifier source, int sourceSpriteId, @Nullable BlockRenderView world,
@@ -1469,6 +1570,42 @@ public final class ResourcePackTextureVariantResolver {
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
         }
 
+        @Nullable
+        CompactCtmQuadrants resolveCompactCtmQuadrants(@Nullable BlockRenderView world,
+            @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
+            NeighborConnector connector) {
+            if (method != RuleMethod.CTM_COMPACT) {
+                return null;
+            }
+            int connections = ctmConnections(connector, face);
+            int ctmIndex = CTM_47_INDEX_MAP[connections];
+            if (ctmReplacementMap != null && ctmIndex >= 0 && ctmIndex < ctmReplacementMap.length
+                && ctmReplacementMap[ctmIndex] >= 0) {
+                return null;
+            }
+            int[] outputIndices = compactQuadrantIndices(connections);
+            boolean mixed = false;
+            for (int i = 1; i < outputIndices.length; i++) {
+                if (outputIndices[i] != outputIndices[0]) {
+                    mixed = true;
+                    break;
+                }
+            }
+            if (!mixed) {
+                return null;
+            }
+            int[] spriteIds = new int[4];
+            for (int i = 0; i < spriteIds.length; i++) {
+                spriteIds[i] = spriteIdForOutputIndex(outputIndices[i]);
+                if (spriteIds[i] < 0) {
+                    return null;
+                }
+            }
+            boolean tintOverride = tintOverride();
+            int tintRgb = tintOverride ? overlayTintRgb(world, state, pos) : 0xFFFFFF;
+            return new CompactCtmQuadrants(spriteIds, tintRgb, tintOverride, alphaMode);
+        }
+
         BlockOverlaySprite[] resolveOverlaySpriteIds(Identifier source, @Nullable BlockRenderView world,
             @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
             NeighborConnector connector, @Nullable RepeatTextureBasis textureBasis) {
@@ -1514,6 +1651,21 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return overlays.toArray(BlockOverlaySprite[]::new);
+        }
+
+        private int spriteIdForOutputIndex(int outputIndex) {
+            if (outputIndex < 0 || outputs.isEmpty()) {
+                return -1;
+            }
+            for (int i = 0; i < outputs.size(); i++) {
+                int index = Math.floorMod(outputIndex + i, outputs.size());
+                Identifier sprite = outputs.get(index);
+                int spriteId = TextureArrayBridge.resolveSpriteId(sprite.toString());
+                if (spriteId >= 0) {
+                    return spriteId;
+                }
+            }
+            return -1;
         }
 
         private int spriteIdForChoice(int tileIndex, boolean fallbackFromSelected) {
@@ -1915,6 +2067,15 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return first;
+        }
+
+        private int[] compactQuadrantIndices(int connections) {
+            return new int[] {
+                compactQuadrantIndex(0, connections),
+                compactQuadrantIndex(1, connections),
+                compactQuadrantIndex(2, connections),
+                compactQuadrantIndex(3, connections)
+            };
         }
 
         private int ctmConnections(NeighborConnector connector, @Nullable Direction face) {

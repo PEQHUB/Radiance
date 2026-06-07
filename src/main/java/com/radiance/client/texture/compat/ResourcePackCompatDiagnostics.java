@@ -163,6 +163,8 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("full47CtmNeighborMasks", Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("compactCtmWholeQuadAndExplicitOverrides",
             Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
+        json.addProperty("compactCtmSplitQuadQuadrants",
+            Options.materialCompatEnabled && Options.materialCompatCtmEnabled);
         json.addProperty("optifineEmissiveOverlaySprites",
             Options.materialCompatEnabled && Options.materialCompatPhysicalEmissiveEnabled);
         json.addProperty("overlayLayerEmission",
