@@ -118,6 +118,7 @@ public final class MaterialLabSelfTest {
         textureVariantResolverSelectsOverlaySprites();
         textureVariantResolverSelectsOverlayCtmRepeatAndFixedSprites();
         textureVariantResolverSelectsNeighborMasks();
+        textureVariantResolverHonorsExplicitConnectPredicates();
         textureVariantResolverSelectsFullAndCompactCtm();
         shaderBlockLayerResolverParsesAlphaModes();
         colorPropertiesResolverParsesFlatBlockPalettes();
@@ -2085,6 +2086,60 @@ public final class MaterialLabSelfTest {
             Options.materialCompatEnabled = oldEnabled;
             Options.materialCompatCtmEnabled = oldCtm;
             Options.materialCompatRandomEnabled = oldRandom;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
+    private static void textureVariantResolverHonorsExplicitConnectPredicates() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier v0 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/connect/0.png"));
+            Identifier v1 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/connect/1.png"));
+            Identifier v2 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/connect/2.png"));
+            Identifier v3 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/connect/3.png"));
+            expect(v0 != null && v1 != null && v2 != null && v3 != null,
+                "explicit connect fixture ids should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, v0, v1, v2, v3));
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+
+            int stoneId = TextureArrayBridge.resolveSpriteId(stone.toString());
+            int v0Id = TextureArrayBridge.resolveSpriteId(v0.toString());
+            int v2Id = TextureArrayBridge.resolveSpriteId(v2.toString());
+            FakeResourceManager blockManager = new FakeResourceManager();
+            blockManager.add("minecraft:optifine/ctm/connect/block.properties",
+                "method=vertical\nmatchTiles=stone\ntiles=0-3\nconnectBlocks=dirt\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex blockIndex =
+                ResourcePackTextureVariantResolver.buildForTest(blockManager, false);
+            expect(blockIndex.resolveWithNeighborBlockIdsForTest(stone, stoneId, "stone",
+                    Direction.NORTH, Map.of(Direction.UP, "dirt")) == v2Id,
+                "connectBlocks should join CTM masks against matching neighbor blocks");
+            expect(blockIndex.resolveWithNeighborBlockIdsForTest(stone, stoneId, "stone",
+                    Direction.NORTH, Map.of(Direction.UP, "oak_planks")) == v0Id,
+                "connectBlocks should keep the isolated CTM tile for non-matching neighbor blocks");
+
+            FakeResourceManager tileManager = new FakeResourceManager();
+            tileManager.add("minecraft:optifine/ctm/connect/tile.properties",
+                "method=vertical\nmatchTiles=stone\ntiles=0-3\nconnectTiles=dirt\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex tileIndex =
+                ResourcePackTextureVariantResolver.buildForTest(tileManager, false);
+            expect(tileIndex.resolveWithNeighborBlockIdsForTest(stone, stoneId, "stone",
+                    Direction.NORTH, Map.of(Direction.UP, "dirt")) == v2Id,
+                "connectTiles should join CTM masks against matching neighbor tile names");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
             TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
                 ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
                 : previousSprites);

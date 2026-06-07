@@ -609,6 +609,16 @@ public final class ResourcePackTextureVariantResolver {
         return false;
     }
 
+    private static boolean matchesBlockPredicates(List<BlockPredicate> predicates, String actualBlockId,
+        Map<String, String> stateValues) {
+        for (BlockPredicate predicate : predicates) {
+            if (predicate.matches(actualBlockId, stateValues)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static Map<String, String> normalizeStateValues(Map<String, String> stateValues) {
         if (stateValues == null || stateValues.isEmpty()) {
             return Map.of();
@@ -1124,6 +1134,47 @@ public final class ResourcePackTextureVariantResolver {
             return resolve(source, sourceSpriteId, null, state, null, face, connector);
         }
 
+        public int resolveWithNeighborStatesForTest(Identifier source, int sourceSpriteId,
+            @Nullable BlockState state, @Nullable Direction face, Map<Direction, BlockState> neighborStates) {
+            if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
+                return sourceSpriteId;
+            }
+            Map<Direction, BlockState> neighbors = neighborStates == null ? Map.of() : neighborStates;
+            for (VariantRule rule : rules) {
+                if (rule.method().overlayRule() || !rule.enabledByOptions()
+                    || !rule.matches(source, null, state, null, face, null)) {
+                    continue;
+                }
+                ResolvedBlockSprite resolved = rule.resolveSprite(source, sourceSpriteId, null, state,
+                    null, face, rule.neighborConnectorForTest(source, state, face, neighbors), null, null);
+                if (resolved.spriteId() >= 0) {
+                    return resolved.spriteId();
+                }
+            }
+            return sourceSpriteId;
+        }
+
+        public int resolveWithNeighborBlockIdsForTest(Identifier source, int sourceSpriteId,
+            String stateBlockId, @Nullable Direction face, Map<Direction, String> neighborBlockIds) {
+            if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
+                return sourceSpriteId;
+            }
+            Map<Direction, String> neighbors = neighborBlockIds == null ? Map.of() : neighborBlockIds;
+            for (VariantRule rule : rules) {
+                if (rule.method().overlayRule() || !rule.enabledByOptions()
+                    || !rule.matches(source, null, null, null, face, null)) {
+                    continue;
+                }
+                ResolvedBlockSprite resolved = rule.resolveSprite(source, sourceSpriteId, null, null,
+                    null, face, rule.neighborConnectorForBlockIdsForTest(source, stateBlockId, face, neighbors),
+                    null, null);
+                if (resolved.spriteId() >= 0) {
+                    return resolved.spriteId();
+                }
+            }
+            return sourceSpriteId;
+        }
+
         public static String diagonalKeyForTest(Direction first, Direction second) {
             return first.name() + "+" + second.name();
         }
@@ -1215,7 +1266,8 @@ public final class ResourcePackTextureVariantResolver {
                     continue;
                 }
                 ResolvedBlockSprite resolved =
-                    rule.resolveSprite(source, sourceSpriteId, world, state, pos, face, connector,
+                    rule.resolveSprite(source, sourceSpriteId, world, state, pos, face,
+                        rule.neighborConnector(source, world, state, pos, face, connector),
                         textureBasis, repeatAxisOverride);
                 if (resolved.spriteId() >= 0) {
                     return resolved;
@@ -1483,6 +1535,109 @@ public final class ResourcePackTextureVariantResolver {
             return -1;
         }
 
+        private NeighborConnector neighborConnector(Identifier source, @Nullable BlockRenderView world,
+            @Nullable BlockState state, @Nullable BlockPos pos, @Nullable Direction face,
+            NeighborConnector fallback) {
+            return new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    if (world == null || pos == null || direction == null) {
+                        return fallback.connects(direction, mode);
+                    }
+                    return connectsNeighborState(source, state, world.getBlockState(pos.offset(direction)),
+                        face, mode);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    if (world == null || pos == null || first == null || second == null) {
+                        return fallback.connects(first, second, mode);
+                    }
+                    return connectsNeighborState(source, state,
+                        world.getBlockState(pos.offset(first).offset(second)), face, mode);
+                }
+            };
+        }
+
+        private NeighborConnector neighborConnectorForTest(Identifier source, @Nullable BlockState state,
+            @Nullable Direction face, Map<Direction, BlockState> neighbors) {
+            return new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return connectsNeighborState(source, state, neighbors.get(direction), face, mode);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return false;
+                }
+            };
+        }
+
+        private NeighborConnector neighborConnectorForBlockIdsForTest(Identifier source, String stateBlockId,
+            @Nullable Direction face, Map<Direction, String> neighbors) {
+            return new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return connectsNeighborBlockId(source, stateBlockId, neighbors.get(direction), face, mode);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return false;
+                }
+            };
+        }
+
+        private boolean connectsNeighborState(Identifier source, @Nullable BlockState state,
+            @Nullable BlockState neighbor, @Nullable Direction face, ConnectMode mode) {
+            if (neighbor == null) {
+                return false;
+            }
+            Direction lightFace = face == null ? Direction.NORTH : face;
+            if (!connectBlocks.isEmpty() && !matchesBlockPredicates(connectBlocks, neighbor)) {
+                return false;
+            }
+            if (!connectTiles.isEmpty() && !matchesBlockTextureTokens(connectTiles, neighbor, lightFace)) {
+                return false;
+            }
+            if (!connectBlocks.isEmpty() || !connectTiles.isEmpty()) {
+                return true;
+            }
+            return switch (mode) {
+                case STATE -> state != null && state.equals(neighbor);
+                case BLOCK -> state != null && state.getBlock() == neighbor.getBlock();
+                case TILE_AS_BLOCK -> source != null
+                    && matchesBlockTextureTokens(List.of(source.getPath()), neighbor, lightFace);
+            };
+        }
+
+        private boolean connectsNeighborBlockId(Identifier source, String stateBlockId, String neighborBlockId,
+            @Nullable Direction face, ConnectMode mode) {
+            String normalizedNeighbor = normalizeBlockIdToken(neighborBlockId);
+            if (normalizedNeighbor.isEmpty()) {
+                return false;
+            }
+            Direction lightFace = face == null ? Direction.NORTH : face;
+            if (!connectBlocks.isEmpty()
+                && !matchesBlockPredicates(connectBlocks, normalizedNeighbor, Map.of())) {
+                return false;
+            }
+            if (!connectTiles.isEmpty()
+                && !matchesBlockTextureTokens(connectTiles, normalizedNeighbor, lightFace)) {
+                return false;
+            }
+            if (!connectBlocks.isEmpty() || !connectTiles.isEmpty()) {
+                return true;
+            }
+            String normalizedState = normalizeBlockIdToken(stateBlockId);
+            return switch (mode) {
+                case STATE, BLOCK -> !normalizedState.isEmpty() && normalizedState.equals(normalizedNeighbor);
+                case TILE_AS_BLOCK -> source != null
+                    && matchesBlockTextureTokens(List.of(source.getPath()), normalizedNeighbor, lightFace);
+            };
+        }
+
         private boolean tintOverride() {
             return tintIndex >= 0 || (tintBlock != null && !tintBlock.isEmpty());
         }
@@ -1694,7 +1849,14 @@ public final class ResourcePackTextureVariantResolver {
 
         private boolean matchesBlockTextureTokens(List<String> tileTokens, BlockState state, Direction face) {
             Identifier blockId = Registries.BLOCK.getId(state.getBlock());
-            String path = normalizeMatchToken(blockId.getPath());
+            return matchesBlockTextureTokens(tileTokens, blockId.toString(), face);
+        }
+
+        private boolean matchesBlockTextureTokens(List<String> tileTokens, String normalizedBlockId,
+            Direction face) {
+            String blockId = normalizeBlockIdToken(normalizedBlockId);
+            int colon = blockId.indexOf(':');
+            String path = normalizeMatchToken(colon >= 0 ? blockId.substring(colon + 1) : blockId);
             String suffix = switch (face) {
                 case UP -> "_top";
                 case DOWN -> "_bottom";
