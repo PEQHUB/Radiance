@@ -114,6 +114,7 @@ public final class MaterialLabSelfTest {
         ctmAtlasAdmissionUtilitiesAreStable();
         ctmAtlasSourceCollectsPresentTiles();
         emissiveTextureResolverMapsSuffixesAndAtlasAdmission();
+        textureVariantResolverRegistryReportsCompiledRules();
         textureVariantResolverSelectsFixedAndRandomSprites();
         textureVariantResolverRespectsBiomeAndHeightPredicates();
         textureVariantResolverSelectsRepeatSprites();
@@ -1641,6 +1642,103 @@ public final class MaterialLabSelfTest {
         }
     }
 
+    private static void textureVariantResolverRegistryReportsCompiledRules() {
+        boolean oldEnabled = Options.materialCompatEnabled;
+        boolean oldCtm = Options.materialCompatCtmEnabled;
+        boolean oldRandom = Options.materialCompatRandomEnabled;
+        boolean oldOverlays = Options.materialCompatOverlaysEnabled;
+        List<Identifier> previousSprites = List.copyOf(TextureArrayBridge.sortedSpriteIds);
+        try {
+            Identifier stone = Identifier.ofVanilla("block/stone");
+            Identifier fixed = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/stone/fixed.png"));
+            Identifier random0 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/stone/0.png"));
+            Identifier overlay = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/stone/overlay.png"));
+            expect(fixed != null && random0 != null && overlay != null,
+                "variant registry fixture identifiers should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, fixed, random0, overlay));
+            Options.materialCompatEnabled = true;
+            Options.materialCompatCtmEnabled = true;
+            Options.materialCompatRandomEnabled = true;
+            Options.materialCompatOverlaysEnabled = true;
+
+            FakeResourceManager manager = new FakeResourceManager();
+            manager.add("minecraft:optifine/ctm/stone/fixed.properties",
+                "method=fixed\nmatchTiles=stone\ntiles=fixed\nfaces=north west\nconnect=tile\n"
+                    .getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/ctm/stone/random.properties",
+                ("method=random\nmatchBlocks=minecraft:stone[axis=x]\ntiles=0\nweights=3\n"
+                    + "symmetry=opposite\nlinked=true\n").getBytes(StandardCharsets.UTF_8));
+            manager.add("minecraft:optifine/ctm/stone/overlay.properties",
+                ("method=overlay_fixed\nmatchTiles=stone\ntiles=overlay\nlayer=translucent\n"
+                    + "tintIndex=1\nbiomes=plains\nheights=60-80\n").getBytes(StandardCharsets.UTF_8));
+
+            JsonObject registry = JsonParser.parseString(
+                ResourcePackTextureVariantResolver.registryJsonForTest(manager, false, 8)).getAsJsonObject();
+            expect("radser_runtime_variant_rule_registry_v1".equals(registry.get("schema").getAsString()),
+                "variant registry should expose a stable schema");
+            expect(registry.get("ruleCount").getAsInt() == 3,
+                "variant registry should report compiled rule count");
+            expect(registry.getAsJsonObject("methodCounts").get("fixed").getAsInt() == 1,
+                "variant registry should count fixed rules");
+            expect(registry.getAsJsonObject("methodCounts").get("random").getAsInt() == 1,
+                "variant registry should count random rules");
+            expect(registry.getAsJsonObject("methodCounts").get("overlay_fixed").getAsInt() == 1,
+                "variant registry should count overlay fixed rules");
+
+            JsonArray rules = registry.getAsJsonArray("rules");
+            JsonObject fixedRule = ruleWithMethod(rules, "fixed");
+            expect(fixedRule.get("enabledByOptions").getAsBoolean(),
+                "fixed rule should report option-enabled status");
+            expect("tile_as_block".equals(fixedRule.get("connectMode").getAsString()),
+                "variant registry should preserve tile connect mode");
+            expect(fixedRule.getAsJsonArray("faces").toString().contains("north")
+                    && fixedRule.getAsJsonArray("faces").toString().contains("west"),
+                "variant registry should preserve face predicates");
+            JsonObject fixedOutput = fixedRule.getAsJsonArray("outputs").get(0).getAsJsonObject();
+            int fixedId = TextureArrayBridge.resolveSpriteId(fixed.toString());
+            expect(fixedOutput.get("spriteId").getAsInt() == fixedId,
+                "variant registry should resolve output sprite ids");
+            expect(fixedOutput.get("materialSetId").getAsInt() == fixedId,
+                "variant registry should expose material-set id alias for outputs");
+
+            JsonObject randomRule = ruleWithMethod(rules, "random");
+            expect(randomRule.get("linkedRandom").getAsBoolean(),
+                "variant registry should expose linked random groups");
+            expect("opposite".equals(randomRule.get("randomSymmetry").getAsString()),
+                "variant registry should expose random symmetry");
+            JsonObject matchBlock = randomRule.getAsJsonArray("matchBlocks").get(0).getAsJsonObject();
+            expect("minecraft:stone".equals(matchBlock.get("blockId").getAsString()),
+                "variant registry should expose normalized matchBlocks ids");
+            expect("axis".equals(matchBlock.getAsJsonArray("states").get(0).getAsJsonObject()
+                    .get("name").getAsString()),
+                "variant registry should expose blockstate predicates");
+
+            JsonObject overlayRule = ruleWithMethod(rules, "overlay_fixed");
+            expect(overlayRule.get("overlayRule").getAsBoolean(),
+                "variant registry should mark overlay rules");
+            expect(overlayRule.getAsJsonArray("choices").get(0).getAsJsonObject()
+                    .get("spriteId").getAsInt() == TextureArrayBridge.resolveSpriteId(overlay.toString()),
+                "variant registry should resolve overlay choice sprite ids");
+            expect("minecraft:plains".equals(overlayRule.getAsJsonObject("biomes")
+                    .getAsJsonArray("values").get(0).getAsString()),
+                "variant registry should expose biome predicates");
+            expect(overlayRule.getAsJsonObject("heights").getAsJsonArray("ranges")
+                    .get(0).getAsJsonObject().get("min").getAsInt() == 60,
+                "variant registry should expose height predicates");
+        } finally {
+            Options.materialCompatEnabled = oldEnabled;
+            Options.materialCompatCtmEnabled = oldCtm;
+            Options.materialCompatRandomEnabled = oldRandom;
+            Options.materialCompatOverlaysEnabled = oldOverlays;
+            TextureArrayBridge.setSortedSpriteIds(previousSprites.isEmpty()
+                ? List.of(SPRITE, Identifier.ofVanilla("block/glass"))
+                : previousSprites);
+        }
+    }
+
     private static void textureVariantResolverSelectsFixedAndRandomSprites() {
         boolean oldEnabled = Options.materialCompatEnabled;
         boolean oldCtm = Options.materialCompatCtmEnabled;
@@ -3130,6 +3228,16 @@ public final class MaterialLabSelfTest {
             }
         }
         throw new AssertionError("missing shader-pack attribute " + name);
+    }
+
+    private static JsonObject ruleWithMethod(JsonArray rules, String method) {
+        for (int i = 0; i < rules.size(); i++) {
+            JsonObject rule = rules.get(i).getAsJsonObject();
+            if (method.equals(rule.get("method").getAsString())) {
+                return rule;
+            }
+        }
+        throw new AssertionError("missing variant registry rule with method " + method);
     }
 
     private static boolean isRayTraceShaderFile(Path path) {

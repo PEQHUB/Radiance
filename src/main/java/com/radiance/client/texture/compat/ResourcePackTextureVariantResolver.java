@@ -1,5 +1,8 @@
 package com.radiance.client.texture.compat;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.vertex.PBRVertexFormatElements;
@@ -15,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.MinecraftClient;
@@ -34,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 public final class ResourcePackTextureVariantResolver {
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
+    private static final Gson GSON = new Gson();
     private static final int RULE_LIMIT = 4096;
     private static final int CHOICE_EXPANSION_LIMIT = 512;
     // Indices are the OptiFine/Continuity 8-way CTM mask:
@@ -254,6 +259,17 @@ public final class ResourcePackTextureVariantResolver {
 
     public static ResolverIndex buildForTest(ResourceManager resourceManager, boolean legacyMcPatcher) {
         return build(resourceManager, legacyMcPatcher);
+    }
+
+    public static String runtimeRuleRegistryJson(int limit) {
+        ResourceManager resourceManager = currentResourceManager();
+        ResolverIndex index = resourceManager == null ? ResolverIndex.empty() : activeIndex(resourceManager);
+        return GSON.toJson(index.registryJson(limit, "runtime_resource_manager", resourceManager != null));
+    }
+
+    public static String registryJsonForTest(ResourceManager resourceManager, boolean legacyMcPatcher, int limit) {
+        ResolverIndex index = build(resourceManager, legacyMcPatcher);
+        return GSON.toJson(index.registryJson(limit, "test_resource_manager", resourceManager != null));
     }
 
     public static boolean blockPredicateMatchesForTest(String ruleToken, String blockId,
@@ -1062,6 +1078,197 @@ public final class ResourcePackTextureVariantResolver {
         return sprite == null || sprite.getContents() == null ? null : sprite.getContents().getId();
     }
 
+    private static JsonObject optionsJson() {
+        JsonObject json = new JsonObject();
+        json.addProperty("materialCompat", Options.materialCompatEnabled);
+        json.addProperty("ctm", Options.materialCompatCtmEnabled);
+        json.addProperty("random", Options.materialCompatRandomEnabled);
+        json.addProperty("overlays", Options.materialCompatOverlaysEnabled);
+        json.addProperty("legacyMcPatcher", Options.materialCompatLegacyMcPatcherEnabled);
+        return json;
+    }
+
+    private static JsonObject ruleJson(VariantRule rule, int ordinal) {
+        JsonObject json = new JsonObject();
+        json.addProperty("ordinal", ordinal);
+        json.addProperty("id", rule.id());
+        json.addProperty("method", methodName(rule.method()));
+        json.addProperty("overlayRule", rule.method().overlayRule());
+        json.addProperty("enabledByOptions", Options.materialCompatEnabled && rule.enabledByOptions());
+        json.add("matchTiles", stringArray(rule.matchTiles()));
+        json.add("matchBlocks", blockPredicateArray(rule.matchBlocks()));
+        json.add("connectTiles", stringArray(rule.connectTiles()));
+        json.add("connectBlocks", blockPredicateArray(rule.connectBlocks()));
+        json.add("faces", facesArray(rule.faces()));
+        json.addProperty("connectMode", lowerName(rule.connectMode()));
+        json.addProperty("outputCount", rule.outputs().size());
+        json.add("outputs", outputArray(rule.outputs()));
+        json.addProperty("choiceCount", rule.choices().size());
+        json.add("choices", choiceArray(rule.choices()));
+        json.add("weights", intArray(rule.weights()));
+        json.addProperty("randomLoops", rule.randomLoops());
+        json.addProperty("randomSymmetry", lowerName(rule.randomSymmetry()));
+        json.addProperty("linkedRandom", rule.linkedRandom());
+        json.addProperty("repeatOrientation", lowerName(rule.repeatOrientation()));
+        json.addProperty("repeatWidth", rule.repeatWidth());
+        json.addProperty("repeatHeight", rule.repeatHeight());
+        json.addProperty("tintIndex", rule.tintIndex());
+        json.addProperty("tintBlock", rule.tintBlock());
+        json.addProperty("alphaMode", rule.alphaMode());
+        json.addProperty("ctmReplacementOverrides", ctmReplacementOverrideCount(rule.ctmReplacementMap()));
+        json.add("biomes", biomePredicateJson(rule.biomePredicate()));
+        json.add("heights", heightPredicateJson(rule.heightPredicate()));
+        return json;
+    }
+
+    private static JsonArray outputArray(List<Identifier> outputs) {
+        JsonArray array = new JsonArray();
+        for (Identifier output : outputs) {
+            array.add(spriteBindingJson(output, false));
+        }
+        return array;
+    }
+
+    private static JsonArray choiceArray(List<TileChoice> choices) {
+        JsonArray array = new JsonArray();
+        for (int i = 0; i < choices.size(); i++) {
+            TileChoice choice = choices.get(i);
+            JsonObject json = new JsonObject();
+            json.addProperty("index", i);
+            json.addProperty("skip", choice.skip());
+            if (choice.sprite() != null) {
+                JsonObject binding = spriteBindingJson(choice.sprite(), false);
+                for (String key : binding.keySet()) {
+                    json.add(key, binding.get(key));
+                }
+            } else {
+                json.addProperty("sprite", "");
+                json.addProperty("spriteId", -1);
+                json.addProperty("materialSetId", -1);
+                json.addProperty("resolved", false);
+            }
+            array.add(json);
+        }
+        return array;
+    }
+
+    private static JsonObject spriteBindingJson(Identifier sprite, boolean skipped) {
+        JsonObject json = new JsonObject();
+        int spriteId = skipped || sprite == null ? -1 : TextureArrayBridge.resolveSpriteId(sprite.toString());
+        json.addProperty("sprite", sprite == null ? "" : sprite.toString());
+        json.addProperty("spriteId", spriteId);
+        json.addProperty("materialSetId", spriteId);
+        json.addProperty("resolved", spriteId >= 0);
+        return json;
+    }
+
+    private static JsonArray blockPredicateArray(List<BlockPredicate> predicates) {
+        JsonArray array = new JsonArray();
+        for (BlockPredicate predicate : predicates) {
+            JsonObject json = new JsonObject();
+            json.addProperty("blockId", predicate.blockId());
+            JsonArray states = new JsonArray();
+            for (StatePredicate state : predicate.states()) {
+                JsonObject stateJson = new JsonObject();
+                stateJson.addProperty("name", state.name());
+                JsonArray values = new JsonArray();
+                for (String value : new TreeSet<>(state.values())) {
+                    values.add(value);
+                }
+                stateJson.add("values", values);
+                states.add(stateJson);
+            }
+            json.add("states", states);
+            array.add(json);
+        }
+        return array;
+    }
+
+    private static JsonArray facesArray(EnumSet<Direction> faces) {
+        JsonArray array = new JsonArray();
+        for (Direction face : Direction.values()) {
+            if (faces.contains(face)) {
+                array.add(face.getName());
+            }
+        }
+        return array;
+    }
+
+    private static JsonObject biomePredicateJson(BiomePredicate predicate) {
+        JsonObject json = new JsonObject();
+        json.addProperty("inverted", predicate.inverted());
+        json.add("values", stringArray(predicate.biomes()));
+        return json;
+    }
+
+    private static JsonObject heightPredicateJson(HeightPredicate predicate) {
+        JsonObject json = new JsonObject();
+        json.addProperty("unrestricted", predicate.ranges().isEmpty());
+        JsonArray ranges = new JsonArray();
+        for (HeightRange range : predicate.ranges()) {
+            JsonObject rangeJson = new JsonObject();
+            rangeJson.addProperty("min", range.min());
+            rangeJson.addProperty("max", range.max());
+            ranges.add(rangeJson);
+        }
+        json.add("ranges", ranges);
+        return json;
+    }
+
+    private static JsonArray stringArray(List<String> values) {
+        JsonArray array = new JsonArray();
+        for (String value : values) {
+            array.add(value);
+        }
+        return array;
+    }
+
+    private static JsonArray intArray(int[] values) {
+        JsonArray array = new JsonArray();
+        for (int value : values) {
+            array.add(value);
+        }
+        return array;
+    }
+
+    private static int ctmReplacementOverrideCount(int[] replacements) {
+        int count = 0;
+        for (int replacement : replacements) {
+            if (replacement >= 0) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int intProperty(JsonObject object, String key) {
+        return object.has(key) ? object.get(key).getAsInt() : 0;
+    }
+
+    private static String methodName(RuleMethod method) {
+        return switch (method) {
+            case CTM -> "ctm";
+            case CTM_COMPACT -> "ctm_compact";
+            case FIXED -> "fixed";
+            case RANDOM -> "random";
+            case REPEAT -> "repeat";
+            case HORIZONTAL -> "horizontal";
+            case VERTICAL -> "vertical";
+            case HORIZONTAL_THEN_VERTICAL -> "horizontal+vertical";
+            case VERTICAL_THEN_HORIZONTAL -> "vertical+horizontal";
+            case TOP -> "top";
+            case OVERLAY -> "overlay";
+            case OVERLAY_CTM -> "overlay_ctm";
+            case OVERLAY_RANDOM -> "overlay_random";
+            case OVERLAY_REPEAT -> "overlay_repeat";
+            case OVERLAY_FIXED -> "overlay_fixed";
+        };
+    }
+
+    private static String lowerName(Enum<?> value) {
+        return value.name().toLowerCase(Locale.ROOT);
+    }
+
     public static final class ResolverIndex {
         private static final ResolverIndex EMPTY = new ResolverIndex(List.of());
         private final List<VariantRule> rules;
@@ -1076,6 +1283,32 @@ public final class ResourcePackTextureVariantResolver {
 
         public int ruleCountForTest() {
             return rules.size();
+        }
+
+        JsonObject registryJson(int limit, String source, boolean resourceManagerAvailable) {
+            int max = limit <= 0 ? rules.size() : Math.min(limit, rules.size());
+            JsonObject json = new JsonObject();
+            json.addProperty("schema", "radser_runtime_variant_rule_registry_v1");
+            json.addProperty("source", source);
+            json.addProperty("resourceManagerAvailable", resourceManagerAvailable);
+            json.addProperty("textureGeneration", TextureArrayBridge.getActiveTextureGeneration());
+            json.addProperty("ruleLimit", RULE_LIMIT);
+            json.addProperty("ruleCount", rules.size());
+            json.addProperty("reported", max);
+            json.add("options", optionsJson());
+            JsonObject methodCounts = new JsonObject();
+            JsonArray ruleArray = new JsonArray();
+            for (int i = 0; i < rules.size(); i++) {
+                VariantRule rule = rules.get(i);
+                String method = methodName(rule.method());
+                methodCounts.addProperty(method, intProperty(methodCounts, method) + 1);
+                if (i < max) {
+                    ruleArray.add(ruleJson(rule, i));
+                }
+            }
+            json.add("methodCounts", methodCounts);
+            json.add("rules", ruleArray);
+            return json;
         }
 
         public int resolveForTest(Identifier source, int sourceSpriteId, @Nullable BlockPos pos,
