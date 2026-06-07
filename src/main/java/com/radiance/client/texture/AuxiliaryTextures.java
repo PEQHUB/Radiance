@@ -409,7 +409,7 @@ public enum AuxiliaryTextures {
 
                         if (auxiliaryTexture == NORMAL) {
                             auxiliarySource = TextureTracker.SOURCE_FLAT;
-                            auxiliaryTemplateImage = source.applyToCopy(i -> 0x00FF8080);
+                            auxiliaryTemplateImage = source.applyToCopy(i -> LABPBR_FLAT_NORMAL_ARGB);
                         } else {
                             auxiliarySource = TextureTracker.SOURCE_FLAT;
                             auxiliaryTemplateImage = source.applyToCopy(i -> 0);

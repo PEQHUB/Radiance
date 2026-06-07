@@ -15,12 +15,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BuiltBuffer;
@@ -63,6 +65,7 @@ public class ChunkProxy {
     private static final int maxChunkTasksPerFrame = 64;
     private static final int maxImportantTasksPerFrame = 1;
     private static final double importantDistanceSq = 768.0;
+    private static final AtomicLong rebuildGeneration = new AtomicLong();
     private static final ExecutorService importantChunkRebuildExecutor =
         Executors.newFixedThreadPool(numImportantChunkRebuildThreads, r -> {
             Thread thread = new Thread(r);
@@ -73,12 +76,15 @@ public class ChunkProxy {
         blockBufferAllocatorStorageThreadLocal =
         ThreadLocal.withInitial(BlockBufferAllocatorStorage::new);
     public static int builtChunkNum = 0;
-    private static ExecutorService backgroundChunkRebuildExecutor = Executors.newFixedThreadPool(
-        numNormalChunkRebuildThreads, r -> {
+    private static ExecutorService backgroundChunkRebuildExecutor = newBackgroundChunkRebuildExecutor();
+
+    private static ExecutorService newBackgroundChunkRebuildExecutor() {
+        return Executors.newFixedThreadPool(numNormalChunkRebuildThreads, r -> {
             Thread thread = new Thread(r);
             thread.setPriority(Thread.NORM_PRIORITY);
             return thread;
         });
+    }
 
     public static native void initNative(int numChunks);
 
@@ -94,23 +100,20 @@ public class ChunkProxy {
     }
 
     public static void clear() {
-        waitImportantChunkRebuild();
-
-        backgroundChunkRebuildExecutor.shutdown();
-        try {
-            backgroundChunkRebuildExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        backgroundChunkRebuildExecutor = Executors.newFixedThreadPool(numNormalChunkRebuildThreads,
-            r -> {
-                Thread thread = new Thread(r);
-                thread.setPriority(Thread.NORM_PRIORITY);
-                return thread;
-            });
-
+        rebuildGeneration.incrementAndGet();
         rebuildQueue.clear();
+        for (Future<?> rebuildTask : rebuildTasks) {
+            rebuildTask.cancel(true);
+        }
         rebuildTasks.clear();
+
+        backgroundChunkRebuildExecutor.shutdownNow();
+        try {
+            backgroundChunkRebuildExecutor.awaitTermination(250, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        backgroundChunkRebuildExecutor = newBackgroundChunkRebuildExecutor();
     }
 
     public static void enqueueRebuild(ChunkBuilder.BuiltChunk chunk) {
@@ -179,16 +182,17 @@ public class ChunkProxy {
                 forceImportant || chunkCenterPos.getSquaredDistance(blockPos) < importantDistanceSq;
             boolean isImportant =
                 shouldPrioritize && (forceImportant || importantTaskCount < maxImportantTasksPerFrame);
+            long generation = rebuildGeneration.get();
 
             if (isImportant) {
                 Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
-                    rebuildSingle(builtChunk, true);
+                    rebuildSingle(builtChunk, true, generation);
                 });
                 rebuildTasks.add(rebuildTask);
                 importantTaskCount++;
             } else {
                 backgroundChunkRebuildExecutor.execute(() -> {
-                    rebuildSingle(builtChunk, false);
+                    rebuildSingle(builtChunk, false, generation);
                 });
             }
 
@@ -204,6 +208,7 @@ public class ChunkProxy {
         for (Future<?> rebuildTask : rebuildTasks) {
             try {
                 rebuildTask.get();
+            } catch (CancellationException ignored) {
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
@@ -212,7 +217,11 @@ public class ChunkProxy {
         rebuildTasks.clear();
     }
 
-    private static void rebuildSingle(ChunkBuilder.BuiltChunk builtChunk, boolean important) {
+    private static void rebuildSingle(ChunkBuilder.BuiltChunk builtChunk, boolean important,
+        long generation) {
+        if (generation != rebuildGeneration.get()) {
+            return;
+        }
         try (var scope = scopedBlockBufferAllocatorStorage()) {
             ChunkRendererRegionBuilder chunkRendererRegionBuilder = new ChunkRendererRegionBuilder();
             IChunkBuilderBuiltChunkExt builtChunkExt = (IChunkBuilderBuiltChunkExt) builtChunk;
@@ -223,6 +232,9 @@ public class ChunkProxy {
                     ChunkSectionPos.from(builtChunk.getSectionPos()));
 
             if (chunkRendererRegion == null) {
+                if (generation != rebuildGeneration.get()) {
+                    return;
+                }
                 invalidateSingle(builtChunk.index);
                 builtChunk.data.set(ChunkBuilder.ChunkData.EMPTY);
                 return;
@@ -230,7 +242,7 @@ public class ChunkProxy {
 
             BlockBufferAllocatorStorage storage = blockBufferAllocatorStorageThreadLocal.get();
             rebuildSingle(chunkRendererRegion, chunkBuilder, chunkBuilderExt, builtChunk, storage,
-                important);
+                important, generation);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -241,7 +253,11 @@ public class ChunkProxy {
         IChunkBuilderExt chunkBuilderExt,
         ChunkBuilder.BuiltChunk builtChunk,
         BlockBufferAllocatorStorage storage,
-        boolean important) {
+        boolean important,
+        long generation) {
+        if (generation != rebuildGeneration.get()) {
+            return;
+        }
 
         ChunkSectionPos chunkSectionPos = ChunkSectionPos.from(builtChunk.getOrigin());
 
@@ -259,6 +275,10 @@ public class ChunkProxy {
         }
 
         Map<RenderLayer, BuiltBuffer> buffers = renderData.buffers;
+        if (generation != rebuildGeneration.get()) {
+            closeBuffers(buffers);
+            return;
+        }
         builtChunk.setNoCullingBlockEntities(renderData.noCullingBlockEntities);
 
         if (buffers.isEmpty()) {
@@ -384,6 +404,10 @@ public class ChunkProxy {
             }
         }
 
+        closeBuffers(buffers);
+    }
+
+    private static void closeBuffers(Map<RenderLayer, BuiltBuffer> buffers) {
         for (Map.Entry<RenderLayer, BuiltBuffer> entry : buffers.entrySet()) {
             entry.getValue().close();
         }

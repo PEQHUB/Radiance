@@ -38,6 +38,8 @@ import org.slf4j.LoggerFactory;
 public final class ResourcePackBlockLayerResolver {
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
     private static volatile Cache cache = Cache.empty();
+    private static volatile String cachedShaderPackConfig = null;
+    private static volatile Path cachedShaderPackPath = null;
 
     private ResourcePackBlockLayerResolver() {
     }
@@ -144,20 +146,6 @@ public final class ResourcePackBlockLayerResolver {
     private static String cacheKey(@Nullable Path shaderPackPath, @Nullable ResourceManager resourceManager) {
         StringBuilder key = new StringBuilder();
         key.append(shaderPackPath == null ? "" : shaderPackPath.toString());
-        Path watched = null;
-        if (shaderPackPath != null) {
-            watched = Files.isDirectory(shaderPackPath)
-                ? shaderPackPath.resolve("shaders").resolve("block.properties")
-                : shaderPackPath;
-        }
-        long modified = 0L;
-        try {
-            if (watched != null && Files.exists(watched)) {
-                modified = Files.getLastModifiedTime(watched).toMillis();
-            }
-        } catch (IOException ignored) {
-        }
-        key.append("|").append(modified);
         key.append("|rm=").append(resourceManager == null ? 0 : System.identityHashCode(resourceManager));
         key.append("|tex=").append(TextureArrayBridge.getActiveTextureGeneration());
         return key.toString();
@@ -178,13 +166,22 @@ public final class ResourcePackBlockLayerResolver {
         String configured = Options.shaderPackPath == null || Options.shaderPackPath.isBlank()
             ? Pipeline.VANILLA_RAY_TRACING_SHADER_PACK_PATH
             : Options.shaderPackPath.trim();
+        String cachedConfig = cachedShaderPackConfig;
+        if (Objects.equals(cachedConfig, configured)) {
+            return cachedShaderPackPath;
+        }
         try {
             Path path = Path.of(configured);
             if (!path.isAbsolute() && RadianceClient.radianceDir != null) {
                 path = RadianceClient.radianceDir.resolve(path);
             }
-            return path.toAbsolutePath().normalize();
+            Path normalized = path.toAbsolutePath().normalize();
+            cachedShaderPackConfig = configured;
+            cachedShaderPackPath = normalized;
+            return normalized;
         } catch (Exception e) {
+            cachedShaderPackConfig = configured;
+            cachedShaderPackPath = null;
             return null;
         }
     }
