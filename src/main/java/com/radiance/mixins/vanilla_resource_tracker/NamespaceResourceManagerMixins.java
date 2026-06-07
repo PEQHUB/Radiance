@@ -42,7 +42,13 @@ public abstract class NamespaceResourceManagerMixins {
         }
         Optional<Resource> fallback = ResourcePackModelFallback.fallbackForMalformedSelectedModel(
             id, cir.getReturnValue(), this.getAllResources(id));
-        fallback.ifPresent(resource -> cir.setReturnValue(Optional.of(resource)));
+        if (fallback.isPresent()) {
+            cir.setReturnValue(fallback);
+            return;
+        }
+        Optional<Resource> repaired = ResourcePackModelFallback.repairSelectedModelTextureReferences(
+            id, cir.getReturnValue());
+        repaired.ifPresent(resource -> cir.setReturnValue(Optional.of(resource)));
     }
 
     @Inject(method = "createResource(Lnet/minecraft/resource/ResourcePack;Lnet/minecraft/util/Identifier;Lnet/minecraft/resource/InputSupplier;Lnet/minecraft/resource/InputSupplier;)Lnet/minecraft/resource/Resource;", at = @At(value = "HEAD"),

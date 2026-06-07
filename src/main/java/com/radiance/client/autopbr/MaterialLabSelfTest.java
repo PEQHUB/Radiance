@@ -99,6 +99,7 @@ public final class MaterialLabSelfTest {
         textureArrayLayerSizeUsesLargestSprite();
         missingSpriteFallbackUsesRenderableBlockSprite();
         malformedModelJsonFallsBackToLowerPriorityResource();
+        modelTextureReferenceRepairAvoidsMissingSprites();
         materialCompatFlagsDefaultEnabled();
         materialCompatLegacyDisabledOptionsMigrateToDefaults();
         materialCompatScannerRecognizesCoreFeatures();
@@ -816,6 +817,46 @@ public final class MaterialLabSelfTest {
             Identifier.ofVanilla("textures/block/oak_leaves.png"),
             List.of(validLowerModel, malformedTopModel));
         expect(nonModel.isEmpty(), "model fallback must not affect texture resources");
+    }
+
+    private static void modelTextureReferenceRepairAvoidsMissingSprites() {
+        Identifier modelId = Identifier.ofVanilla("models/block/pack_typo_block.json");
+        Resource typoModel = resource("""
+            {
+              "parent": "minecraft:block/block",
+              "textures": {
+                "leaf": "minecraft:blockoak_leaves",
+                "terracotta": "minecraft:block/light_blueterracotta",
+                "farmland": "minecraft:block/farmland_dirt",
+                "bad": "minecraft:color"
+              },
+              "elements": [
+                {
+                  "from": [0, 0, 0],
+                  "to": [16, 16, 16],
+                  "faces": {
+                    "north": {"texture": "#missing"},
+                    "south": {"texture": "#leaf"}
+                  }
+                }
+              ]
+            }
+            """);
+
+        Optional<Resource> repaired = ResourcePackModelFallback.selectRepairedModelForTest(
+            modelId, Optional.of(typoModel));
+        expect(repaired.isPresent(), "model texture repair should wrap models with known bad texture references");
+        String json = readResourceString(repaired.get());
+        expect(json.contains("minecraft:block/oak_leaves"),
+            "model texture repair should split missing block path separators");
+        expect(json.contains("minecraft:block/light_blue_terracotta"),
+            "model texture repair should normalize known pack color typos");
+        expect(json.contains("minecraft:block/dirt"),
+            "model texture repair should route unsafe missing references to a stable fallback");
+
+        Optional<Resource> nonModel = ResourcePackModelFallback.selectRepairedModelForTest(
+            Identifier.ofVanilla("textures/block/oak_leaves.png"), Optional.of(typoModel));
+        expect(nonModel.isEmpty(), "model texture repair must not affect non-model resources");
     }
 
     private static void materialCompatFlagsDefaultEnabled() {
