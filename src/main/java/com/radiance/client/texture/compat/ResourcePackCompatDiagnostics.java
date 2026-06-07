@@ -17,6 +17,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -41,9 +43,10 @@ import net.minecraft.util.Identifier;
  */
 public final class ResourcePackCompatDiagnostics {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final String MINECRAFT_VERSION = "1.21.4";
     private static final int SAMPLE_LIMIT = 24;
     private static final int COMPAT_RECORD_LIMIT = 4096;
-    private static final int CTM_DEPENDENCY_LIMIT = 4096;
+    private static final int CTM_DEPENDENCY_LIMIT = 65536;
     private static final int CTM_DEPENDENCY_RECORD_LIMIT = 512;
     private static final int MAX_PROPERTY_BYTES = 1024 * 1024;
     private static final int VALUE_LIMIT = 256;
@@ -87,7 +90,8 @@ public final class ResourcePackCompatDiagnostics {
             + " colors=" + Options.materialCompatColorsEnabled
             + " overlays=" + Options.materialCompatOverlaysEnabled
             + " legacyMcPatcher=" + Options.materialCompatLegacyMcPatcherEnabled
-            + " physicalEmissive=" + Options.materialCompatPhysicalEmissiveEnabled;
+            + " physicalEmissive=" + Options.materialCompatPhysicalEmissiveEnabled
+            + " ctmAtlasAdmissionLimit=" + Options.materialCompatCtmAtlasAdmissionLimit;
     }
 
     public static JsonObject flagsJson() {
@@ -100,6 +104,7 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("overlays", Options.materialCompatOverlaysEnabled);
         json.addProperty("legacyMcPatcher", Options.materialCompatLegacyMcPatcherEnabled);
         json.addProperty("physicalEmissive", Options.materialCompatPhysicalEmissiveEnabled);
+        json.addProperty("ctmAtlasAdmissionLimit", Options.materialCompatCtmAtlasAdmissionLimit);
         return json;
     }
 
@@ -115,6 +120,7 @@ public final class ResourcePackCompatDiagnostics {
         JsonObject root = new JsonObject();
         root.addProperty("schema", "radser_material_compat_pack_scan_v1");
         root.addProperty("createdAt", Instant.now().toString());
+        root.addProperty("minecraftVersion", MINECRAFT_VERSION);
         root.addProperty("renderingConsumesCompatibility", renderingConsumesCompatibility());
         root.add("flags", flagsJson());
         root.add("optionsProvenance", optionsProvenanceJson(runDirectory));
@@ -123,6 +129,7 @@ public final class ResourcePackCompatDiagnostics {
         root.addProperty("runDirectory", runDirectory.toAbsolutePath().toString());
 
         ActivePackSelection activeSelection = readActivePackSelection(runDirectory);
+        root.addProperty("packStackHash", activeSelection.packStackHash());
         root.add("activePackStack", activeSelection.toJson());
         Path resourcePacks = runDirectory.resolve("resourcepacks");
         root.addProperty("resourcePacksDirectory", resourcePacks.toAbsolutePath().toString());
@@ -130,7 +137,12 @@ public final class ResourcePackCompatDiagnostics {
         root.add("packs", packs);
         JsonArray activePacks = activePacks(packs);
         root.add("activePacks", activePacks);
-        root.add("activeCtmAtlasDependencies", aggregateCtmDependencies(activePacks));
+        JsonObject activeCtm = aggregateCtmDependencies(activePacks);
+        root.add("activeCtmAtlasDependencies", activeCtm);
+        root.add("ctmAtlasAdmission", ctmAtlasAdmissionJson(activeCtm));
+        root.add("compatibility", compatibilityJson(activePacks));
+        root.add("labPbr", labPbrJson(activePacks));
+        root.add("materialUniverse", materialUniverseJson(activeSelection, activePacks, activeCtm));
 
         if (writeReport) {
             try {
@@ -200,6 +212,129 @@ public final class ResourcePackCompatDiagnostics {
         json.addProperty("shaderSideRuleNativeBinding", false);
         json.addProperty("shaderConsumesResolvedSpriteAndMaterialIds", renderingConsumesCompatibility());
         return json;
+    }
+
+    private static JsonObject ctmAtlasAdmissionJson(JsonObject activeCtm) {
+        int limit = Math.max(0, Options.materialCompatCtmAtlasAdmissionLimit);
+        boolean enabled = Options.materialCompatEnabled
+            && Options.materialCompatCtmEnabled
+            && limit > 0;
+        int candidateTiles = intProperty(activeCtm, "presentTilesRequiringAtlasAdmission");
+        JsonObject json = new JsonObject();
+        json.addProperty("enabled", enabled);
+        json.addProperty("admissionLimit", limit);
+        json.addProperty("admittedToVanillaAtlas", enabled ? Math.min(limit, candidateTiles) : 0);
+        json.addProperty("candidateTilesRequiringAdmission", candidateTiles);
+        json.addProperty("rendererCorrectnessDependsOnAdmission", false);
+        json.addProperty("policy", enabled
+            ? "debug_or_explicit_cap_only"
+            : "disabled_by_default");
+        return json;
+    }
+
+    private static JsonObject compatibilityJson(JsonArray activePacks) {
+        JsonObject json = new JsonObject();
+        json.addProperty("minecraftVersion", MINECRAFT_VERSION);
+        JsonArray incompatible = new JsonArray();
+        JsonArray warnings = new JsonArray();
+        for (JsonElement packElement : activePacks) {
+            JsonObject pack = packElement.getAsJsonObject();
+            if (!boolProperty(pack, "incompatibleSelected")) {
+                continue;
+            }
+            String name = stringProperty(pack, "name");
+            incompatible.add(name);
+            JsonObject warning = warning("warning", "selected_pack_marked_incompatible",
+                "Minecraft options.txt marks this selected pack as incompatible.");
+            addPackIdentity(warning, pack);
+            warnings.add(warning);
+        }
+        json.add("incompatiblePacks", incompatible);
+        json.add("packFormatWarnings", warnings);
+        return json;
+    }
+
+    private static JsonObject labPbrJson(JsonArray activePacks) {
+        JsonObject json = new JsonObject();
+        json.addProperty("declared", false);
+        json.addProperty("format", "");
+        json.addProperty("source", "");
+        for (JsonElement packElement : activePacks) {
+            JsonObject pack = packElement.getAsJsonObject();
+            for (JsonElement recordElement : array(pack, "compatRecords")) {
+                JsonObject record = recordElement.getAsJsonObject();
+                if (!"texture_properties".equals(stringProperty(record, "kind"))) {
+                    continue;
+                }
+                String format = stringProperty(record, "format");
+                if (format.toLowerCase(Locale.ROOT).contains("lab-pbr")) {
+                    json.addProperty("declared", true);
+                    json.addProperty("format", format);
+                    json.addProperty("source", stringProperty(record, "path"));
+                    return json;
+                }
+            }
+        }
+        return json;
+    }
+
+    private static JsonObject materialUniverseJson(ActivePackSelection activeSelection,
+        JsonArray activePacks, JsonObject activeCtm) {
+        JsonObject json = new JsonObject();
+        json.addProperty("minecraftVersion", MINECRAFT_VERSION);
+        json.addProperty("packStackHash", activeSelection.packStackHash());
+        json.addProperty("vanillaSprites", TextureArrayBridge.sortedSpriteIds.size());
+        json.addProperty("ctmPropertyFiles", activeCtmPropertyFiles(activePacks));
+        json.add("ctmRulesByMethod", ctmRulesByMethod(activePacks));
+        json.add("labPbr", labPbrJson(activePacks));
+        json.addProperty("ctmTileDependencies", intProperty(activeCtm, "uniqueTiles"));
+        json.addProperty("ctmTilesPresent", intProperty(activeCtm, "presentTiles"));
+        json.addProperty("ctmTilesMissing", intProperty(activeCtm, "missingTiles"));
+        json.addProperty("ctmTilesWithNormal", intProperty(activeCtm, "tilesWithNormal"));
+        json.addProperty("ctmTilesWithSpecular", intProperty(activeCtm, "tilesWithSpecular"));
+        json.addProperty("virtualCompatMaterials", intProperty(activeCtm, "uniqueTiles"));
+        json.addProperty("virtualCompatMaterialsPresent", intProperty(activeCtm, "presentTiles"));
+        json.addProperty("gpuResidentCompatMaterials", 0);
+        json.addProperty("pendingCompatMaterials", intProperty(activeCtm, "presentTiles"));
+        json.addProperty("missingDueToCapacity", 0);
+        json.addProperty("capacityLimitAppliesToCompatMaterials", false);
+        json.addProperty("admittedToVanillaAtlas",
+            intProperty(ctmAtlasAdmissionJson(activeCtm), "admittedToVanillaAtlas"));
+        return json;
+    }
+
+    private static int activeCtmPropertyFiles(JsonArray activePacks) {
+        int count = 0;
+        for (JsonElement packElement : activePacks) {
+            JsonObject counts = object(packElement.getAsJsonObject(), "counts");
+            count += intProperty(counts, "optifineCtmProperties");
+            count += intProperty(counts, "mcpatcherCtmProperties");
+        }
+        return count;
+    }
+
+    private static JsonObject ctmRulesByMethod(JsonArray activePacks) {
+        JsonObject methods = new JsonObject();
+        for (String method : List.of("ctm", "ctm_compact", "random", "repeat", "fixed",
+            "horizontal", "vertical", "top", "overlay", "overlay_ctm", "overlay_random",
+            "overlay_repeat", "overlay_fixed")) {
+            methods.addProperty(method, 0);
+        }
+        for (JsonElement packElement : activePacks) {
+            JsonObject pack = packElement.getAsJsonObject();
+            for (JsonElement recordElement : array(pack, "compatRecords")) {
+                JsonObject record = recordElement.getAsJsonObject();
+                if (!"ctm".equals(stringProperty(record, "kind"))) {
+                    continue;
+                }
+                String method = stringProperty(record, "method");
+                if (method.isBlank()) {
+                    method = "unspecified";
+                }
+                methods.addProperty(method, intProperty(methods, method) + 1);
+            }
+        }
+        return methods;
     }
 
     private static JsonObject renderSafetyJson() {
@@ -344,9 +479,11 @@ public final class ResourcePackCompatDiagnostics {
         policy.addProperty("nativeMaterialSetTablePresent",
             AutoPbrTextureCatalog.MATERIAL_SET_NATIVE_TABLE_PRESENT);
         policy.addProperty("legacyMcPatcher", "enabled_only_when_materialCompatLegacyMcPatcherEnabled");
-        policy.addProperty("ctmTileAtlasAdmission", "required_non_vanilla_ctm_tiles_are_admitted_before_resolution");
+        policy.addProperty("ctmTileAtlasAdmission", "disabled_by_default_debug_only_not_required_for_correctness");
+        policy.addProperty("compatTileRenderability", "renderer_owned_material_pools_required_not_vanilla_atlas");
         dump.add("policy", policy);
         dump.add("activePackStack", copyObject(object(root, "activePackStack")));
+        dump.add("materialUniverse", copyObject(object(root, "materialUniverse")));
         dump.add("compatibilityConsumption", copyObject(object(root, "compatibilityConsumption")));
         return dump;
     }
@@ -393,6 +530,11 @@ public final class ResourcePackCompatDiagnostics {
             warnings.add(warning("warning", "active_ctm_dependency_summary_truncated",
                 "The active CTM dependency aggregate was truncated."));
         }
+        JsonObject admission = object(root, "ctmAtlasAdmission");
+        if (boolProperty(admission, "enabled")) {
+            warnings.add(warning("warning", "ctm_atlas_admission_enabled",
+                "CTM tile admission into Minecraft's vanilla atlas is enabled only as an explicit debug/capped path; renderer-owned material pools are the correctness path."));
+        }
         JsonObject options = object(root, "optionsProvenance");
         if (boolProperty(options, "liveCompatibilityLikelyUnloadedFromPersistedOptions")) {
             warnings.add(warning("warning", "material_compat_live_options_disagree_with_persisted_options",
@@ -410,10 +552,13 @@ public final class ResourcePackCompatDiagnostics {
         JsonObject dump = new JsonObject();
         dump.addProperty("schema", schema);
         dump.addProperty("createdAt", stringProperty(root, "createdAt"));
+        dump.addProperty("minecraftVersion", stringProperty(root, "minecraftVersion"));
+        dump.addProperty("packStackHash", stringProperty(root, "packStackHash"));
         dump.addProperty("runDirectory", stringProperty(root, "runDirectory"));
         dump.addProperty("renderingConsumesCompatibility", boolProperty(root, "renderingConsumesCompatibility"));
         dump.add("flags", copyObject(object(root, "flags")));
         dump.add("optionsProvenance", copyObject(object(root, "optionsProvenance")));
+        dump.add("ctmAtlasAdmission", copyObject(object(root, "ctmAtlasAdmission")));
         return dump;
     }
 
@@ -480,6 +625,8 @@ public final class ResourcePackCompatDiagnostics {
             Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", "false")));
         json.addProperty("physicalEmissive",
             Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", "false")));
+        json.addProperty("ctmAtlasAdmissionLimit",
+            Math.max(0, parseInt(props.getProperty("materialCompatCtmAtlasAdmissionLimit"), 0)));
         return json;
     }
 
@@ -500,7 +647,7 @@ public final class ResourcePackCompatDiagnostics {
                 return false;
             }
         }
-        return true;
+        return intProperty(live, "ctmAtlasAdmissionLimit") == intProperty(persisted, "ctmAtlasAdmissionLimit");
     }
 
     private static int parseInt(String value, int fallback) {
@@ -765,13 +912,38 @@ public final class ResourcePackCompatDiagnostics {
 
     private static JsonObject aggregateCtmDependencies(JsonArray activePacks) {
         LinkedHashMap<String, JsonObject> dependenciesByPath = new LinkedHashMap<>();
+        boolean useSummaryTotals = false;
         boolean truncated = false;
+        int totalUnique = 0;
+        int totalPresent = 0;
+        int totalMissing = 0;
+        int totalWithSpecular = 0;
+        int totalWithNormal = 0;
+        int totalWithDerivedSpecular = 0;
+        int totalWithDerivedNormal = 0;
+        int totalWithAnyMaterialSidecar = 0;
+        int totalWithEmissive = 0;
+        int totalRequiringAtlasAdmission = 0;
+        int totalPresentRequiringAtlasAdmission = 0;
         for (JsonElement packElement : activePacks) {
             JsonObject pack = packElement.getAsJsonObject();
             JsonObject summary = pack.getAsJsonObject("ctmAtlasDependencies");
             if (summary == null) {
                 continue;
             }
+            boolean summaryTruncated = boolProperty(summary, "truncated");
+            useSummaryTotals |= summaryTruncated;
+            totalUnique += intProperty(summary, "uniqueTiles");
+            totalPresent += intProperty(summary, "presentTiles");
+            totalMissing += intProperty(summary, "missingTiles");
+            totalWithSpecular += intProperty(summary, "tilesWithSpecular");
+            totalWithNormal += intProperty(summary, "tilesWithNormal");
+            totalWithDerivedSpecular += intProperty(summary, "tilesWithSpecularOrScalar");
+            totalWithDerivedNormal += intProperty(summary, "tilesWithNormalOrScalar");
+            totalWithAnyMaterialSidecar += intProperty(summary, "tilesWithAnyMaterialSidecar");
+            totalWithEmissive += intProperty(summary, "tilesWithEmissive");
+            totalRequiringAtlasAdmission += intProperty(summary, "tilesRequiringAtlasAdmission");
+            totalPresentRequiringAtlasAdmission += intProperty(summary, "presentTilesRequiringAtlasAdmission");
             JsonArray dependencies = summary.getAsJsonArray("dependencies");
             if (dependencies == null) {
                 continue;
@@ -788,7 +960,7 @@ public final class ResourcePackCompatDiagnostics {
                     truncated = true;
                 }
             }
-            truncated |= summary.has("truncated") && summary.get("truncated").getAsBoolean();
+            truncated |= summaryTruncated;
         }
 
         int present = 0;
@@ -823,17 +995,26 @@ public final class ResourcePackCompatDiagnostics {
         }
 
         JsonObject json = new JsonObject();
-        json.addProperty("uniqueTiles", dependenciesByPath.size());
-        json.addProperty("presentTiles", present);
-        json.addProperty("missingTiles", missing);
-        json.addProperty("tilesWithSpecular", withSpecular);
-        json.addProperty("tilesWithNormal", withNormal);
-        json.addProperty("tilesWithSpecularOrScalar", withDerivedSpecular);
-        json.addProperty("tilesWithNormalOrScalar", withDerivedNormal);
-        json.addProperty("tilesWithAnyMaterialSidecar", withAnyMaterialSidecar);
-        json.addProperty("tilesWithEmissive", withEmissive);
-        json.addProperty("tilesRequiringAtlasAdmission", requiringAtlasAdmission);
-        json.addProperty("presentTilesRequiringAtlasAdmission", presentRequiringAtlasAdmission);
+        json.addProperty("aggregationMode", useSummaryTotals
+            ? "summary_totals_due_to_truncated_dependency_details"
+            : "deduplicated_dependency_paths");
+        json.addProperty("deduplicated", !useSummaryTotals);
+        json.addProperty("uniqueTiles", useSummaryTotals ? totalUnique : dependenciesByPath.size());
+        json.addProperty("presentTiles", useSummaryTotals ? totalPresent : present);
+        json.addProperty("missingTiles", useSummaryTotals ? totalMissing : missing);
+        json.addProperty("tilesWithSpecular", useSummaryTotals ? totalWithSpecular : withSpecular);
+        json.addProperty("tilesWithNormal", useSummaryTotals ? totalWithNormal : withNormal);
+        json.addProperty("tilesWithSpecularOrScalar",
+            useSummaryTotals ? totalWithDerivedSpecular : withDerivedSpecular);
+        json.addProperty("tilesWithNormalOrScalar",
+            useSummaryTotals ? totalWithDerivedNormal : withDerivedNormal);
+        json.addProperty("tilesWithAnyMaterialSidecar",
+            useSummaryTotals ? totalWithAnyMaterialSidecar : withAnyMaterialSidecar);
+        json.addProperty("tilesWithEmissive", useSummaryTotals ? totalWithEmissive : withEmissive);
+        json.addProperty("tilesRequiringAtlasAdmission",
+            useSummaryTotals ? totalRequiringAtlasAdmission : requiringAtlasAdmission);
+        json.addProperty("presentTilesRequiringAtlasAdmission",
+            useSummaryTotals ? totalPresentRequiringAtlasAdmission : presentRequiringAtlasAdmission);
         json.addProperty("truncated", truncated || dependenciesByPath.size() > CTM_DEPENDENCY_RECORD_LIMIT);
         json.add("dependencies", dependencies);
         return json;
@@ -882,6 +1063,24 @@ public final class ResourcePackCompatDiagnostics {
         return "";
     }
 
+    private static String stableHash(List<String> values) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            for (String value : values) {
+                digest.update((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+                digest.update((byte) 0);
+            }
+            byte[] bytes = digest.digest();
+            StringBuilder out = new StringBuilder(bytes.length * 2);
+            for (byte b : bytes) {
+                out.append(String.format(Locale.ROOT, "%02x", b & 0xFF));
+            }
+            return out.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return "";
+        }
+    }
+
     private static final class ActivePackSelection {
         private final List<String> resourcePacks;
         private final List<String> incompatibleResourcePacks;
@@ -913,6 +1112,7 @@ public final class ResourcePackCompatDiagnostics {
         JsonObject toJson() {
             JsonObject json = new JsonObject();
             json.addProperty("source", source);
+            json.addProperty("packStackHash", packStackHash());
             json.add("resourcePacks", stringArray(resourcePacks));
             json.add("incompatibleResourcePacks", stringArray(incompatibleResourcePacks));
             json.add("activeFilePackNames", stringArray(activeFilePackNames.stream().sorted().toList()));
@@ -938,6 +1138,15 @@ public final class ResourcePackCompatDiagnostics {
         int activePriority(String fileName) {
             int order = activeOrder(fileName);
             return order == Integer.MAX_VALUE ? -1 : order;
+        }
+
+        String packStackHash() {
+            ArrayList<String> values = new ArrayList<>();
+            values.add("resources");
+            values.addAll(resourcePacks);
+            values.add("incompatible");
+            values.addAll(incompatibleResourcePacks);
+            return stableHash(values);
         }
 
         private JsonArray stringArray(List<String> values) {

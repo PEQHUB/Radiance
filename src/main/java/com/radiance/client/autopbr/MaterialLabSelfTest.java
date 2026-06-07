@@ -1293,6 +1293,7 @@ public final class MaterialLabSelfTest {
     }
 
     private static void materialCompatRunScanMarksActivePacksAndParsesRecords() {
+        int oldAdmissionLimit = Options.materialCompatCtmAtlasAdmissionLimit;
         Path run = null;
         try {
             run = Files.createTempDirectory("radser-material-compat-run");
@@ -1336,6 +1337,7 @@ public final class MaterialLabSelfTest {
             Files.write(later.resolve("assets/minecraft/textures/block/sand.png"), new byte[] {0});
             Files.write(inactive.resolve("assets/minecraft/textures/block/dirt.png"), new byte[] {0});
 
+            Options.materialCompatCtmAtlasAdmissionLimit = 0;
             JsonObject status = JsonParser.parseString(
                 ResourcePackCompatDiagnostics.scanRunDirectoryJsonForTest(run.toString())).getAsJsonObject();
             JsonArray activePacks = status.getAsJsonArray("activePacks");
@@ -1384,6 +1386,46 @@ public final class MaterialLabSelfTest {
                 "CTM dependency index should mark non-vanilla CTM tiles for atlas admission");
             expect(ctmDeps.get("presentTilesRequiringAtlasAdmission").getAsInt() == 7,
                 "CTM dependency index should separate present and missing admission tiles");
+            JsonObject admission = status.getAsJsonObject("ctmAtlasAdmission");
+            expect(!admission.get("enabled").getAsBoolean(),
+                "CTM atlas admission should be disabled by default");
+            expect(admission.get("admissionLimit").getAsInt() == 0,
+                "CTM atlas admission default limit should be zero");
+            expect(admission.get("admittedToVanillaAtlas").getAsInt() == 0,
+                "report should show zero CTM tiles admitted to the vanilla atlas by default");
+            expect(admission.get("candidateTilesRequiringAdmission").getAsInt() == 7,
+                "admission diagnostics should still count CTM tiles that need renderer-owned material pools");
+            expect(!admission.get("rendererCorrectnessDependsOnAdmission").getAsBoolean(),
+                "renderer correctness must not depend on CTM vanilla-atlas admission");
+            JsonObject materialUniverse = status.getAsJsonObject("materialUniverse");
+            expect(materialUniverse.get("ctmPropertyFiles").getAsInt() == 2,
+                "material universe should count active CTM rule files");
+            expect(materialUniverse.get("ctmTileDependencies").getAsInt() == 9,
+                "material universe should expose active CTM tile dependency count");
+            expect(materialUniverse.get("virtualCompatMaterials").getAsInt() == 9,
+                "material universe should expose report-only virtual compat material count");
+            expect(materialUniverse.get("virtualCompatMaterialsPresent").getAsInt() == 8,
+                "material universe should separate present virtual compat materials");
+            expect(materialUniverse.get("admittedToVanillaAtlas").getAsInt() == 0,
+                "material universe should keep vanilla atlas admission at zero");
+            expect(!materialUniverse.get("capacityLimitAppliesToCompatMaterials").getAsBoolean(),
+                "compat material universe must not be limited by the current sprite-array capacity");
+            JsonObject rulesByMethod = materialUniverse.getAsJsonObject("ctmRulesByMethod");
+            expect(rulesByMethod.get("ctm").getAsInt() == 1,
+                "material universe should count ctm rules by method");
+            expect(rulesByMethod.get("overlay_repeat").getAsInt() == 1,
+                "material universe should count overlay_repeat rules by method");
+            expect(status.getAsJsonObject("labPbr").get("declared").getAsBoolean(),
+                "root report should expose active LabPBR texture.properties declaration");
+            expect("lab-pbr/1.3".equals(status.getAsJsonObject("labPbr").get("format").getAsString()),
+                "root LabPBR report should retain declared format");
+            JsonObject compatibility = status.getAsJsonObject("compatibility");
+            expect(compatibility.getAsJsonArray("incompatiblePacks").size() == 1,
+                "compatibility report should surface selected incompatible packs");
+            String stackHash = status.getAsJsonObject("activePackStack").get("packStackHash").getAsString();
+            expect(!stackHash.isBlank(), "active pack stack should have a stable hash");
+            expect(stackHash.equals(materialUniverse.get("packStackHash").getAsString()),
+                "material universe should carry the active pack stack hash");
             JsonArray dependencies = ctmDeps.getAsJsonArray("dependencies");
             expect(hasCtmDependency(dependencies, "assets/minecraft/textures/block/stone.png", true, "minecraft:block/stone"),
                 "CTM dependency index should include base texture path dependencies");
@@ -1396,6 +1438,7 @@ public final class MaterialLabSelfTest {
         } catch (IOException e) {
             throw new AssertionError("material compat run fixture failed", e);
         } finally {
+            Options.materialCompatCtmAtlasAdmissionLimit = oldAdmissionLimit;
             if (run != null) {
                 deleteTree(run);
             }
@@ -1467,6 +1510,10 @@ public final class MaterialLabSelfTest {
             expect(reports.has("ctmRules"), "compat dump status should expose CTM rule path");
             expect(reports.has("rulePrecedence"), "compat dump status should expose rule precedence path");
             expect(reports.has("parserWarnings"), "compat dump status should expose parser warning path");
+            expect(!status.getAsJsonObject("ctmAtlasAdmission").get("enabled").getAsBoolean(),
+                "written pack-index status should expose disabled CTM atlas admission");
+            expect(status.getAsJsonObject("materialUniverse").get("virtualCompatMaterials").getAsInt() == 3,
+                "written pack-index status should expose virtual CTM material candidates");
 
             Path logs = run.resolve("radiance/logs");
             Path textureAssetsPath = logs.resolve("radser-texture-assets.json");
@@ -1509,6 +1556,8 @@ public final class MaterialLabSelfTest {
                 "material set dump should expose shader lookup key");
             expect(!materials.getAsJsonObject("source").get("nativeMaterialSetTablePresent").getAsBoolean(),
                 "material set dump should not claim a native material-set table");
+            expect(!materials.getAsJsonObject("ctmAtlasAdmission").get("enabled").getAsBoolean(),
+                "material set dump should retain disabled CTM atlas admission policy");
 
             JsonObject ctmRules = JsonParser.parseString(Files.readString(ctmRulesPath, StandardCharsets.UTF_8))
                 .getAsJsonObject();
@@ -1525,8 +1574,16 @@ public final class MaterialLabSelfTest {
                 "rule precedence dump should describe resolved-sprite material aliasing");
             expect("pbr_texture_id".equals(policy.get("shaderLookupKey").getAsString()),
                 "rule precedence dump should expose shader lookup key");
+            expect("disabled_by_default_debug_only_not_required_for_correctness".equals(
+                    policy.get("ctmTileAtlasAdmission").getAsString()),
+                "rule precedence dump should not present vanilla-atlas CTM admission as a correctness path");
+            expect("renderer_owned_material_pools_required_not_vanilla_atlas".equals(
+                    policy.get("compatTileRenderability").getAsString()),
+                "rule precedence dump should name renderer-owned pools as the CTM renderability path");
             expect(!policy.get("nativeMaterialSetTablePresent").getAsBoolean(),
                 "rule precedence dump should not claim a native material-set table");
+            expect(precedence.getAsJsonObject("materialUniverse").get("ctmTileDependencies").getAsInt() == 3,
+                "rule precedence dump should carry material universe CTM dependency counts");
             JsonObject consumption = precedence.getAsJsonObject("compatibilityConsumption");
             expect(consumption.get("javaSideRuleParsing").getAsBoolean(),
                 "rule precedence dump should expose Java-side rule parsing");
