@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -21,6 +22,7 @@ import net.minecraft.client.texture.Sprite;
 import net.minecraft.registry.Registries;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
+import net.minecraft.state.property.Property;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Direction;
@@ -167,6 +169,15 @@ public final class ResourcePackTextureVariantResolver {
         return build(resourceManager, legacyMcPatcher);
     }
 
+    public static boolean blockPredicateMatchesForTest(String ruleToken, String blockId,
+        Map<String, String> stateValues) {
+        String actualBlockId = normalizeBlockIdToken(blockId);
+        Map<String, String> normalizedStateValues = normalizeStateValues(stateValues);
+        return parseBlockPredicate(ruleToken)
+            .map(predicate -> predicate.matches(actualBlockId, normalizedStateValues))
+            .orElse(false);
+    }
+
     private static ResourceManager currentResourceManager() {
         try {
             MinecraftClient client = MinecraftClient.getInstance();
@@ -266,9 +277,9 @@ public final class ResourcePackTextureVariantResolver {
         }
 
         List<String> matchTiles = matchTileTokens(propertyId, props);
-        List<String> matchBlocks = matchBlockTokens(props);
+        List<BlockPredicate> matchBlocks = matchBlockTokens(props);
         List<String> connectTiles = propertyTileTokens(props, "connectTiles");
-        List<String> connectBlocks = blockTokens(props, "connectBlocks");
+        List<BlockPredicate> connectBlocks = blockTokens(props, "connectBlocks");
         EnumSet<Direction> faces = parseFaces(props.getProperty("faces", ""));
         ConnectMode connectMode = parseConnectMode(props.getProperty("connect", "block"));
         int[] weights = parseWeights(props.getProperty("weights", ""),
@@ -278,7 +289,7 @@ public final class ResourcePackTextureVariantResolver {
         int repeatWidth = parsePositiveInt(props.getProperty("width", "1"), 1);
         int repeatHeight = parsePositiveInt(props.getProperty("height", "1"), 1);
         int tintIndex = parseInt(props.getProperty("tintIndex", "-1"), -1);
-        String tintBlock = normalizeBlockToken(props.getProperty("tintBlock", ""));
+        String tintBlock = normalizeBlockIdToken(props.getProperty("tintBlock", ""));
         int alphaMode = parseLayerAlphaMode(props.getProperty("layer", ""));
         int[] ctmReplacementMap = parseCtmReplacementMap(props);
         return Optional.of(new VariantRule(propertyId.toString(), ruleMethod, matchTiles, matchBlocks,
@@ -379,7 +390,7 @@ public final class ResourcePackTextureVariantResolver {
         return base.isEmpty() ? List.of() : List.of(normalizeMatchToken(base));
     }
 
-    private static List<String> matchBlockTokens(Properties props) {
+    private static List<BlockPredicate> matchBlockTokens(Properties props) {
         return blockTokens(props, "matchBlocks");
     }
 
@@ -399,20 +410,205 @@ public final class ResourcePackTextureVariantResolver {
         return List.copyOf(normalized);
     }
 
-    private static List<String> blockTokens(Properties props, String key) {
+    private static List<BlockPredicate> blockTokens(Properties props, String key) {
         String value = props.getProperty(key, "").trim();
         if (value.isEmpty()) {
             return List.of();
         }
-        String[] tokens = value.split("[\\s,]+");
-        ArrayList<String> normalized = new ArrayList<>();
-        for (String token : tokens) {
-            String blockId = normalizeBlockToken(token);
-            if (!blockId.isEmpty()) {
-                normalized.add(blockId);
-            }
+        ArrayList<BlockPredicate> normalized = new ArrayList<>();
+        for (String token : splitBlockTokens(value)) {
+            parseBlockPredicate(token).ifPresent(normalized::add);
         }
         return List.copyOf(normalized);
+    }
+
+    private static List<String> splitBlockTokens(String value) {
+        ArrayList<String> tokens = new ArrayList<>();
+        int start = -1;
+        int bracketDepth = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch == '[') {
+                bracketDepth++;
+            } else if (ch == ']' && bracketDepth > 0) {
+                bracketDepth--;
+            }
+            boolean separator = bracketDepth == 0 && (Character.isWhitespace(ch) || ch == ',');
+            if (separator) {
+                if (start >= 0) {
+                    tokens.add(value.substring(start, i));
+                    start = -1;
+                }
+            } else if (start < 0) {
+                start = i;
+            }
+        }
+        if (start >= 0) {
+            tokens.add(value.substring(start));
+        }
+        return tokens;
+    }
+
+    private static Optional<BlockPredicate> parseBlockPredicate(String raw) {
+        String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
+        if (token.isEmpty()) {
+            return Optional.empty();
+        }
+        String stateExpression = "";
+        int bracket = token.indexOf('[');
+        if (bracket >= 0) {
+            int end = token.lastIndexOf(']');
+            if (end > bracket) {
+                stateExpression = token.substring(bracket + 1, end);
+            }
+            token = token.substring(0, bracket);
+        }
+        int firstColon = token.indexOf(':');
+        int stateColon = firstColon < 0 ? -1 : token.indexOf(':', firstColon + 1);
+        if (stateExpression.isEmpty() && stateColon > 0 && token.substring(stateColon + 1).contains("=")) {
+            stateExpression = token.substring(stateColon + 1);
+            token = token.substring(0, stateColon);
+        }
+        String blockId = normalizeBlockIdToken(token);
+        if (blockId.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new BlockPredicate(blockId, parseStatePredicates(stateExpression)));
+    }
+
+    private static List<StatePredicate> parseStatePredicates(String expression) {
+        if (expression == null || expression.isBlank()) {
+            return List.of();
+        }
+        ArrayList<StatePredicate> predicates = new ArrayList<>();
+        for (String clause : expression.split(",")) {
+            int equals = clause.indexOf('=');
+            if (equals <= 0 || equals == clause.length() - 1) {
+                continue;
+            }
+            String name = clause.substring(0, equals).trim().toLowerCase(Locale.ROOT);
+            if (name.isEmpty()) {
+                continue;
+            }
+            LinkedHashSet<String> values = new LinkedHashSet<>();
+            for (String value : clause.substring(equals + 1).split("\\|")) {
+                String normalized = value.trim().toLowerCase(Locale.ROOT);
+                if (!normalized.isEmpty()) {
+                    values.add(normalized);
+                }
+            }
+            if (!values.isEmpty()) {
+                predicates.add(new StatePredicate(name, Set.copyOf(values)));
+            }
+        }
+        return List.copyOf(predicates);
+    }
+
+    private static String normalizeBlockIdToken(String raw) {
+        String token = raw == null ? "" : raw.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
+        if (token.isEmpty()) {
+            return "";
+        }
+        int bracket = token.indexOf('[');
+        if (bracket >= 0) {
+            token = token.substring(0, bracket);
+        }
+        int firstColon = token.indexOf(':');
+        int stateColon = firstColon < 0 ? -1 : token.indexOf(':', firstColon + 1);
+        if (stateColon > 0 && token.substring(stateColon + 1).contains("=")) {
+            token = token.substring(0, stateColon);
+        }
+        int equals = token.indexOf('=');
+        if (equals >= 0) {
+            token = token.substring(0, equals);
+        }
+        if (token.startsWith("block/")) {
+            token = token.substring("block/".length());
+        }
+        int colon = token.indexOf(':');
+        if (colon > 0) {
+            String namespace = token.substring(0, colon);
+            String path = token.substring(colon + 1);
+            if (path.startsWith("block/")) {
+                path = path.substring("block/".length());
+            }
+            return namespace + ":" + path;
+        }
+        return "minecraft:" + token;
+    }
+
+    private static boolean matchesBlockPredicates(List<BlockPredicate> predicates, BlockState state) {
+        for (BlockPredicate predicate : predicates) {
+            if (predicate.matches(state)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Map<String, String> normalizeStateValues(Map<String, String> stateValues) {
+        if (stateValues == null || stateValues.isEmpty()) {
+            return Map.of();
+        }
+        java.util.LinkedHashMap<String, String> normalized = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : stateValues.entrySet()) {
+            if (entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
+            normalized.put(entry.getKey().trim().toLowerCase(Locale.ROOT),
+                entry.getValue().trim().toLowerCase(Locale.ROOT));
+        }
+        return Map.copyOf(normalized);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static String propertyValueName(Property property, Comparable value) {
+        return property.name(value).toLowerCase(Locale.ROOT);
+    }
+
+    private record BlockPredicate(String blockId, List<StatePredicate> states) {
+        boolean matches(BlockState state) {
+            if (!blockId.equals(Registries.BLOCK.getId(state.getBlock()).toString())) {
+                return false;
+            }
+            for (StatePredicate predicate : states) {
+                if (!predicate.matches(state)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        boolean matches(String actualBlockId, Map<String, String> stateValues) {
+            if (!blockId.equals(actualBlockId)) {
+                return false;
+            }
+            for (StatePredicate predicate : states) {
+                if (!predicate.matches(stateValues)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    private record StatePredicate(String name, Set<String> values) {
+        boolean matches(BlockState state) {
+            for (Map.Entry<Property<?>, Comparable<?>> entry : state.getEntries().entrySet()) {
+                Property<?> property = entry.getKey();
+                if (!name.equals(property.getName())) {
+                    continue;
+                }
+                String valueName = propertyValueName(property, entry.getValue());
+                return values.contains(valueName) || values.contains("*");
+            }
+            return false;
+        }
+
+        boolean matches(Map<String, String> stateValues) {
+            String value = stateValues.get(name);
+            return value != null && (values.contains(value) || values.contains("*"));
+        }
     }
 
     private static String normalizeMatchToken(String raw) {
@@ -429,25 +625,6 @@ public final class ResourcePackTextureVariantResolver {
             if (token.startsWith("textures/")) {
                 token = token.substring("textures/".length());
             }
-        }
-        return token;
-    }
-
-    private static String normalizeBlockToken(String raw) {
-        String token = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        if (token.isEmpty()) {
-            return "";
-        }
-        int bracket = token.indexOf('[');
-        if (bracket >= 0) {
-            token = token.substring(0, bracket);
-        }
-        int equals = token.indexOf('=');
-        if (equals >= 0) {
-            token = token.substring(0, equals);
-        }
-        if (!token.contains(":")) {
-            token = "minecraft:" + token;
         }
         return token;
     }
@@ -778,9 +955,9 @@ public final class ResourcePackTextureVariantResolver {
     private record VariantRule(String id,
                                RuleMethod method,
                                List<String> matchTiles,
-                               List<String> matchBlocks,
+                               List<BlockPredicate> matchBlocks,
                                List<String> connectTiles,
-                               List<String> connectBlocks,
+                               List<BlockPredicate> connectBlocks,
                                EnumSet<Direction> faces,
                                ConnectMode connectMode,
                                List<Identifier> outputs,
@@ -809,11 +986,8 @@ public final class ResourcePackTextureVariantResolver {
                 return false;
             }
             if (!matchBlocks.isEmpty() && state != null) {
-                String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-                for (String match : matchBlocks) {
-                    if (blockId.equals(match)) {
-                        return true;
-                    }
+                if (matchesBlockPredicates(matchBlocks, state)) {
+                    return true;
                 }
             }
             String sourcePath = normalizeMatchToken(source.getPath());
@@ -1099,7 +1273,7 @@ public final class ResourcePackTextureVariantResolver {
             if (other == null || !other.isFullCube(world, otherPos)) {
                 return false;
             }
-            if (!connectBlocks.isEmpty() && !matchesBlockTokens(connectBlocks, other)) {
+            if (!connectBlocks.isEmpty() && !matchesBlockPredicates(connectBlocks, other)) {
                 return false;
             }
             if (!connectTiles.isEmpty() && !matchesBlockTextureTokens(connectTiles, other, face)) {
@@ -1118,21 +1292,11 @@ public final class ResourcePackTextureVariantResolver {
             if (other == null) {
                 return false;
             }
-            if (!matchBlocks.isEmpty() && matchesBlockTokens(matchBlocks, other)) {
+            if (!matchBlocks.isEmpty() && matchesBlockPredicates(matchBlocks, other)) {
                 return true;
             }
             return !matchTiles.isEmpty() && matchesBlockTextureTokens(matchTiles, other,
                 face == null ? Direction.NORTH : face);
-        }
-
-        private boolean matchesBlockTokens(List<String> blockTokens, BlockState state) {
-            String blockId = Registries.BLOCK.getId(state.getBlock()).toString();
-            for (String match : blockTokens) {
-                if (blockId.equals(match)) {
-                    return true;
-                }
-            }
-            return false;
         }
 
         private boolean matchesBlockTextureTokens(List<String> tileTokens, BlockState state, Direction face) {

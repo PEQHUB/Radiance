@@ -1203,8 +1203,12 @@ public final class MaterialLabSelfTest {
                 "assets/minecraft/optifine/ctm/stone/0.png"));
             Identifier random1 = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
                 "assets/minecraft/optifine/ctm/stone/1.png"));
-            expect(fixed != null && random0 != null && random1 != null, "variant fixture ids should parse");
-            TextureArrayBridge.setSortedSpriteIds(List.of(stone, fixed, random0, random1));
+            Identifier lamp = Identifier.ofVanilla("block/redstone_lamp");
+            Identifier litLamp = Identifier.tryParse(ResourcePackCompatCtmTiles.atlasSpriteIdentifier(
+                "assets/minecraft/optifine/ctm/lamp/lit.png"));
+            expect(fixed != null && random0 != null && random1 != null && litLamp != null,
+                "variant fixture ids should parse");
+            TextureArrayBridge.setSortedSpriteIds(List.of(stone, fixed, random0, random1, lamp, litLamp));
 
             Options.materialCompatEnabled = true;
             Options.materialCompatCtmEnabled = true;
@@ -1231,6 +1235,22 @@ public final class MaterialLabSelfTest {
             expect(fixedIndex.resolveForTest(stone, stoneId, new BlockPos(1, 2, 3), Direction.NORTH) == stoneId,
                 "fixed rule should respect CTM feature flag");
             Options.materialCompatCtmEnabled = true;
+
+            FakeResourceManager stateManager = new FakeResourceManager();
+            stateManager.add("minecraft:optifine/ctm/lamp/lamp.properties",
+                "method=fixed\nmatchBlocks=redstone_lamp[lit=true]\ntiles=lit\n".getBytes(StandardCharsets.UTF_8));
+            ResourcePackTextureVariantResolver.ResolverIndex stateIndex =
+                ResourcePackTextureVariantResolver.buildForTest(stateManager, false);
+            expect(stateIndex.ruleCountForTest() == 1, "stateful matchBlocks rule should compile");
+            expect(ResourcePackTextureVariantResolver.blockPredicateMatchesForTest(
+                    "redstone_lamp[lit=true]", "minecraft:redstone_lamp", Map.of("lit", "true")),
+                "matchBlocks should honor true block-state predicates");
+            expect(!ResourcePackTextureVariantResolver.blockPredicateMatchesForTest(
+                    "redstone_lamp[lit=true]", "minecraft:redstone_lamp", Map.of("lit", "false")),
+                "matchBlocks should reject the same block id when state predicates fail");
+            expect(ResourcePackTextureVariantResolver.blockPredicateMatchesForTest(
+                    "minecraft:redstone_lamp:lit=true", "redstone_lamp", Map.of("lit", "true")),
+                "legacy colon-form block-state predicates should normalize to Minecraft block ids");
 
             FakeResourceManager randomManager = new FakeResourceManager();
             randomManager.add("minecraft:optifine/ctm/stone/random.properties",
