@@ -87,10 +87,11 @@ public final class FirstFrameTextureReadiness {
             && visibleUniqueMaterialCount == 0
             && elapsedMs < collectVisibleDemandMs;
         boolean residencyWorkPending = pendingQueueSize > 0 || uploadInFlight || uploadScheduled;
-        boolean nativePageProgressPending = visibleFallbackMaterialCount > 0
+        boolean nativePageProgressPending = hasCompatResidency
+            && visibleUniqueMaterialCount > 0
             && (nativePagePoolBusy || pendingMipPageCount > 0 || unreadyAllocatedPageCount > 0);
-        boolean materialProgressPending = visibleFallbackMaterialCount > 0
-            && (residencyWorkPending || nativePageProgressPending);
+        boolean materialProgressPending =
+            (visibleFallbackMaterialCount > 0 && residencyWorkPending) || nativePageProgressPending;
         boolean firstFrameDrainRequested = worldPresent
             && hasCompatResidency
             && visibleFallbackMaterialCount > 0
