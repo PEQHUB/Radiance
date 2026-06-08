@@ -294,15 +294,32 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             key.append("unknown");
         }
         key.append("|packs=");
-        try {
-            java.util.ArrayList<String> packs = new java.util.ArrayList<>();
-            resourceManager.streamResourcePacks().forEach(pack -> packs.add(String.valueOf(pack)));
-            packs.sort(String::compareTo);
-            key.append(String.join(",", packs));
-        } catch (Exception e) {
-            key.append("unknown");
-        }
+        key.append(activeResourcePackSelection());
         return TextureLoaderDiskCache.keyFor(key.toString());
+    }
+
+    private static String activeResourcePackSelection() {
+        try {
+            net.minecraft.client.MinecraftClient client = net.minecraft.client.MinecraftClient.getInstance();
+            if (client == null || client.runDirectory == null) {
+                return "unknown";
+            }
+            java.nio.file.Path options = client.runDirectory.toPath().resolve("options.txt");
+            if (!java.nio.file.Files.isRegularFile(options)) {
+                return "missing_options";
+            }
+            try (java.io.BufferedReader reader = java.nio.file.Files.newBufferedReader(options)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("resourcePacks:")) {
+                        return line.substring("resourcePacks:".length());
+                    }
+                }
+            }
+            return "no_resource_pack_option";
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 
     private static int collectRoot(ResourceManager resourceManager, String root,
