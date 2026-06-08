@@ -41,6 +41,10 @@ public final class ResourceMaterialRegistry {
     public static final int MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE = 1 << 8;
     public static final int MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED = 1 << 9;
     public static final int MATERIAL_TEXTURE_PAGE_MAX = 64;
+    public static final int MATERIAL_PAGE_NAMESPACE_MASK = 0xF0000000;
+    public static final int MATERIAL_PAGE_INDEX_MASK = 0x0FFFFFFF;
+    public static final int MATERIAL_PAGE_NAMESPACE_MATERIAL = 0x00000000;
+    public static final int MATERIAL_PAGE_NAMESPACE_VANILLA_TIER = 0x80000000;
 
     private static final AtomicReference<Snapshot> ACTIVE =
         new AtomicReference<>(Snapshot.empty());
@@ -223,18 +227,31 @@ public final class ResourceMaterialRegistry {
         json.addProperty("displacementEligible", (flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0);
         json.addProperty("effectiveFlagsHex", "0x" + Integer.toHexString(flags));
         json.addProperty("effectiveFlags", flags);
-        json.addProperty("albedoPage", handle == null ? 0 : handle.albedoPage());
-        json.addProperty("albedoLayer", handle == null ? record.baseSpriteId() : handle.albedoLayer());
-        json.addProperty("normalPage", handle == null ? 0 : handle.normalPage());
+        int baseSprite = Math.max(0, record.baseSpriteId());
+        int tierAlbedoPage = vanillaTierPage(baseSprite, TextureTracker.spriteAlbedoPage);
+        int tierSpecPage = vanillaTierPage(baseSprite, TextureTracker.spriteSpecularPage);
+        int tierNormalPage = vanillaTierPage(baseSprite, TextureTracker.spriteNormalPage);
+        int tierFlagPage = vanillaTierPage(baseSprite, TextureTracker.spriteFlagPage);
+        json.addProperty("albedoPage", handle == null ? vanillaTierPageHandle(tierAlbedoPage) : handle.albedoPage());
+        json.addProperty("albedoLayer", handle == null
+            ? vanillaTierLayer(baseSprite, TextureTracker.spriteAlbedoLayer, baseSprite)
+            : handle.albedoLayer());
+        json.addProperty("normalPage", handle == null ? vanillaTierPageHandle(tierNormalPage) : handle.normalPage());
         json.addProperty("normalLayer", handle == null
-            ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0 ? record.baseSpriteId() : -1)
+            ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0
+                ? vanillaTierLayer(baseSprite, TextureTracker.spriteNormalLayer, baseSprite)
+                : -1)
             : handle.normalLayer());
-        json.addProperty("specularPage", handle == null ? 0 : handle.specularPage());
+        json.addProperty("specularPage", handle == null ? vanillaTierPageHandle(tierSpecPage) : handle.specularPage());
         json.addProperty("specularLayer", handle == null
-            ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? record.baseSpriteId() : -1)
+            ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0
+                ? vanillaTierLayer(baseSprite, TextureTracker.spriteSpecularLayer, baseSprite)
+                : -1)
             : handle.specularLayer());
-        json.addProperty("flagPage", handle == null ? 0 : handle.flagPage());
-        json.addProperty("flagLayer", handle == null ? record.baseSpriteId() : handle.flagLayer());
+        json.addProperty("flagPage", handle == null ? vanillaTierPageHandle(tierFlagPage) : handle.flagPage());
+        json.addProperty("flagLayer", handle == null
+            ? vanillaTierLayer(baseSprite, TextureTracker.spriteFlagLayer, baseSprite)
+            : handle.flagLayer());
         json.addProperty("heightRangePacked",
             handle != null && handle.heightRangePacked() >= 0
                 ? handle.heightRangePacked()
@@ -431,17 +448,17 @@ public final class ResourceMaterialRegistry {
         int tierNormalLayer = vanillaTierLayer(baseSprite, TextureTracker.spriteNormalLayer, baseSprite);
         int tierFlagPage = vanillaTierPage(baseSprite, TextureTracker.spriteFlagPage);
         int tierFlagLayer = vanillaTierLayer(baseSprite, TextureTracker.spriteFlagLayer, baseSprite);
-        int albedoPage = handle == null ? tierAlbedoPage : handle.albedoPage();
+        int albedoPage = handle == null ? vanillaTierPageHandle(tierAlbedoPage) : handle.albedoPage();
         int albedoLayer = handle == null ? tierAlbedoLayer : handle.albedoLayer();
-        int specPage = handle == null ? tierSpecPage : handle.specularPage();
+        int specPage = handle == null ? vanillaTierPageHandle(tierSpecPage) : handle.specularPage();
         int specLayer = handle == null
             ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? tierSpecLayer : -1)
             : handle.specularLayer();
-        int normalPage = handle == null ? tierNormalPage : handle.normalPage();
+        int normalPage = handle == null ? vanillaTierPageHandle(tierNormalPage) : handle.normalPage();
         int normalLayer = handle == null
             ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0 ? tierNormalLayer : -1)
             : handle.normalLayer();
-        int flagPage = handle == null ? tierFlagPage : handle.flagPage();
+        int flagPage = handle == null ? vanillaTierPageHandle(tierFlagPage) : handle.flagPage();
         int flagLayer = handle == null ? tierFlagLayer : handle.flagLayer();
         int heightRangePacked = handle != null && handle.heightRangePacked() >= 0
             ? handle.heightRangePacked()
@@ -473,6 +490,14 @@ public final class ResourceMaterialRegistry {
             return 0;
         }
         return Math.max(0, pages[spriteId]);
+    }
+
+    private static int vanillaTierPageHandle(int page) {
+        if (page < TextureTracker.VANILLA_TIER_FIRST_PAGE
+            || page >= TextureTracker.FIRST_COMPAT_MATERIAL_PAGE) {
+            return MATERIAL_PAGE_NAMESPACE_MATERIAL;
+        }
+        return MATERIAL_PAGE_NAMESPACE_VANILLA_TIER | (page & MATERIAL_PAGE_INDEX_MASK);
     }
 
     private static int vanillaTierLayer(int spriteId, int[] layers, int fallbackLayer) {
@@ -744,6 +769,12 @@ public final class ResourceMaterialRegistry {
             json.addProperty("materialEntrySize", MATERIAL_ENTRY_SIZE);
             json.addProperty("maxMaterialEntries", MATERIAL_MAX_ENTRIES);
             json.addProperty("materialTexturePageMax", MATERIAL_TEXTURE_PAGE_MAX);
+            json.addProperty("materialPageNamespaceMaskHex",
+                "0x" + Integer.toHexString(MATERIAL_PAGE_NAMESPACE_MASK));
+            json.addProperty("vanillaTierPageNamespaceHex",
+                "0x" + Integer.toHexString(MATERIAL_PAGE_NAMESPACE_VANILLA_TIER));
+            json.addProperty("materialPageIndexMaskHex",
+                "0x" + Integer.toHexString(MATERIAL_PAGE_INDEX_MASK));
             json.addProperty("fallbackMaterialPage", 0);
             json.addProperty("vanillaTierFirstPage", TextureTracker.VANILLA_TIER_FIRST_PAGE);
             json.addProperty("vanillaTierPageCount", TextureTracker.VANILLA_TIER_SIZES.length);
