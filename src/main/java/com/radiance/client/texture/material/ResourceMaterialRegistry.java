@@ -166,6 +166,46 @@ public final class ResourceMaterialRegistry {
         return ACTIVE.get().recordsJson(offset, limit);
     }
 
+    public static JsonObject materialRecordJson(int materialId) {
+        Snapshot snapshot = ACTIVE.get();
+        MaterialRecord record = snapshot.recordByMaterialId(materialId);
+        if (record == null) {
+            JsonObject missing = new JsonObject();
+            missing.addProperty("materialId", materialId);
+            missing.addProperty("missing", true);
+            return missing;
+        }
+
+        ResidencyHandle handle = ACTIVE_RESIDENCY.get().get(materialId);
+        int flags = effectiveFlags(record, handle);
+        JsonObject json = record.toJson(handle);
+        json.addProperty("missing", false);
+        json.addProperty("materialKey", record.key().stableKey());
+        json.addProperty("compatVirtual", (flags & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0);
+        json.addProperty("gpuResident", (flags & MATERIAL_FLAG_GPU_RESIDENT) != 0);
+        json.addProperty("currentlyUsingFallback", (flags & MATERIAL_FLAG_FALLBACK) != 0);
+        json.addProperty("displacementEligible", (flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0);
+        json.addProperty("effectiveFlagsHex", "0x" + Integer.toHexString(flags));
+        json.addProperty("effectiveFlags", flags);
+        json.addProperty("albedoPage", handle == null ? 0 : handle.albedoPage());
+        json.addProperty("albedoLayer", handle == null ? record.baseSpriteId() : handle.albedoLayer());
+        json.addProperty("normalPage", handle == null ? 0 : handle.normalPage());
+        json.addProperty("normalLayer", handle == null
+            ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0 ? record.baseSpriteId() : -1)
+            : handle.normalLayer());
+        json.addProperty("specularPage", handle == null ? 0 : handle.specularPage());
+        json.addProperty("specularLayer", handle == null
+            ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? record.baseSpriteId() : -1)
+            : handle.specularLayer());
+        json.addProperty("flagPage", handle == null ? 0 : handle.flagPage());
+        json.addProperty("flagLayer", handle == null ? record.baseSpriteId() : handle.flagLayer());
+        json.addProperty("heightRangePacked",
+            handle != null && handle.heightRangePacked() >= 0
+                ? handle.heightRangePacked()
+                : record.heightRangePacked());
+        return json;
+    }
+
     public static boolean uploadActiveTableToNative() {
         Snapshot snapshot = ACTIVE.get();
         if (snapshot.records().isEmpty()) {

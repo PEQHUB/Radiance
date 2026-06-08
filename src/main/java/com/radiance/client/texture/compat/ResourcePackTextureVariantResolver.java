@@ -175,6 +175,28 @@ public final class ResourcePackTextureVariantResolver {
         return index.resolveDetailed(source, sourceSpriteId, world, state, pos, face, textureBasis);
     }
 
+    public static JsonObject traceBlockSpriteJson(@Nullable Sprite sourceSprite,
+        @Nullable BlockRenderView world,
+        @Nullable BlockState state,
+        @Nullable BlockPos pos,
+        @Nullable Direction face,
+        @Nullable RepeatTextureBasis textureBasis) {
+        Identifier source = spriteIdentifier(sourceSprite);
+        int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
+        if (source == null || sourceSpriteId < 0) {
+            return traceNoMatch(source, sourceSpriteId, "missing_source_sprite");
+        }
+        if (!Options.materialCompatEnabled) {
+            return traceNoMatch(source, sourceSpriteId, "material_compat_disabled");
+        }
+        ResourceManager resourceManager = currentResourceManager();
+        if (resourceManager == null) {
+            return traceNoMatch(source, sourceSpriteId, "missing_resource_manager");
+        }
+        ResolverIndex index = activeIndex(resourceManager);
+        return index.traceDetailed(source, sourceSpriteId, world, state, pos, face, textureBasis);
+    }
+
     @Nullable
     public static CompactCtmQuadrants resolveCompactCtmQuadrants(@Nullable Sprite sourceSprite,
         @Nullable BlockRenderView world,
@@ -1438,6 +1460,39 @@ public final class ResourcePackTextureVariantResolver {
         return value.name().toLowerCase(Locale.ROOT);
     }
 
+    private static JsonObject traceNoMatch(@Nullable Identifier source, int sourceSpriteId, String reason) {
+        JsonObject json = new JsonObject();
+        json.addProperty("matched", false);
+        json.addProperty("sourceSpriteId", source == null ? "" : source.toString());
+        json.addProperty("sourceSpriteNumericId", sourceSpriteId);
+        json.addProperty("ruleFile", "");
+        json.addProperty("method", "none");
+        json.addProperty("connectMode", "");
+        json.addProperty("ruleId", -1);
+        json.addProperty("outputIndex", -1);
+        json.addProperty("outputTile", "");
+        json.addProperty("materialId", sourceSpriteId);
+        json.addProperty("tintColor", 0xFFFFFF);
+        json.addProperty("tintOverride", false);
+        json.addProperty("reason", reason);
+        json.add("methodDetails", new JsonObject());
+        return json;
+    }
+
+    private static JsonArray blockPosJson(@Nullable BlockPos pos) {
+        JsonArray array = new JsonArray();
+        if (pos != null) {
+            array.add(pos.getX());
+            array.add(pos.getY());
+            array.add(pos.getZ());
+        }
+        return array;
+    }
+
+    private static String directionName(@Nullable Direction direction) {
+        return direction == null ? "" : direction.asString();
+    }
+
     public static final class ResolverIndex {
         private static final ResolverIndex EMPTY = new ResolverIndex(List.of());
         private final List<VariantRule> rules;
@@ -1759,6 +1814,37 @@ public final class ResourcePackTextureVariantResolver {
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
         }
 
+        JsonObject traceDetailed(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, @Nullable RepeatTextureBasis textureBasis) {
+            if (source == null || sourceSpriteId < 0 || rules.isEmpty()) {
+                return traceNoMatch(source, sourceSpriteId, rules.isEmpty() ? "no_rules" : "missing_source_sprite");
+            }
+            NeighborConnector connector = new NeighborConnector() {
+                @Override
+                public boolean connects(Direction direction, ConnectMode mode) {
+                    return ResolverIndex.this.connects(world, state, pos, direction, mode);
+                }
+
+                @Override
+                public boolean connects(Direction first, Direction second, ConnectMode mode) {
+                    return ResolverIndex.this.connects(world, state, pos, first, second, mode);
+                }
+            };
+            for (VariantRule rule : rules) {
+                if (rule.method().overlayRule() || !rule.enabledByOptions()
+                    || !rule.matches(source, world, state, pos, face, null, null)) {
+                    continue;
+                }
+                JsonObject trace = rule.traceSprite(source, sourceSpriteId, world, state, pos, face,
+                    rule.neighborConnector(source, world, state, pos, face, connector), textureBasis);
+                if (trace.get("matched").getAsBoolean()) {
+                    return trace;
+                }
+            }
+            return traceNoMatch(source, sourceSpriteId, "no_matching_rule");
+        }
+
         @Nullable
         CompactCtmQuadrants resolveCompactCtmQuadrants(Identifier source, int sourceSpriteId,
             @Nullable BlockRenderView world, @Nullable BlockState state,
@@ -1991,21 +2077,7 @@ public final class ResourcePackTextureVariantResolver {
             @Nullable BlockRenderView world, @Nullable BlockState state,
             @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
             @Nullable RepeatTextureBasis textureBasis, @Nullable Direction.Axis repeatAxisOverride) {
-            int outputIndex = switch (method) {
-                case CTM -> ctm47Index(connector, face);
-                case CTM_COMPACT -> compactCtmIndex(connector, face);
-                case FIXED -> 0;
-                case RANDOM -> weightedIndex(source, pos, face);
-                case REPEAT -> repeatIndex(state, repeatAxisOverride, textureBasis, pos, face);
-                case HORIZONTAL -> twoBitIndex(connector, horizontalDirections(face));
-                case VERTICAL -> twoBitIndex(connector, verticalDirections(face));
-                case HORIZONTAL_THEN_VERTICAL ->
-                    sevenTileIndex(connector, horizontalDirections(face), verticalDirections(face));
-                case VERTICAL_THEN_HORIZONTAL ->
-                    sevenTileIndex(connector, verticalDirections(face), horizontalDirections(face));
-                case TOP -> connector.connects(Direction.UP, connectMode) ? 0 : -1;
-                case OVERLAY, OVERLAY_CTM, OVERLAY_RANDOM, OVERLAY_REPEAT, OVERLAY_FIXED -> -1;
-            };
+            int outputIndex = outputIndex(source, state, pos, face, connector, textureBasis, repeatAxisOverride);
             if (outputIndex < 0) {
                 return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
             }
@@ -2023,6 +2095,200 @@ public final class ResourcePackTextureVariantResolver {
                 }
             }
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
+        }
+
+        JsonObject traceSprite(Identifier source, int sourceSpriteId,
+            @Nullable BlockRenderView world, @Nullable BlockState state,
+            @Nullable BlockPos pos, @Nullable Direction face, NeighborConnector connector,
+            @Nullable RepeatTextureBasis textureBasis) {
+            int outputIndex = outputIndex(source, state, pos, face, connector, textureBasis, null);
+            JsonObject trace = new JsonObject();
+            trace.addProperty("matched", false);
+            trace.addProperty("sourceSpriteId", source.toString());
+            trace.addProperty("sourceSpriteNumericId", sourceSpriteId);
+            trace.addProperty("ruleFile", id);
+            trace.addProperty("method", methodName(method));
+            trace.addProperty("connectMode", lowerName(connectMode));
+            trace.addProperty("ruleId", precedenceOrdinal);
+            trace.addProperty("outputIndex", outputIndex);
+            trace.addProperty("selectedOutputIndex", -1);
+            trace.addProperty("outputTile", "");
+            trace.addProperty("materialId", sourceSpriteId);
+            trace.addProperty("tintColor", 0xFFFFFF);
+            trace.addProperty("tintOverride", false);
+            trace.add("methodDetails", methodDetails(source, state, pos, face, connector, textureBasis, outputIndex));
+
+            if (outputIndex < 0) {
+                trace.addProperty("reason", "rule_matched_without_output");
+                return trace;
+            }
+            for (int i = 0; i < outputs.size(); i++) {
+                int index = Math.floorMod(outputIndex + i, outputs.size());
+                TileOutput output = outputs.get(index);
+                if (output.defaultOutput()) {
+                    trace.addProperty("matched", true);
+                    trace.addProperty("selectedOutputIndex", index);
+                    trace.addProperty("outputTile", "<default>");
+                    trace.addProperty("materialId", sourceSpriteId);
+                    trace.addProperty("reason", "default_output");
+                    return trace;
+                }
+                int materialId = materialIdForOutput(output, -1);
+                if (materialId >= 0) {
+                    boolean tintOverride = tintOverride();
+                    int tintRgb = tintOverride ? overlayTintRgb(world, state, pos) : 0xFFFFFF;
+                    trace.addProperty("matched", true);
+                    trace.addProperty("selectedOutputIndex", index);
+                    trace.addProperty("outputTile", output.assetPath());
+                    trace.addProperty("materialId", materialId);
+                    trace.addProperty("tintColor", tintRgb);
+                    trace.addProperty("tintOverride", tintOverride);
+                    trace.addProperty("alphaMode", alphaMode);
+                    trace.addProperty("reason", "resolved");
+                    return trace;
+                }
+            }
+            trace.addProperty("reason", "selected_outputs_missing_material_records");
+            return trace;
+        }
+
+        private int outputIndex(Identifier source, @Nullable BlockState state, @Nullable BlockPos pos,
+            @Nullable Direction face, NeighborConnector connector, @Nullable RepeatTextureBasis textureBasis,
+            @Nullable Direction.Axis repeatAxisOverride) {
+            return switch (method) {
+                case CTM -> ctm47Index(connector, face);
+                case CTM_COMPACT -> compactCtmIndex(connector, face);
+                case FIXED -> 0;
+                case RANDOM -> weightedIndex(source, pos, face);
+                case REPEAT -> repeatIndex(state, repeatAxisOverride, textureBasis, pos, face);
+                case HORIZONTAL -> twoBitIndex(connector, horizontalDirections(face));
+                case VERTICAL -> twoBitIndex(connector, verticalDirections(face));
+                case HORIZONTAL_THEN_VERTICAL ->
+                    sevenTileIndex(connector, horizontalDirections(face), verticalDirections(face));
+                case VERTICAL_THEN_HORIZONTAL ->
+                    sevenTileIndex(connector, verticalDirections(face), horizontalDirections(face));
+                case TOP -> connector.connects(Direction.UP, connectMode) ? 0 : -1;
+                case OVERLAY, OVERLAY_CTM, OVERLAY_RANDOM, OVERLAY_REPEAT, OVERLAY_FIXED -> -1;
+            };
+        }
+
+        private JsonObject methodDetails(Identifier source, @Nullable BlockState state, @Nullable BlockPos pos,
+            @Nullable Direction face, NeighborConnector connector, @Nullable RepeatTextureBasis textureBasis,
+            int outputIndex) {
+            JsonObject json = new JsonObject();
+            switch (method) {
+                case RANDOM -> {
+                    JsonObject seed = new JsonObject();
+                    seed.add("blockPos", blockPosJson(pos));
+                    seed.addProperty("face", directionName(face));
+                    seed.addProperty("sourceSprite", source.toString());
+                    seed.addProperty("ruleId", precedenceOrdinal);
+                    long hash = stableHash(source, pos, face);
+                    json.add("seedInput", seed);
+                    json.add("weights", intArray(weights));
+                    json.addProperty("randomLoops", randomLoops);
+                    json.addProperty("symmetry", lowerName(randomSymmetry));
+                    json.addProperty("linked", linkedRandom);
+                    json.addProperty("hash", hash);
+                    json.addProperty("weightedChoice", outputIndex);
+                    json.addProperty("outputIndex", outputIndex);
+                }
+                case REPEAT, OVERLAY_REPEAT -> addRepeatDetails(json, state, pos, face, textureBasis, outputIndex);
+                case HORIZONTAL -> addDirectionPairDetails(json, "horizontal", connector, horizontalDirections(face),
+                    outputIndex);
+                case VERTICAL -> addDirectionPairDetails(json, "vertical", connector, verticalDirections(face),
+                    outputIndex);
+                case HORIZONTAL_THEN_VERTICAL, VERTICAL_THEN_HORIZONTAL -> {
+                    addDirectionPairDetails(json, "primary", connector,
+                        method == RuleMethod.HORIZONTAL_THEN_VERTICAL ? horizontalDirections(face) : verticalDirections(face),
+                        outputIndex);
+                    addDirectionPairDetails(json, "secondary", connector,
+                        method == RuleMethod.HORIZONTAL_THEN_VERTICAL ? verticalDirections(face) : horizontalDirections(face),
+                        outputIndex);
+                }
+                case CTM, CTM_COMPACT -> addCtmDetails(json, connector, face, outputIndex);
+                case FIXED, TOP, OVERLAY, OVERLAY_CTM, OVERLAY_RANDOM, OVERLAY_FIXED -> {
+                    json.addProperty("outputIndex", outputIndex);
+                    json.addProperty("face", directionName(face));
+                }
+            }
+            return json;
+        }
+
+        private void addRepeatDetails(JsonObject json, @Nullable BlockState state, @Nullable BlockPos pos,
+            @Nullable Direction face, @Nullable RepeatTextureBasis textureBasis, int outputIndex) {
+            json.addProperty("width", repeatWidth);
+            json.addProperty("height", repeatHeight);
+            json.addProperty("orientation", lowerName(repeatOrientation));
+            json.addProperty("face", directionName(face));
+            json.addProperty("outputIndex", outputIndex);
+            JsonObject basisJson = new JsonObject();
+            if (pos != null && repeatOrientation == RepeatOrientation.TEXTURE && textureBasis != null) {
+                basisJson.addProperty("mode", "texture");
+                basisJson.addProperty("uAxis", textureBasis.uAxis().asString());
+                basisJson.addProperty("uSign", textureBasis.uSign());
+                basisJson.addProperty("vAxis", textureBasis.vAxis().asString());
+                basisJson.addProperty("vSign", textureBasis.vSign());
+                basisJson.addProperty("u", textureBasis.u(pos));
+                basisJson.addProperty("v", textureBasis.v(pos));
+            } else if (pos != null) {
+                RepeatBasis basis = repeatBasis(state, null, pos, face);
+                basisJson.addProperty("mode", "world");
+                basisJson.addProperty("x", basis.x());
+                basisJson.addProperty("y", basis.y());
+                basisJson.addProperty("z", basis.z());
+                basisJson.addProperty("axisFace", directionName(basis.face()));
+            } else {
+                basisJson.addProperty("mode", "missing_pos");
+            }
+            json.add("basis", basisJson);
+        }
+
+        private void addDirectionPairDetails(JsonObject json, String key, NeighborConnector connector,
+            DirectionPair pair, int outputIndex) {
+            JsonObject pairJson = new JsonObject();
+            pairJson.add(directionName(pair.negative()), neighborJson(connector, pair.negative()));
+            pairJson.add(directionName(pair.positive()), neighborJson(connector, pair.positive()));
+            pairJson.addProperty("mask", twoBitIndex(connector, pair));
+            pairJson.addProperty("outputIndex", outputIndex);
+            json.add(key, pairJson);
+        }
+
+        private void addCtmDetails(JsonObject json, NeighborConnector connector, @Nullable Direction face,
+            int outputIndex) {
+            int connections = ctmConnections(connector, face);
+            json.addProperty("mask8", connections);
+            json.addProperty("ctm47Index", CTM_47_INDEX_MAP[connections]);
+            json.addProperty("outputIndex", outputIndex);
+            Direction[] directions = ctmDirections(face);
+            JsonObject neighbors = new JsonObject();
+            for (Direction direction : directions) {
+                neighbors.add(directionName(direction), neighborJson(connector, direction));
+            }
+            json.add("neighbors", neighbors);
+            if (method == RuleMethod.CTM_COMPACT) {
+                int[] quadrants = compactQuadrantIndices(connections);
+                JsonArray quadrantArray = new JsonArray();
+                for (int i = 0; i < quadrants.length; i++) {
+                    JsonObject quadrant = new JsonObject();
+                    quadrant.addProperty("quadrant", i);
+                    quadrant.addProperty("tileIndex", quadrants[i]);
+                    quadrant.addProperty("materialId", spriteIdForOutputIndex(quadrants[i]));
+                    quadrantArray.add(quadrant);
+                }
+                json.add("quadrants", quadrantArray);
+                json.addProperty("subQuadMaterialIdsPreserved", true);
+            }
+        }
+
+        private JsonObject neighborJson(NeighborConnector connector, Direction direction) {
+            JsonObject json = new JsonObject();
+            json.addProperty("direction", directionName(direction));
+            json.addProperty("connects", connector.connects(direction, connectMode));
+            json.addProperty("reason", connector.connects(direction, connectMode)
+                ? "connect_mode_" + lowerName(connectMode)
+                : "not_connected");
+            return json;
         }
 
         @Nullable
