@@ -53,6 +53,25 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         CallbackInfo ci, @Local Sprite sprite) {
         int id = getGlId();
         ((ISpriteExt) sprite).neoVoxelRT$setTargetID(id);
+        SpriteAtlasTexture self = (SpriteAtlasTexture) (Object) this;
+        if (shouldBypassVanillaBlockAtlas(self.getId())) {
+            TextureTracker.beginVanillaBlockAtlasUploadBypass(id);
+        }
+    }
+
+    @Inject(method = "upload(Lnet/minecraft/client/texture/SpriteLoader$StitchResult;)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/texture/Sprite;upload()V",
+            shift = At.Shift.AFTER))
+    public void clearBlockAtlasBypassAfterUpload(SpriteLoader.StitchResult stitchResult,
+        CallbackInfo ci, @Local Sprite sprite) {
+        TextureTracker.endVanillaBlockAtlasUploadBypass();
+    }
+
+    @Inject(method = "upload(Lnet/minecraft/client/texture/SpriteLoader$StitchResult;)V",
+        at = @At("RETURN"))
+    public void clearBlockAtlasBypassAfterAtlasUpload(SpriteLoader.StitchResult stitchResult,
+        CallbackInfo ci) {
+        TextureTracker.endVanillaBlockAtlasUploadBypass();
     }
 
     /**
@@ -80,8 +99,14 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         int atlasW = stitchResult.width();
         int atlasH = stitchResult.height();
         TextureReloadTimeline.begin(atlasId.toString(), regions.size(), atlasW, atlasH);
+        TextureReloadTimeline.addSummary("vanillaBlockAtlasBypass", TextureTracker.lastVanillaBlockAtlasBypass ? 1 : 0);
+        TextureReloadTimeline.addSummary("vanillaBlockAtlasBypassSkippedSprites",
+            TextureTracker.vanillaBlockAtlasBypassSkippedSprites);
 
         LOGGER.info("[TextureSystem] Processing block atlas: {} sprites, {}x{}", regions.size(), atlasW, atlasH);
+        LOGGER.info("[TextureSystem] Vanilla block atlas GL upload bypassed={} atlas={} skippedSprites={}",
+            TextureTracker.lastVanillaBlockAtlasBypass, atlasId,
+            TextureTracker.vanillaBlockAtlasBypassSkippedSprites);
 
         // ---- Step 1: Sort sprites alphabetically for deterministic spriteId assignment ----
         long phaseStart = TextureReloadTimeline.start("spriteSort");
@@ -586,6 +611,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.addSummary("albedoUploadedSprites", uploaded);
         TextureReloadTimeline.finish();
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
+    }
+
+    private static boolean shouldBypassVanillaBlockAtlas(Identifier atlasId) {
+        return Options.vanillaBlockAtlasBypass
+            && atlasId != null
+            && "minecraft".equals(atlasId.getNamespace())
+            && "textures/atlas/blocks.png".equals(atlasId.getPath());
     }
 
     private static SparseAuxReport stageSparseAuxLayers(List<Map.Entry<Identifier, Sprite>> sorted,

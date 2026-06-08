@@ -204,6 +204,9 @@ public final class TextureArrayBridge {
     public static native String nativeGpuUploadQueueStatusJson();
     public static native String nativeTextureMemoryStatusJson();
     public static native String nativeMaterialResidencyStatusJson();
+    public static native String nativeMaterialPagePoolStatusJson();
+    public static native String nativeMaterialTableStatusJson();
+    public static native String nativeUploadSafetyStatusJson();
     public static native void nativeReceiveSpriteTable(long metaPtr, int count,
         int atlasWidth, int atlasHeight);
     public static native void nativeReceiveSpritePixels(long dataPtr, int totalBytes);

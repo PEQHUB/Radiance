@@ -26,6 +26,10 @@ public class TextureTracker {
     public static final int SPRITE_FLAG_SOURCE_MASK = 0x3;
     public static final int MAX_SPRITES = 4096;
     public static volatile boolean textureArrayAnimationUpdatesEnabled = false;
+    public static volatile boolean vanillaBlockAtlasUploadBypassActive = false;
+    public static volatile boolean lastVanillaBlockAtlasBypass = false;
+    public static volatile int vanillaBlockAtlasBypassTargetId = -1;
+    public static volatile long vanillaBlockAtlasBypassSkippedSprites = 0L;
 
     /**
      * Set texture array animation enabled state and sync to C++.
@@ -41,6 +45,28 @@ public class TextureTracker {
         } catch (UnsatisfiedLinkError ignored) {
             // Native not loaded yet
         }
+    }
+
+    public static void beginVanillaBlockAtlasUploadBypass(int targetId) {
+        vanillaBlockAtlasBypassTargetId = targetId;
+        vanillaBlockAtlasBypassSkippedSprites = 0L;
+        vanillaBlockAtlasUploadBypassActive = true;
+        lastVanillaBlockAtlasBypass = true;
+    }
+
+    public static void endVanillaBlockAtlasUploadBypass() {
+        vanillaBlockAtlasUploadBypassActive = false;
+        vanillaBlockAtlasBypassTargetId = -1;
+    }
+
+    public static boolean shouldBypassVanillaBlockAtlasUpload(int targetId) {
+        return vanillaBlockAtlasUploadBypassActive
+            && targetId >= 0
+            && targetId == vanillaBlockAtlasBypassTargetId;
+    }
+
+    public static void recordVanillaBlockAtlasUploadBypass() {
+        vanillaBlockAtlasBypassSkippedSprites++;
     }
 
     public static Map<Identifier, Integer> textureID2GLID = new ConcurrentHashMap<>();
@@ -112,6 +138,10 @@ public class TextureTracker {
         customNormalGLIDs.clear();
         packProvidedSpecularSpriteIds.clear();
         packProvidedNormalSpriteIds.clear();
+        vanillaBlockAtlasUploadBypassActive = false;
+        lastVanillaBlockAtlasBypass = false;
+        vanillaBlockAtlasBypassTargetId = -1;
+        vanillaBlockAtlasBypassSkippedSprites = 0L;
         Arrays.fill(spriteSpecularSource, SOURCE_GENERATED);
         Arrays.fill(spriteNormalSource, SOURCE_GENERATED);
         Arrays.fill(spriteBaselineSpecularSource, SOURCE_GENERATED);
