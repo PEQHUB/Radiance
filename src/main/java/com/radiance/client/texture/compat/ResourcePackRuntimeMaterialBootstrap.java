@@ -19,7 +19,6 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
@@ -352,7 +351,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                     String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
                 LAST_RESIDENCY_VISIBLE_COUNT.set(
                     ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size());
-                scheduleChunkRefresh();
+                recordResidencyDescriptorOnlyUpdate(generation);
             } catch (Throwable t) {
                 JsonObject statusEvent = new JsonObject();
                 statusEvent.addProperty("error", t.toString());
@@ -381,28 +380,14 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             && ResourceMaterialResidencyDemand.visibleMaterialIds(generation).isEmpty();
     }
 
-    private static void scheduleChunkRefresh() {
-        try {
-            MinecraftClient client = MinecraftClient.getInstance();
-            if (client != null) {
-                client.execute(() -> {
-                    try {
-                        if (client.world != null && client.worldRenderer != null) {
-                            try {
-                                Options.nativeRebuildChunks();
-                            } catch (UnsatisfiedLinkError e) {
-                                LOGGER.debug("[MaterialCompat] Native chunk rebuild skipped after residency", e);
-                            }
-                            Options.debouncedChunkReload();
-                        }
-                    } catch (Throwable t) {
-                        LOGGER.debug("[MaterialCompat] Chunk refresh after residency failed", t);
-                    }
-                });
-            }
-        } catch (Throwable t) {
-            LOGGER.debug("[MaterialCompat] Chunk refresh scheduling after residency failed", t);
-        }
+    private static void recordResidencyDescriptorOnlyUpdate(long generation) {
+        JsonObject statusEvent = new JsonObject();
+        statusEvent.addProperty("geometryAffectingMaterialChange", false);
+        statusEvent.addProperty("chunkRefreshScheduled", false);
+        statusEvent.addProperty("reason", "resident_handles_update_stable_material_ids");
+        ResourceMaterialRuntimeStatus.write("residencyDescriptorOnlyUpdate", generation, statusEvent);
+        LOGGER.info("[MaterialCompat] Residency updated descriptor/material-table state only; "
+            + "chunk rebuild skipped for generation {}", generation);
     }
 
     private static String packStackHash(long generation, int dependencyCount) {

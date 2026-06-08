@@ -249,10 +249,12 @@ public final class ResourceMaterialResidencyUploader {
                     handles.putAll(pageHandles);
                     ResourceMaterialResidencyDemand.recordResident(generation, pageHandles.keySet());
                     long tableStartedNanos = System.nanoTime();
-                    ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
+                    ResourceMaterialRegistry.ResidencyMergeStats mergeStats =
+                        ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
                     boolean materialTableUploaded = !Options.materialTableDirtyUpdates
                         && ResourceMaterialRegistry.uploadActiveTableToNative();
                     pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
+                    pageReport.add("residentHandleMerge", mergeStats.toJson());
                     pageReport.addProperty("materialTableUploaded", materialTableUploaded);
                     pageReport.addProperty("materialTableDeferred", Options.materialTableDirtyUpdates);
                     pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
@@ -277,7 +279,8 @@ public final class ResourceMaterialResidencyUploader {
             shutdownLayerExecutor(layerExecutor);
         }
 
-        ResourceMaterialRegistry.registerResidentMaterialHandles(handles);
+        ResourceMaterialRegistry.ResidencyMergeStats finalMergeStats =
+            ResourceMaterialRegistry.mergeResidentMaterialHandles(handles);
         boolean finalMaterialTableUploaded = false;
         if (!handles.isEmpty() && Options.materialTableDirtyUpdates && generationMatches(generation)) {
             long tableStartedNanos = System.nanoTime();
@@ -286,6 +289,7 @@ public final class ResourceMaterialResidencyUploader {
         }
         json.addProperty("uploadedPages", uploadedPages);
         json.addProperty("uploadedMaterials", handles.size());
+        json.add("residentHandleMerge", finalMergeStats.toJson());
         json.addProperty("materialTableUploadedFinal", finalMaterialTableUploaded);
         json.addProperty("materialTableFullUploadPolicy",
             Options.materialTableDirtyUpdates ? "final_after_visible_batch" : "legacy_after_each_page");

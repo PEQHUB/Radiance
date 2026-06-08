@@ -44,6 +44,8 @@ public final class ResourceMaterialRegistry {
         new AtomicReference<>(Snapshot.empty());
     private static final AtomicReference<Map<Integer, ResidencyHandle>> ACTIVE_RESIDENCY =
         new AtomicReference<>(Map.of());
+    private static volatile ResidencyMergeStats lastResidencyMergeStats =
+        ResidencyMergeStats.empty("startup");
 
     private ResourceMaterialRegistry() {
     }
@@ -53,14 +55,14 @@ public final class ResourceMaterialRegistry {
     }
 
     public static Snapshot publishVanillaSprites(List<Identifier> spriteIds, long generation) {
-        ACTIVE_RESIDENCY.set(Map.of());
+        resetResidentMaterialHandlesForGeneration(Map.of(), "vanilla_sprite_publish");
         Snapshot snapshot = buildVanillaSnapshot(spriteIds, generation, "");
         ACTIVE.set(snapshot);
         return snapshot;
     }
 
     public static Snapshot publishFromCompatReport(JsonObject root, long generation) {
-        ACTIVE_RESIDENCY.set(Map.of());
+        resetResidentMaterialHandlesForGeneration(Map.of(), "compat_report_publish");
         Snapshot snapshot = buildFromCompatReport(root, generation);
         ACTIVE.set(snapshot);
         return snapshot;
@@ -121,21 +123,53 @@ public final class ResourceMaterialRegistry {
         return record != null && (record.flags() & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0;
     }
 
-    public static void registerResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
+    public static ResidencyMergeStats resetResidentMaterialHandlesForGeneration(
+        Map<Integer, ResidencyHandle> handles, String reason) {
+        int before = ACTIVE_RESIDENCY.get().size();
         if (handles == null || handles.isEmpty()) {
             ACTIVE_RESIDENCY.set(Map.of());
-            return;
+            ResidencyMergeStats stats = new ResidencyMergeStats(reason, before, 0, 0, before, 0);
+            lastResidencyMergeStats = stats;
+            return stats;
         }
         ACTIVE_RESIDENCY.set(Map.copyOf(handles));
+        ResidencyMergeStats stats = new ResidencyMergeStats(reason, before, handles.size(),
+            handles.size(), before, handles.size());
+        lastResidencyMergeStats = stats;
+        return stats;
     }
 
-    public static void mergeResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
+    public static ResidencyMergeStats registerResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
+        return resetResidentMaterialHandlesForGeneration(handles, "legacy_register_resets_generation");
+    }
+
+    public static ResidencyMergeStats mergeResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
+        int before = ACTIVE_RESIDENCY.get().size();
         if (handles == null || handles.isEmpty()) {
-            return;
+            ResidencyMergeStats stats = new ResidencyMergeStats("merge", before, before, 0, 0, 0);
+            lastResidencyMergeStats = stats;
+            return stats;
         }
         Map<Integer, ResidencyHandle> next = new LinkedHashMap<>(ACTIVE_RESIDENCY.get());
+        int replaced = 0;
+        int added = 0;
+        for (Integer materialId : handles.keySet()) {
+            if (next.containsKey(materialId)) {
+                replaced++;
+            } else {
+                added++;
+            }
+        }
         next.putAll(handles);
         ACTIVE_RESIDENCY.set(Map.copyOf(next));
+        ResidencyMergeStats stats = new ResidencyMergeStats("merge", before, next.size(),
+            handles.size(), replaced, added);
+        lastResidencyMergeStats = stats;
+        return stats;
+    }
+
+    public static JsonObject lastResidencyMergeStatsJson() {
+        return lastResidencyMergeStats.toJson();
     }
 
     public static int shaderTextureIdForMaterialId(int materialId) {
@@ -576,6 +610,28 @@ public final class ResourceMaterialRegistry {
         }
     }
 
+    public record ResidencyMergeStats(String reason,
+                                      int residentHandleCountBefore,
+                                      int residentHandleCountAfter,
+                                      int mergedHandleCount,
+                                      int replacedHandleCount,
+                                      int addedHandleCount) {
+        static ResidencyMergeStats empty(String reason) {
+            return new ResidencyMergeStats(reason, 0, 0, 0, 0, 0);
+        }
+
+        JsonObject toJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("reason", reason);
+            json.addProperty("residentHandleCountBefore", residentHandleCountBefore);
+            json.addProperty("residentHandleCountAfter", residentHandleCountAfter);
+            json.addProperty("mergedHandleCount", mergedHandleCount);
+            json.addProperty("replacedHandleCount", replacedHandleCount);
+            json.addProperty("addedHandleCount", addedHandleCount);
+            return json;
+        }
+    }
+
     public record Snapshot(long generation,
                            String packStackHash,
                            int vanillaMaterialCount,
@@ -647,6 +703,7 @@ public final class ResourceMaterialRegistry {
             json.addProperty("compatVirtualGpuResidentCount", compatVirtualResident);
             json.addProperty("compatVirtualCurrentlyUsingFallbackCount", compatVirtualFallback);
             json.addProperty("residentMaterialHandleCount", residency.size());
+            json.add("lastResidencyMergeStats", lastResidencyMergeStatsJson());
             json.addProperty("displacementEligibleMaterialCount", displacementEligible);
             json.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
             json.addProperty("nativeBindingPolicy", AutoPbrTextureCatalog.MATERIAL_SET_BINDING_POLICY);
