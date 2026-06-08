@@ -21,6 +21,8 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.MinecraftClient;
@@ -70,6 +72,7 @@ public final class ResourcePackTextureVariantResolver {
         37, 38, 37, 38, 30, 11, 30, 32, 37, 38, 37, 38, 25, 33, 25, 26,
     };
     private static volatile Cache cache = Cache.empty();
+    private static final RuntimeResolutionStats RUNTIME_STATS = new RuntimeResolutionStats();
 
     private ResourcePackTextureVariantResolver() {
     }
@@ -154,13 +157,18 @@ public final class ResourcePackTextureVariantResolver {
         @Nullable BlockPos pos,
         @Nullable Direction face,
         @Nullable RepeatTextureBasis textureBasis) {
+        RUNTIME_STATS.recordBlockResolveCall();
         Identifier source = spriteIdentifier(sourceSprite);
         int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
         if (source == null || sourceSpriteId < 0 || !Options.materialCompatEnabled) {
+            RUNTIME_STATS.recordBlockResolveBypass(!Options.materialCompatEnabled
+                ? "material_compat_disabled"
+                : "missing_source_sprite");
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
         }
         ResourceManager resourceManager = currentResourceManager();
         if (resourceManager == null) {
+            RUNTIME_STATS.recordBlockResolveBypass("missing_resource_manager");
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
         }
         ResolverIndex index = activeIndex(resourceManager);
@@ -173,6 +181,7 @@ public final class ResourcePackTextureVariantResolver {
         @Nullable BlockState state,
         @Nullable BlockPos pos,
         @Nullable Direction face) {
+        RUNTIME_STATS.recordCompactResolveCall();
         Identifier source = spriteIdentifier(sourceSprite);
         int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
         if (source == null || sourceSpriteId < 0 || !Options.materialCompatEnabled
@@ -184,7 +193,12 @@ public final class ResourcePackTextureVariantResolver {
             return null;
         }
         ResolverIndex index = activeIndex(resourceManager);
-        return index.resolveCompactCtmQuadrants(source, sourceSpriteId, world, state, pos, face);
+        CompactCtmQuadrants quadrants =
+            index.resolveCompactCtmQuadrants(source, sourceSpriteId, world, state, pos, face);
+        if (quadrants != null) {
+            RUNTIME_STATS.recordCompactResolveHit();
+        }
+        return quadrants;
     }
 
     public static boolean hasBlockSpriteRule(@Nullable Sprite sourceSprite,
@@ -249,6 +263,7 @@ public final class ResourcePackTextureVariantResolver {
         @Nullable BlockPos pos,
         @Nullable Direction face,
         @Nullable RepeatTextureBasis textureBasis) {
+        RUNTIME_STATS.recordOverlayResolveCall();
         Identifier source = spriteIdentifier(sourceSprite);
         int sourceSpriteId = TextureArrayBridge.resolveRenderableSpriteId(source);
         if (source == null || sourceSpriteId < 0 || !Options.materialCompatEnabled
@@ -260,7 +275,12 @@ public final class ResourcePackTextureVariantResolver {
             return new BlockOverlaySprite[0];
         }
         ResolverIndex index = activeIndex(resourceManager);
-        return index.resolveOverlay(source, sourceSpriteId, world, state, pos, face, textureBasis);
+        BlockOverlaySprite[] overlays = index.resolveOverlay(source, sourceSpriteId, world, state, pos, face,
+            textureBasis);
+        if (overlays.length > 0) {
+            RUNTIME_STATS.recordOverlayResolveHit(overlays.length);
+        }
+        return overlays;
     }
 
     public static ResolverIndex buildForTest(ResourceManager resourceManager, boolean legacyMcPatcher) {
@@ -271,6 +291,15 @@ public final class ResourcePackTextureVariantResolver {
         ResourceManager resourceManager = currentResourceManager();
         ResolverIndex index = resourceManager == null ? ResolverIndex.empty() : activeIndex(resourceManager);
         return GSON.toJson(index.registryJson(limit, "runtime_resource_manager", resourceManager != null));
+    }
+
+    public static JsonObject runtimeResolutionStatsJson() {
+        JsonObject json = RUNTIME_STATS.toJson();
+        Cache local = cache;
+        json.addProperty("cachedRuleCount", local == null || local.index == null ? 0 : local.index.rules.size());
+        json.addProperty("cachedTextureGeneration", local == null ? -1L : local.textureGeneration);
+        json.addProperty("hasRuntimeResourceManager", currentResourceManager() != null);
+        return json;
     }
 
     public static String registryJsonForTest(ResourceManager resourceManager, boolean legacyMcPatcher, int limit) {
@@ -307,6 +336,7 @@ public final class ResourcePackTextureVariantResolver {
         if (local.resourceManager == resourceManager && local.textureGeneration == generation) {
             return local.index;
         }
+        RUNTIME_STATS.reset(generation);
         ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(resourceManager, generation);
         ResolverIndex next = build(resourceManager, Options.materialCompatLegacyMcPatcherEnabled);
         cache = new Cache(resourceManager, generation, next);
@@ -1714,14 +1744,18 @@ public final class ResourcePackTextureVariantResolver {
                     || !rule.matches(source, world, state, pos, face, biomeId, repeatAxisOverride)) {
                     continue;
                 }
+                RUNTIME_STATS.recordRuleCandidate(rule.method());
                 ResolvedBlockSprite resolved =
                     rule.resolveSprite(source, sourceSpriteId, world, state, pos, face,
                         rule.neighborConnector(source, world, state, pos, face, connector),
                         textureBasis, repeatAxisOverride);
                 if (resolved.spriteId() >= 0) {
+                    RUNTIME_STATS.recordRuleOutput(rule.method(), sourceSpriteId, resolved);
                     return resolved;
                 }
+                RUNTIME_STATS.recordRuleNoOutput(rule.method());
             }
+            RUNTIME_STATS.recordNoRuleMatch();
             return new ResolvedBlockSprite(sourceSpriteId, false, 0xFFFFFF, false, -1);
         }
 
@@ -1826,6 +1860,7 @@ public final class ResourcePackTextureVariantResolver {
                 BlockOverlaySprite[] resolved =
                     rule.resolveOverlaySpriteIds(source, world, state, pos, face, connector, textureBasis);
                 if (resolved.length > 0) {
+                    RUNTIME_STATS.recordOverlayRuleOutput(rule.method(), resolved.length);
                     for (BlockOverlaySprite overlay : resolved) {
                         if (stacked.size() >= OVERLAY_STACK_LIMIT) {
                             return stacked.toArray(BlockOverlaySprite[]::new);
@@ -2828,6 +2863,222 @@ public final class ResourcePackTextureVariantResolver {
 
         default boolean connects(Direction first, Direction second, ConnectMode mode) {
             return false;
+        }
+    }
+
+    private static final class RuntimeResolutionStats {
+        private final AtomicLong resetCount = new AtomicLong();
+        private final AtomicLong resetTextureGeneration = new AtomicLong(-1L);
+        private final AtomicLong blockResolveCalls = new AtomicLong();
+        private final AtomicLong blockResolveBypass = new AtomicLong();
+        private final AtomicLong blockResolveMissingSourceSprite = new AtomicLong();
+        private final AtomicLong blockResolveMaterialCompatDisabled = new AtomicLong();
+        private final AtomicLong blockResolveMissingResourceManager = new AtomicLong();
+        private final AtomicLong noRuleMatch = new AtomicLong();
+        private final AtomicLong ruleCandidateCount = new AtomicLong();
+        private final AtomicLong ruleOutputCount = new AtomicLong();
+        private final AtomicLong ruleMaterialOutputCount = new AtomicLong();
+        private final AtomicLong ruleBaseOutputCount = new AtomicLong();
+        private final AtomicLong ruleUnmatchedFinalBaseOutputCount = new AtomicLong();
+        private final AtomicLong ruleCompatVirtualOutputCount = new AtomicLong();
+        private final AtomicLong rulePendingCompatVirtualOutputCount = new AtomicLong();
+        private final AtomicLong ruleNoOutputCount = new AtomicLong();
+        private final AtomicLong compactResolveCalls = new AtomicLong();
+        private final AtomicLong compactResolveHits = new AtomicLong();
+        private final AtomicLong overlayResolveCalls = new AtomicLong();
+        private final AtomicLong overlayResolveHits = new AtomicLong();
+        private final AtomicLong overlaySpriteOutputs = new AtomicLong();
+        private final AtomicLong overlayRuleOutputCount = new AtomicLong();
+        private final AtomicLongArray methodCandidates =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodMaterialOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodBaseOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodUnmatchedFinalBaseOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodCompatVirtualOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodPendingCompatVirtualOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodNoOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+        private final AtomicLongArray methodOverlayOutputs =
+            new AtomicLongArray(RuleMethod.values().length);
+
+        void reset(long textureGeneration) {
+            resetCount.incrementAndGet();
+            resetTextureGeneration.set(textureGeneration);
+            blockResolveCalls.set(0);
+            blockResolveBypass.set(0);
+            blockResolveMissingSourceSprite.set(0);
+            blockResolveMaterialCompatDisabled.set(0);
+            blockResolveMissingResourceManager.set(0);
+            noRuleMatch.set(0);
+            ruleCandidateCount.set(0);
+            ruleOutputCount.set(0);
+            ruleMaterialOutputCount.set(0);
+            ruleBaseOutputCount.set(0);
+            ruleUnmatchedFinalBaseOutputCount.set(0);
+            ruleCompatVirtualOutputCount.set(0);
+            rulePendingCompatVirtualOutputCount.set(0);
+            ruleNoOutputCount.set(0);
+            compactResolveCalls.set(0);
+            compactResolveHits.set(0);
+            overlayResolveCalls.set(0);
+            overlayResolveHits.set(0);
+            overlaySpriteOutputs.set(0);
+            overlayRuleOutputCount.set(0);
+            for (int i = 0; i < RuleMethod.values().length; i++) {
+                methodCandidates.set(i, 0);
+                methodOutputs.set(i, 0);
+                methodMaterialOutputs.set(i, 0);
+                methodBaseOutputs.set(i, 0);
+                methodUnmatchedFinalBaseOutputs.set(i, 0);
+                methodCompatVirtualOutputs.set(i, 0);
+                methodPendingCompatVirtualOutputs.set(i, 0);
+                methodNoOutputs.set(i, 0);
+                methodOverlayOutputs.set(i, 0);
+            }
+        }
+
+        void recordBlockResolveCall() {
+            blockResolveCalls.incrementAndGet();
+        }
+
+        void recordBlockResolveBypass(String reason) {
+            blockResolveBypass.incrementAndGet();
+            switch (reason) {
+                case "material_compat_disabled" -> blockResolveMaterialCompatDisabled.incrementAndGet();
+                case "missing_resource_manager" -> blockResolveMissingResourceManager.incrementAndGet();
+                default -> blockResolveMissingSourceSprite.incrementAndGet();
+            }
+        }
+
+        void recordNoRuleMatch() {
+            noRuleMatch.incrementAndGet();
+        }
+
+        void recordRuleCandidate(RuleMethod method) {
+            ruleCandidateCount.incrementAndGet();
+            methodCandidates.incrementAndGet(method.ordinal());
+        }
+
+        void recordRuleOutput(RuleMethod method, int sourceSpriteId, ResolvedBlockSprite resolved) {
+            ruleOutputCount.incrementAndGet();
+            methodOutputs.incrementAndGet(method.ordinal());
+            if (!resolved.ruleMatched()) {
+                ruleUnmatchedFinalBaseOutputCount.incrementAndGet();
+                methodUnmatchedFinalBaseOutputs.incrementAndGet(method.ordinal());
+                return;
+            }
+            if (resolved.spriteId() == sourceSpriteId) {
+                ruleBaseOutputCount.incrementAndGet();
+                methodBaseOutputs.incrementAndGet(method.ordinal());
+                return;
+            }
+            ruleMaterialOutputCount.incrementAndGet();
+            methodMaterialOutputs.incrementAndGet(method.ordinal());
+            if (ResourceMaterialRegistry.isCompatVirtualMaterialId(resolved.spriteId())) {
+                ruleCompatVirtualOutputCount.incrementAndGet();
+                methodCompatVirtualOutputs.incrementAndGet(method.ordinal());
+                if (ResourceMaterialRegistry.isPendingCompatMaterialId(resolved.spriteId())) {
+                    rulePendingCompatVirtualOutputCount.incrementAndGet();
+                    methodPendingCompatVirtualOutputs.incrementAndGet(method.ordinal());
+                }
+            }
+        }
+
+        void recordRuleNoOutput(RuleMethod method) {
+            ruleNoOutputCount.incrementAndGet();
+            methodNoOutputs.incrementAndGet(method.ordinal());
+        }
+
+        void recordCompactResolveCall() {
+            compactResolveCalls.incrementAndGet();
+        }
+
+        void recordCompactResolveHit() {
+            compactResolveHits.incrementAndGet();
+        }
+
+        void recordOverlayResolveCall() {
+            overlayResolveCalls.incrementAndGet();
+        }
+
+        void recordOverlayResolveHit(int spriteCount) {
+            overlayResolveHits.incrementAndGet();
+            overlaySpriteOutputs.addAndGet(Math.max(0, spriteCount));
+        }
+
+        void recordOverlayRuleOutput(RuleMethod method, int spriteCount) {
+            overlayRuleOutputCount.incrementAndGet();
+            methodOverlayOutputs.addAndGet(method.ordinal(), Math.max(0, spriteCount));
+        }
+
+        JsonObject toJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("resetCount", resetCount.get());
+            json.addProperty("resetTextureGeneration", resetTextureGeneration.get());
+            json.addProperty("blockResolveCalls", blockResolveCalls.get());
+            json.addProperty("blockResolveBypass", blockResolveBypass.get());
+            json.addProperty("blockResolveMissingSourceSprite", blockResolveMissingSourceSprite.get());
+            json.addProperty("blockResolveMaterialCompatDisabled", blockResolveMaterialCompatDisabled.get());
+            json.addProperty("blockResolveMissingResourceManager", blockResolveMissingResourceManager.get());
+            json.addProperty("noRuleMatch", noRuleMatch.get());
+            json.addProperty("ruleCandidateCount", ruleCandidateCount.get());
+            json.addProperty("ruleOutputCount", ruleOutputCount.get());
+            json.addProperty("ruleMaterialOutputCount", ruleMaterialOutputCount.get());
+            json.addProperty("ruleBaseOutputCount", ruleBaseOutputCount.get());
+            json.addProperty("ruleUnmatchedFinalBaseOutputCount",
+                ruleUnmatchedFinalBaseOutputCount.get());
+            json.addProperty("ruleCompatVirtualOutputCount", ruleCompatVirtualOutputCount.get());
+            json.addProperty("rulePendingCompatVirtualOutputCount",
+                rulePendingCompatVirtualOutputCount.get());
+            json.addProperty("ruleNoOutputCount", ruleNoOutputCount.get());
+            json.addProperty("compactResolveCalls", compactResolveCalls.get());
+            json.addProperty("compactResolveHits", compactResolveHits.get());
+            json.addProperty("overlayResolveCalls", overlayResolveCalls.get());
+            json.addProperty("overlayResolveHits", overlayResolveHits.get());
+            json.addProperty("overlaySpriteOutputs", overlaySpriteOutputs.get());
+            json.addProperty("overlayRuleOutputCount", overlayRuleOutputCount.get());
+            json.add("byMethod", methodStatsJson());
+            return json;
+        }
+
+        private JsonObject methodStatsJson() {
+            JsonObject byMethod = new JsonObject();
+            for (RuleMethod method : RuleMethod.values()) {
+                int ordinal = method.ordinal();
+                long candidates = methodCandidates.get(ordinal);
+                long outputs = methodOutputs.get(ordinal);
+                long materialOutputs = methodMaterialOutputs.get(ordinal);
+                long baseOutputs = methodBaseOutputs.get(ordinal);
+                long unmatchedFinalBaseOutputs = methodUnmatchedFinalBaseOutputs.get(ordinal);
+                long compatVirtualOutputs = methodCompatVirtualOutputs.get(ordinal);
+                long pendingCompatVirtualOutputs = methodPendingCompatVirtualOutputs.get(ordinal);
+                long noOutputs = methodNoOutputs.get(ordinal);
+                long overlayOutputs = methodOverlayOutputs.get(ordinal);
+                if (candidates == 0 && outputs == 0 && materialOutputs == 0 && baseOutputs == 0
+                    && unmatchedFinalBaseOutputs == 0 && compatVirtualOutputs == 0
+                    && pendingCompatVirtualOutputs == 0 && noOutputs == 0 && overlayOutputs == 0) {
+                    continue;
+                }
+                JsonObject stats = new JsonObject();
+                stats.addProperty("candidates", candidates);
+                stats.addProperty("outputs", outputs);
+                stats.addProperty("materialOutputs", materialOutputs);
+                stats.addProperty("baseOutputs", baseOutputs);
+                stats.addProperty("unmatchedFinalBaseOutputs", unmatchedFinalBaseOutputs);
+                stats.addProperty("compatVirtualOutputs", compatVirtualOutputs);
+                stats.addProperty("pendingCompatVirtualOutputs", pendingCompatVirtualOutputs);
+                stats.addProperty("noOutputs", noOutputs);
+                stats.addProperty("overlaySpriteOutputs", overlayOutputs);
+                byMethod.add(method.name().toLowerCase(Locale.ROOT), stats);
+            }
+            return byMethod;
         }
     }
 

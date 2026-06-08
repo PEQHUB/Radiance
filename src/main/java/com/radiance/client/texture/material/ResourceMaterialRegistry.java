@@ -115,6 +115,12 @@ public final class ResourceMaterialRegistry {
             && (flags & MATERIAL_FLAG_GPU_RESIDENT) == 0;
     }
 
+    public static boolean isCompatVirtualMaterialId(int materialId) {
+        Snapshot snapshot = ACTIVE.get();
+        MaterialRecord record = snapshot.recordByMaterialId(materialId);
+        return record != null && (record.flags() & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0;
+    }
+
     public static void registerResidentMaterialHandles(Map<Integer, ResidencyHandle> handles) {
         if (handles == null || handles.isEmpty()) {
             ACTIVE_RESIDENCY.set(Map.of());
@@ -153,7 +159,11 @@ public final class ResourceMaterialRegistry {
     }
 
     public static JsonArray activeRecordsJson(int limit) {
-        return ACTIVE.get().recordsJson(limit);
+        return ACTIVE.get().recordsJson(0, limit);
+    }
+
+    public static JsonArray activeRecordsJson(int offset, int limit) {
+        return ACTIVE.get().recordsJson(offset, limit);
     }
 
     public static boolean uploadActiveTableToNative() {
@@ -612,10 +622,15 @@ public final class ResourceMaterialRegistry {
         }
 
         public JsonArray recordsJson(int limit) {
+            return recordsJson(0, limit);
+        }
+
+        public JsonArray recordsJson(int offset, int limit) {
             JsonArray array = new JsonArray();
             Map<Integer, ResidencyHandle> residency = ACTIVE_RESIDENCY.get();
-            int count = Math.min(Math.max(0, limit), records.size());
-            for (int i = 0; i < count; i++) {
+            int start = Math.min(Math.max(0, offset), records.size());
+            int end = Math.min(records.size(), start + Math.max(0, limit));
+            for (int i = start; i < end; i++) {
                 MaterialRecord record = records.get(i);
                 array.add(record.toJson(residency.get(record.materialId())));
             }

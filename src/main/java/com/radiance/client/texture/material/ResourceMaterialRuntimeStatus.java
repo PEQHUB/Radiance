@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.radiance.client.RadianceClient;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -39,6 +40,7 @@ public final class ResourceMaterialRuntimeStatus {
         root.addProperty("generation", generation);
         root.add("materialRegistry", ResourceMaterialRegistry.activeSummaryJson());
         root.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
+        root.add("textureVariantResolution", ResourcePackTextureVariantResolver.runtimeResolutionStatsJson());
         if (event != null) {
             root.add("event", event.deepCopy());
         }
