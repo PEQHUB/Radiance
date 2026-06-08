@@ -1,6 +1,9 @@
 package com.radiance.client.texture.material;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import net.minecraft.client.MinecraftClient;
 
 /**
@@ -44,6 +47,13 @@ public final class FirstFrameTextureReadiness {
         int pendingQueueSize = intValue(scheduler, "pendingQueueSize", requestedUniqueMaterialCount);
         boolean uploadInFlight = boolValue(scheduler, "uploadInFlight");
         boolean uploadScheduled = boolValue(scheduler, "uploadScheduled");
+        JsonObject nativePagePool = nativeMaterialPagePoolStatus();
+        boolean nativePagePoolBusy = boolValue(nativePagePool, "busy");
+        int pendingMipPageCount = intValue(nativePagePool, "pendingMipPageCount", 0);
+        int unreadyAllocatedPageCount = intValue(nativePagePool, "unreadyAllocatedPageCount", 0);
+        int readyAllocatedPageCount = intValue(nativePagePool, "readyAllocatedPageCount", 0);
+        int ctmUnaddressableMaterials = intValue(nativePagePool, "ctmUnaddressableMaterials", 0);
+        boolean nativePagesExhausted = boolValue(nativePagePool, "pagesExhausted");
         long timeoutMs = configuredLong("radser.firstFrameTextureGateTimeoutMs",
             DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS, MAX_TIMEOUT_MS);
         long collectVisibleDemandMs = configuredLong("radser.firstFrameTextureGateCollectMs",
@@ -76,7 +86,10 @@ public final class FirstFrameTextureReadiness {
             && visibleUniqueMaterialCount == 0
             && elapsedMs < collectVisibleDemandMs;
         boolean residencyWorkPending = pendingQueueSize > 0 || uploadInFlight || uploadScheduled;
-        boolean materialProgressPending = visibleFallbackMaterialCount > 0 && residencyWorkPending;
+        boolean nativePageProgressPending = visibleFallbackMaterialCount > 0
+            && (nativePagePoolBusy || pendingMipPageCount > 0 || unreadyAllocatedPageCount > 0);
+        boolean materialProgressPending = visibleFallbackMaterialCount > 0
+            && (residencyWorkPending || nativePageProgressPending);
         boolean materialReady = !collectingMaterialRegistry
             && (!hasCompatResidency
             || (!collectingVisibleDemand && !materialProgressPending));
@@ -100,23 +113,34 @@ public final class FirstFrameTextureReadiness {
         json.addProperty("pendingQueueSize", pendingQueueSize);
         json.addProperty("uploadInFlight", uploadInFlight);
         json.addProperty("uploadScheduled", uploadScheduled);
+        json.addProperty("nativePagePoolBusy", nativePagePoolBusy);
+        json.addProperty("nativePendingMipPageCount", pendingMipPageCount);
+        json.addProperty("nativeUnreadyAllocatedPageCount", unreadyAllocatedPageCount);
+        json.addProperty("nativeReadyAllocatedPageCount", readyAllocatedPageCount);
+        json.addProperty("nativePagesExhausted", nativePagesExhausted);
+        json.addProperty("nativeCtmUnaddressableMaterials", ctmUnaddressableMaterials);
         json.addProperty("collectingMaterialRegistry", collectingMaterialRegistry);
         json.addProperty("collectingVisibleDemand", collectingVisibleDemand);
         json.addProperty("residencyWorkPending", residencyWorkPending);
+        json.addProperty("nativePageProgressPending", nativePageProgressPending);
         json.addProperty("materialProgressPending", materialProgressPending);
         json.addProperty("materialReady", materialReady);
         json.addProperty("timedOut", timedOut);
         json.addProperty("ready", ready);
         json.addProperty("reason", reason(worldPresent, materialReady, timedOut,
             collectingMaterialRegistry, collectingVisibleDemand, materialProgressPending,
+            nativePageProgressPending, nativePagesExhausted, ctmUnaddressableMaterials,
             failedUniqueMaterialCount));
         json.add("materialRegistry", registry);
+        json.add("nativeMaterialPagePool", nativePagePool);
         return json;
     }
 
     private static String reason(boolean worldPresent, boolean materialReady, boolean timedOut,
                                  boolean collectingMaterialRegistry,
                                  boolean collectingVisibleDemand, boolean materialProgressPending,
+                                 boolean nativePageProgressPending, boolean nativePagesExhausted,
+                                 int ctmUnaddressableMaterials,
                                  int failedUniqueMaterialCount) {
         if (!worldPresent) {
             return "waiting_for_world";
@@ -130,6 +154,12 @@ public final class FirstFrameTextureReadiness {
         if (collectingVisibleDemand) {
             return "collecting_visible_material_demand";
         }
+        if (ctmUnaddressableMaterials > 0 || nativePagesExhausted) {
+            return "material_page_capacity_exhausted";
+        }
+        if (nativePageProgressPending) {
+            return "waiting_for_native_material_page_mips";
+        }
         if (materialProgressPending) {
             return "waiting_for_visible_material_residency";
         }
@@ -141,6 +171,27 @@ public final class FirstFrameTextureReadiness {
 
     private static JsonObject asObject(com.google.gson.JsonElement element) {
         return element != null && element.isJsonObject() ? element.getAsJsonObject() : null;
+    }
+
+    private static JsonObject nativeMaterialPagePoolStatus() {
+        try {
+            String raw = TextureArrayBridge.nativeMaterialPagePoolStatusJson();
+            if (raw == null || raw.isBlank()) {
+                return nativeUnavailable("empty");
+            }
+            JsonElement parsed = JsonParser.parseString(raw);
+            return parsed.isJsonObject() ? parsed.getAsJsonObject() : nativeUnavailable("non_object");
+        } catch (Throwable e) {
+            return nativeUnavailable(e.getClass().getSimpleName());
+        }
+    }
+
+    private static JsonObject nativeUnavailable(String reason) {
+        JsonObject json = new JsonObject();
+        json.addProperty("schema", "radser_material_page_pool_status_v1");
+        json.addProperty("available", false);
+        json.addProperty("reason", reason == null || reason.isBlank() ? "unknown" : reason);
+        return json;
     }
 
     private static boolean boolValue(JsonObject object, String key) {

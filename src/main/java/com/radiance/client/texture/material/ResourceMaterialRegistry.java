@@ -40,7 +40,7 @@ public final class ResourceMaterialRegistry {
     public static final int MATERIAL_FLAG_HAS_NORMAL = 1 << 7;
     public static final int MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE = 1 << 8;
     public static final int MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED = 1 << 9;
-    public static final int MATERIAL_TEXTURE_PAGE_MAX = 16;
+    public static final int MATERIAL_TEXTURE_PAGE_MAX = 64;
 
     private static final AtomicReference<Snapshot> ACTIVE =
         new AtomicReference<>(Snapshot.empty());
@@ -743,6 +743,13 @@ public final class ResourceMaterialRegistry {
             json.addProperty("packStackHash", packStackHash);
             json.addProperty("materialEntrySize", MATERIAL_ENTRY_SIZE);
             json.addProperty("maxMaterialEntries", MATERIAL_MAX_ENTRIES);
+            json.addProperty("materialTexturePageMax", MATERIAL_TEXTURE_PAGE_MAX);
+            json.addProperty("fallbackMaterialPage", 0);
+            json.addProperty("vanillaTierFirstPage", TextureTracker.VANILLA_TIER_FIRST_PAGE);
+            json.addProperty("vanillaTierPageCount", TextureTracker.VANILLA_TIER_SIZES.length);
+            json.addProperty("ctmFirstMaterialPage", TextureTracker.FIRST_COMPAT_MATERIAL_PAGE);
+            json.addProperty("ctmMaterialPageBudget",
+                Math.max(0, MATERIAL_TEXTURE_PAGE_MAX - TextureTracker.FIRST_COMPAT_MATERIAL_PAGE));
             json.addProperty("vanillaMaterialCount", vanillaMaterialCount);
             json.addProperty("declaredCompatMaterialCount", declaredCompatMaterialCount);
             json.addProperty("declaredPresentCompatMaterialCount", declaredPresentCompatMaterialCount);

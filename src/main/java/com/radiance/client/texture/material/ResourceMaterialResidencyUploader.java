@@ -120,12 +120,20 @@ public final class ResourceMaterialResidencyUploader {
         int pageCapacity = pageCapacity(bytesPerLayer);
         int materialCapacity = pageCapacity * PAGE_BUDGET;
         int pagesRequired = pagesRequired(items.size(), pageCapacity);
+        int ctmUnaddressableMaterials = Math.max(0, queuedMaterialCount - materialCapacity);
+        boolean pagesExhausted = pagesRequired > PAGE_BUDGET;
         int layerDecodeThreads = layerDecodeThreads();
         json.addProperty("attempted", true);
         json.addProperty("layerSize", layerSize);
         json.addProperty("bytesPerLayer", bytesPerLayer);
         json.addProperty("pageCapacity", pageCapacity);
         json.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
+        json.addProperty("ctmFirstMaterialPage", FIRST_COMPAT_PAGE);
+        json.addProperty("ctmMaterialPageBudget", PAGE_BUDGET);
+        json.addProperty("ctmResidentCapacity", materialCapacity);
+        json.addProperty("ctmPresentMaterials", queuedMaterialCount);
+        json.addProperty("ctmUnaddressableMaterials", ctmUnaddressableMaterials);
+        json.addProperty("pagesExhausted", pagesExhausted);
         json.addProperty("pagesRequired", pagesRequired);
         json.addProperty("layerDecodeThreads", layerDecodeThreads);
         json.addProperty("percentOfPageBudgetRequired",
@@ -158,6 +166,12 @@ public final class ResourceMaterialResidencyUploader {
         startEvent.addProperty("pageBudget", PAGE_BUDGET);
         startEvent.addProperty("layerDecodeThreads", layerDecodeThreads);
         startEvent.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
+        startEvent.addProperty("ctmFirstMaterialPage", FIRST_COMPAT_PAGE);
+        startEvent.addProperty("ctmMaterialPageBudget", PAGE_BUDGET);
+        startEvent.addProperty("ctmResidentCapacity", materialCapacity);
+        startEvent.addProperty("ctmPresentMaterials", queuedMaterialCount);
+        startEvent.addProperty("ctmUnaddressableMaterials", ctmUnaddressableMaterials);
+        startEvent.addProperty("pagesExhausted", pagesExhausted);
         startEvent.addProperty("pagesRequired", pagesRequired);
         startEvent.addProperty("percentOfPageBudgetRequired",
             PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
@@ -352,6 +366,8 @@ public final class ResourceMaterialResidencyUploader {
         json.addProperty("displacementEligibleMaterials", displacementEligible);
         json.addProperty("displacementBlockedMaterials", displacementBlocked);
         json.addProperty("deferredCandidateMaterials", Math.max(0, items.size() - nextItem));
+        json.addProperty("ctmUnaddressableMaterials", Math.max(0, queuedMaterialCount - materialCapacity));
+        json.addProperty("pagesExhausted", pagesRequired > PAGE_BUDGET);
         totalStats.totalUploadNanos = elapsedNanos(uploadStartedNanos);
         json.add("timingMs", totalStats.timingJson());
         json.add("displacement", totalStats.displacementJson());
@@ -496,6 +512,9 @@ public final class ResourceMaterialResidencyUploader {
         event.addProperty("remainingCandidateMaterials", Math.max(0, candidateMaterialCount - nextItem));
         event.addProperty("pageBudget", PAGE_BUDGET);
         event.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
+        event.addProperty("ctmFirstMaterialPage", FIRST_COMPAT_PAGE);
+        event.addProperty("ctmMaterialPageBudget", PAGE_BUDGET);
+        event.addProperty("pagesExhausted", pagesRequired > PAGE_BUDGET);
         event.addProperty("pagesRequired", pagesRequired);
         event.addProperty("materialTableUploaded", materialTableUploaded);
         if (pageStats != null) {
