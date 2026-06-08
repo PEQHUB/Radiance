@@ -24,6 +24,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.resource.Resource;
@@ -37,6 +42,8 @@ public final class ResourceMaterialResidencyUploader {
     private static final int FIRST_COMPAT_PAGE = 1;
     private static final int PAGE_BUDGET = ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX - FIRST_COMPAT_PAGE;
     private static final int TARGET_PAGE_CAPACITY = 512;
+    private static final int DEFAULT_LAYER_DECODE_THREADS = 4;
+    private static final int MAX_LAYER_DECODE_THREADS = 8;
     private static final long MAX_PAGE_BYTES = 128L * 1024L * 1024L;
 
     private ResourceMaterialResidencyUploader() {
@@ -78,12 +85,14 @@ public final class ResourceMaterialResidencyUploader {
         int pageCapacity = pageCapacity(bytesPerLayer);
         int materialCapacity = pageCapacity * PAGE_BUDGET;
         int pagesRequired = pagesRequired(items.size(), pageCapacity);
+        int layerDecodeThreads = layerDecodeThreads();
         json.addProperty("attempted", true);
         json.addProperty("layerSize", layerSize);
         json.addProperty("bytesPerLayer", bytesPerLayer);
         json.addProperty("pageCapacity", pageCapacity);
         json.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
         json.addProperty("pagesRequired", pagesRequired);
+        json.addProperty("layerDecodeThreads", layerDecodeThreads);
         json.addProperty("percentOfPageBudgetRequired",
             PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
         json.addProperty("materialCapacity", materialCapacity);
@@ -102,13 +111,14 @@ public final class ResourceMaterialResidencyUploader {
         int displacementBlocked = 0;
         long generation = snapshot.generation();
         LOGGER.info("[MaterialCompat] Material page upload starting: {} candidate materials, layerSize={}, "
-                + "pageCapacity={}, pageBudget={}, generation={}",
-            items.size(), layerSize, pageCapacity, PAGE_BUDGET, generation);
+                + "pageCapacity={}, pageBudget={}, decodeThreads={}, generation={}",
+            items.size(), layerSize, pageCapacity, PAGE_BUDGET, layerDecodeThreads, generation);
         JsonObject startEvent = new JsonObject();
         startEvent.addProperty("candidateMaterialCount", items.size());
         startEvent.addProperty("layerSize", layerSize);
         startEvent.addProperty("pageCapacity", pageCapacity);
         startEvent.addProperty("pageBudget", PAGE_BUDGET);
+        startEvent.addProperty("layerDecodeThreads", layerDecodeThreads);
         startEvent.addProperty("pageMax", ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX);
         startEvent.addProperty("pagesRequired", pagesRequired);
         startEvent.addProperty("percentOfPageBudgetRequired",
@@ -119,105 +129,127 @@ public final class ResourceMaterialResidencyUploader {
 
         ByteBuffer defaultNormal = defaultNormalLayer(bytesPerLayer);
         long defaultNormalPtr = memAddress(defaultNormal);
-        for (int page = FIRST_COMPAT_PAGE;
-             page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX && nextItem < items.size();
-             page++) {
-            int visiblePendingCandidates = promoteVisibleItems(items, nextItem, generation);
-            long pageStartedNanos = System.nanoTime();
-            UploadStats pageStats = new UploadStats();
-            long allocationStartedNanos = System.nanoTime();
-            ByteBuffer albedo = directPageBuffer(pageCapacity, bytesPerLayer);
-            ByteBuffer specular = directPageBuffer(pageCapacity, bytesPerLayer);
-            ByteBuffer normal = directPageBuffer(pageCapacity, bytesPerLayer);
-            ByteBuffer flag = directPageBuffer(pageCapacity, bytesPerLayer);
-            pageStats.pageAllocationNanos += elapsedNanos(allocationStartedNanos);
-            long albedoPtr = memAddress(albedo);
-            long specularPtr = memAddress(specular);
-            long normalPtr = memAddress(normal);
-            long flagPtr = memAddress(flag);
-            long initStartedNanos = System.nanoTime();
-            memSet(specularPtr, 0, (long) pageCapacity * bytesPerLayer);
-            memSet(flagPtr, 0, (long) pageCapacity * bytesPerLayer);
-            pageStats.pageInitNanos += elapsedNanos(initStartedNanos);
+        ExecutorService layerExecutor = newLayerExecutor(layerDecodeThreads);
+        try {
+            for (int page = FIRST_COMPAT_PAGE;
+                 page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX && nextItem < items.size();
+                 page++) {
+                int visiblePendingCandidates = promoteVisibleItems(items, nextItem, generation);
+                long pageStartedNanos = System.nanoTime();
+                UploadStats pageStats = new UploadStats();
+                long allocationStartedNanos = System.nanoTime();
+                ByteBuffer albedo = directPageBuffer(pageCapacity, bytesPerLayer);
+                ByteBuffer specular = directPageBuffer(pageCapacity, bytesPerLayer);
+                ByteBuffer normal = directPageBuffer(pageCapacity, bytesPerLayer);
+                ByteBuffer flag = directPageBuffer(pageCapacity, bytesPerLayer);
+                pageStats.pageAllocationNanos += elapsedNanos(allocationStartedNanos);
+                long albedoPtr = memAddress(albedo);
+                long specularPtr = memAddress(specular);
+                long normalPtr = memAddress(normal);
+                long flagPtr = memAddress(flag);
+                long initStartedNanos = System.nanoTime();
+                memSet(specularPtr, 0, (long) pageCapacity * bytesPerLayer);
+                memSet(flagPtr, 0, (long) pageCapacity * bytesPerLayer);
+                pageStats.pageInitNanos += elapsedNanos(initStartedNanos);
 
-            JsonObject pageReport = new JsonObject();
-            pageReport.addProperty("page", page);
-            pageReport.addProperty("visiblePendingCandidates", visiblePendingCandidates);
-            int layer = 0;
-            Map<Integer, ResourceMaterialRegistry.ResidencyHandle> pageHandles = new LinkedHashMap<>();
-            while (layer < pageCapacity && nextItem < items.size()) {
-                UploadItem item = items.get(nextItem++);
-                LayerResult result = writeLayer(resourceManager, item, layerSize,
-                    albedoPtr + (long) layer * bytesPerLayer,
-                    specularPtr + (long) layer * bytesPerLayer,
-                    normalPtr + (long) layer * bytesPerLayer,
-                    flagPtr + (long) layer * bytesPerLayer,
-                    defaultNormalPtr, bytesPerLayer, pageStats);
-                if (!result.uploaded()) {
-                    if (result.missingAlbedo()) {
-                        skippedMissingAlbedo++;
-                    } else {
-                        failedImages++;
+                JsonObject pageReport = new JsonObject();
+                pageReport.addProperty("page", page);
+                pageReport.addProperty("visiblePendingCandidates", visiblePendingCandidates);
+                pageReport.addProperty("layerDecodeThreads", layerDecodeThreads);
+                List<LayerUploadFuture> layerFutures = new ArrayList<>();
+                int layer = 0;
+                while (layer < pageCapacity && nextItem < items.size()) {
+                    UploadItem item = items.get(nextItem++);
+                    int targetLayer = layer++;
+                    long targetAlbedoPtr = albedoPtr + (long) targetLayer * bytesPerLayer;
+                    long targetSpecularPtr = specularPtr + (long) targetLayer * bytesPerLayer;
+                    long targetNormalPtr = normalPtr + (long) targetLayer * bytesPerLayer;
+                    long targetFlagPtr = flagPtr + (long) targetLayer * bytesPerLayer;
+                    Future<LayerUploadResult> future = layerExecutor.submit(() -> {
+                        UploadStats layerStats = new UploadStats();
+                        LayerResult result = writeLayer(resourceManager, item, layerSize,
+                            targetAlbedoPtr, targetSpecularPtr, targetNormalPtr, targetFlagPtr,
+                            defaultNormalPtr, bytesPerLayer, layerStats);
+                        return new LayerUploadResult(item.materialId(), result, layerStats);
+                    });
+                    layerFutures.add(new LayerUploadFuture(targetLayer, item, future));
+                }
+
+                Map<Integer, ResourceMaterialRegistry.ResidencyHandle> pageHandles = new LinkedHashMap<>();
+                for (LayerUploadFuture layerFuture : layerFutures) {
+                    LayerUploadResult uploadResult = awaitLayerUpload(layerFuture);
+                    pageStats.add(uploadResult.stats());
+                    LayerResult result = uploadResult.result();
+                    if (!result.uploaded()) {
+                        if (result.missingAlbedo()) {
+                            skippedMissingAlbedo++;
+                        } else {
+                            failedImages++;
+                        }
+                        continue;
                     }
+                    if (result.displacementEligible()) {
+                        displacementEligible++;
+                    }
+                    if (result.displacementBlocked()) {
+                        displacementBlocked++;
+                    }
+                    pageHandles.put(uploadResult.materialId(), ResourceMaterialRegistry.ResidencyHandle.sameLayer(
+                        page, layerFuture.layer(), layerSize, result.hasSpecular(),
+                        result.displacementEligible(), result.displacementBlocked(),
+                        result.heightRangePacked()));
+                }
+
+                pageReport.addProperty("layerCount", layer);
+                pageReport.addProperty("residentLayerCount", pageHandles.size());
+                if (layer == 0) {
+                    pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
+                    totalStats.add(pageStats);
+                    pageReport.add("timingMs", pageStats.timingJson());
+                    pageReport.add("displacement", pageStats.displacementJson());
+                    pageReports.add(pageReport);
                     continue;
                 }
-                if (result.displacementEligible()) {
-                    displacementEligible++;
+                boolean uploaded;
+                long nativeStartedNanos = System.nanoTime();
+                try {
+                    uploaded = TextureArrayBridge.nativeReceiveMaterialTexturePage(
+                        page, layerSize, layer,
+                        albedoPtr, specularPtr, normalPtr, flagPtr, generation);
+                } catch (UnsatisfiedLinkError e) {
+                    uploaded = false;
                 }
-                if (result.displacementBlocked()) {
-                    displacementBlocked++;
+                pageStats.nativePageUploadNanos += elapsedNanos(nativeStartedNanos);
+                pageReport.addProperty("uploaded", uploaded);
+                if (uploaded) {
+                    uploadedPages++;
+                    handles.putAll(pageHandles);
+                    ResourceMaterialResidencyDemand.recordResident(generation, pageHandles.keySet());
+                    long tableStartedNanos = System.nanoTime();
+                    ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
+                    boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                    pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
+                    pageReport.addProperty("materialTableUploaded", materialTableUploaded);
+                    pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
+                    writePageStatus(generation, "residencyPageUploaded", page, layer, uploadedPages,
+                        handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired, pageStats);
+                    LOGGER.info("[MaterialCompat] Material page {} uploaded: {} layers, {} resident handles, "
+                            + "{} total resident handles",
+                        page, layer, pageHandles.size(), handles.size());
+                } else {
+                    nativePageFailures++;
+                    pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
+                    writePageStatus(generation, "residencyPageFailed", page, layer, uploadedPages,
+                        handles.size(), items.size(), nextItem, false, pagesRequired, pageStats);
+                    LOGGER.warn("[MaterialCompat] Material page {} upload failed: {} layers", page, layer);
                 }
-                pageHandles.put(item.materialId(), ResourceMaterialRegistry.ResidencyHandle.sameLayer(
-                    page, layer, layerSize, result.hasSpecular(),
-                    result.displacementEligible(), result.displacementBlocked(),
-                    result.heightRangePacked()));
-                layer++;
-            }
-
-            pageReport.addProperty("layerCount", layer);
-            if (layer == 0) {
-                pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
                 totalStats.add(pageStats);
                 pageReport.add("timingMs", pageStats.timingJson());
                 pageReport.add("displacement", pageStats.displacementJson());
                 pageReports.add(pageReport);
-                continue;
             }
-            boolean uploaded;
-            long nativeStartedNanos = System.nanoTime();
-            try {
-                uploaded = TextureArrayBridge.nativeReceiveMaterialTexturePage(
-                    page, layerSize, layer,
-                    albedoPtr, specularPtr, normalPtr, flagPtr, generation);
-            } catch (UnsatisfiedLinkError e) {
-                uploaded = false;
-            }
-            pageStats.nativePageUploadNanos += elapsedNanos(nativeStartedNanos);
-            pageReport.addProperty("uploaded", uploaded);
-            if (uploaded) {
-                uploadedPages++;
-                handles.putAll(pageHandles);
-                ResourceMaterialResidencyDemand.recordResident(generation, pageHandles.keySet());
-                long tableStartedNanos = System.nanoTime();
-                ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
-                boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
-                pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
-                pageReport.addProperty("materialTableUploaded", materialTableUploaded);
-                writePageStatus(generation, "residencyPageUploaded", page, layer, uploadedPages,
-                    handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired, pageStats);
-                LOGGER.info("[MaterialCompat] Material page {} uploaded: {} layers, {} total resident handles",
-                    page, layer, handles.size());
-            } else {
-                nativePageFailures++;
-                writePageStatus(generation, "residencyPageFailed", page, layer, uploadedPages,
-                    handles.size(), items.size(), nextItem, false, pagesRequired, pageStats);
-                LOGGER.warn("[MaterialCompat] Material page {} upload failed: {} layers", page, layer);
-            }
-            pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
-            totalStats.add(pageStats);
-            pageReport.add("timingMs", pageStats.timingJson());
-            pageReport.add("displacement", pageStats.displacementJson());
-            pageReports.add(pageReport);
+        } finally {
+            shutdownLayerExecutor(layerExecutor);
         }
 
         ResourceMaterialRegistry.registerResidentMaterialHandles(handles);
@@ -240,11 +272,61 @@ public final class ResourceMaterialResidencyUploader {
         return json;
     }
 
+    private static ExecutorService newLayerExecutor(int threads) {
+        return Executors.newFixedThreadPool(Math.max(1, threads), runnable -> {
+            Thread thread = new Thread(runnable, "RadSER Material Layer Decode");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    private static void shutdownLayerExecutor(ExecutorService executor) {
+        if (executor == null) {
+            return;
+        }
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                executor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            executor.shutdownNow();
+        }
+    }
+
+    private static LayerUploadResult awaitLayerUpload(LayerUploadFuture layerFuture) {
+        try {
+            return layerFuture.future().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return LayerUploadResult.failed(layerFuture.item());
+        } catch (ExecutionException e) {
+            LOGGER.debug("[MaterialCompat] Failed to decode CTM material {}", layerFuture.item().albedoPath(),
+                e.getCause());
+            return LayerUploadResult.failed(layerFuture.item());
+        }
+    }
+
     private static int pagesRequired(int materialCount, int pageCapacity) {
         if (materialCount <= 0 || pageCapacity <= 0) {
             return 0;
         }
         return (materialCount + pageCapacity - 1) / pageCapacity;
+    }
+
+    private static int layerDecodeThreads() {
+        int requested = DEFAULT_LAYER_DECODE_THREADS;
+        String property = System.getProperty("radser.materialLayerDecodeThreads", "");
+        if (!property.isBlank()) {
+            try {
+                requested = Integer.parseInt(property.trim());
+            } catch (NumberFormatException ignored) {
+                requested = DEFAULT_LAYER_DECODE_THREADS;
+            }
+        }
+        int cpuLimit = Math.max(1, Runtime.getRuntime().availableProcessors());
+        return Math.max(1, Math.min(Math.min(MAX_LAYER_DECODE_THREADS, cpuLimit), requested));
     }
 
     private static void writePageStatus(long generation, String status, int page, int layerCount,
@@ -622,6 +704,20 @@ public final class ResourceMaterialResidencyUploader {
                               boolean specularPresent,
                               boolean normalPresent,
                               boolean flagPresent) {
+    }
+
+    private record LayerUploadFuture(int layer,
+                                     UploadItem item,
+                                     Future<LayerUploadResult> future) {
+    }
+
+    private record LayerUploadResult(int materialId,
+                                     LayerResult result,
+                                     UploadStats stats) {
+        static LayerUploadResult failed(UploadItem item) {
+            int materialId = item == null ? -1 : item.materialId();
+            return new LayerUploadResult(materialId, LayerResult.failed(), new UploadStats());
+        }
     }
 
     private enum ImageChannel {
