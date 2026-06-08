@@ -1,12 +1,8 @@
 package com.radiance.mixins.vulkan_render_integration;
 
-import com.radiance.client.option.Options;
-import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.client.util.EmissiveBlock;
-import com.radiance.client.util.LightSourceDef;
-import com.radiance.client.util.LightSourceRegistry;
-import com.radiance.client.util.MaterialBlock;
 import com.radiance.client.vertex.PBRVertexConsumer;
+import static com.radiance.client.vertex.PBRVertexFormatElements.fluidGeometryFlags;
 import static net.minecraft.client.render.block.FluidRenderer.shouldRenderSide;
 
 import net.minecraft.block.Block;
@@ -129,6 +125,15 @@ public abstract class FluidRendererMixins {
             .normal(nx, ny, nz);
     }
 
+    @Unique
+    private void setPendingFluidSprite(VertexConsumer vertexConsumer, Sprite sprite, boolean isWater) {
+        if (vertexConsumer instanceof PBRVertexConsumer pbrVertexConsumer) {
+            pbrVertexConsumer.setPendingTextureSprite(
+                sprite,
+                fluidGeometryFlags(isWater));
+        }
+    }
+
     @Inject(method =
         "render(Lnet/minecraft/world/BlockRenderView;Lnet/minecraft/util/math/BlockPos;" +
             "Lnet/minecraft/client/render/VertexConsumer;Lnet/minecraft/block/BlockState;Lnet/minecraft/fluid/FluidState;)V",
@@ -140,48 +145,18 @@ public abstract class FluidRendererMixins {
         BlockState blockState,
         FluidState fluidState,
         CallbackInfo ci) {
+        if (!(vertexConsumer instanceof PBRVertexConsumer)) {
+            return;
+        }
         boolean isLava = fluidState.isIn(FluidTags.LAVA);
+        boolean pbrWater = !isLava;
         Sprite[] fluidSprites = isLava ? this.lavaSprites : this.waterSprites;
         int tintColor = isLava ? 16777215 : BiomeColors.getWaterColor(world, pos);
         float emission = isLava ? EmissiveBlock.LAVA.getDefaultSurfaceNits() : 0.0F;
 
-        // --- Resolve light mode for lava (same logic as BlockModelRendererMixins) ---
-        if (isLava) {
-            LightSourceDef lightDef = LightSourceRegistry.getLightSource(blockState);
-            if (lightDef != null && lightDef.typeId >= 0 && lightDef.typeId < Options.AREA_LIGHT_TYPE_COUNT) {
-                int configuredMode = Options.blockLightMode[lightDef.typeId];
-                int effectiveMode;
-                if (configuredMode == Options.LIGHT_MODE_FORCE_AREA) {
-                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
-                } else if (configuredMode == Options.LIGHT_MODE_FORCE_EMISSIVE) {
-                    effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
-                } else {
-                    // Auto: area lights on → route to ReSTIR; off → emissive bounce lighting
-                    effectiveMode = Options.areaLightsEnabled
-                        ? Options.LIGHT_MODE_FORCE_AREA
-                        : Options.LIGHT_MODE_FORCE_EMISSIVE;
-                }
-
-                if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA) {
-                    // Negative emission = signal to shader to suppress bounce; abs = self-glow
-                    emission = -Math.max(emission, 0.001f);
-                    if (ChunkLightCollector.isActive()) {
-                        ChunkLightCollector.addLight(pos, lightDef);
-                    }
-                }
-            }
+        if (vertexConsumer instanceof PBRVertexConsumer pbrVc && isLava) {
+            pbrVc.setPendingEmissiveBlockType(EmissiveBlock.LAVA.ordinal());
         }
-
-        // Tag material block type for water/lava material overrides (enum + dynamic)
-        if (vertexConsumer instanceof PBRVertexConsumer pbrVc) {
-            int materialOrdinal = MaterialBlock.getOrdinalForBlock(fluidState.getBlockState().getBlock());
-            if (materialOrdinal >= 0) {
-                pbrVc.setPendingMaterialBlockType(materialOrdinal);
-            }
-            pbrVc.setPendingBlockTypeId(
-                com.radiance.client.material.BlockTypeIdRegistry.getBlockTypeId(fluidState.getBlockState().getBlock()));
-        }
-
         float red = (tintColor >> 16 & 0xFF) / 255.0F;
         float green = (tintColor >> 8 & 0xFF) / 255.0F;
         float blue = (tintColor & 0xFF) / 255.0F;
@@ -280,17 +255,26 @@ public abstract class FluidRendererMixins {
             if (renderTop && !method_3344(Direction.UP,
                 Math.min(Math.min(heightNW, heightSW), Math.min(heightSE, heightNE)), stateUp)) {
                 // 稍微调低一点避免 Z-Fighting
-                heightNW -= 0.001F;
-                heightSW -= 0.001F;
-                heightSE -= 0.001F;
-                heightNE -= 0.001F;
+                float topHeightNW = heightNW;
+                float topHeightSW = heightSW;
+                float topHeightSE = heightSE;
+                float topHeightNE = heightNE;
+                if (!pbrWater) {
+                    topHeightNW -= 0.001F;
+                    topHeightSW -= 0.001F;
+                    topHeightSE -= 0.001F;
+                    topHeightNE -= 0.001F;
+                }
 
                 Vec3d flowVector = fluidState.getVelocity(world, pos);
                 float u1, v1, u2, v2, u3, v3, u4, v4; // 对应四个角的UV
 
+                Sprite topSprite;
+
                 if (flowVector.x == 0.0 && flowVector.z == 0.0) {
                     Sprite stillSprite = fluidSprites[0];
-u1 = stillSprite.getFrameU(0.0F);
+                    topSprite = stillSprite;
+                    u1 = stillSprite.getFrameU(0.0F);
                     v1 = stillSprite.getFrameV(0.0F);
                     u2 = u1;
                     v2 = stillSprite.getFrameV(1.0F);
@@ -300,6 +284,7 @@ u1 = stillSprite.getFrameU(0.0F);
                     v4 = v1;
                 } else {
                     Sprite flowSprite = fluidSprites[1];
+                    topSprite = flowSprite;
                     float angle =
                         (float) MathHelper.atan2(flowVector.z, flowVector.x) - (float) (Math.PI
                             / 2);
@@ -338,8 +323,8 @@ u1 = stillSprite.getFrameU(0.0F);
                 // 坐标系：NW(0,0), NE(1,0), SW(0,1), SE(1,1)
                 // X轴斜率贡献: (左 - 右) => (NW - NE) + (SW - SE)
                 // Z轴斜率贡献: (上 - 下) => (NW - SW) + (NE - SE)
-                float normalX = (heightNW - heightNE) + (heightSW - heightSE);
-                float normalZ = (heightNW - heightSW) + (heightNE - heightSE);
+                float normalX = (topHeightNW - topHeightNE) + (topHeightSW - topHeightSE);
+                float normalZ = (topHeightNW - topHeightSW) + (topHeightNE - topHeightSE);
                 float normalY = 1.0F; // 基础垂直分量
 
                 // 归一化
@@ -351,9 +336,11 @@ u1 = stillSprite.getFrameU(0.0F);
 
                 // 绘制顶面 (四个顶点)
                 // 0: NW (0, 0) -> heightNW
+                this.setPendingFluidSprite(vertexConsumer, topSprite, !isLava);
+
                 this.vertex(vertexConsumer,
                     x + 0.0F,
-                    y + heightNW,
+                    y + topHeightNW,
                     z + 0.0F,
                     shadedRed,
                     shadedGreen,
@@ -367,7 +354,7 @@ u1 = stillSprite.getFrameU(0.0F);
                 // 1: SW (0, 1) -> heightSW
                 this.vertex(vertexConsumer,
                     x + 0.0F,
-                    y + heightSW,
+                    y + topHeightSW,
                     z + 1.0F,
                     shadedRed,
                     shadedGreen,
@@ -381,7 +368,7 @@ u1 = stillSprite.getFrameU(0.0F);
                 // 2: SE (1, 1) -> heightSE
                 this.vertex(vertexConsumer,
                     x + 1.0F,
-                    y + heightSE,
+                    y + topHeightSE,
                     z + 1.0F,
                     shadedRed,
                     shadedGreen,
@@ -395,7 +382,7 @@ u1 = stillSprite.getFrameU(0.0F);
                 // 3: NE (1, 0) -> heightNE
                 this.vertex(vertexConsumer,
                     x + 1.0F,
-                    y + heightNE,
+                    y + topHeightNE,
                     z + 0.0F,
                     shadedRed,
                     shadedGreen,
@@ -407,11 +394,11 @@ u1 = stillSprite.getFrameU(0.0F);
                     normalY,
                     normalZ, emission);
 
-                if (fluidState.canFlowTo(world, pos.up())) {
+                if (!pbrWater && fluidState.canFlowTo(world, pos.up())) {
                     // 绘制内顶面 (Backface)，法线取反
                     this.vertex(vertexConsumer,
                         x + 0.0F,
-                        y + heightNW,
+                        y + topHeightNW,
                         z + 0.0F,
                         shadedRed,
                         shadedGreen,
@@ -424,7 +411,7 @@ u1 = stillSprite.getFrameU(0.0F);
                         -normalZ, emission);
                     this.vertex(vertexConsumer,
                         x + 1.0F,
-                        y + heightNE,
+                        y + topHeightNE,
                         z + 0.0F,
                         shadedRed,
                         shadedGreen,
@@ -437,7 +424,7 @@ u1 = stillSprite.getFrameU(0.0F);
                         -normalZ, emission);
                     this.vertex(vertexConsumer,
                         x + 1.0F,
-                        y + heightSE,
+                        y + topHeightSE,
                         z + 1.0F,
                         shadedRed,
                         shadedGreen,
@@ -450,7 +437,7 @@ u1 = stillSprite.getFrameU(0.0F);
                         -normalZ, emission);
                     this.vertex(vertexConsumer,
                         x + 0.0F,
-                        y + heightSW,
+                        y + topHeightSW,
                         z + 1.0F,
                         shadedRed,
                         shadedGreen,
@@ -468,15 +455,18 @@ u1 = stillSprite.getFrameU(0.0F);
             // 2. 渲染底面 (Bottom)
             // ==========================================
             if (renderBottom) {
-                float minU = fluidSprites[0].getMinU();
-                float maxU = fluidSprites[0].getMaxU();
-                float minV = fluidSprites[0].getMinV();
-                float maxV = fluidSprites[0].getMaxV();
+                Sprite bottomSprite = fluidSprites[0];
+                float minU = bottomSprite.getMinU();
+                float maxU = bottomSprite.getMaxU();
+                float minV = bottomSprite.getMinV();
+                float maxV = bottomSprite.getMaxV();
 
                 int packedLightDown = this.getLight(world, pos.down());
                 float shadedRedDown = lightDown * red;
                 float shadedGreenDown = lightDown * green;
                 float shadedBlueDown = lightDown * blue;
+
+                this.setPendingFluidSprite(vertexConsumer, bottomSprite, !isLava);
 
                 // 法线向下 (0, -1, 0)
                 this.vertex(vertexConsumer,
@@ -548,8 +538,8 @@ u1 = stillSprite.getFrameU(0.0F);
                         yEnd = heightNE;
                         xStart = x;
                         xEnd = x + 1.0F;
-                        zStart = z + 0.001F;
-                        zEnd = z + 0.001F;
+                        zStart = z + (pbrWater ? 0.0F : 0.001F);
+                        zEnd = z + (pbrWater ? 0.0F : 0.001F);
                         shouldRenderSide = renderNorth;
                         break;
                     case SOUTH:
@@ -557,15 +547,15 @@ u1 = stillSprite.getFrameU(0.0F);
                         yEnd = heightSW;
                         xStart = x + 1.0F;
                         xEnd = x;
-                        zStart = z + 1.0F - 0.001F;
-                        zEnd = z + 1.0F - 0.001F;
+                        zStart = z + 1.0F - (pbrWater ? 0.0F : 0.001F);
+                        zEnd = z + 1.0F - (pbrWater ? 0.0F : 0.001F);
                         shouldRenderSide = renderSouth;
                         break;
                     case WEST:
                         yStart = heightSW;
                         yEnd = heightNW;
-                        xStart = x + 0.001F;
-                        xEnd = x + 0.001F;
+                        xStart = x + (pbrWater ? 0.0F : 0.001F);
+                        xEnd = x + (pbrWater ? 0.0F : 0.001F);
                         zStart = z + 1.0F;
                         zEnd = z;
                         shouldRenderSide = renderWest;
@@ -573,8 +563,8 @@ u1 = stillSprite.getFrameU(0.0F);
                     default: // EAST
                         yStart = heightNE;
                         yEnd = heightSE;
-                        xStart = x + 1.0F - 0.001F;
-                        xEnd = x + 1.0F - 0.001F;
+                        xStart = x + 1.0F - (pbrWater ? 0.0F : 0.001F);
+                        xEnd = x + 1.0F - (pbrWater ? 0.0F : 0.001F);
                         zStart = z;
                         zEnd = z + 1.0F;
                         shouldRenderSide = renderEast;
@@ -594,6 +584,8 @@ u1 = stillSprite.getFrameU(0.0F);
                             sideSprite = this.waterOverlaySprite;
                         }
                     }
+
+                    this.setPendingFluidSprite(vertexConsumer, sideSprite, !isLava);
 
                     float uStart = sideSprite.getFrameU(0.0F);
                     float uCenter = sideSprite.getFrameU(0.5F);
@@ -666,7 +658,7 @@ u1 = stillSprite.getFrameU(0.0F);
                         dirY,
                         dirZ, emission);
 
-                    if (sideSprite != this.waterOverlaySprite) {
+                    if (!pbrWater && sideSprite != this.waterOverlaySprite) {
                         // 双面渲染（通常用于查看背面时），法线保持几何方向或取反均可。
                         // 这里为了保持光照一致性，通常使用与面朝向相同的法线。
                         this.vertex(vertexConsumer,
@@ -728,10 +720,9 @@ u1 = stillSprite.getFrameU(0.0F);
 
         // Clear pending state after all vertices are emitted
         if (vertexConsumer instanceof PBRVertexConsumer pbrVc) {
-            pbrVc.setPendingMaterialBlockType(255);
             pbrVc.setPendingEmissiveBlockType(255);
             pbrVc.setPendingEmission(0.0f);
-            pbrVc.setPendingBlockTypeId(0);
+            pbrVc.clearPendingTextureSprite();
         }
 
         ci.cancel();

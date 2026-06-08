@@ -1,6 +1,5 @@
 package com.radiance.client.gui.unified.rows;
 
-import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.SettingsRow;
 import java.util.List;
@@ -9,7 +8,7 @@ import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.widget.ClickableWidget;
 
 /**
- * A full-width slider row wrapping a ResettableSliderWidget.
+ * A compact slider row wrapping a ResettableSliderWidget.
  * Supports all existing slider features: Ctrl+Click numeric, Shift+Click reset, precision drag.
  */
 public class SliderRow extends SettingsRow {
@@ -28,7 +27,6 @@ public class SliderRow extends SettingsRow {
         slider.setY(y);
         slider.setWidth(width);
         slider.render(context, mouseX, mouseY, delta);
-        RadianceTheme.drawModifiedDot(context, x, y, getHeight(), !slider.isDefault());
     }
 
     @Override

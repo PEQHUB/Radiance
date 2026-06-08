@@ -2,15 +2,13 @@ package com.radiance.client.option;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.pipeline.Pipeline;
+import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.util.EmissiveBlock;
-import com.radiance.client.util.MaterialBlock;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,10 +20,9 @@ import net.minecraft.client.world.ClientWorld;
 public class Options {
 
     public static final String OPTION_PROPERTIES = "options.properties";
-    public static final int CURRENT_OPTIONS_VERSION = 22;
+    public static final int CURRENT_OPTIONS_VERSION = 24;
     public static final int SDR_TONEMAPPING_DEFAULT_MODE = 0;
     public static final int SATURATION_DEFAULT_PERCENT = 100;
-    public static final int COLOR_EXPANSION_DEFAULT_PERCENT = 100;
 
     // SDR transfer function
     public static final int SDR_TRANSFER_FUNCTION_GAMMA_22 = 0;
@@ -34,6 +31,7 @@ public class Options {
     public static final String CATEGORY_GAMEPLAY = "options.video.category.gameplay";
     public static final String CATEGORY_WINDOW = "options.video.category.window";
     public static final String CATEGORY_RAY_TRACING = "options.video.category.ray_tracing";
+    public static final String CATEGORY_SHADER_PACKS = "options.video.category.shader_packs";
     public static final String CATEGORY_UPSCALER = "options.video.category.upscaler";
     public static final String CATEGORY_TONEMAPPING = "options.video.category.tonemapping";
     public static final String CATEGORY_CAMERA_CONTROLS = "options.video.category.camera_controls";
@@ -44,7 +42,7 @@ public class Options {
     public static final String CATEGORY_ENVIRONMENT = "options.video.category.environment";
 
     public static final String KEY_RADIANCE_SETTINGS = "key.radiance.settings";
-    public static final String KEY_MATERIAL_PICKER = "key.radiance.material_picker";
+    public static final String KEY_AUTOPBR_PICKER = "key.radiance.autopbr_picker";
     public static final String KEY_CATEGORY_RADIANCE = "key.category.radiance";
 
     public static final int FALLBACK_AUTOPBR_ORDINAL = 255;
@@ -57,10 +55,6 @@ public class Options {
 
     public static final String CATEGORY_EMISSION = "options.video.category.emission";
     public static final String CATEGORY_LIGHTING = "options.video.category.lighting";
-    public static final String GLOBAL_LIGHT_MODE_KEY = "options.video.global_light_mode";
-    public static final String GLOBAL_LIGHT_MODE_AUTO_KEY = "options.video.global_light_mode.auto";
-    public static final String GLOBAL_LIGHT_MODE_AREA_KEY = "options.video.global_light_mode.area_lights";
-    public static final String GLOBAL_LIGHT_MODE_EMISSIVE_KEY = "options.video.global_light_mode.emissive";
     public static final String EXPOSURE_SETTINGS_KEY = "options.video.exposure_settings";
     public static final String POST_PROCESSING_SETTINGS_KEY = "options.video.post_processing_settings";
 
@@ -122,7 +116,6 @@ public class Options {
     public static final String MIDDLE_GREY_KEY = "options.video.middle_grey";
     public static final String LWHITE_KEY = "options.video.lwhite";
     public static final String SATURATION_KEY = "options.video.saturation";
-    public static final String COLOR_EXPANSION_KEY = "options.video.color_expansion";
     public static final String SHARPENER_MODE_KEY = "options.video.sharpener_mode";
     public static final String CAS_SHARPNESS_KEY = "options.video.cas_sharpness";
 
@@ -190,12 +183,10 @@ public class Options {
 
     // Ray Tracing
     public static final String RAY_BOUNCES_KEY = "options.video.ray_bounces";
-    public static final String OMM_ENABLED_KEY = "options.video.omm_enabled";
-    public static final String OMM_BAKER_LEVEL_KEY = "options.video.omm_baker_level";
-    public static final String GREEDY_MESHING_KEY = "options.video.greedy_meshing";
     public static final String SIMPLIFIED_INDIRECT_KEY = "options.video.simplified_indirect";
     public static final String MULTI_SCATTER_GGX_KEY = "options.video.multi_scatter_ggx";
     public static final String EON_DIFFUSE_KEY = "options.video.eon_diffuse";
+    public static final String DIFFUSE_MODEL_KEY = "options.video.diffuse_model";
     public static final String SHARC_ENABLED_KEY = "options.video.sharc_enabled";
     public static final String SHARC_SCENE_SCALE_KEY = "options.video.sharc_scene_scale";
     public static final String SHARC_ROUGHNESS_THRESHOLD_KEY = "options.video.sharc_roughness_threshold";
@@ -206,89 +197,14 @@ public class Options {
     public static final String SHARC_UPDATE_BOUNCES_KEY = "options.video.sharc_update_bounces";
     public static final String SHARC_CAPACITY_EXPONENT_KEY = "options.video.sharc_capacity_exponent";
     public static final String SHARC_QUALITY_PRESET_KEY = "options.video.sharc_quality_preset";
+    public static final String SHARC_QUERY_MODE_KEY = "options.video.sharc_query_mode";
     public static final String CATEGORY_SHARC = "options.video.category.sharc";
-    public static final String AREA_LIGHTS_ENABLED_KEY = "options.video.area_lights_enabled";
-    public static final String AREA_LIGHT_INTENSITY_KEY = "options.video.area_light_intensity";
-    public static final String AREA_LIGHT_RANGE_KEY = "options.video.area_light_range";
-    public static final String AREA_LIGHT_SETTINGS_KEY = "options.video.area_light_settings";
-    public static final String AREA_LIGHT_SHADOW_SOFTNESS_KEY = "options.video.area_light_shadow_softness";
-    public static final String CATEGORY_AREA_LIGHTS = "options.video.category.area_lights";
-    public static final int AREA_LIGHT_TYPE_COUNT = 50;
-
-    // Human-readable names for each light type ID (indices match C++ LightTypeId enum)
-    public static final String[] LIGHT_TYPE_KEYS = {
-        "options.video.area_light.block.torch",
-        "options.video.area_light.block.soul_torch",
-        "options.video.area_light.block.lantern",
-        "options.video.area_light.block.soul_lantern",
-        "options.video.area_light.block.campfire",
-        "options.video.area_light.block.soul_campfire",
-        "options.video.area_light.block.glowstone",
-        "options.video.area_light.block.sea_lantern",
-        "options.video.area_light.block.shroomlight",
-        "options.video.area_light.block.jack_o_lantern",
-        "options.video.area_light.block.end_rod",
-        "options.video.area_light.block.beacon",
-        "options.video.area_light.block.ochre_froglight",
-        "options.video.area_light.block.verdant_froglight",
-        "options.video.area_light.block.pearl_froglight",
-        "options.video.area_light.block.redstone_torch",
-        "options.video.area_light.block.redstone_lamp",
-        "options.video.area_light.block.candle",
-        null, // 18: unused (formerly candle_2)
-        null, // 19: unused (formerly candle_3)
-        null, // 20: unused (formerly candle_4)
-        "options.video.area_light.block.cave_vines",
-        "options.video.area_light.block.glow_lichen",
-        "options.video.area_light.block.furnace",
-        "options.video.area_light.block.blast_furnace",
-        "options.video.area_light.block.smoker",
-        "options.video.area_light.block.ender_chest",
-        "options.video.area_light.block.crying_obsidian",
-        "options.video.area_light.block.nether_portal",
-        "options.video.area_light.block.conduit",
-        "options.video.area_light.block.respawn_anchor_1",
-        "options.video.area_light.block.respawn_anchor_2",
-        "options.video.area_light.block.respawn_anchor_3",
-        "options.video.area_light.block.respawn_anchor_4",
-        "options.video.area_light.block.amethyst_cluster",
-        "options.video.area_light.block.large_amethyst_bud",
-        "options.video.area_light.block.copper_bulb",
-        "options.video.area_light.block.enchanting_table",
-        "options.video.area_light.block.lava",
-        "options.video.area_light.block.fire",
-        "options.video.area_light.block.soul_fire",
-        "options.video.area_light.block.magma_block",
-        "options.video.area_light.block.sculk_sensor",
-        "options.video.area_light.block.sculk_catalyst",
-        "options.video.area_light.block.sculk_vein",
-        "options.video.area_light.block.sculk",
-        "options.video.area_light.block.sculk_shrieker",
-        "options.video.area_light.block.brewing_stand",
-        "options.video.area_light.block.end_portal",
-        "options.video.area_light.block.end_portal_frame",
-    };
-
-    // ReSTIR DI Tuning
-    public static final String RESTIR_CANDIDATES_KEY = "options.video.restir_candidates";
-    public static final String RESTIR_TEMPORAL_M_CLAMP_KEY = "options.video.restir_temporal_m_clamp";
-    public static final String RESTIR_W_CLAMP_KEY = "options.video.restir_w_clamp";
-    public static final String RESTIR_SPATIAL_TAPS_KEY = "options.video.restir_spatial_taps";
-    public static final String RESTIR_SPATIAL_RADIUS_KEY = "options.video.restir_spatial_radius";
-    public static final String CATEGORY_RESTIR = "options.video.category.restir";
-
-    // ReSTIR DI Performance
-    public static final String RESTIR_SIMPLIFIED_BRDF_KEY = "options.video.restir_simplified_brdf";
-    public static final String RESTIR_SPATIAL_ENABLED_KEY = "options.video.restir_spatial_enabled";
-    public static final String RESTIR_BOUNCE_ENABLED_KEY = "options.video.restir_bounce_enabled";
-    public static final String CATEGORY_RESTIR_PERFORMANCE = "options.video.category.restir_performance";
-
+    public static final String SHADER_PACK_KEY = "options.video.shader_pack";
+    public static final String SHADER_PACK_STATUS_KEY = "options.video.shader_pack.status";
     // Terrain
     public static final String CHUNK_BUILDING_BATCH_SIZE_KEY = "options.video.chunk_building_batch_size";
     public static final String CHUNK_BUILDING_TOTAL_BATCHES_KEY = "options.video.chunk_building_total_batches";
     public static final String CHUNK_CULL_DISTANCE_KEY = "options.video.chunk_cull_distance";
-    public static final String CHUNK_LOD_DISTANCE_KEY = "options.video.chunk_lod_distance";
-    public static final String EXTENDED_RENDER_DISTANCE_KEY = "options.video.extended_render_distance";
 
     // Pipeline
     public static final String PIPELINE_SETUP_KEY = "options.video.pipeline_setup";
@@ -304,16 +220,17 @@ public class Options {
     // 2 = Off
     public static int upscalerMode = 0;
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
-    public static int upscalerResOverride = 99; // 33-100%
+    public static int upscalerResOverride = 99; // 1-100%
     public static boolean dlssDEnabled = true;
-    public static int rayBounces = 12;
-    public static boolean ommEnabled = false;
-    public static int ommBakerLevel = 4;
-    public static boolean greedyMeshingEnabled = true;
+    public static int rayBounces = 2;
     public static boolean simplifiedIndirect = false;
-    public static boolean noiseLOD = true;  // Noise quality LOD (default ON for performance)
     public static boolean multiScatterGGX = true;  // Kulla-Conty multi-scatter GGX energy compensation
     public static boolean eonDiffuse = true;        // EON energy-preserving rough diffuse BRDF
+    public static final int DIFFUSE_MODEL_EON = 0;
+    public static final int DIFFUSE_MODEL_VMF = 1;
+    public static final int DIFFUSE_MODEL_LEGACY = 2;
+    public static int diffuseModel = DIFFUSE_MODEL_EON;
+    public static String shaderPackPath = Pipeline.VANILLA_RAY_TRACING_SHADER_PACK_PATH;
 
     // Window persistence
     public static int windowPosX = -1;  // -1 = not set (use OS default)
@@ -327,19 +244,26 @@ public class Options {
     // Diagnostics
     public static boolean loggingEnabled = false;
     public static native void nativeSetLoggingEnabled(boolean enabled, boolean write);
+    public static boolean gpuDebugLabels = false;
+    public static native void nativeSetGpuDebugLabels(boolean enabled, boolean write);
 
-    // POM (Parallax Occlusion Mapping)
+    // Cube-block height-field geometry displacement. Legacy POM keys are load aliases only.
+    public static final int DISPLACEMENT_QUALITY_LOW = 1;
+    public static final int DISPLACEMENT_QUALITY_BALANCED = 2;
+    public static final int DISPLACEMENT_QUALITY_HIGH = 3;
+    public static final int DISPLACEMENT_QUALITY_ULTRA = 4;
+    public static boolean displacementEnabled = false;
+    public static int displacementDepthCapPercent = 5;  // 1-50, /100 = 0.01-0.50 blocks
+    public static int displacementQuality = DISPLACEMENT_QUALITY_BALANCED;
+    public static int displacementFadeDistance = 64;    // 8-256 blocks
+    public static int displacementSteps = 32;
+    public static int displacementRefinement = 4;
+    // Legacy runtime aliases. Keep in sync for old callers/configs.
     public static boolean pomEnabled = false;
-    public static int pomHeightScalePercent = 5;    // 1-50, /100 = 0.01-0.50
-    public static int pomSteps = 64;                // 8-512
-    public static int pomRefinement = 4;            // 0-8
-    public static int pomFadeDistance = 64;          // 8-256 blocks
-    // Displacement (proper RT displacement, replaces POM)
-    public static int displacementQuality = 0;      // 0=Off, 1=DDA, 2=Tessellation, 3=Hybrid, 4=CLAS
-    public static int tessMaxLevel = 16;             // NxN grid max (2-32)
-    public static int tessNearDist = 32;             // Full tessellation distance (blocks)
-    public static int tessMidDist = 96;              // Half tessellation distance (blocks)
-    public static int tessFarDist = 192;             // Quarter tessellation distance (blocks)
+    public static int pomHeightScalePercent = displacementDepthCapPercent;
+    public static int pomSteps = displacementSteps;
+    public static int pomRefinement = displacementRefinement;
+    public static int pomFadeDistance = displacementFadeDistance;
     // SER: Shader Execution Reordering — groups threads by material for cache coherence
     // V2 engine: use new EngineApp path instead of legacy Renderer (clear-screen only for now)
     public static boolean useV2Engine = false;
@@ -355,9 +279,10 @@ public class Options {
     public static int sharcStaleFrames = 16;                // 4-128
     public static int sharcDownscale = 1;                   // 1-8
     public static int sharcUpdateBlockSize = 2;             // 2-8 (NxN sparse block)
-    public static int sharcUpdateBounces = 16;               // 2-16 (max bounces in update pass)
-    public static int sharcCapacityExponent = 21;           // 18-26 (2^N entries)
+    public static int sharcUpdateBounces = 4;                // 2-8 (max bounces in update pass)
+    public static int sharcCapacityExponent = 21;           // 18-24 (2^N entries)
     public static int sharcQualityPreset = 5;               // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
+    public static int sharcQueryMode = 0;                    // 0=Off, 1=Observe, 2=Active
 
     // ── Overall Quality Preset (simple mode master slider) ──
     public static int overallQualityPreset = 4;              // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Custom
@@ -409,12 +334,6 @@ public class Options {
      */
     public static int countNonDefaultAdvancedSettings() {
         int count = 0;
-        // ReSTIR tuning
-        if (restirCandidates != 32) count++;
-        if (restirTemporalMClamp != 20) count++;
-        if (restirWClamp != 30) count++;
-        if (restirSimplifiedBRDF) count++;
-        if (restirBounceEnabled) count++;
         // SHARC individual params (only if preset is Custom)
         if (sharcQualityPreset == 5) {
             if (sharcSceneScaleTenths != 40) count++;
@@ -437,19 +356,14 @@ public class Options {
         if (darkAdaptSpeedTenths != 20) count++;
         if (sceneChangeThresholdTenths != 50) count++;
         if (centerWeightPercent != 0) count++;
-        // OMM baker level
-        if (ommBakerLevel != 4) count++;
-        // Multi-scatter / EON (default is true)
+        // Multi-scatter / diffuse model (defaults: multi-scatter on, EON diffuse)
         if (!multiScatterGGX) count++;
-        if (!eonDiffuse) count++;
-        // POM (default disabled)
-        if (pomEnabled) count++;
+        if (diffuseModel != DIFFUSE_MODEL_EON) count++;
+        // Material-owned shader displacement (default disabled)
+        if (displacementEnabled) count++;
         // SER (default enabled)
         if (!serEnabled) count++;
         if (!serHintsEnabled) count++;
-        // Volumetric cloud module (non-default tuning)
-        if (volCloudQuality != 3) count++;
-        if (volCloudScatterOctaves != 3) count++;
         return count;
     }
 
@@ -468,6 +382,7 @@ public class Options {
         {15, 10, 64, 32, 1, 2, 8, 24},
     };
     public static final String[] SHARC_PRESET_NAMES = {"Low", "Medium", "High", "Ultra", "Overkill", "Custom"};
+    public static final String[] SHARC_QUERY_MODE_NAMES = {"Off", "Observe", "Active"};
     // Offline accumulation mode (transient runtime state — NOT persisted except preferences)
     public static int offlineState = 0;          // 0=NORMAL, 1=FREE, 2=ACCUMULATING
     public static long frozenDayTimeTicks = -1;  // captured on F7
@@ -570,98 +485,6 @@ public class Options {
         } catch (UnsatisfiedLinkError ignored) {}
     }
 
-    public static boolean areaLightsEnabled = false;
-    public static boolean restirEnabled = true;         // ReSTIR DI temporal reuse
-    public static int areaLightIntensityPercent = 100;  // 0-500%
-    public static int areaLightRange = 128;  // 8-512 blocks
-    public static int shadowSoftnessPercent = 100;  // 0-200%
-    // ReSTIR DI tuning
-    public static int restirCandidates = 32;       // 8-64
-    public static int restirTemporalMClamp = 20;   // 5-50
-    public static int restirWClamp = 30;           // 10-200
-    public static int restirSpatialTaps = 5;       // 1-10
-    public static int restirSpatialRadius = 30;    // 5-60
-    // ReSTIR DI performance
-    public static boolean restirSimplifiedBRDF = false;   // Lambertian instead of Disney for area lights
-    public static boolean restirSpatialEnabled = false;   // Spatial reuse compute pass (disabled — degrades quality)
-    public static boolean restirBounceEnabled = false;    // ReSTIR on indirect bounces (1-3)
-    public static final int[] areaLightBlockIntensity = new int[AREA_LIGHT_TYPE_COUNT]; // 0-500%, default 100
-    public static final int[] areaLightBlockScale = new int[AREA_LIGHT_TYPE_COUNT];     // 10-500%, default 100
-    public static final int[] areaLightBlockYOffset = new int[AREA_LIGHT_TYPE_COUNT];   // -50 to +50 centi-blocks, default 0
-    public static final int[] areaLightBlockColorR = new int[AREA_LIGHT_TYPE_COUNT];    // 0-255
-    public static final int[] areaLightBlockColorG = new int[AREA_LIGHT_TYPE_COUNT];    // 0-255
-    public static final int[] areaLightBlockColorB = new int[AREA_LIGHT_TYPE_COUNT];    // 0-255
-
-    // Default light colors (RGB 0-255) matching LIGHT_DEFS in lights.hpp
-    public static final int[][] DEFAULT_LIGHT_COLORS = {
-        {255, 179,  77}, // 0  TORCH
-        { 77, 204, 230}, // 1  SOUL_TORCH
-        {255, 179,  77}, // 2  LANTERN
-        { 77, 204, 230}, // 3  SOUL_LANTERN
-        {255, 179,  77}, // 4  CAMPFIRE
-        { 77, 204, 230}, // 5  SOUL_CAMPFIRE
-        {255, 217, 128}, // 6  GLOWSTONE
-        {179, 217, 255}, // 7  SEA_LANTERN
-        {255, 153,  77}, // 8  SHROOMLIGHT
-        {255, 179,  77}, // 9  JACK_O_LANTERN
-        {242, 230, 255}, // 10 END_ROD
-        {230, 242, 255}, // 11 BEACON
-        {255, 230, 128}, // 12 OCHRE_FROGLIGHT
-        {102, 255, 128}, // 13 VERDANT_FROGLIGHT
-        {230, 153, 204}, // 14 PEARL_FROGLIGHT
-        {255,  51,  26}, // 15 REDSTONE_TORCH
-        {255,  51,  26}, // 16 REDSTONE_LAMP
-        {255, 191,  89}, // 17 CANDLE
-        {255, 191,  89}, // 18 (unused)
-        {255, 191,  89}, // 19 (unused)
-        {255, 191,  89}, // 20 (unused)
-        {255, 191,  89}, // 21 CAVE_VINES
-        {102, 204, 153}, // 22 GLOW_LICHEN
-        {255, 128,  51}, // 23 FURNACE
-        {255, 128,  51}, // 24 BLAST_FURNACE
-        {255, 128,  51}, // 25 SMOKER
-        { 77, 179, 128}, // 26 ENDER_CHEST
-        {153,  51, 230}, // 27 CRYING_OBSIDIAN
-        {128,  51, 204}, // 28 NETHER_PORTAL
-        {230, 242, 255}, // 29 CONDUIT
-        {255, 153,  51}, // 30 RESPAWN_ANCHOR_1
-        {255, 153,  51}, // 31 RESPAWN_ANCHOR_2
-        {255, 153,  51}, // 32 RESPAWN_ANCHOR_3
-        {255, 153,  51}, // 33 RESPAWN_ANCHOR_4
-        {179, 128, 230}, // 34 AMETHYST_CLUSTER
-        {179, 128, 230}, // 35 LARGE_AMETHYST_BUD
-        {255, 179, 102}, // 36 COPPER_BULB
-        {128, 204, 128}, // 37 ENCHANTING_TABLE
-        // --- New: formerly emissive-only blocks ---
-        {255, 102,  26}, // 38 LAVA
-        {255, 153,  51}, // 39 FIRE
-        { 77, 204, 230}, // 40 SOUL_FIRE
-        {255,  77,  26}, // 41 MAGMA_BLOCK
-        { 51, 128, 128}, // 42 SCULK_SENSOR
-        { 51, 128, 128}, // 43 SCULK_CATALYST
-        { 51, 128, 128}, // 44 SCULK_VEIN
-        { 38, 102, 102}, // 45 SCULK
-        { 51, 128, 128}, // 46 SCULK_SHRIEKER
-        {255, 153,  51}, // 47 BREWING_STAND
-        { 77,  26, 128}, // 48 END_PORTAL
-        {102, 179, 102}, // 49 END_PORTAL_FRAME
-    };
-
-    static {
-        java.util.Arrays.fill(areaLightBlockIntensity, 100);
-        java.util.Arrays.fill(areaLightBlockScale, 100);
-        java.util.Arrays.fill(areaLightBlockYOffset, 0);
-        // All per-block overrides baked into LIGHT_DEFS — sliders start neutral
-        resetLightColorsToDefaults();
-    }
-
-    private static void resetLightColorsToDefaults() {
-        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT && i < DEFAULT_LIGHT_COLORS.length; i++) {
-            areaLightBlockColorR[i] = DEFAULT_LIGHT_COLORS[i][0];
-            areaLightBlockColorG[i] = DEFAULT_LIGHT_COLORS[i][1];
-            areaLightBlockColorB[i] = DEFAULT_LIGHT_COLORS[i][2];
-        }
-    }
     public static boolean outputScale2x = false;
     public static boolean reflexEnabled = false;
     public static boolean reflexBoost = false;
@@ -671,11 +494,10 @@ public class Options {
     // Frame Generation (DLSS-G)
     public static int frameGenMode = 0;          // 0=Off, 1=On, 2=Auto (dynamic MFG)
     public static int frameGenMultiplier = 1;    // 1=2x, 2=3x, 3=4x
+    public static boolean dlssgQueueParallelism = false; // Disabled until DLSS-G inputs use an independent resource ring
     public static int chunkBuildingBatchSize = 6;
     public static int chunkBuildingTotalBatches = 6;
     public static int chunkCullDistance = 24;  // 0-512 chunks, chunks beyond excluded from TLAS (0=unlimited)
-    public static int chunkLodDistance = 10;  // 0-512 chunks, chunks beyond use compact 32B vertices (0=all full quality)
-    public static int extendedRenderDistance = 0; // 0-512 extra chunks beyond Java RD, loaded from disk (0=off)
     public static int tonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTonemappingMode = SDR_TONEMAPPING_DEFAULT_MODE;
     public static int sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
@@ -696,7 +518,6 @@ public class Options {
     public static int LwhiteTenths = 40;        // 10-200 → 1.0 to 20.0
     public static int saturationPercent = SATURATION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
     public static boolean saturationAdaptive = false;  // Adaptive saturation: brightness+chroma-dependent
-    public static int colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;  // 0-200 → 0.0 to 2.0
 
     // Per-tonemapper params: [mode][paramIndex], float values sent directly to native
     public static float[][] tonemapParams = new float[9][8];
@@ -782,6 +603,7 @@ public class Options {
     public static boolean useUnifiedUI = true;           // true = new unified panel UI, false = legacy screens
     public static boolean advancedMode = false;            // false = AAA simple menu, true = full tweaker menu
     public static int uiGlobalAlphaPercent = 55;         // 0-100, controls menu transparency
+    public static int materialLabOpacityPercent = 82;    // 35-100, Material Lab panel opacity only
     public static boolean uiAdaptiveDimming = false;     // auto-adjust alpha based on scene brightness
 
     public static final int SUN_PATH_MODE_DEFAULT = 1;
@@ -988,562 +810,69 @@ public class Options {
         return bestIdx;
     }
 
-    // Per-block light mode: 0=Auto, 1=ForceAreaLight, 2=ForceEmissive
-    public static final int LIGHT_MODE_AUTO = 0;
-    public static final int LIGHT_MODE_FORCE_AREA = 1;
-    public static final int LIGHT_MODE_FORCE_EMISSIVE = 2;
-    public static final int[] blockLightMode = new int[AREA_LIGHT_TYPE_COUNT]; // default 0 (Auto)
-    public static int globalLightMode = LIGHT_MODE_FORCE_EMISSIVE;
-
-    // Material block overrides (physically accurate F0/roughness applied in CHS shader)
-    public static boolean materialOverridesEnabled = true;
-    public static volatile boolean materialDirty = true;  // starts dirty — first frame must upload
-    public static void markMaterialDirty() {
-        materialDirty = true;
-        com.radiance.client.debug.CrashContext.recordChange("materialDirty");
-        com.radiance.client.debug.RadianceLogger.logMaterialDirty("markMaterialDirty");
-    }
-    public static void setMaterialOverridesEnabled(boolean enabled, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("materialOverridesEnabled=" + enabled);
-        Options.materialOverridesEnabled = enabled;
-        markMaterialDirty();
-        if (write) { overwriteConfig(); }
-    }
+    public static boolean autoPBREnabled = true;
+    public static boolean materialCompatEnabled = true;
+    public static boolean materialCompatCtmEnabled = true;
+    public static boolean materialCompatRandomEnabled = true;
+    public static boolean materialCompatNaturalEnabled = true;
+    public static boolean materialCompatColorsEnabled = true;
+    public static boolean materialCompatOverlaysEnabled = true;
+    public static boolean materialCompatLegacyMcPatcherEnabled = true;
+    public static boolean materialCompatPhysicalEmissiveEnabled = true;
+    public static int materialCompatCtmAtlasAdmissionLimit = 0;
+    public static boolean textureStreamingV2 = true;
+    public static boolean textureTieredArrays = true;
+    public static boolean vanillaBlockAtlasBypass = true;
+    public static boolean sparseAuxUpload = true;
+    public static boolean ctmDemandResidency = true;
+    public static boolean materialTableDirtyUpdates = true;
+    public static boolean eagerSpriteImageCache = false;
+    public static boolean materialCompatFullPreloadDiagnostic = false;
 
     public static void setAutoPBREnabled(boolean enabled, boolean write) {
         com.radiance.client.debug.CrashContext.recordChange("autoPBREnabled=" + enabled);
         Options.autoPBREnabled = enabled;
-        markMaterialDirty();
+        if (!enabled) {
+            com.radiance.client.autopbr.AutoPbrTextureRules.disableAll();
+        } else {
+            com.radiance.client.autopbr.AutoPbrRuntime.rehydrateSavedSidecars(
+                net.minecraft.client.MinecraftClient.getInstance());
+        }
         if (write) { overwriteConfig(); }
     }
 
-    // Material overrides: max 512 entries (108 enum + dynamic auto-registered blocks)
-    // Vertex packing is 8-bit (max ordinal 254 via vertex path), mask texture handles 0-255.
-    // SSBO has room for 512 entries for future wider packing.
-    public static final int MAX_MATERIALS = 512;
-    // Per-block properties (indexed by MaterialBlock.ordinal())
-    // F0 in permille (0-1000), roughness in percent (0-100)
-    public static final int[] materialF0R = new int[MAX_MATERIALS];
-    public static final int[] materialF0G = new int[MAX_MATERIALS];
-    public static final int[] materialF0B = new int[MAX_MATERIALS];
-    public static final int[] materialRoughness = new int[MAX_MATERIALS];
-    // Principled BSDF properties
-    public static final int[] materialMetallic = new int[MAX_MATERIALS];       // 0-1000 permille
-    public static final int[] materialTransmission = new int[MAX_MATERIALS];   // 0-1000 permille
-    public static final int[] materialIOR = new int[MAX_MATERIALS];            // 1000-3000 (×1000)
-    public static final int[] materialSubsurface = new int[MAX_MATERIALS];     // 0-1000 permille
-    public static final int[] materialAnisotropic = new int[MAX_MATERIALS];    // 0-1000 permille
-    public static final int[] materialSheenWeight = new int[MAX_MATERIALS];    // 0-1000 permille
-    public static final int[] materialSheenTint = new int[MAX_MATERIALS];      // 0-1000 permille
-    public static final int[] materialCoatWeight = new int[MAX_MATERIALS];     // 0-1000 permille
-    public static final int[] materialCoatRoughness = new int[MAX_MATERIALS];  // 0-100 percent
-    public static final int[] materialNoiseScale = new int[MAX_MATERIALS];     // 1-5000 (/10 = 0.1-500.0 world units)
-    public static final int[] materialNoiseStrength = new int[MAX_MATERIALS];  // 0-1000 permille (0.0-100.0%)
-    public static final int[] materialNoiseOctaves = new int[MAX_MATERIALS];   // 1-8
-    public static final int[] materialNoiseType = new int[MAX_MATERIALS];     // 0-15 (noise algorithm)
-    public static final int[] materialNoiseSeed = new int[MAX_MATERIALS];     // 0-999
-    public static final int[] materialNoiseMaskMode = new int[MAX_MATERIALS];  // 0=none,1=lum,2=rough,3=edge,4=normal
-    public static final boolean[] materialNoiseMaskInvert = new boolean[MAX_MATERIALS];
-    public static final int[] materialNoiseMaskThreshold = new int[MAX_MATERIALS]; // 0-1000 (0.0-1.0)
-    public static final int[] materialNoiseWrap = new int[MAX_MATERIALS];          // 0=3D,1=surface,2=triplanar,3=XZ,4=XY,5=YZ
-    public static final int[] materialNoiseRotation = new int[MAX_MATERIALS];     // 0-3600 (0.0-360.0 degrees)
-    public static final int[] materialNoiseAspect = new int[MAX_MATERIALS];       // 10-1000 (0.1x-10.0x)
-    public static final int[] materialNoiseLacunarity = new int[MAX_MATERIALS];   // 10-40 (1.0-4.0)
-    public static final int[] materialNoiseContrast = new int[MAX_MATERIALS];     // 0-200 (0.0-2.0)
-    public static final int[] materialGamutBoost = new int[MAX_MATERIALS];    // 0-200 (×0.01 = 0.00-2.00 multiplier)
-    public static final int[] materialGamutBoostMode = new int[MAX_MATERIALS]; // 0=uniform, 1=saturation-based
-    public static final int[] materialPomDepth = new int[MAX_MATERIALS];     // 0-200 (×0.01 = 0.00-2.00, per-block POM depth, 0=off)
-    public static final int[] materialNormalStrength = new int[MAX_MATERIALS];  // 0-200 (×0.01 = 0.00-2.00 multiplier, 100=neutral)
-    public static final int[] materialAutoPBRRoughnessMin = new int[MAX_MATERIALS]; // 0-100, per-block roughness min %
-    public static final int[] materialAutoPBRRoughnessMax = new int[MAX_MATERIALS]; // 0-100, per-block roughness max %
-    public static final int[] materialPercentileCenter = new int[MAX_MATERIALS];      // 0-100, what brightness = mid-roughness
-    public static final int[] materialPercentileSpread = new int[MAX_MATERIALS];      // 1-100, roughness contrast width
-    public static final int[] materialAutoPBRHeightGamma = new int[MAX_MATERIALS];     // 10-300, /100
-    public static final int[] materialAutoPBRFlags = new int[MAX_MATERIALS];           // bit 0=invertRoughness, bit 1=invertNormal, bit 2=invertHeight
-
-    // Height filtering
-    public static final int[] materialHeightFilter = new int[MAX_MATERIALS];      // 0=Forward,1=Central,2=Sobel,3=Bilinear,4=Bicubic
-    public static final int[] materialFilterRadius = new int[MAX_MATERIALS];      // 0-15 (= 0.5 + val*0.25 texels)
-    public static final int[] materialMipBias = new int[MAX_MATERIALS];           // 0-15 (= val*0.2)
-
-    // POM per-block
-    public static final int[] materialPomMode = new int[MAX_MATERIALS];           // 0=Standard,1=Contact,2=Shadow,3=Full
-    public static final int[] materialPomSteps = new int[MAX_MATERIALS];          // 4-128
-    public static final int[] materialPomRefinement = new int[MAX_MATERIALS];     // 0-8
-    public static final boolean[] materialPomClipSilhouette = new boolean[MAX_MATERIALS];
-    public static final boolean[] materialPomAreaLightOffset = new boolean[MAX_MATERIALS];
-    public static final boolean[] materialPomMotionVectors = new boolean[MAX_MATERIALS];
-
-    // Height field
-    public static final int[] materialHeightSource = new int[MAX_MATERIALS];      // 0=Lum,1=R,2=G,3=B,4=Alpha,5=MaxRGB,6=MinRGB,7=Custom
-    public static final int[] materialHeightContrast = new int[MAX_MATERIALS];    // 0-30 (= val*0.1, 10=1.0 linear)
-    public static final int[] materialHeightRemapMin = new int[MAX_MATERIALS];    // 0-100
-    public static final int[] materialHeightRemapMax = new int[MAX_MATERIALS];    // 0-100
-    public static final int[] materialHeightOffset = new int[MAX_MATERIALS];      // 0-200 (= (val-100)/100, 100=0.0)
-
-    // Normal enhancements
-    public static final int[] materialNormalClamp = new int[MAX_MATERIALS];       // 0-100 (= val/100, 100=unclamped)
-    public static final int[] materialGeometricBlend = new int[MAX_MATERIALS];    // 0-100 (= val/100, 0=no blend)
-    public static final int[] materialNormalDistanceFade = new int[MAX_MATERIALS]; // 0-255 blocks (0=disabled)
-
-    // POM interaction
-    public static final int[] materialPomAOStrength = new int[MAX_MATERIALS];     // 0-100 (= val/100, 0=disabled)
-
-    static {
-        // Pre-fill ALL slots with safe generic dielectric defaults (important for dynamic blocks
-        // whose ordinals > enum COUNT that haven't been explicitly initialized yet)
-        for (int i = 0; i < MAX_MATERIALS; i++) {
-            materialF0R[i] = 40;  // F0 ~0.04 (generic dielectric)
-            materialF0G[i] = 40;
-            materialF0B[i] = 40;
-            materialRoughness[i] = 80;
-            materialIOR[i] = 1500;
-            materialNoiseScale[i] = 50;
-            materialNoiseOctaves[i] = 2;
-            materialNoiseMaskThreshold[i] = 500;
-            materialNoiseWrap[i] = 1;
-            materialNoiseAspect[i] = 100;
-            materialNoiseLacunarity[i] = 20;
-            materialNoiseContrast[i] = 100;
-            materialGamutBoost[i] = 100;
-            materialGamutBoostMode[i] = 1; // default: saturation-based (existing behavior)
-            materialNormalStrength[i] = 100;
-            materialAutoPBRRoughnessMin[i] = 30;
-            materialAutoPBRRoughnessMax[i] = 95;
-            materialPercentileCenter[i] = 50;
-            materialPercentileSpread[i] = 80;
-            materialAutoPBRHeightGamma[i] = 100;
-            // Height filter defaults
-            materialHeightFilter[i] = 0;     // Forward (current behavior)
-            materialFilterRadius[i] = 0;     // 0.5 texels
-            materialMipBias[i] = 0;          // no mip bias
-            // POM defaults
-            materialPomMode[i] = 0;          // Standard
-            materialPomSteps[i] = 64;        // 64 steps
-            materialPomRefinement[i] = 4;    // 4 binary refinement iterations
-            // materialPomClipSilhouette defaults to false (Java boolean[] init)
-            // materialPomAreaLightOffset defaults to false
-            // materialPomMotionVectors defaults to false
-            // Height field defaults
-            materialHeightSource[i] = 0;     // Luminance
-            materialHeightContrast[i] = 10;  // 1.0 linear
-            materialHeightRemapMin[i] = 0;   // no remap
-            materialHeightRemapMax[i] = 100; // no remap
-            materialHeightOffset[i] = 100;   // 0.0 offset
-            // Normal defaults
-            materialNormalClamp[i] = 100;    // unclamped
-            materialGeometricBlend[i] = 0;   // no blend
-            materialNormalDistanceFade[i] = 0; // disabled
-            // POM interaction
-            materialPomAOStrength[i] = 0;    // disabled
-        }
-
-        // Override with enum-specific physically-measured defaults
-        for (MaterialBlock mb : MaterialBlock.values()) {
-            int i = mb.ordinal();
-            materialF0R[i] = mb.getDefaultF0R();
-            materialF0G[i] = mb.getDefaultF0G();
-            materialF0B[i] = mb.getDefaultF0B();
-            materialRoughness[i] = mb.getDefaultRoughness();
-            materialMetallic[i] = mb.getDefaultMetallic();
-            materialTransmission[i] = mb.getDefaultTransmission();
-            materialIOR[i] = mb.getDefaultIOR();
-            materialSubsurface[i] = mb.getDefaultSubsurface();
-            materialAnisotropic[i] = mb.getDefaultAnisotropic();
-            materialSheenWeight[i] = mb.getDefaultSheenWeight();
-            materialSheenTint[i] = mb.getDefaultSheenTint();
-            materialCoatWeight[i] = mb.getDefaultCoatWeight();
-            materialCoatRoughness[i] = mb.getDefaultCoatRoughness();
-            materialNoiseScale[i] = 50;     // default 5.0 world units
-            materialNoiseStrength[i] = 0;   // disabled by default
-            materialNoiseOctaves[i] = 2;    // default 2 octaves
-            materialNoiseType[i] = 0;       // Simplex
-            materialNoiseSeed[i] = 0;       // no seed offset
-            materialNoiseMaskMode[i] = 0;   // no mask
-            materialNoiseMaskInvert[i] = false;
-            materialNoiseMaskThreshold[i] = 500; // 50%
-            materialNoiseWrap[i] = 1;       // Surface default
-            materialNoiseRotation[i] = 0;   // no rotation
-            materialNoiseAspect[i] = 100;   // 1.0x (uniform)
-            materialNoiseLacunarity[i] = 20; // 2.0
-            materialNoiseContrast[i] = 100;  // 1.0
-            materialGamutBoost[i] = 100;    // 1.0× (neutral)
-            materialGamutBoostMode[i] = 1;  // saturation-based
-            materialPomDepth[i] = 0;        // off by default (per-block POM disabled)
-            materialNormalStrength[i] = 100; // 1.0× (neutral)
-            materialAutoPBRRoughnessMin[i] = 30;  // default roughness min 30%
-            materialAutoPBRRoughnessMax[i] = 95;  // default roughness max 95%
-            materialPercentileCenter[i] = 50;      // 50% = linear midpoint
-            materialPercentileSpread[i] = 80;      // 80% = moderate contrast
-            materialAutoPBRHeightGamma[i] = 100;    // 1.0 = linear (no contrast adjustment)
-            materialAutoPBRFlags[i] = 0;            // no inversions (base convention is now correct)
-        }
-
-        // ── Per-block visual defaults (tuned) ──
-        // Metals: mirror-smooth base with texture roughness variation
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.ANVIL, MaterialBlock.CAULDRON, MaterialBlock.CHAIN,
-                MaterialBlock.HEAVY_WEIGHTED_PRESSURE_PLATE, MaterialBlock.HOPPER,
-                MaterialBlock.IRON_BARS, MaterialBlock.IRON_BLOCK, MaterialBlock.IRON_DOOR,
-                MaterialBlock.RAIL}) {
-            int j = mb.ordinal();
-            materialRoughness[j] = 0;
-            materialNormalStrength[j] = 200;
-        }
-        // Iron door: higher F0 than enum default
-        materialF0R[MaterialBlock.IRON_DOOR.ordinal()] = 560;
-        materialF0G[MaterialBlock.IRON_DOOR.ordinal()] = 570;
-        materialF0B[MaterialBlock.IRON_DOOR.ordinal()] = 580;
-
-        // Gold family: mirror-smooth with procedural noise
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.BELL, MaterialBlock.GOLD_BLOCK,
-                MaterialBlock.LIGHT_WEIGHTED_PRESSURE_PLATE, MaterialBlock.RAW_GOLD_BLOCK}) {
-            int j = mb.ordinal();
-            materialRoughness[j] = 0;
-            materialNoiseScale[j] = 112;
-            materialNoiseOctaves[j] = 4;
-            materialNoiseType[j] = 2;
-            materialSheenTint[j] = 0;
-            materialCoatRoughness[j] = 0;
-            materialNormalStrength[j] = 0;
-        }
-
-        // Other metals
-        materialRoughness[MaterialBlock.COPPER_BLOCK.ordinal()] = 5;
-        materialIOR[MaterialBlock.COPPER_BLOCK.ordinal()] = 1000;
-
-        materialRoughness[MaterialBlock.LIGHTNING_ROD.ordinal()] = 0;
-        materialIOR[MaterialBlock.LIGHTNING_ROD.ordinal()] = 1000;
-
-        materialRoughness[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 0;
-        materialIOR[MaterialBlock.RAW_COPPER_BLOCK.ordinal()] = 1000;
-
-        // Raw iron: dielectric treatment
-        materialRoughness[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 100;
-        materialMetallic[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 0;
-
-        // Gems & minerals
-        materialRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
-        materialTransmission[MaterialBlock.EMERALD_BLOCK.ordinal()] = 1000;
-        materialGamutBoost[MaterialBlock.EMERALD_BLOCK.ordinal()] = 142;
-        materialCoatRoughness[MaterialBlock.EMERALD_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMin[MaterialBlock.EMERALD_BLOCK.ordinal()] = 10;
-        materialAutoPBRRoughnessMax[MaterialBlock.EMERALD_BLOCK.ordinal()] = 18;
-        materialAutoPBRFlags[MaterialBlock.EMERALD_BLOCK.ordinal()] = 2; // invertNormal
-        materialPercentileSpread[MaterialBlock.EMERALD_BLOCK.ordinal()] = 100;
-        materialNormalStrength[MaterialBlock.EMERALD_BLOCK.ordinal()] = 200;
-
-        materialRoughness[MaterialBlock.OBSIDIAN.ordinal()] = 0;
-        materialGamutBoost[MaterialBlock.OBSIDIAN.ordinal()] = 142;
-
-        materialRoughness[MaterialBlock.CRYING_OBSIDIAN.ordinal()] = 0;
-        materialGamutBoost[MaterialBlock.CRYING_OBSIDIAN.ordinal()] = 142;
-
-        // Transmissives
-        materialRoughness[MaterialBlock.HONEY_MAT.ordinal()] = 0;
-        materialTransmission[MaterialBlock.HONEY_MAT.ordinal()] = 1000;
-        materialNormalStrength[MaterialBlock.HONEY_MAT.ordinal()] = 0;
-        materialAutoPBRRoughnessMin[MaterialBlock.HONEY_MAT.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.HONEY_MAT.ordinal()] = 100;
-        materialPercentileCenter[MaterialBlock.HONEY_MAT.ordinal()] = 0;
-        materialPercentileSpread[MaterialBlock.HONEY_MAT.ordinal()] = 100;
-
-        materialRoughness[MaterialBlock.ICE.ordinal()] = 0;
-        materialCoatRoughness[MaterialBlock.ICE.ordinal()] = 28;
-
-        materialRoughness[MaterialBlock.SLIME_MAT.ordinal()] = 2;
-        materialTransmission[MaterialBlock.SLIME_MAT.ordinal()] = 1000;
-        materialAutoPBRRoughnessMin[MaterialBlock.SLIME_MAT.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.SLIME_MAT.ordinal()] = 0;
-        materialNormalStrength[MaterialBlock.SLIME_MAT.ordinal()] = 0;
-
-        materialRoughness[MaterialBlock.WATER_MAT.ordinal()] = 4;
-        materialF0R[MaterialBlock.WATER_MAT.ordinal()] = 20;
-        materialF0G[MaterialBlock.WATER_MAT.ordinal()] = 20;
-        materialF0B[MaterialBlock.WATER_MAT.ordinal()] = 20;
-        materialCoatWeight[MaterialBlock.WATER_MAT.ordinal()] = 1000;
-        materialCoatRoughness[MaterialBlock.WATER_MAT.ordinal()] = 0;
-        materialTransmission[MaterialBlock.WATER_MAT.ordinal()] = 1000;
-        materialAutoPBRFlags[MaterialBlock.WATER_MAT.ordinal()] = 3; // invertRoughness + invertNormal
-        materialAutoPBRRoughnessMin[MaterialBlock.WATER_MAT.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.WATER_MAT.ordinal()] = 100;
-        materialNormalStrength[MaterialBlock.WATER_MAT.ordinal()] = 1;
-
-        // Stones: slight metallic sparkle
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.STONE, MaterialBlock.COBBLESTONE_MAT, MaterialBlock.MOSSY_COBBLESTONE_MAT,
-                MaterialBlock.STONE_BRICKS_MAT, MaterialBlock.MOSSY_STONE_BRICKS_MAT, MaterialBlock.SMOOTH_STONE}) {
-            int j = mb.ordinal();
-            materialMetallic[j] = 174;
-        }
-        // Stone family roughness overrides
-        materialRoughness[MaterialBlock.COBBLESTONE_MAT.ordinal()] = 80;
-        materialRoughness[MaterialBlock.MOSSY_COBBLESTONE_MAT.ordinal()] = 80;
-        materialRoughness[MaterialBlock.STONE_BRICKS_MAT.ordinal()] = 80;
-        materialRoughness[MaterialBlock.MOSSY_STONE_BRICKS_MAT.ordinal()] = 80;
-        materialRoughness[MaterialBlock.SMOOTH_STONE.ordinal()] = 80;
-
-        // Redstone: dielectric treatment
-        materialF0R[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 4;
-        materialF0G[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 4;
-        materialF0B[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 4;
-        materialMetallic[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
-        materialRoughness[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 49;
-        materialIOR[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1127;
-        materialGamutBoost[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 143;
-        materialNormalStrength[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMin[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 10;
-        materialAutoPBRRoughnessMax[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 44;
-        materialAutoPBRFlags[MaterialBlock.REDSTONE_BLOCK.ordinal()] = 1; // invertRoughness
-
-        // Special blocks
-        materialF0R[MaterialBlock.DIRT_MAT.ordinal()] = 2;
-        materialF0G[MaterialBlock.DIRT_MAT.ordinal()] = 2;
-        materialF0B[MaterialBlock.DIRT_MAT.ordinal()] = 2;
-        materialIOR[MaterialBlock.DIRT_MAT.ordinal()] = 1088;
-        materialRoughness[MaterialBlock.DIRT_MAT.ordinal()] = 100;
-        materialNormalStrength[MaterialBlock.DIRT_MAT.ordinal()] = 0;
-        materialGamutBoost[MaterialBlock.DIRT_MAT.ordinal()] = 142;
-
-        materialRoughness[MaterialBlock.PUMPKIN_MAT.ordinal()] = 0;
-        materialCoatRoughness[MaterialBlock.PUMPKIN_MAT.ordinal()] = 0;
-        materialGamutBoost[MaterialBlock.PUMPKIN_MAT.ordinal()] = 142;
-
-        materialGamutBoost[MaterialBlock.SAND_MAT.ordinal()] = 142;
-        materialGamutBoost[MaterialBlock.WOOL_MAT.ordinal()] = 142;
-
-        // ── Per-block Auto-PBR tuning (user-validated defaults) ──
-
-        // Iron family: dark = smooth, light = rough (invertNormal)
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.ANVIL, MaterialBlock.CAULDRON, MaterialBlock.CHAIN,
-                MaterialBlock.HEAVY_WEIGHTED_PRESSURE_PLATE, MaterialBlock.HOPPER,
-                MaterialBlock.IRON_BARS, MaterialBlock.IRON_BLOCK, MaterialBlock.IRON_DOOR}) {
-            int j = mb.ordinal();
-            materialAutoPBRFlags[j] = 2; // invertNormal
-            materialAutoPBRRoughnessMin[j] = 0;
-            materialAutoPBRRoughnessMax[j] = 5;
-            materialPercentileCenter[j] = 93;
-            materialPercentileSpread[j] = 1;
-        }
-
-        // Gold family: dark = smooth, light = rough (invertRoughness), tall height gamma
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.BELL, MaterialBlock.GOLD_BLOCK,
-                MaterialBlock.LIGHT_WEIGHTED_PRESSURE_PLATE, MaterialBlock.RAW_GOLD_BLOCK}) {
-            int j = mb.ordinal();
-            materialAutoPBRFlags[j] = 1; // invertRoughness
-            materialAutoPBRRoughnessMin[j] = 0;
-            materialAutoPBRRoughnessMax[j] = 10;
-            materialAutoPBRHeightGamma[j] = 293;
-            materialPercentileCenter[j] = 100;
-            materialPercentileSpread[j] = 100;
-        }
-
-        // Stone family: high roughness, no auto normals
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.STONE, MaterialBlock.COBBLESTONE_MAT, MaterialBlock.MOSSY_COBBLESTONE_MAT,
-                MaterialBlock.STONE_BRICKS_MAT, MaterialBlock.MOSSY_STONE_BRICKS_MAT, MaterialBlock.SMOOTH_STONE}) {
-            int j = mb.ordinal();
-            materialNormalStrength[j] = 0;
-            materialAutoPBRRoughnessMin[j] = 85;
-            materialAutoPBRRoughnessMax[j] = 100;
-        }
-
-        // Deepslate: fully rough
-        materialAutoPBRRoughnessMin[MaterialBlock.DEEPSLATE.ordinal()] = 100;
-        materialAutoPBRRoughnessMax[MaterialBlock.DEEPSLATE.ordinal()] = 100;
-
-        // Polished/raw stone variants
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.ANDESITE, MaterialBlock.POLISHED_ANDESITE}) {
-            materialAutoPBRRoughnessMin[mb.ordinal()] = 51;
-            materialAutoPBRRoughnessMax[mb.ordinal()] = 100;
-        }
-        materialAutoPBRRoughnessMin[MaterialBlock.DIORITE.ordinal()] = 51;
-        materialAutoPBRRoughnessMin[MaterialBlock.POLISHED_DIORITE.ordinal()] = 51;
-        materialAutoPBRRoughnessMin[MaterialBlock.CALCITE.ordinal()] = 52;
-        materialAutoPBRRoughnessMin[MaterialBlock.SANDSTONE_MAT.ordinal()] = 51;
-
-        // Obsidian family: glossy, high gamma, inverted roughness
-        for (MaterialBlock mb : new MaterialBlock[]{
-                MaterialBlock.OBSIDIAN, MaterialBlock.CRYING_OBSIDIAN}) {
-            int j = mb.ordinal();
-            materialAutoPBRFlags[j] = 1; // invertRoughness
-            materialAutoPBRRoughnessMin[j] = 0;
-            materialAutoPBRRoughnessMax[j] = 14;
-            materialNormalStrength[j] = 100;
-        }
-
-        // Ancient debris: narrow low-roughness band, tight percentile
-        materialAutoPBRRoughnessMin[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 9;
-        materialAutoPBRRoughnessMax[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 40;
-        materialNormalStrength[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 0;
-        materialPercentileCenter[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 32;
-        materialPercentileSpread[MaterialBlock.ANCIENT_DEBRIS.ordinal()] = 1;
-
-        // Diamond: inverted roughness, full range
-        materialAutoPBRFlags[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 1; // invertRoughness
-        materialAutoPBRRoughnessMin[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.DIAMOND_BLOCK.ordinal()] = 100;
-
-        // Rail: inverted roughness + normal, full range
-        materialAutoPBRFlags[MaterialBlock.RAIL.ordinal()] = 3; // invertRoughness + invertNormal
-        materialAutoPBRRoughnessMin[MaterialBlock.RAIL.ordinal()] = 0;
-        materialAutoPBRRoughnessMax[MaterialBlock.RAIL.ordinal()] = 100;
-        materialPercentileCenter[MaterialBlock.RAIL.ordinal()] = 100;
-        materialPercentileSpread[MaterialBlock.RAIL.ordinal()] = 73;
-
-        // Raw iron: tight percentile, low height gamma
-        materialAutoPBRRoughnessMin[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 10;
-        materialAutoPBRRoughnessMax[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 100;
-        materialAutoPBRHeightGamma[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 10;
-        materialPercentileCenter[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 57;
-        materialPercentileSpread[MaterialBlock.RAW_IRON_BLOCK.ordinal()] = 5;
-
-        // Ice: inverted roughness
-        materialAutoPBRFlags[MaterialBlock.ICE.ordinal()] = 1; // invertRoughness
-
-        // Dirt: fully rough, flat height, no normals
-        materialAutoPBRRoughnessMin[MaterialBlock.DIRT_MAT.ordinal()] = 100;
-        materialAutoPBRRoughnessMax[MaterialBlock.DIRT_MAT.ordinal()] = 99;
-        materialAutoPBRHeightGamma[MaterialBlock.DIRT_MAT.ordinal()] = 10;
-
-        // Sand: narrow high-roughness band
-        materialAutoPBRRoughnessMin[MaterialBlock.SAND_MAT.ordinal()] = 76;
-        materialAutoPBRRoughnessMax[MaterialBlock.SAND_MAT.ordinal()] = 85;
-
-        // Gravel, leaves, oak planks
-        materialAutoPBRRoughnessMin[MaterialBlock.GRAVEL_MAT.ordinal()] = 89;
-        materialAutoPBRRoughnessMin[MaterialBlock.LEAVES_MAT.ordinal()] = 53;
-        materialAutoPBRRoughnessMin[MaterialBlock.OAK_PLANKS.ordinal()] = 0;
-
-        // Wool: high roughness, no variance/edge, inverted roughness
-        materialAutoPBRFlags[MaterialBlock.WOOL_MAT.ordinal()] = 1; // invertRoughness
-        materialAutoPBRRoughnessMin[MaterialBlock.WOOL_MAT.ordinal()] = 95;
-        materialAutoPBRRoughnessMax[MaterialBlock.WOOL_MAT.ordinal()] = 100;
-        materialNormalStrength[MaterialBlock.WOOL_MAT.ordinal()] = 0;
-        materialPercentileSpread[MaterialBlock.WOOL_MAT.ordinal()] = 100;
+    private static boolean legacyMaterialCompatAllDisabled(Properties props) {
+        return !Boolean.parseBoolean(props.getProperty("materialCompatEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatCtmEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatRandomEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatNaturalEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatColorsEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", "false"))
+            && !Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", "false"));
     }
 
-    // Child override tracking: true = child has been independently customized, won't inherit parent changes
-    public static final boolean[] materialChildOverride = new boolean[MAX_MATERIALS];
+    public static boolean materialCompatDefaultsMigrationAppliesForTest(int loadedOptionsVersion,
+        Properties props) {
+        return loadedOptionsVersion < 24 && legacyMaterialCompatAllDisabled(props);
+    }
 
-    /** Propagate parent material properties to all non-overridden children. */
-    public static void propagateParentMaterial(int parentOrdinal) {
-        MaterialBlock parent = MaterialBlock.values()[parentOrdinal];
-        for (MaterialBlock child : parent.getChildren()) {
-            int ci = child.ordinal();
-            if (!materialChildOverride[ci]) {
-                materialF0R[ci] = materialF0R[parentOrdinal];
-                materialF0G[ci] = materialF0G[parentOrdinal];
-                materialF0B[ci] = materialF0B[parentOrdinal];
-                materialRoughness[ci] = materialRoughness[parentOrdinal];
-                materialMetallic[ci] = materialMetallic[parentOrdinal];
-                materialTransmission[ci] = materialTransmission[parentOrdinal];
-                materialIOR[ci] = materialIOR[parentOrdinal];
-                materialSubsurface[ci] = materialSubsurface[parentOrdinal];
-                materialAnisotropic[ci] = materialAnisotropic[parentOrdinal];
-                materialSheenWeight[ci] = materialSheenWeight[parentOrdinal];
-                materialSheenTint[ci] = materialSheenTint[parentOrdinal];
-                materialCoatWeight[ci] = materialCoatWeight[parentOrdinal];
-                materialCoatRoughness[ci] = materialCoatRoughness[parentOrdinal];
-                materialNoiseScale[ci] = materialNoiseScale[parentOrdinal];
-                materialNoiseStrength[ci] = materialNoiseStrength[parentOrdinal];
-                materialNoiseOctaves[ci] = materialNoiseOctaves[parentOrdinal];
-                materialNoiseType[ci] = materialNoiseType[parentOrdinal];
-                materialNoiseSeed[ci] = materialNoiseSeed[parentOrdinal];
-                materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
-                materialNoiseMaskMode[ci] = materialNoiseMaskMode[parentOrdinal];
-                materialNoiseMaskInvert[ci] = materialNoiseMaskInvert[parentOrdinal];
-                materialNoiseMaskThreshold[ci] = materialNoiseMaskThreshold[parentOrdinal];
-                materialNoiseWrap[ci] = materialNoiseWrap[parentOrdinal];
-                materialNoiseRotation[ci] = materialNoiseRotation[parentOrdinal];
-                materialNoiseAspect[ci] = materialNoiseAspect[parentOrdinal];
-                materialNoiseLacunarity[ci] = materialNoiseLacunarity[parentOrdinal];
-                materialNoiseContrast[ci] = materialNoiseContrast[parentOrdinal];
-                materialGamutBoost[ci] = materialGamutBoost[parentOrdinal];
-                materialGamutBoostMode[ci] = materialGamutBoostMode[parentOrdinal];
-                materialPomDepth[ci] = materialPomDepth[parentOrdinal];
-                materialNormalStrength[ci] = materialNormalStrength[parentOrdinal];
-                materialAutoPBRRoughnessMin[ci] = materialAutoPBRRoughnessMin[parentOrdinal];
-                materialAutoPBRRoughnessMax[ci] = materialAutoPBRRoughnessMax[parentOrdinal];
-                materialPercentileCenter[ci] = materialPercentileCenter[parentOrdinal];
-                materialPercentileSpread[ci] = materialPercentileSpread[parentOrdinal];
-                materialAutoPBRHeightGamma[ci] = materialAutoPBRHeightGamma[parentOrdinal];
-                materialAutoPBRFlags[ci] = materialAutoPBRFlags[parentOrdinal];
-                materialNormalInputType[ci] = materialNormalInputType[parentOrdinal];
-                materialSpecularInputType[ci] = materialSpecularInputType[parentOrdinal];
-                materialCustomNormalPath[ci] = materialCustomNormalPath[parentOrdinal];
-                materialCustomSpecularPath[ci] = materialCustomSpecularPath[parentOrdinal];
-                materialNoiseTarget[ci] = materialNoiseTarget[parentOrdinal];
-                materialHeightFilter[ci] = materialHeightFilter[parentOrdinal];
-                materialFilterRadius[ci] = materialFilterRadius[parentOrdinal];
-                materialMipBias[ci] = materialMipBias[parentOrdinal];
-                materialPomMode[ci] = materialPomMode[parentOrdinal];
-                materialPomSteps[ci] = materialPomSteps[parentOrdinal];
-                materialPomRefinement[ci] = materialPomRefinement[parentOrdinal];
-                materialPomClipSilhouette[ci] = materialPomClipSilhouette[parentOrdinal];
-                materialPomAreaLightOffset[ci] = materialPomAreaLightOffset[parentOrdinal];
-                materialPomMotionVectors[ci] = materialPomMotionVectors[parentOrdinal];
-                materialHeightSource[ci] = materialHeightSource[parentOrdinal];
-                materialHeightContrast[ci] = materialHeightContrast[parentOrdinal];
-                materialHeightRemapMin[ci] = materialHeightRemapMin[parentOrdinal];
-                materialHeightRemapMax[ci] = materialHeightRemapMax[parentOrdinal];
-                materialHeightOffset[ci] = materialHeightOffset[parentOrdinal];
-                materialNormalClamp[ci] = materialNormalClamp[parentOrdinal];
-                materialGeometricBlend[ci] = materialGeometricBlend[parentOrdinal];
-                materialNormalDistanceFade[ci] = materialNormalDistanceFade[parentOrdinal];
-                materialPomAOStrength[ci] = materialPomAOStrength[parentOrdinal];
-            }
+    public static void applyMaterialCompatDefaultsMigrationForTest(int loadedOptionsVersion,
+        Properties props) {
+        if (materialCompatDefaultsMigrationAppliesForTest(loadedOptionsVersion, props)) {
+            enableMaterialCompatDefaults();
         }
-        markMaterialDirty();
     }
 
-    /** Validate material properties for physical plausibility. Returns list of warning strings. */
-    public static List<String> validateMaterial(int blockIndex) {
-        List<String> warnings = new ArrayList<>();
-        if (blockIndex < 0 || blockIndex >= MAX_MATERIALS) return warnings;
-
-        boolean isMetal = materialMetallic[blockIndex] > 500;
-        boolean hasTransmission = materialTransmission[blockIndex] > 0;
-        boolean hasSSS = materialSubsurface[blockIndex] > 0;
-        int ior = materialIOR[blockIndex];
-
-        if (isMetal && hasTransmission)
-            warnings.add("Metals cannot transmit light");
-        if (isMetal && hasSSS)
-            warnings.add("SSS has no effect on metals");
-        if (hasTransmission && ior < 1000)
-            warnings.add("IOR below 1.0 is unphysical");
-        if (hasTransmission && ior == 1000)
-            warnings.add("IOR = 1.0 won't refract");
-
-        return warnings;
-    }
-
-    // Auto-PBR generation (roughness + normals from vanilla albedo textures)
-    public static boolean autoPBREnabled = true; // Global kill switch (default on; disable to suppress all)
-    public static final boolean[] materialAutoPBR = new boolean[MAX_MATERIALS]; // per-block toggle, default true
-    static { java.util.Arrays.fill(materialAutoPBR, true); }
-    // Global override sliders removed — per-block arrays are the sole authority.
-    // (bit 0 = invertRoughness, bit 1 = invertNormal, bit 2 = invertHeight)
-
-    // Per-material channel input type: 0=Auto, 1=Custom, 2=Flat
-    public static final int[] materialNormalInputType = new int[MAX_MATERIALS];
-    public static final int[] materialSpecularInputType = new int[MAX_MATERIALS];
-    public static final String[] materialCustomNormalPath = new String[MAX_MATERIALS];
-    public static final String[] materialCustomSpecularPath = new String[MAX_MATERIALS];
-    static {
-        java.util.Arrays.fill(materialCustomNormalPath, "");
-        java.util.Arrays.fill(materialCustomSpecularPath, "");
-    }
-
-    // Noise target channels: bit 0=roughness (default ON), bit 1=normal perturbation, bit 2=metallic
-    public static final int[] materialNoiseTarget = new int[MAX_MATERIALS];
-    static {
-        java.util.Arrays.fill(materialNoiseTarget, 1); // default: roughness only
+    private static void enableMaterialCompatDefaults() {
+        materialCompatEnabled = true;
+        materialCompatCtmEnabled = true;
+        materialCompatRandomEnabled = true;
+        materialCompatNaturalEnabled = true;
+        materialCompatColorsEnabled = true;
+        materialCompatOverlaysEnabled = true;
+        materialCompatLegacyMcPatcherEnabled = true;
+        materialCompatPhysicalEmissiveEnabled = true;
     }
 
     // Environmental settings (per dimension: overworld/nether/end)
@@ -1568,8 +897,8 @@ public class Options {
     // Default: enable mottled cloud shadows in the overworld only.
     public static final int[] cloudNoiseAffectsShadows = new int[]{1, 0, 0};
 
-    // Volumetric cloud module settings (global, not per-dimension)
-    public static int volCloudQuality = 3;            // 0=Off, 1=Low, 2=Medium, 3=High, 4=Ultra, 5=Extreme
+    // Retired fork CloudModule settings retained for native ABI compatibility.
+    public static int volCloudQuality = 0;            // Forced off for the 0.1.5 visual-only lane.
     public static int volCloudDensityTenths = 10;     // 1-30 → 0.1-3.0
     public static int volCloudCoveragePercent = 35;   // 0-100 → 0.0-1.0
     public static int volCloudTypePercent = 67;       // 0-100 → 0.0-1.0 (0=Stratus, 33=Sc, 67=Cumulus, 100=Cb)
@@ -1591,14 +920,9 @@ public class Options {
     public static int volCloudNoiseRes = 128;          // 128 (8MB), 256 (64MB), 512 (512MB)
     public static int wetSurfaceStrengthPercent = 100; // 0-200 → 0.0-2.0
 
-    public static final String[] VOL_CLOUD_QUALITY_NAMES = {
-        "Off", "Low", "Medium", "High", "Ultra", "Extreme"
-    };
-
-    // Ordered by increasing meteorological altitude: low → high
-    public static final String[] VOL_CLOUD_TYPE_NAMES = {
-        "Stratus", "Stratocumulus", "Cumulus", "Cumulonimbus"
-    };
+    public static boolean isVolumetricCloudModuleEnabled() {
+        return false;
+    }
 
     public static final int[] waterTintR = new int[]{WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT, WATER_TINT_R_DEFAULT};
     public static final int[] waterTintG = new int[]{WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT, WATER_TINT_G_DEFAULT};
@@ -1612,6 +936,7 @@ public class Options {
 
     // Debounce for DLSS quality changes (500ms)
     private static ScheduledFuture<?> dlssRebuildTask;
+    private static ScheduledFuture<?> upscalerPresetTask;
     private static final ScheduledExecutorService scheduler =
         Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "radiance-settings-debounce");
@@ -1690,12 +1015,6 @@ public class Options {
             setChunkCullDistance(
                 Integer.parseInt(props.getProperty("chunkCullDistance",
                     String.valueOf(chunkCullDistance))), false);
-            setChunkLodDistance(
-                Integer.parseInt(props.getProperty("chunkLodDistance",
-                    String.valueOf(chunkLodDistance))), false);
-            setExtendedRenderDistance(
-                Integer.parseInt(props.getProperty("extendedRenderDistance",
-                    String.valueOf(extendedRenderDistance))), false);
             tonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
                 "tonemappingMode", String.valueOf(tonemappingMode))));
             sdrTonemappingMode = clampTonemappingMode(Integer.parseInt(props.getProperty(
@@ -1722,8 +1041,8 @@ public class Options {
 
             // Push to native directly on startup (no debounce, write=false)
             // Support both old "dlss*" keys and new "upscaler*" keys for backwards compatibility
-            upscalerResOverride = Integer.parseInt(props.getProperty("upscalerResOverride",
-                props.getProperty("dlssResOverride", String.valueOf(upscalerResOverride))));
+            upscalerResOverride = clampPercent(Integer.parseInt(props.getProperty("upscalerResOverride",
+                props.getProperty("dlssResOverride", String.valueOf(upscalerResOverride)))));
             nativeSetDlssResOverride(upscalerResOverride, false);
 
             upscalerQuality = Integer.parseInt(props.getProperty("upscalerQuality",
@@ -1752,23 +1071,15 @@ public class Options {
             rayBounces = Integer.parseInt(props.getProperty("rayBounces", String.valueOf(rayBounces)));
             nativeSetRayBounces(rayBounces, false);
 
-            ommEnabled = Boolean.parseBoolean(props.getProperty("ommEnabled", String.valueOf(ommEnabled)));
-            nativeSetOMMEnabled(ommEnabled, false);
-
-            ommBakerLevel = clamp(Integer.parseInt(props.getProperty("ommBakerLevel", String.valueOf(ommBakerLevel))), 1, 8);
-            nativeSetOMMBakerLevel(ommBakerLevel, false);
-
-            greedyMeshingEnabled = Boolean.parseBoolean(props.getProperty("greedyMeshingEnabled", String.valueOf(greedyMeshingEnabled)));
-            nativeSetGreedyMeshingEnabled(greedyMeshingEnabled, false);
-
             simplifiedIndirect = Boolean.parseBoolean(props.getProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect)));
             nativeSetSimplifiedIndirect(simplifiedIndirect, false);
-            noiseLOD = Boolean.parseBoolean(props.getProperty("noiseLOD", String.valueOf(noiseLOD)));
-            try { nativeSetNoiseLOD(noiseLOD, false); } catch (UnsatisfiedLinkError ignored) {}
             multiScatterGGX = Boolean.parseBoolean(props.getProperty("multiScatterGGX", String.valueOf(multiScatterGGX)));
             try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
             eonDiffuse = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(eonDiffuse)));
-            try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
+            diffuseModel = diffuseModelFromProperties(props, diffuseModel, eonDiffuse);
+            eonDiffuse = diffuseModel != DIFFUSE_MODEL_LEGACY;
+            try { nativeSetDiffuseModel(diffuseModel, false); } catch (UnsatisfiedLinkError ignored) {}
+            shaderPackPath = props.getProperty("shaderPackPath", shaderPackPath);
 
             windowPosX = Integer.parseInt(props.getProperty("windowPosX", String.valueOf(windowPosX)));
             windowPosY = Integer.parseInt(props.getProperty("windowPosY", String.valueOf(windowPosY)));
@@ -1776,29 +1087,22 @@ public class Options {
             windowHeight = Integer.parseInt(props.getProperty("windowHeight", String.valueOf(windowHeight)));
 
             loggingEnabled = Boolean.parseBoolean(props.getProperty("loggingEnabled", String.valueOf(loggingEnabled)));
-            // Don't call nativeSetLoggingEnabled here — C++ not initialized yet. Applied after renderer init.
+            gpuDebugLabels = Boolean.parseBoolean(props.getProperty("gpuDebugLabels", String.valueOf(loggingEnabled)));
+            nativeSetGpuDebugLabels(gpuDebugLabels, false);
+            // Full file logging waits for renderer init, but Vulkan debug labels are safe to arm now.
 
-            pomEnabled = Boolean.parseBoolean(props.getProperty("pomEnabled", String.valueOf(pomEnabled)));
-            nativeSetPOMEnabled(pomEnabled, false);
-            pomHeightScalePercent = clamp(Integer.parseInt(props.getProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent))), 1, 50);
-            nativeSetPOMHeightScale(pomHeightScalePercent / 100.0f, false);
-            pomSteps = clamp(Integer.parseInt(props.getProperty("pomSteps", String.valueOf(pomSteps))), 8, 512);
-            nativeSetPOMSteps(pomSteps, false);
-            pomRefinement = clamp(Integer.parseInt(props.getProperty("pomRefinement", String.valueOf(pomRefinement))), 0, 8);
-            nativeSetPOMRefinement(pomRefinement, false);
-            pomFadeDistance = clamp(Integer.parseInt(props.getProperty("pomFadeDistance", String.valueOf(pomFadeDistance))), 8, 256);
-            nativeSetPOMFadeDistance((float) pomFadeDistance, false);
-
-            displacementQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))), 0, 4);
-            nativeSetDisplacementQuality(displacementQuality, false);
-            tessMaxLevel = clamp(Integer.parseInt(props.getProperty("tessMaxLevel", String.valueOf(tessMaxLevel))), 2, 32);
-            nativeSetTessMaxLevel(tessMaxLevel, false);
-            tessNearDist = clamp(Integer.parseInt(props.getProperty("tessNearDist", String.valueOf(tessNearDist))), 8, 256);
-            nativeSetTessNearDist(tessNearDist, false);
-            tessMidDist = clamp(Integer.parseInt(props.getProperty("tessMidDist", String.valueOf(tessMidDist))), 16, 384);
-            nativeSetTessMidDist(tessMidDist, false);
-            tessFarDist = clamp(Integer.parseInt(props.getProperty("tessFarDist", String.valueOf(tessFarDist))), 32, 512);
-            nativeSetTessFarDist(tessFarDist, false);
+            boolean hasCanonicalDisplacement = props.containsKey("displacementEnabled");
+            boolean hasDisplacementQualityKey = props.containsKey("displacementQuality");
+            int loadedQuality = clamp(Integer.parseInt(props.getProperty("displacementQuality", String.valueOf(displacementQuality))),
+                DISPLACEMENT_QUALITY_LOW, DISPLACEMENT_QUALITY_ULTRA);
+            applyDisplacementQualityPreset(hasDisplacementQualityKey ? loadedQuality : displacementQuality);
+            displacementEnabled = Boolean.parseBoolean(props.getProperty(
+                "displacementEnabled", props.getProperty("pomEnabled", String.valueOf(displacementEnabled))));
+            displacementDepthCapPercent = clamp(Integer.parseInt(props.getProperty(
+                "displacementDepthCapPercent", props.getProperty("pomHeightScalePercent", String.valueOf(displacementDepthCapPercent)))), 1, 50);
+            displacementFadeDistance = clamp(Integer.parseInt(props.getProperty(
+                "displacementFadeDistance", props.getProperty("pomFadeDistance", String.valueOf(displacementFadeDistance)))), 8, 256);
+            syncDisplacementNative(false);
 
             useV2Engine = Boolean.parseBoolean(props.getProperty("useV2Engine", String.valueOf(useV2Engine)));
 
@@ -1828,52 +1132,16 @@ public class Options {
             sharcUpdateBlockSize = clamp(Integer.parseInt(props.getProperty("sharcUpdateBlockSize", String.valueOf(sharcUpdateBlockSize))), 1, 8);
             nativeSetSharcUpdateBlockSize(sharcUpdateBlockSize, false);
 
-            sharcUpdateBounces = clamp(Integer.parseInt(props.getProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces))), 2, 16);
+            sharcUpdateBounces = clamp(Integer.parseInt(props.getProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces))), 2, 8);
             nativeSetSharcUpdateBounces(sharcUpdateBounces, false);
 
-            sharcCapacityExponent = clamp(Integer.parseInt(props.getProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent))), 18, 26);
+            sharcCapacityExponent = clamp(Integer.parseInt(props.getProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent))), 18, 24);
             nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
 
+            sharcQueryMode = clamp(Integer.parseInt(props.getProperty("sharcQueryMode", String.valueOf(sharcQueryMode))), 0, 2);
+            nativeSetSharcQueryMode(sharcQueryMode, false);
+
             sharcQualityPreset = clamp(Integer.parseInt(props.getProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset))), 0, 5);
-
-            areaLightsEnabled = Boolean.parseBoolean(props.getProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled)));
-            nativeSetAreaLightsEnabled(areaLightsEnabled, false);
-
-            restirEnabled = Boolean.parseBoolean(props.getProperty("restirEnabled", String.valueOf(restirEnabled)));
-            nativeSetRestirEnabled(restirEnabled, false);
-
-            areaLightIntensityPercent = clamp(Integer.parseInt(props.getProperty("areaLightIntensityPercent", String.valueOf(areaLightIntensityPercent))), 0, 500);
-            nativeSetAreaLightIntensity(areaLightIntensityPercent / 100.0f, false);
-
-            areaLightRange = clamp(Integer.parseInt(props.getProperty("areaLightRange", String.valueOf(areaLightRange))), 8, 512);
-            nativeSetAreaLightRange(areaLightRange, false);
-
-            shadowSoftnessPercent = clamp(Integer.parseInt(props.getProperty("shadowSoftnessPercent", String.valueOf(shadowSoftnessPercent))), 0, 200);
-            nativeSetShadowSoftness(shadowSoftnessPercent / 100.0f, false);
-
-            restirCandidates = clamp(Integer.parseInt(props.getProperty("restirCandidates", String.valueOf(restirCandidates))), 8, 64);
-            nativeSetRestirCandidates(restirCandidates, false);
-
-            restirTemporalMClamp = clamp(Integer.parseInt(props.getProperty("restirTemporalMClamp", String.valueOf(restirTemporalMClamp))), 5, 50);
-            nativeSetRestirTemporalMClamp(restirTemporalMClamp, false);
-
-            restirWClamp = clamp(Integer.parseInt(props.getProperty("restirWClamp", String.valueOf(restirWClamp))), 10, 200);
-            nativeSetRestirWClamp(restirWClamp, false);
-
-            restirSpatialTaps = clamp(Integer.parseInt(props.getProperty("restirSpatialTaps", String.valueOf(restirSpatialTaps))), 1, 10);
-            nativeSetRestirSpatialTaps(restirSpatialTaps, false);
-
-            restirSpatialRadius = clamp(Integer.parseInt(props.getProperty("restirSpatialRadius", String.valueOf(restirSpatialRadius))), 5, 60);
-            nativeSetRestirSpatialRadius(restirSpatialRadius, false);
-
-            restirSimplifiedBRDF = Boolean.parseBoolean(props.getProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF)));
-            nativeSetRestirSimplifiedBRDF(restirSimplifiedBRDF, false);
-
-            restirSpatialEnabled = Boolean.parseBoolean(props.getProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled)));
-            nativeSetRestirSpatialEnabled(restirSpatialEnabled, false);
-
-            restirBounceEnabled = Boolean.parseBoolean(props.getProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled)));
-            nativeSetRestirBounceEnabled(restirBounceEnabled, false);
 
             beerLawShadows = Boolean.parseBoolean(props.getProperty("beerLawShadows", String.valueOf(beerLawShadows)));
             noEmissionClamp = Boolean.parseBoolean(props.getProperty("noEmissionClamp", String.valueOf(noEmissionClamp)));
@@ -1928,124 +1196,26 @@ public class Options {
             nativeSetNoHandAmbient(noHandAmbient, false);
             nativeSetEntityNormalsEnabled(entityNormalsEnabled, false);
 
-            for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
-                areaLightBlockIntensity[i] = clamp(Integer.parseInt(props.getProperty("areaLightBlock." + i, "100")), 0, 500);
-                nativeSetAreaLightBlockIntensity(i, areaLightBlockIntensity[i] / 100.0f);
-
-                areaLightBlockScale[i] = clamp(Integer.parseInt(props.getProperty("areaLightScale." + i, "100")), 10, 500);
-                nativeSetAreaLightBlockScale(i, areaLightBlockScale[i] / 100.0f);
-
-                int defR = (i < DEFAULT_LIGHT_COLORS.length) ? DEFAULT_LIGHT_COLORS[i][0] : 255;
-                int defG = (i < DEFAULT_LIGHT_COLORS.length) ? DEFAULT_LIGHT_COLORS[i][1] : 255;
-                int defB = (i < DEFAULT_LIGHT_COLORS.length) ? DEFAULT_LIGHT_COLORS[i][2] : 255;
-                areaLightBlockYOffset[i] = clamp(Integer.parseInt(props.getProperty("areaLightYOffset." + i, "0")), -50, 50);
-                nativeSetAreaLightBlockYOffset(i, areaLightBlockYOffset[i] / 100.0f);
-
-                areaLightBlockColorR[i] = clamp(Integer.parseInt(props.getProperty("areaLightColorR." + i, String.valueOf(defR))), 0, 255);
-                areaLightBlockColorG[i] = clamp(Integer.parseInt(props.getProperty("areaLightColorG." + i, String.valueOf(defG))), 0, 255);
-                areaLightBlockColorB[i] = clamp(Integer.parseInt(props.getProperty("areaLightColorB." + i, String.valueOf(defB))), 0, 255);
-                nativeSetAreaLightBlockColor(i, areaLightBlockColorR[i] / 255.0f, areaLightBlockColorG[i] / 255.0f, areaLightBlockColorB[i] / 255.0f);
-
-                blockLightMode[i] = clamp(Integer.parseInt(props.getProperty("blockLightMode." + i, "0")), 0, 2);
-                nativeSetBlockLightMode(i, blockLightMode[i]);
-            }
-
-            globalLightMode = clamp(Integer.parseInt(props.getProperty("globalLightMode", "2")), 0, 2);
-
-            // Material overrides
-            materialOverridesEnabled = Boolean.parseBoolean(props.getProperty("materialOverridesEnabled", "true"));
-
-            // Load metal/gem block properties
-            for (MaterialBlock mb : MaterialBlock.values()) {
-                int i = mb.ordinal();
-                String pid = mb.getId();
-                materialF0R[i] = clamp(Integer.parseInt(props.getProperty("materialF0R." + pid, String.valueOf(mb.getDefaultF0R()))), 0, 1000);
-                materialF0G[i] = clamp(Integer.parseInt(props.getProperty("materialF0G." + pid, String.valueOf(mb.getDefaultF0G()))), 0, 1000);
-                materialF0B[i] = clamp(Integer.parseInt(props.getProperty("materialF0B." + pid, String.valueOf(mb.getDefaultF0B()))), 0, 1000);
-                materialRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialRoughness." + pid, String.valueOf(mb.getDefaultRoughness()))), 0, 100);
-                materialMetallic[i] = clamp(Integer.parseInt(props.getProperty("materialMetallic." + pid, String.valueOf(mb.getDefaultMetallic()))), 0, 1000);
-                materialTransmission[i] = clamp(Integer.parseInt(props.getProperty("materialTransmission." + pid, String.valueOf(mb.getDefaultTransmission()))), 0, 1000);
-                materialIOR[i] = clamp(Integer.parseInt(props.getProperty("materialIOR." + pid, String.valueOf(mb.getDefaultIOR()))), 0, 3000);
-                materialSubsurface[i] = clamp(Integer.parseInt(props.getProperty("materialSubsurface." + pid, String.valueOf(mb.getDefaultSubsurface()))), 0, 1000);
-                materialAnisotropic[i] = clamp(Integer.parseInt(props.getProperty("materialAnisotropic." + pid, String.valueOf(mb.getDefaultAnisotropic()))), 0, 1000);
-                materialSheenWeight[i] = clamp(Integer.parseInt(props.getProperty("materialSheenWeight." + pid, String.valueOf(mb.getDefaultSheenWeight()))), 0, 1000);
-                materialSheenTint[i] = clamp(Integer.parseInt(props.getProperty("materialSheenTint." + pid, String.valueOf(mb.getDefaultSheenTint()))), 0, 1000);
-                materialCoatWeight[i] = clamp(Integer.parseInt(props.getProperty("materialCoatWeight." + pid, String.valueOf(mb.getDefaultCoatWeight()))), 0, 1000);
-                materialCoatRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialCoatRoughness." + pid, String.valueOf(mb.getDefaultCoatRoughness()))), 0, 100);
-                materialNoiseScale[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseScale." + pid, "50")), 1, 5000);
-                materialNoiseStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseStrength." + pid, "0")), 0, 1000);
-                materialNoiseOctaves[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseOctaves." + pid, "2")), 1, 12);
-                materialNoiseType[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseType." + pid, "0")), 0, 23);
-                materialNoiseSeed[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseSeed." + pid, "0")), 0, 999);
-                materialNoiseMaskMode[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseMaskMode." + pid, "0")), 0, 4);
-                materialNoiseMaskInvert[i] = Boolean.parseBoolean(props.getProperty("materialNoiseMaskInvert." + pid, "false"));
-                materialNoiseMaskThreshold[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseMaskThreshold." + pid, "500")), 0, 1000);
-                materialNoiseWrap[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseWrap." + pid, "0")), 0, 5);
-                materialNoiseRotation[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseRotation." + pid, "0")), 0, 3600);
-                materialNoiseAspect[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseAspect." + pid, "100")), 10, 1000);
-                materialNoiseLacunarity[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseLacunarity." + pid, "20")), 10, 40);
-                materialNoiseContrast[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseContrast." + pid, "100")), 0, 200);
-                materialGamutBoost[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]))), 0, 200);
-                materialGamutBoostMode[i] = clamp(Integer.parseInt(props.getProperty("materialGamutBoostMode." + pid, String.valueOf(materialGamutBoostMode[i]))), 0, 1);
-                materialPomDepth[i] = clamp(Integer.parseInt(props.getProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]))), 0, 200);
-                materialNormalStrength[i] = clamp(Integer.parseInt(props.getProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]))), 0, 200);
-                materialAutoPBRRoughnessMin[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]))), 0, 100);
-                materialAutoPBRRoughnessMax[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]))), 0, 100);
-                materialPercentileCenter[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]))), 0, 100);
-                materialPercentileSpread[i] = clamp(Integer.parseInt(props.getProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]))), 1, 100);
-                materialAutoPBRHeightGamma[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]))), 10, 300);
-                materialAutoPBRFlags[i] = clamp(Integer.parseInt(props.getProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]))), 0, 7);
-                materialNormalInputType[i] = clamp(Integer.parseInt(props.getProperty("materialNormalInputType." + pid, "0")), 0, 2);
-                materialSpecularInputType[i] = clamp(Integer.parseInt(props.getProperty("materialSpecularInputType." + pid, "0")), 0, 2);
-                materialCustomNormalPath[i] = props.getProperty("materialCustomNormalPath." + pid, "");
-                materialCustomSpecularPath[i] = props.getProperty("materialCustomSpecularPath." + pid, "");
-                materialNoiseTarget[i] = clamp(Integer.parseInt(props.getProperty("materialNoiseTarget." + pid, "1")), 0, 15);
-                materialHeightFilter[i] = clamp(Integer.parseInt(props.getProperty("materialHeightFilter." + pid, "0")), 0, 4);
-                materialFilterRadius[i] = clamp(Integer.parseInt(props.getProperty("materialFilterRadius." + pid, "0")), 0, 15);
-                materialMipBias[i] = clamp(Integer.parseInt(props.getProperty("materialMipBias." + pid, "0")), 0, 15);
-                materialPomMode[i] = clamp(Integer.parseInt(props.getProperty("materialPomMode." + pid, "0")), 0, 3);
-                materialPomSteps[i] = clamp(Integer.parseInt(props.getProperty("materialPomSteps." + pid, "64")), 4, 128);
-                materialPomRefinement[i] = clamp(Integer.parseInt(props.getProperty("materialPomRefinement." + pid, "4")), 0, 8);
-                materialPomClipSilhouette[i] = Boolean.parseBoolean(props.getProperty("materialPomClipSilhouette." + pid, "false"));
-                materialPomAreaLightOffset[i] = Boolean.parseBoolean(props.getProperty("materialPomAreaLightOffset." + pid, "false"));
-                materialPomMotionVectors[i] = Boolean.parseBoolean(props.getProperty("materialPomMotionVectors." + pid, "false"));
-                materialHeightSource[i] = clamp(Integer.parseInt(props.getProperty("materialHeightSource." + pid, "0")), 0, 7);
-                materialHeightContrast[i] = clamp(Integer.parseInt(props.getProperty("materialHeightContrast." + pid, "10")), 0, 30);
-                materialHeightRemapMin[i] = clamp(Integer.parseInt(props.getProperty("materialHeightRemapMin." + pid, "0")), 0, 100);
-                materialHeightRemapMax[i] = clamp(Integer.parseInt(props.getProperty("materialHeightRemapMax." + pid, "100")), 0, 100);
-                materialHeightOffset[i] = clamp(Integer.parseInt(props.getProperty("materialHeightOffset." + pid, "100")), 0, 200);
-                materialNormalClamp[i] = clamp(Integer.parseInt(props.getProperty("materialNormalClamp." + pid, "100")), 0, 100);
-                materialGeometricBlend[i] = clamp(Integer.parseInt(props.getProperty("materialGeometricBlend." + pid, "0")), 0, 100);
-                materialNormalDistanceFade[i] = clamp(Integer.parseInt(props.getProperty("materialNormalDistanceFade." + pid, "0")), 0, 255);
-                materialPomAOStrength[i] = clamp(Integer.parseInt(props.getProperty("materialPomAOStrength." + pid, "0")), 0, 100);
-            }
-
-            // Child override flags
-            for (MaterialBlock mb : MaterialBlock.values()) {
-                int i = mb.ordinal();
-                materialChildOverride[i] = Boolean.parseBoolean(props.getProperty("materialChildOverride." + mb.getId(), "false"));
-            }
-            markMaterialDirty();
-
-            // Entity material overrides
-            for (com.radiance.client.material.EntityMaterial.Category cat : com.radiance.client.material.EntityMaterial.Category.values()) {
-                int i = cat.getOrdinal();
-                String eid = "entity." + cat.name().toLowerCase();
-                materialRoughness[i] = clamp(Integer.parseInt(props.getProperty("materialRoughness." + eid, String.valueOf(materialRoughness[i]))), 0, 100);
-                materialMetallic[i] = clamp(Integer.parseInt(props.getProperty("materialMetallic." + eid, String.valueOf(materialMetallic[i]))), 0, 1000);
-                materialSubsurface[i] = clamp(Integer.parseInt(props.getProperty("materialSubsurface." + eid, String.valueOf(materialSubsurface[i]))), 0, 1000);
-                materialIOR[i] = clamp(Integer.parseInt(props.getProperty("materialIOR." + eid, String.valueOf(materialIOR[i]))), 1000, 3000);
-                materialF0R[i] = clamp(Integer.parseInt(props.getProperty("materialF0R." + eid, String.valueOf(materialF0R[i]))), 0, 1000);
-                materialF0G[i] = clamp(Integer.parseInt(props.getProperty("materialF0G." + eid, String.valueOf(materialF0G[i]))), 0, 1000);
-                materialF0B[i] = clamp(Integer.parseInt(props.getProperty("materialF0B." + eid, String.valueOf(materialF0B[i]))), 0, 1000);
-            }
-
-            // Auto-PBR generation
             autoPBREnabled = Boolean.parseBoolean(props.getProperty("autoPBREnabled", String.valueOf(autoPBREnabled)));
-            for (MaterialBlock mb : MaterialBlock.values()) {
-                int i = mb.ordinal();
-                String pid = mb.getId();
-                materialAutoPBR[i] = Boolean.parseBoolean(props.getProperty("materialAutoPBR." + pid, "true"));
+            materialCompatEnabled = Boolean.parseBoolean(props.getProperty("materialCompatEnabled", String.valueOf(materialCompatEnabled)));
+            materialCompatCtmEnabled = Boolean.parseBoolean(props.getProperty("materialCompatCtmEnabled", String.valueOf(materialCompatCtmEnabled)));
+            materialCompatRandomEnabled = Boolean.parseBoolean(props.getProperty("materialCompatRandomEnabled", String.valueOf(materialCompatRandomEnabled)));
+            materialCompatNaturalEnabled = Boolean.parseBoolean(props.getProperty("materialCompatNaturalEnabled", String.valueOf(materialCompatNaturalEnabled)));
+            materialCompatColorsEnabled = Boolean.parseBoolean(props.getProperty("materialCompatColorsEnabled", String.valueOf(materialCompatColorsEnabled)));
+            materialCompatOverlaysEnabled = Boolean.parseBoolean(props.getProperty("materialCompatOverlaysEnabled", String.valueOf(materialCompatOverlaysEnabled)));
+            materialCompatLegacyMcPatcherEnabled = Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled)));
+            materialCompatPhysicalEmissiveEnabled = Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled)));
+            materialCompatCtmAtlasAdmissionLimit = Math.max(0, Integer.parseInt(props.getProperty("materialCompatCtmAtlasAdmissionLimit", String.valueOf(materialCompatCtmAtlasAdmissionLimit))));
+            textureStreamingV2 = Boolean.parseBoolean(props.getProperty("textureStreamingV2", String.valueOf(textureStreamingV2)));
+            textureTieredArrays = Boolean.parseBoolean(props.getProperty("textureTieredArrays", String.valueOf(textureTieredArrays)));
+            vanillaBlockAtlasBypass = Boolean.parseBoolean(props.getProperty("vanillaBlockAtlasBypass", String.valueOf(vanillaBlockAtlasBypass)));
+            sparseAuxUpload = Boolean.parseBoolean(props.getProperty("sparseAuxUpload", String.valueOf(sparseAuxUpload)));
+            ctmDemandResidency = Boolean.parseBoolean(props.getProperty("ctmDemandResidency", String.valueOf(ctmDemandResidency)));
+            materialTableDirtyUpdates = Boolean.parseBoolean(props.getProperty("materialTableDirtyUpdates", String.valueOf(materialTableDirtyUpdates)));
+            eagerSpriteImageCache = Boolean.parseBoolean(props.getProperty("eagerSpriteImageCache", String.valueOf(eagerSpriteImageCache)));
+            materialCompatFullPreloadDiagnostic = Boolean.parseBoolean(props.getProperty("materialCompatFullPreloadDiagnostic", String.valueOf(materialCompatFullPreloadDiagnostic)));
+            if (loadedOptionsVersion < 24 && legacyMaterialCompatAllDisabled(props)) {
+                enableMaterialCompatDefaults();
             }
             outputScale2x = Boolean.parseBoolean(props.getProperty("outputScale2x", String.valueOf(outputScale2x)));
             nativeSetOutputScale2x(outputScale2x, false);
@@ -2063,6 +1233,8 @@ public class Options {
             nativeSetFrameGenMode(frameGenMode, false);
             frameGenMultiplier = Integer.parseInt(props.getProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier)));
             nativeSetFrameGenMultiplier(frameGenMultiplier, false);
+            dlssgQueueParallelism = false;
+            nativeSetDlssgQueueParallelism(false, false);
 
             exposureCompensation = Integer.parseInt(props.getProperty(
                 "exposureCompensation", String.valueOf(exposureCompensation)));
@@ -2088,8 +1260,6 @@ public class Options {
                 "saturationPercent", String.valueOf(saturationPercent)));
             saturationAdaptive = Boolean.parseBoolean(props.getProperty(
                 "saturationAdaptive", String.valueOf(saturationAdaptive)));
-            colorExpansionPercent = Integer.parseInt(props.getProperty(
-                "colorExpansionPercent", String.valueOf(colorExpansionPercent)));
 
             // HDR tonemapper mode
             hdrTonemapMode = Integer.parseInt(props.getProperty("hdrTonemapMode", "0"));
@@ -2148,7 +1318,6 @@ public class Options {
             nativeSetLwhite(LwhiteTenths / 10.0f, false);
             nativeSetSaturation(saturationPercent / 100.0f, false);
             try { nativeSetSaturationAdaptive(saturationAdaptive, false); } catch (UnsatisfiedLinkError ignored) {}
-            nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
             nativeSetBrightAdaptSpeed(brightAdaptSpeedTenths / 10.0f, false);
             nativeSetDarkAdaptSpeed(darkAdaptSpeedTenths / 10.0f, false);
             nativeSetSceneChangeThreshold(sceneChangeThresholdTenths / 10.0f, false);
@@ -2181,14 +1350,6 @@ public class Options {
                 tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
                 nativeSetTonemappingMode(tonemappingMode, false);
                 pushActiveTonemapParams();
-            }
-
-            if (loadedOptionsVersion < 17) {
-                // v17: Motion-aware ReSTIR + light intensity 20× increase.
-                restirWClamp = 30;
-                nativeSetRestirWClamp(restirWClamp, false);
-                areaLightRange = 128;
-                nativeSetAreaLightRange(areaLightRange, false);
             }
 
             if (loadedOptionsVersion < 21) {
@@ -2367,13 +1528,11 @@ public class Options {
         props.setProperty("upscalerResOverride", String.valueOf(upscalerResOverride));
         props.setProperty("dlssDEnabled", String.valueOf(dlssDEnabled));
         props.setProperty("rayBounces", String.valueOf(rayBounces));
-        props.setProperty("ommEnabled", String.valueOf(ommEnabled));
-        props.setProperty("ommBakerLevel", String.valueOf(ommBakerLevel));
-        props.setProperty("greedyMeshingEnabled", String.valueOf(greedyMeshingEnabled));
         props.setProperty("simplifiedIndirect", String.valueOf(simplifiedIndirect));
-        props.setProperty("noiseLOD", String.valueOf(noiseLOD));
         props.setProperty("multiScatterGGX", String.valueOf(multiScatterGGX));
         props.setProperty("eonDiffuse", String.valueOf(eonDiffuse));
+        props.setProperty("diffuseModel", String.valueOf(diffuseModel));
+        props.setProperty("shaderPackPath", String.valueOf(shaderPackPath));
         // Save current window position/size via LWJGL — only if restore succeeded
         // (prevents PrismLauncher's default centered position from overwriting saved values after a crash)
         if (windowRestoreSucceeded) {
@@ -2395,17 +1554,16 @@ public class Options {
         props.setProperty("windowWidth", String.valueOf(windowWidth));
         props.setProperty("windowHeight", String.valueOf(windowHeight));
         props.setProperty("loggingEnabled", String.valueOf(loggingEnabled));
-        props.setProperty("pomEnabled", String.valueOf(pomEnabled));
-        props.setProperty("pomHeightScalePercent", String.valueOf(pomHeightScalePercent));
-        props.setProperty("pomSteps", String.valueOf(pomSteps));
-        props.setProperty("pomRefinement", String.valueOf(pomRefinement));
-        props.setProperty("pomFadeDistance", String.valueOf(pomFadeDistance));
+        props.setProperty("gpuDebugLabels", String.valueOf(gpuDebugLabels));
+        props.setProperty("displacementEnabled", String.valueOf(displacementEnabled));
+        props.setProperty("displacementDepthCapPercent", String.valueOf(displacementDepthCapPercent));
         props.setProperty("displacementQuality", String.valueOf(displacementQuality));
         props.setProperty("tessMaxLevel", String.valueOf(tessMaxLevel));
         props.setProperty("tessNearDist", String.valueOf(tessNearDist));
         props.setProperty("tessMidDist", String.valueOf(tessMidDist));
         props.setProperty("tessFarDist", String.valueOf(tessFarDist));
         props.setProperty("useV2Engine", String.valueOf(useV2Engine));
+        props.setProperty("displacementFadeDistance", String.valueOf(displacementFadeDistance));
         props.setProperty("serEnabled", String.valueOf(serEnabled));
         props.setProperty("serHintsEnabled", String.valueOf(serHintsEnabled));
         props.setProperty("sharcEnabled", String.valueOf(sharcEnabled));
@@ -2417,168 +1575,36 @@ public class Options {
         props.setProperty("sharcUpdateBlockSize", String.valueOf(sharcUpdateBlockSize));
         props.setProperty("sharcUpdateBounces", String.valueOf(sharcUpdateBounces));
         props.setProperty("sharcCapacityExponent", String.valueOf(sharcCapacityExponent));
+        props.setProperty("sharcQueryMode", String.valueOf(sharcQueryMode));
         props.setProperty("sharcQualityPreset", String.valueOf(sharcQualityPreset));
-        props.setProperty("areaLightsEnabled", String.valueOf(areaLightsEnabled));
-        props.setProperty("restirEnabled", String.valueOf(restirEnabled));
-        props.setProperty("areaLightIntensityPercent", String.valueOf(areaLightIntensityPercent));
-        props.setProperty("areaLightRange", String.valueOf(areaLightRange));
-        props.setProperty("shadowSoftnessPercent", String.valueOf(shadowSoftnessPercent));
-        props.setProperty("restirCandidates", String.valueOf(restirCandidates));
-        props.setProperty("restirTemporalMClamp", String.valueOf(restirTemporalMClamp));
-        props.setProperty("restirWClamp", String.valueOf(restirWClamp));
-        props.setProperty("restirSpatialTaps", String.valueOf(restirSpatialTaps));
-        props.setProperty("restirSpatialRadius", String.valueOf(restirSpatialRadius));
-        props.setProperty("restirSimplifiedBRDF", String.valueOf(restirSimplifiedBRDF));
-        props.setProperty("restirSpatialEnabled", String.valueOf(restirSpatialEnabled));
-        props.setProperty("restirBounceEnabled", String.valueOf(restirBounceEnabled));
-        props.setProperty("beerLawShadows", String.valueOf(beerLawShadows));
-        props.setProperty("noEmissionClamp", String.valueOf(noEmissionClamp));
-        props.setProperty("physicalSunDisk", String.valueOf(physicalSunDisk));
-        props.setProperty("noHandAmbient", String.valueOf(noHandAmbient));
-        props.setProperty("entityNormalsEnabled", String.valueOf(entityNormalsEnabled));
-        // Offline accumulation preferences (ground truth is session-only, not persisted)
-        props.setProperty("offlineBounces", String.valueOf(offlineBounces));
-        props.setProperty("offlineDisableRR", String.valueOf(offlineDisableRR));
-        props.setProperty("offlineDisableClamp", String.valueOf(offlineDisableClamp));
-        props.setProperty("offlineFocalDistance", String.valueOf(offlineFocalDistance));
-        props.setProperty("offlineNativeRes", String.valueOf(offlineNativeRes));
-        props.setProperty("offlineDenoised", String.valueOf(offlineDenoised));
-        props.setProperty("dlssEpochLength", String.valueOf(dlssEpochLength));
-        // Camera model
-        props.setProperty("sensorPreset", String.valueOf(sensorPreset));
-        props.setProperty("sensorWidthMM", String.valueOf(sensorWidthMM));
-        props.setProperty("sensorHeightMM", String.valueOf(sensorHeightMM));
-        props.setProperty("focalLengthMM", String.valueOf(focalLengthMM));
-        props.setProperty("fStop", String.valueOf(fStop));
-        props.setProperty("dofStrengthPercent", String.valueOf(dofStrengthPercent));
-        // First-person view
-        props.setProperty("fpvEnabled", String.valueOf(fpvEnabled));
-        props.setProperty("fpvOffsetForward", String.valueOf(fpvOffsetForward));
-        props.setProperty("fpvOffsetVertical", String.valueOf(fpvOffsetVertical));
-        props.setProperty("fpvOffsetLateral", String.valueOf(fpvOffsetLateral));
-        // Freecam preferences
-        props.setProperty("freecamEnabled", String.valueOf(freecamEnabled));
-        props.setProperty("freecamSpeed", String.valueOf(freecamSpeed));
-        props.setProperty("freecamShowPlayer", String.valueOf(freecamShowPlayer));
-        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
-            props.setProperty("areaLightBlock." + i, String.valueOf(areaLightBlockIntensity[i]));
-            props.setProperty("areaLightScale." + i, String.valueOf(areaLightBlockScale[i]));
-            props.setProperty("areaLightYOffset." + i, String.valueOf(areaLightBlockYOffset[i]));
-            props.setProperty("areaLightColorR." + i, String.valueOf(areaLightBlockColorR[i]));
-            props.setProperty("areaLightColorG." + i, String.valueOf(areaLightBlockColorG[i]));
-            props.setProperty("areaLightColorB." + i, String.valueOf(areaLightBlockColorB[i]));
-            props.setProperty("blockLightMode." + i, String.valueOf(blockLightMode[i]));
-        }
-        props.setProperty("globalLightMode", String.valueOf(globalLightMode));
-
-        // Material overrides
-        props.setProperty("materialOverridesEnabled", String.valueOf(materialOverridesEnabled));
-
-        // Save metal/gem block properties
-        for (MaterialBlock mb : MaterialBlock.values()) {
-            int i = mb.ordinal();
-            String pid = mb.getId();
-            props.setProperty("materialF0R." + pid, String.valueOf(materialF0R[i]));
-            props.setProperty("materialF0G." + pid, String.valueOf(materialF0G[i]));
-            props.setProperty("materialF0B." + pid, String.valueOf(materialF0B[i]));
-            props.setProperty("materialRoughness." + pid, String.valueOf(materialRoughness[i]));
-            props.setProperty("materialMetallic." + pid, String.valueOf(materialMetallic[i]));
-            props.setProperty("materialTransmission." + pid, String.valueOf(materialTransmission[i]));
-            props.setProperty("materialIOR." + pid, String.valueOf(materialIOR[i]));
-            props.setProperty("materialSubsurface." + pid, String.valueOf(materialSubsurface[i]));
-            props.setProperty("materialAnisotropic." + pid, String.valueOf(materialAnisotropic[i]));
-            props.setProperty("materialSheenWeight." + pid, String.valueOf(materialSheenWeight[i]));
-            props.setProperty("materialSheenTint." + pid, String.valueOf(materialSheenTint[i]));
-            props.setProperty("materialCoatWeight." + pid, String.valueOf(materialCoatWeight[i]));
-            props.setProperty("materialCoatRoughness." + pid, String.valueOf(materialCoatRoughness[i]));
-            props.setProperty("materialNoiseScale." + pid, String.valueOf(materialNoiseScale[i]));
-            props.setProperty("materialNoiseStrength." + pid, String.valueOf(materialNoiseStrength[i]));
-            props.setProperty("materialNoiseOctaves." + pid, String.valueOf(materialNoiseOctaves[i]));
-            props.setProperty("materialNoiseType." + pid, String.valueOf(materialNoiseType[i]));
-            props.setProperty("materialNoiseSeed." + pid, String.valueOf(materialNoiseSeed[i]));
-            props.setProperty("materialNoiseMaskMode." + pid, String.valueOf(materialNoiseMaskMode[i]));
-            props.setProperty("materialNoiseMaskInvert." + pid, String.valueOf(materialNoiseMaskInvert[i]));
-            props.setProperty("materialNoiseMaskThreshold." + pid, String.valueOf(materialNoiseMaskThreshold[i]));
-            props.setProperty("materialNoiseWrap." + pid, String.valueOf(materialNoiseWrap[i]));
-            props.setProperty("materialNoiseRotation." + pid, String.valueOf(materialNoiseRotation[i]));
-            props.setProperty("materialNoiseAspect." + pid, String.valueOf(materialNoiseAspect[i]));
-            props.setProperty("materialNoiseLacunarity." + pid, String.valueOf(materialNoiseLacunarity[i]));
-            props.setProperty("materialNoiseContrast." + pid, String.valueOf(materialNoiseContrast[i]));
-            props.setProperty("materialGamutBoost." + pid, String.valueOf(materialGamutBoost[i]));
-            props.setProperty("materialGamutBoostMode." + pid, String.valueOf(materialGamutBoostMode[i]));
-            props.setProperty("materialPomDepth." + pid, String.valueOf(materialPomDepth[i]));
-            props.setProperty("materialNormalStrength." + pid, String.valueOf(materialNormalStrength[i]));
-            props.setProperty("materialAutoPBRRoughnessMin." + pid, String.valueOf(materialAutoPBRRoughnessMin[i]));
-            props.setProperty("materialAutoPBRRoughnessMax." + pid, String.valueOf(materialAutoPBRRoughnessMax[i]));
-            props.setProperty("materialPercentileCenter." + pid, String.valueOf(materialPercentileCenter[i]));
-            props.setProperty("materialPercentileSpread." + pid, String.valueOf(materialPercentileSpread[i]));
-            props.setProperty("materialAutoPBRHeightGamma." + pid, String.valueOf(materialAutoPBRHeightGamma[i]));
-            props.setProperty("materialAutoPBRFlags." + pid, String.valueOf(materialAutoPBRFlags[i]));
-            props.setProperty("materialNormalInputType." + pid, String.valueOf(materialNormalInputType[i]));
-            props.setProperty("materialSpecularInputType." + pid, String.valueOf(materialSpecularInputType[i]));
-            if (!materialCustomNormalPath[i].isEmpty()) {
-                props.setProperty("materialCustomNormalPath." + pid, materialCustomNormalPath[i]);
-            }
-            if (!materialCustomSpecularPath[i].isEmpty()) {
-                props.setProperty("materialCustomSpecularPath." + pid, materialCustomSpecularPath[i]);
-            }
-            props.setProperty("materialNoiseTarget." + pid, String.valueOf(materialNoiseTarget[i]));
-            props.setProperty("materialHeightFilter." + pid, String.valueOf(materialHeightFilter[i]));
-            props.setProperty("materialFilterRadius." + pid, String.valueOf(materialFilterRadius[i]));
-            props.setProperty("materialMipBias." + pid, String.valueOf(materialMipBias[i]));
-            props.setProperty("materialPomMode." + pid, String.valueOf(materialPomMode[i]));
-            props.setProperty("materialPomSteps." + pid, String.valueOf(materialPomSteps[i]));
-            props.setProperty("materialPomRefinement." + pid, String.valueOf(materialPomRefinement[i]));
-            props.setProperty("materialPomClipSilhouette." + pid, String.valueOf(materialPomClipSilhouette[i]));
-            props.setProperty("materialPomAreaLightOffset." + pid, String.valueOf(materialPomAreaLightOffset[i]));
-            props.setProperty("materialPomMotionVectors." + pid, String.valueOf(materialPomMotionVectors[i]));
-            props.setProperty("materialHeightSource." + pid, String.valueOf(materialHeightSource[i]));
-            props.setProperty("materialHeightContrast." + pid, String.valueOf(materialHeightContrast[i]));
-            props.setProperty("materialHeightRemapMin." + pid, String.valueOf(materialHeightRemapMin[i]));
-            props.setProperty("materialHeightRemapMax." + pid, String.valueOf(materialHeightRemapMax[i]));
-            props.setProperty("materialHeightOffset." + pid, String.valueOf(materialHeightOffset[i]));
-            props.setProperty("materialNormalClamp." + pid, String.valueOf(materialNormalClamp[i]));
-            props.setProperty("materialGeometricBlend." + pid, String.valueOf(materialGeometricBlend[i]));
-            props.setProperty("materialNormalDistanceFade." + pid, String.valueOf(materialNormalDistanceFade[i]));
-            props.setProperty("materialPomAOStrength." + pid, String.valueOf(materialPomAOStrength[i]));
-        }
-
-        // Child override flags
-        for (MaterialBlock mb : MaterialBlock.values()) {
-            if (materialChildOverride[mb.ordinal()]) {
-                props.setProperty("materialChildOverride." + mb.getId(), "true");
-            }
-        }
-
-        // Entity material overrides
-        for (com.radiance.client.material.EntityMaterial.Category cat : com.radiance.client.material.EntityMaterial.Category.values()) {
-            int i = cat.getOrdinal();
-            String eid = "entity." + cat.name().toLowerCase();
-            props.setProperty("materialRoughness." + eid, String.valueOf(materialRoughness[i]));
-            props.setProperty("materialMetallic." + eid, String.valueOf(materialMetallic[i]));
-            props.setProperty("materialSubsurface." + eid, String.valueOf(materialSubsurface[i]));
-            props.setProperty("materialIOR." + eid, String.valueOf(materialIOR[i]));
-            props.setProperty("materialF0R." + eid, String.valueOf(materialF0R[i]));
-            props.setProperty("materialF0G." + eid, String.valueOf(materialF0G[i]));
-            props.setProperty("materialF0B." + eid, String.valueOf(materialF0B[i]));
-        }
-
-        // Auto-PBR generation
         props.setProperty("autoPBREnabled", String.valueOf(autoPBREnabled));
-        for (MaterialBlock mb : MaterialBlock.values()) {
-            props.setProperty("materialAutoPBR." + mb.getId(), String.valueOf(materialAutoPBR[mb.ordinal()]));
-        }
+        props.setProperty("materialCompatEnabled", String.valueOf(materialCompatEnabled));
+        props.setProperty("materialCompatCtmEnabled", String.valueOf(materialCompatCtmEnabled));
+        props.setProperty("materialCompatRandomEnabled", String.valueOf(materialCompatRandomEnabled));
+        props.setProperty("materialCompatNaturalEnabled", String.valueOf(materialCompatNaturalEnabled));
+        props.setProperty("materialCompatColorsEnabled", String.valueOf(materialCompatColorsEnabled));
+        props.setProperty("materialCompatOverlaysEnabled", String.valueOf(materialCompatOverlaysEnabled));
+        props.setProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled));
+        props.setProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled));
+        props.setProperty("materialCompatCtmAtlasAdmissionLimit", String.valueOf(materialCompatCtmAtlasAdmissionLimit));
+        props.setProperty("textureStreamingV2", String.valueOf(textureStreamingV2));
+        props.setProperty("textureTieredArrays", String.valueOf(textureTieredArrays));
+        props.setProperty("vanillaBlockAtlasBypass", String.valueOf(vanillaBlockAtlasBypass));
+        props.setProperty("sparseAuxUpload", String.valueOf(sparseAuxUpload));
+        props.setProperty("ctmDemandResidency", String.valueOf(ctmDemandResidency));
+        props.setProperty("materialTableDirtyUpdates", String.valueOf(materialTableDirtyUpdates));
+        props.setProperty("eagerSpriteImageCache", String.valueOf(eagerSpriteImageCache));
+        props.setProperty("materialCompatFullPreloadDiagnostic", String.valueOf(materialCompatFullPreloadDiagnostic));
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));
         props.setProperty("vrrMode", String.valueOf(vrrMode));
         props.setProperty("frameGenMode", String.valueOf(frameGenMode));
         props.setProperty("frameGenMultiplier", String.valueOf(frameGenMultiplier));
+        props.setProperty("dlssgQueueParallelism", String.valueOf(dlssgQueueParallelism));
         props.setProperty("chunkBuildingBatchSize", String.valueOf(chunkBuildingBatchSize));
         props.setProperty("chunkBuildingTotalBatches", String.valueOf(chunkBuildingTotalBatches));
         props.setProperty("chunkCullDistance", String.valueOf(chunkCullDistance));
-        props.setProperty("chunkLodDistance", String.valueOf(chunkLodDistance));
-        props.setProperty("extendedRenderDistance", String.valueOf(extendedRenderDistance));
         props.setProperty("tonemappingMode", String.valueOf(tonemappingMode));
         props.setProperty("sdrTonemappingMode", String.valueOf(sdrTonemappingMode));
         // Save per-tonemapper params
@@ -2604,7 +1630,6 @@ public class Options {
         props.setProperty("LwhiteTenths", String.valueOf(LwhiteTenths));
         props.setProperty("saturationPercent", String.valueOf(saturationPercent));
         props.setProperty("saturationAdaptive", String.valueOf(saturationAdaptive));
-        props.setProperty("colorExpansionPercent", String.valueOf(colorExpansionPercent));
         // HDR tonemapper + PsychoV
         props.setProperty("hdrTonemapMode", String.valueOf(hdrTonemapMode));
         props.setProperty("psychoEnabled", String.valueOf(psychoEnabled));
@@ -2732,27 +1757,6 @@ public class Options {
             props.setProperty("env.cloudDensityPercent." + dim, String.valueOf(cloudDensityPercent[dim]));
             props.setProperty("env.cloudNoiseAffectsShadows." + dim, String.valueOf(cloudNoiseAffectsShadows[dim]));
         }
-        // Volumetric cloud module settings (global, not per-dimension)
-        props.setProperty("volCloudQuality", String.valueOf(volCloudQuality));
-        props.setProperty("volCloudDensityTenths", String.valueOf(volCloudDensityTenths));
-        props.setProperty("volCloudCoveragePercent", String.valueOf(volCloudCoveragePercent));
-        props.setProperty("volCloudTypePercent", String.valueOf(volCloudTypePercent));
-        props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
-        props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
-        props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
-        props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
-        props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
-        props.setProperty("volCloudAmbientPercent", String.valueOf(volCloudAmbientPercent));
-        props.setProperty("volCloudTemporalPercent", String.valueOf(volCloudTemporalPercent));
-        props.setProperty("volCloudNoiseScale", String.valueOf(volCloudNoiseScale));
-        props.setProperty("volCloudCellFrequencyTenths", String.valueOf(volCloudCellFrequencyTenths));
-        props.setProperty("volCloudAtmosphereFadeDist", String.valueOf(volCloudAtmosphereFadeDist));
-        props.setProperty("volCloudDebugMode", String.valueOf(volCloudDebugMode));
-        props.setProperty("volCloudWindAngleDegrees", String.valueOf(volCloudWindAngleDegrees));
-        props.setProperty("volCloudMarchSteps", String.valueOf(volCloudMarchSteps));
-        props.setProperty("volCloudLightSteps", String.valueOf(volCloudLightSteps));
-        props.setProperty("volCloudResDivisor", String.valueOf(volCloudResDivisor));
-        props.setProperty("volCloudNoiseRes", String.valueOf(volCloudNoiseRes));
         props.setProperty("wetSurfaceStrengthPercent", String.valueOf(wetSurfaceStrengthPercent));
         for (int dim = 0; dim < DIM_COUNT; dim++) {
             props.setProperty("env.waterTintR." + dim, String.valueOf(waterTintR[dim]));
@@ -2764,18 +1768,6 @@ public class Options {
             props.setProperty("env.moonSizePercent." + dim, String.valueOf(moonSizePercent[dim]));
             props.setProperty("env.moonIntensityPercent." + dim, String.valueOf(moonIntensityPercent[dim]));
         }
-
-        // Volumetric cloud module settings (global, not per-dimension)
-        props.setProperty("volCloudQuality", String.valueOf(volCloudQuality));
-        props.setProperty("volCloudDensityTenths", String.valueOf(volCloudDensityTenths));
-        props.setProperty("volCloudCoveragePercent", String.valueOf(volCloudCoveragePercent));
-        props.setProperty("volCloudTypePercent", String.valueOf(volCloudTypePercent));
-        props.setProperty("volCloudSpeedTenths", String.valueOf(volCloudSpeedTenths));
-        props.setProperty("volCloudAltitude", String.valueOf(volCloudAltitude));
-        props.setProperty("volCloudThickness", String.valueOf(volCloudThickness));
-        props.setProperty("volCloudDetailStrengthPercent", String.valueOf(volCloudDetailStrengthPercent));
-        props.setProperty("volCloudScatterOctaves", String.valueOf(volCloudScatterOctaves));
-
         // Sun/Moon orbit (Overworld-only)
         props.setProperty("sunPathMode", String.valueOf(sunPathMode));
         props.setProperty("sunInclinationDeg", String.valueOf(sunInclinationDeg));
@@ -2787,6 +1779,7 @@ public class Options {
         // Persistent UI state
         props.setProperty("showWelcomeMessage", String.valueOf(showWelcomeMessage));
         props.setProperty("uiGlobalAlphaPercent", String.valueOf(uiGlobalAlphaPercent));
+        props.setProperty("materialLabOpacityPercent", String.valueOf(materialLabOpacityPercent));
         props.setProperty("uiAdaptiveDimming", String.valueOf(uiAdaptiveDimming));
         props.setProperty("advancedMode", String.valueOf(advancedMode));
 
@@ -2882,73 +1875,14 @@ public class Options {
             }
         }
 
-        // Volumetric cloud module settings (global, not per-dimension)
         if (loadedOptionsVersion >= 20) {
-            volCloudQuality = clamp(Integer.parseInt(
-                props.getProperty("volCloudQuality", "3")), 0, 6);
-            volCloudDensityTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudDensityTenths", "10")), 1, 50);
-            volCloudCoveragePercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
-            volCloudTypePercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudTypePercent", "67")), 0, 100);
-            volCloudSpeedTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
-            volCloudAltitude = clamp(Integer.parseInt(
-                props.getProperty("volCloudAltitude", "192")), 64, 320);
-            volCloudThickness = clamp(Integer.parseInt(
-                props.getProperty("volCloudThickness", "64")), 16, 256);
-            volCloudDetailStrengthPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 300);
-            volCloudScatterOctaves = clamp(Integer.parseInt(
-                props.getProperty("volCloudScatterOctaves", "3")), 1, 8);
-            volCloudAmbientPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudAmbientPercent", "100")), 0, 300);
-            volCloudTemporalPercent = clamp(Integer.parseInt(
-                props.getProperty("volCloudTemporalPercent", "0")), 0, 99);
-            volCloudNoiseScale = clamp(Integer.parseInt(
-                props.getProperty("volCloudNoiseScale", "1000")), 64, 4096);
-            volCloudCellFrequencyTenths = clamp(Integer.parseInt(
-                props.getProperty("volCloudCellFrequencyTenths", "80")), 10, 320);
-            volCloudAtmosphereFadeDist = clamp(Integer.parseInt(
-                props.getProperty("volCloudAtmosphereFadeDist", "800")), 100, 4000);
-            volCloudDebugMode = clamp(Integer.parseInt(
-                props.getProperty("volCloudDebugMode", "0")), 0, 8);
-            volCloudWindAngleDegrees = clamp(Integer.parseInt(
-                props.getProperty("volCloudWindAngleDegrees", "0")), 0, 360);
-            volCloudMarchSteps = clamp(Integer.parseInt(
-                props.getProperty("volCloudMarchSteps", "0")), 0, 512);
-            volCloudLightSteps = clamp(Integer.parseInt(
-                props.getProperty("volCloudLightSteps", "0")), 0, 16);
-            volCloudResDivisor = clamp(Integer.parseInt(
-                props.getProperty("volCloudResDivisor", "0")), 0, 4);
-            volCloudNoiseRes = clamp(Integer.parseInt(
-                props.getProperty("volCloudNoiseRes", "128")), 128, 512);
             wetSurfaceStrengthPercent = clamp(Integer.parseInt(
                 props.getProperty("wetSurfaceStrengthPercent", "100")), 0, 200);
         }
-        // Push volumetric cloud settings to native
+
+        disableVolumetricCloudModule();
         try {
-            nativeSetCloudQuality(volCloudQuality, false);
-            nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
-            nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
-            nativeSetCloudType(volCloudTypePercent / 100.0f, false);
-            nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, false);
-            nativeSetCloudAltitude((float) volCloudAltitude, false);
-            nativeSetCloudThicknessVol((float) volCloudThickness, false);
-            nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
-            nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
-            nativeSetCloudAmbientStrength(volCloudAmbientPercent / 100.0f, false);
-            nativeSetCloudTemporalBlend(volCloudTemporalPercent == 0 ? -1.0f : volCloudTemporalPercent / 100.0f, false);
-            nativeSetCloudNoiseScale((float) volCloudNoiseScale, false);
-            nativeSetCloudCellFrequency(volCloudCellFrequencyTenths / 10.0f, false);
-            nativeSetCloudAtmosphereFadeDist((float) volCloudAtmosphereFadeDist, false);
-            nativeSetCloudDebugMode(volCloudDebugMode, false);
-            nativeSetCloudWindAngle((float)(volCloudWindAngleDegrees * Math.PI / 180.0), false);
-            nativeSetCloudMarchSteps(volCloudMarchSteps, false);
-            nativeSetCloudLightSteps(volCloudLightSteps, false);
-            nativeSetCloudResDivisor(volCloudResDivisor, false);
-            nativeSetCloudNoiseRes(volCloudNoiseRes, false);
+            nativeSetCloudQuality(0, false);
             nativeSetWetSurfaceStrength(wetSurfaceStrengthPercent / 100.0f, false);
         } catch (UnsatisfiedLinkError ignored) {}
 
@@ -2972,39 +1906,6 @@ public class Options {
                     String.valueOf(dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT))));
         }
 
-        // Volumetric cloud module settings (global, not per-dimension)
-        volCloudQuality = clamp(Integer.parseInt(
-            props.getProperty("volCloudQuality", "3")), 0, 5);
-        volCloudDensityTenths = clamp(Integer.parseInt(
-            props.getProperty("volCloudDensityTenths", "10")), 1, 30);
-        volCloudCoveragePercent = clamp(Integer.parseInt(
-            props.getProperty("volCloudCoveragePercent", "35")), 0, 100);
-        volCloudTypePercent = clamp(Integer.parseInt(
-            props.getProperty("volCloudTypePercent", "67")), 0, 100);
-        volCloudSpeedTenths = clamp(Integer.parseInt(
-            props.getProperty("volCloudSpeedTenths", "50")), 0, 300);
-        volCloudAltitude = clamp(Integer.parseInt(
-            props.getProperty("volCloudAltitude", "192")), 128, 320);
-        volCloudThickness = clamp(Integer.parseInt(
-            props.getProperty("volCloudThickness", "64")), 32, 128);
-        volCloudDetailStrengthPercent = clamp(Integer.parseInt(
-            props.getProperty("volCloudDetailStrengthPercent", "100")), 0, 200);
-        volCloudScatterOctaves = clamp(Integer.parseInt(
-            props.getProperty("volCloudScatterOctaves", "3")), 1, 4);
-
-        // Push volumetric cloud settings to native
-        try {
-            nativeSetCloudQuality(volCloudQuality, false);
-            nativeSetCloudDensity(volCloudDensityTenths / 10.0f, false);
-            nativeSetCloudCoverage(volCloudCoveragePercent / 100.0f, false);
-            nativeSetCloudType(volCloudTypePercent / 100.0f, false);
-            nativeSetCloudSpeed(volCloudSpeedTenths / 50.0f, false);
-            nativeSetCloudAltitude((float) volCloudAltitude, false);
-            nativeSetCloudThicknessVol((float) volCloudThickness, false);
-            nativeSetCloudDetailStrength(volCloudDetailStrengthPercent / 100.0f, false);
-            nativeSetCloudScatterOctaves(volCloudScatterOctaves, false);
-        } catch (UnsatisfiedLinkError ignored) {}
-
         // Sun/Moon orbit (Overworld-only, not per-dimension)
         sunPathMode = Math.max(0, Math.min(1, Integer.parseInt(
             props.getProperty("sunPathMode", String.valueOf(SUN_PATH_MODE_DEFAULT)))));
@@ -3024,6 +1925,8 @@ public class Options {
             props.getProperty("showWelcomeMessage", "true"));
         uiGlobalAlphaPercent = Math.max(0, Math.min(100, Integer.parseInt(
             props.getProperty("uiGlobalAlphaPercent", "55"))));
+        materialLabOpacityPercent = clamp(Integer.parseInt(
+            props.getProperty("materialLabOpacityPercent", "82")), 35, 100);
         uiAdaptiveDimming = Boolean.parseBoolean(
             props.getProperty("uiAdaptiveDimming", "false"));
         advancedMode = Boolean.parseBoolean(
@@ -3060,16 +1963,7 @@ public class Options {
             moonIntensityPercent[dim] = dim == DIM_OVERWORLD ? MOON_INTENSITY_DEFAULT_OVERWORLD_PERCENT : PERCENT_DEFAULT;
         }
 
-        // Volumetric cloud module defaults
-        volCloudQuality = 3;
-        volCloudDensityTenths = 10;
-        volCloudCoveragePercent = 35;
-        volCloudTypePercent = 67;
-        volCloudSpeedTenths = 50;
-        volCloudAltitude = 192;
-        volCloudThickness = 64;
-        volCloudDetailStrengthPercent = 100;
-        volCloudScatterOctaves = 3;
+        disableVolumetricCloudModule();
 
         // Sun/Moon orbit defaults
         sunPathMode = SUN_PATH_MODE_DEFAULT;
@@ -3078,6 +1972,29 @@ public class Options {
         moonFollowSun = true;
         moonInclinationDeg = MOON_INCLINATION_DEFAULT;
         moonAzimuthOffsetDeg = MOON_AZIMUTH_OFFSET_DEFAULT;
+    }
+
+    private static void disableVolumetricCloudModule() {
+        volCloudQuality = 0;
+        volCloudDensityTenths = 10;
+        volCloudCoveragePercent = 35;
+        volCloudTypePercent = 67;
+        volCloudSpeedTenths = 50;
+        volCloudAltitude = 192;
+        volCloudThickness = 64;
+        volCloudDetailStrengthPercent = 100;
+        volCloudScatterOctaves = 3;
+        volCloudAmbientPercent = 100;
+        volCloudTemporalPercent = 0;
+        volCloudNoiseScale = 1000;
+        volCloudCellFrequencyTenths = 40;
+        volCloudAtmosphereFadeDist = 800;
+        volCloudDebugMode = 0;
+        volCloudWindAngleDegrees = 0;
+        volCloudMarchSteps = 0;
+        volCloudLightSteps = 0;
+        volCloudResDivisor = 0;
+        volCloudNoiseRes = 128;
     }
 
     public static void setFpvEnabled(boolean value, boolean write) {
@@ -3310,8 +2227,8 @@ public class Options {
     // ── Volumetric Cloud Module setters (global) ──
 
     public static void setVolCloudQuality(int quality, boolean write) {
-        volCloudQuality = clamp(quality, 0, 5);
-        try { nativeSetCloudQuality(volCloudQuality, write); } catch (UnsatisfiedLinkError ignored) {}
+        disableVolumetricCloudModule();
+        try { nativeSetCloudQuality(0, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) overwriteConfig();
     }
 
@@ -3458,11 +2375,11 @@ public class Options {
         maxFps = 260;
         vsync = true;
         dlssDEnabled = true;
-        rayBounces = 16;
-        ommEnabled = false;
-        ommBakerLevel = 4;
-        greedyMeshingEnabled = true;
+        rayBounces = 2;
         simplifiedIndirect = false;
+        multiScatterGGX = true;
+        eonDiffuse = true;
+        diffuseModel = DIFFUSE_MODEL_EON;
         sharcEnabled = true;
         sharcSceneScaleTenths = 40;
         sharcRoughnessThresholdPercent = 25;
@@ -3472,27 +2389,9 @@ public class Options {
         sharcUpdateBlockSize = 5;
         sharcUpdateBounces = 4;
         sharcCapacityExponent = 21;
+        sharcQueryMode = 0;
         sharcQualityPreset = 1;
-        areaLightsEnabled = true;
-        restirEnabled = true;
-        areaLightIntensityPercent = 100;
-        areaLightRange = 128;
-        shadowSoftnessPercent = 100;
-        restirCandidates = 32;
-        restirBounceEnabled = false;
-        restirTemporalMClamp = 20;
-        restirWClamp = 30;
-        restirSpatialTaps = 5;
-        restirSpatialRadius = 30;
-        restirSimplifiedBRDF = false;
-        restirSpatialEnabled = false;
-        java.util.Arrays.fill(areaLightBlockIntensity, 100);
-        java.util.Arrays.fill(areaLightBlockScale, 100);
-        java.util.Arrays.fill(areaLightBlockYOffset, 0);
         // All per-block overrides baked into LIGHT_DEFS — sliders start neutral
-        resetLightColorsToDefaults();
-        java.util.Arrays.fill(blockLightMode, LIGHT_MODE_FORCE_EMISSIVE);
-        globalLightMode = LIGHT_MODE_FORCE_EMISSIVE;
         // Emission defaults
         emissionLava = 1.0f;
         emissionFire = 1.0f;
@@ -3551,14 +2450,12 @@ public class Options {
         reflexEnabled = false;
         reflexBoost = false;
         vrrMode = false;
+        dlssgQueueParallelism = false;
         chunkBuildingBatchSize = 6;
         chunkBuildingTotalBatches = 6;
         chunkCullDistance = 24;
-        chunkLodDistance = 10;
-        extendedRenderDistance = 0;
         sdrTransferFunction = SDR_TRANSFER_FUNCTION_SRGB;
         saturationPercent = SATURATION_DEFAULT_PERCENT;
-        colorExpansionPercent = COLOR_EXPANSION_DEFAULT_PERCENT;
         upscalerQuality = 2;
         upscalerResOverride = 100;
         upscalerPreset = 4;
@@ -3599,12 +2496,9 @@ public class Options {
         nativeSetMaxFps(maxFps, false);
         nativeSetVsync(vsync, false);
         nativeSetRayBounces(rayBounces, false);
-        nativeSetOMMEnabled(ommEnabled, false);
-        nativeSetOMMBakerLevel(ommBakerLevel, false);
-        nativeSetGreedyMeshingEnabled(greedyMeshingEnabled, false);
         nativeSetSimplifiedIndirect(simplifiedIndirect, false);
         try { nativeSetMultiScatterGGX(multiScatterGGX, false); } catch (UnsatisfiedLinkError ignored) {}
-        try { nativeSetEonDiffuse(eonDiffuse, false); } catch (UnsatisfiedLinkError ignored) {}
+        try { nativeSetDiffuseModel(diffuseModel, false); } catch (UnsatisfiedLinkError ignored) {}
         nativeSetSharcEnabled(sharcEnabled, false);
         nativeSetSharcSceneScale(sharcSceneScaleTenths / 10.0f, false);
         nativeSetSharcRoughnessThreshold(sharcRoughnessThresholdPercent / 100.0f, false);
@@ -3614,8 +2508,7 @@ public class Options {
         nativeSetSharcUpdateBlockSize(sharcUpdateBlockSize, false);
         nativeSetSharcUpdateBounces(sharcUpdateBounces, false);
         nativeSetSharcCapacityExponent(sharcCapacityExponent, false);
-        nativeSetAreaLightsEnabled(areaLightsEnabled, false);
-        nativeSetRestirEnabled(restirEnabled, false);
+        nativeSetSharcQueryMode(sharcQueryMode, false);
         for (EmissiveBlock b : EmissiveBlock.values()) {
             if (b.isThermal() && b.getLightTypeId() >= 0) {
                 int temp = blockTemperatures.getOrDefault(b.getId(), b.getDefaultTemperatureCelsius());
@@ -3623,39 +2516,16 @@ public class Options {
                 updateBlockEmissionColor(b);
             }
         }
-        nativeSetAreaLightIntensity(areaLightIntensityPercent / 100.0f, false);
-        nativeSetAreaLightRange(areaLightRange, false);
-        nativeSetShadowSoftness(shadowSoftnessPercent / 100.0f, false);
-        nativeSetRestirCandidates(restirCandidates, false);
-        nativeSetRestirTemporalMClamp(restirTemporalMClamp, false);
-        nativeSetRestirWClamp(restirWClamp, false);
-        nativeSetRestirSpatialTaps(restirSpatialTaps, false);
-        nativeSetRestirSpatialRadius(restirSpatialRadius, false);
-        nativeSetRestirSimplifiedBRDF(restirSimplifiedBRDF, false);
-        nativeSetRestirSpatialEnabled(restirSpatialEnabled, false);
-        nativeSetRestirBounceEnabled(restirBounceEnabled, false);
-        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
-            nativeSetAreaLightBlockIntensity(i, areaLightBlockIntensity[i] / 100.0f);
-            nativeSetAreaLightBlockScale(i, areaLightBlockScale[i] / 100.0f);
-            nativeSetAreaLightBlockYOffset(i, areaLightBlockYOffset[i] / 100.0f);
-            nativeSetAreaLightBlockColor(i,
-                areaLightBlockColorR[i] / 255.0f,
-                areaLightBlockColorG[i] / 255.0f,
-                areaLightBlockColorB[i] / 255.0f);
-            nativeSetBlockLightMode(i, blockLightMode[i]);
-        }
         nativeSetOutputScale2x(outputScale2x, false);
         nativeSetReflexEnabled(reflexEnabled, false);
         nativeSetReflexBoost(reflexBoost, false);
         nativeSetVrrMode(vrrMode, false);
+        nativeSetDlssgQueueParallelism(dlssgQueueParallelism, false);
         nativeSetChunkBuildingBatchSize(chunkBuildingBatchSize, false);
         nativeSetChunkBuildingTotalBatches(chunkBuildingTotalBatches, false);
         nativeSetChunkCullDistance(chunkCullDistance, false);
-        nativeSetChunkLodDistance(chunkLodDistance, false);
-        nativeSetExtendedRenderDistance(extendedRenderDistance, false);
         nativeSetSdrTransferFunction(sdrTransferFunction, false);
         nativeSetSaturation(saturationPercent / 100.0f, false);
-        nativeSetColorExpansion(colorExpansionPercent / 100.0f, false);
         nativeSetDlssQuality(upscalerQuality, false);
         nativeSetDlssResOverride(upscalerResOverride, false);
         nativeSetDlssPreset(upscalerPreset, false);
@@ -3693,6 +2563,8 @@ public class Options {
         nativeSetPsychoPeakSDR(psychoPeakSDRTenths / 10.0f, false);
         initTonemapDefaults();
         pushActiveTonemapParams();
+        Pipeline.resetRayTracingShaderPackAttributesToDefaults();
+        Pipeline.build();
         overwriteConfig();
     }
 
@@ -3792,26 +2664,6 @@ public class Options {
         }
     }
 
-    public native static void nativeSetChunkLodDistance(int distance, boolean write);
-
-    public static void setChunkLodDistance(int distance, boolean write) {
-        Options.chunkLodDistance = clamp(distance, 0, 512);
-        nativeSetChunkLodDistance(Options.chunkLodDistance, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetExtendedRenderDistance(int distance, boolean write);
-
-    public static void setExtendedRenderDistance(int distance, boolean write) {
-        Options.extendedRenderDistance = clamp(distance, 0, 512);
-        nativeSetExtendedRenderDistance(Options.extendedRenderDistance, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
     public native static void nativeSetTonemappingMode(int mode, boolean write);
 
     public native static void nativeSetTonemapParam(int index, float value, boolean write);
@@ -3851,6 +2703,313 @@ public class Options {
         for (int i = 0; i < 8; i++) {
             nativeSetTonemapParam(i, tonemapParams[tonemappingMode][i], false);
         }
+    }
+
+    public native static void nativeSetMinExposure(float minExposure, boolean write);
+    public native static void nativeSetMaxExposure(int maxExposure, boolean write);
+    public native static void nativeSetExposureCompensation(float compensation, boolean write);
+    public native static void nativeSetManualExposureEnabled(boolean enabled, boolean write);
+    public native static void nativeSetManualExposure(float exposure, boolean write);
+    public native static void nativeSetBrightAdaptSpeed(float speed, boolean write);
+    public native static void nativeSetDarkAdaptSpeed(float speed, boolean write);
+    public native static void nativeSetSceneChangeThreshold(float threshold, boolean write);
+    public native static void nativeSetCenterWeightStrength(float strength, boolean write);
+    public native static void nativeSetHighlightWeight(float weight, boolean write);
+    public native static void nativeSetMiddleGrey(float middleGrey, boolean write);
+    public native static void nativeSetLwhite(float lwhite, boolean write);
+    public native static void nativeSetSaturation(float saturation, boolean write);
+    public native static void nativeSetSaturationAdaptive(boolean enabled, boolean write);
+    public native static void nativeSetSharpenerMode(int mode, boolean write);
+    public native static void nativeSetCasSharpness(float sharpness, boolean write);
+    public native static void nativeResetExposureAdaptation();
+
+    public static void setMinExposure(int value, boolean write) {
+        Options.minExposureTenK = clamp(value, 1, 10000);
+        nativeSetMinExposure(Options.minExposureTenK * 1e-7f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setMaxExposure(int value, boolean write) {
+        Options.maxExposure = clamp(value, 1, 100);
+        nativeSetMaxExposure(Options.maxExposure, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setManualExposureEnabled(boolean enabled, boolean write) {
+        Options.manualExposureEnabled = enabled;
+        nativeSetManualExposureEnabled(enabled, write);
+        nativeResetExposureAdaptation();
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setManualExposureEV100Tenths(int ev100Tenths, boolean write) {
+        Options.manualExposureEV100Tenths = clamp(ev100Tenths, -40, 200);
+        nativeSetManualExposure(ev100ToLinearExposure(Options.manualExposureEV100Tenths), write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static float ev100ToLinearExposure(int ev100Tenths) {
+        float ev = ev100Tenths / 10.0f;
+        return 1.0f / (1.2f * (float) Math.pow(2.0, ev));
+    }
+
+    public static void setBrightAdaptSpeedTenths(int tenths, boolean write) {
+        Options.brightAdaptSpeedTenths = clamp(tenths, 1, 50);
+        nativeSetBrightAdaptSpeed(Options.brightAdaptSpeedTenths / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setDarkAdaptSpeedTenths(int tenths, boolean write) {
+        Options.darkAdaptSpeedTenths = clamp(tenths, 5, 100);
+        nativeSetDarkAdaptSpeed(Options.darkAdaptSpeedTenths / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setSceneChangeThresholdTenths(int tenths, boolean write) {
+        Options.sceneChangeThresholdTenths = clamp(tenths, 20, 100);
+        nativeSetSceneChangeThreshold(Options.sceneChangeThresholdTenths / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setCenterWeightPercent(int percent, boolean write) {
+        Options.centerWeightPercent = clamp(percent, 0, 100);
+        nativeSetCenterWeightStrength(Options.centerWeightPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setHighlightWeight(int percent, boolean write) {
+        Options.highlightWeightPercent = clamp(percent, 0, 100);
+        nativeSetHighlightWeight(Options.highlightWeightPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setExposureCompensation(int tenths, boolean write) {
+        Options.exposureCompensation = clamp(tenths, -30, 30);
+        nativeSetExposureCompensation(Options.exposureCompensation / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setMiddleGrey(int percent, boolean write) {
+        Options.middleGreyPercent = clamp(percent, 1, 50);
+        nativeSetMiddleGrey(Options.middleGreyPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setLwhiteTenths(int tenths, boolean write) {
+        Options.LwhiteTenths = clamp(tenths, 10, 200);
+        nativeSetLwhite(Options.LwhiteTenths / 10.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setSaturation(int percent, boolean write) {
+        Options.saturationPercent = clamp(percent, 0, 400);
+        nativeSetSaturation(Options.saturationPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setSaturationAdaptive(boolean enabled, boolean write) {
+        Options.saturationAdaptive = enabled;
+        try {
+            nativeSetSaturationAdaptive(enabled, write);
+        } catch (UnsatisfiedLinkError ignored) {
+        }
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setSharpenerMode(int mode, boolean write) {
+        Options.sharpenerMode = clamp(mode, 0, 2);
+        nativeSetSharpenerMode(Options.sharpenerMode, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setCasSharpnessPercent(int percent, boolean write) {
+        Options.casSharpnessPercent = clamp(percent, 0, 100);
+        nativeSetCasSharpness(Options.casSharpnessPercent / 100.0f, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetHdrEnabled(boolean enabled, boolean write);
+    public native static void nativeSetHdrScrgbMode(boolean scrgb, boolean write);
+    public native static void nativeSetHdrTonemapMode(int mode, boolean write);
+    public native static void nativeSetHdrPeakNits(int nits, boolean write);
+    public native static void nativeSetHdrPaperWhiteNits(int nits, boolean write);
+    public native static void nativeSetHdrUiBrightnessNits(int nits, boolean write);
+    public native static boolean nativeIsHdrSupported();
+    public native static boolean nativeIsHdrActive();
+
+    public static boolean isHdrSupported() {
+        try {
+            return nativeIsHdrSupported();
+        } catch (UnsatisfiedLinkError ignored) {
+            return false;
+        }
+    }
+
+    public static boolean isHdrActive() {
+        try {
+            return nativeIsHdrActive();
+        } catch (UnsatisfiedLinkError ignored) {
+            return false;
+        }
+    }
+
+    public static void setHdrEnabled(boolean enabled, boolean write) {
+        Options.hdrEnabled = enabled;
+        nativeSetHdrEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setHdrScrgbMode(boolean enabled, boolean write) {
+        Options.hdrScrgbMode = enabled;
+        nativeSetHdrScrgbMode(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setHdrTonemapMode(int mode, boolean write) {
+        Options.hdrTonemapMode = clamp(mode, 0, 1);
+        nativeSetHdrTonemapMode(Options.hdrTonemapMode, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setHdrPeakNits(int nits, boolean write) {
+        Options.hdrPeakNits = clamp(nits, 100, 10000);
+        nativeSetHdrPeakNits(Options.hdrPeakNits, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setHdrPaperWhiteNits(int nits, boolean write) {
+        Options.hdrPaperWhiteNits = clamp(nits, 80, 500);
+        nativeSetHdrPaperWhiteNits(Options.hdrPaperWhiteNits, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setHdrUiBrightnessNits(int nits, boolean write) {
+        Options.hdrUiBrightnessNits = clamp(nits, 50, 300);
+        nativeSetHdrUiBrightnessNits(Options.hdrUiBrightnessNits, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public native static void nativeSetPsychoEnabled(boolean enabled, boolean write);
+    public native static void nativeSetPsychoHighlights(float value, boolean write);
+    public native static void nativeSetPsychoShadows(float value, boolean write);
+    public native static void nativeSetPsychoContrast(float value, boolean write);
+    public native static void nativeSetPsychoPurity(float value, boolean write);
+    public native static void nativeSetPsychoBleaching(float value, boolean write);
+    public native static void nativeSetPsychoClipPoint(float value, boolean write);
+    public native static void nativeSetPsychoHueRestore(float value, boolean write);
+    public native static void nativeSetPsychoAdaptContrast(float value, boolean write);
+    public native static void nativeSetPsychoWhiteCurve(int value, boolean write);
+    public native static void nativeSetPsychoConeExponent(float value, boolean write);
+    public native static void nativeSetPsychoPeakSDR(float value, boolean write);
+
+    public static void setPsychoHighlights(int percent, boolean write) {
+        Options.psychoHighlightsPercent = clamp(percent, 0, 300);
+        nativeSetPsychoHighlights(Options.psychoHighlightsPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoShadows(int percent, boolean write) {
+        Options.psychoShadowsPercent = clamp(percent, 0, 300);
+        nativeSetPsychoShadows(Options.psychoShadowsPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoContrast(int percent, boolean write) {
+        Options.psychoContrastPercent = clamp(percent, 0, 300);
+        nativeSetPsychoContrast(Options.psychoContrastPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoPurity(int percent, boolean write) {
+        Options.psychoPurityPercent = clamp(percent, 0, 300);
+        nativeSetPsychoPurity(Options.psychoPurityPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoBleaching(int percent, boolean write) {
+        Options.psychoBleachingPercent = clamp(percent, 0, 100);
+        nativeSetPsychoBleaching(Options.psychoBleachingPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoClipPoint(int tenths, boolean write) {
+        Options.psychoClipPointTenths = clamp(tenths, 10, 5000);
+        nativeSetPsychoClipPoint(Options.psychoClipPointTenths / 10.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoHueRestore(int percent, boolean write) {
+        Options.psychoHueRestorePercent = clamp(percent, 0, 100);
+        nativeSetPsychoHueRestore(Options.psychoHueRestorePercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoAdaptContrast(int percent, boolean write) {
+        Options.psychoAdaptContrastPercent = clamp(percent, 0, 300);
+        nativeSetPsychoAdaptContrast(Options.psychoAdaptContrastPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoWhiteCurve(int value, boolean write) {
+        Options.psychoWhiteCurve = clamp(value, 0, 1);
+        nativeSetPsychoWhiteCurve(Options.psychoWhiteCurve, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoConeExponent(int percent, boolean write) {
+        Options.psychoConeExponentPercent = clamp(percent, 10, 300);
+        nativeSetPsychoConeExponent(Options.psychoConeExponentPercent / 100.0f, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setPsychoPeakSDR(int tenths, boolean write) {
+        Options.psychoPeakSDRTenths = clamp(tenths, 5, 80);
+        nativeSetPsychoPeakSDR(Options.psychoPeakSDRTenths / 10.0f, write);
+        if (write) overwriteConfig();
     }
 
     // Upscaler modes: 0=DLSS-RR, 1=FSR3, 2=Off
@@ -3915,15 +3074,29 @@ public class Options {
     }
 
     public native static void nativeSetDlssResOverride(int resOverride, boolean write);
+    public native static void nativeSetDlssPreset(int preset, boolean write);
+    public native static void nativeSetOutputScale2x(boolean enabled, boolean write);
+    public native static void nativeSetReflexEnabled(boolean enabled, boolean write);
+    public native static void nativeSetReflexBoost(boolean enabled, boolean write);
+    public native static void nativeSetVrrMode(boolean enabled, boolean write);
+    public native static void nativeApplyReflexSettings();
+    public native static boolean nativeIsReflexSupported();
+    public native static int nativeGetDisplayRefreshRate();
+    public native static void nativeSetFrameGenMode(int mode, boolean write);
+    public native static void nativeSetFrameGenMultiplier(int multiplier, boolean write);
+    public native static void nativeSetDlssgQueueParallelism(boolean enabled, boolean write);
+    public native static boolean nativeIsFrameGenSupported();
+    public native static int nativeGetFrameGenMaxMultiplier();
 
     private static ScheduledFuture<?> dlssResOverrideTask;
 
     public static void setUpscalerResOverride(int resOverride, boolean write) {
-        Options.upscalerResOverride = resOverride;
+        final int clampedResOverride = clampPercent(resOverride);
+        Options.upscalerResOverride = clampedResOverride;
         if (Options.dlssDEnabled) {
             if (dlssResOverrideTask != null) dlssResOverrideTask.cancel(false);
             dlssResOverrideTask = scheduler.schedule(
-                () -> runOnClientThread(() -> nativeSetDlssResOverride(resOverride, write)),
+                () -> runOnClientThread(() -> nativeSetDlssResOverride(clampedResOverride, write)),
                 500,
                 TimeUnit.MILLISECONDS);
         }
@@ -3934,6 +3107,91 @@ public class Options {
 
     public static void setDlssDEnabled(boolean enabled, boolean write) {
         setUpscalerMode(enabled ? 0 : 1, write);
+    }
+
+    public static void setUpscalerPreset(int preset, boolean write) {
+        Options.upscalerPreset = clamp(preset, 0, 6);
+        nativeSetDlssPreset(Options.upscalerPreset, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setOutputScale2x(boolean enabled, boolean write) {
+        Options.outputScale2x = enabled;
+        nativeSetOutputScale2x(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static boolean isReflexSupported() {
+        try {
+            return nativeIsReflexSupported();
+        } catch (UnsatisfiedLinkError ignored) {
+            return false;
+        }
+    }
+
+    public static void setReflexEnabled(boolean enabled, boolean write) {
+        Options.reflexEnabled = enabled;
+        Options.reflexExplicitlyConfigured = true;
+        nativeSetReflexEnabled(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setReflexBoost(boolean enabled, boolean write) {
+        Options.reflexBoost = enabled;
+        nativeSetReflexBoost(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setVrrMode(boolean enabled, boolean write) {
+        Options.vrrMode = enabled;
+        Options.reflexExplicitlyConfigured = true;
+        nativeSetVrrMode(enabled, write);
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static boolean isFrameGenSupported() {
+        try {
+            return nativeIsFrameGenSupported();
+        } catch (UnsatisfiedLinkError ignored) {
+            return false;
+        }
+    }
+
+    public static int getFrameGenMaxMultiplier() {
+        try {
+            return Math.max(1, nativeGetFrameGenMaxMultiplier());
+        } catch (UnsatisfiedLinkError ignored) {
+            return 1;
+        }
+    }
+
+    public static void setFrameGenMode(int mode, boolean write) {
+        Options.frameGenMode = clamp(mode, 0, 2);
+        nativeSetFrameGenMode(Options.frameGenMode, write);
+        if (Options.frameGenMode != 0 && Options.isReflexSupported()) {
+            Options.reflexEnabled = true;
+        }
+        if (write) {
+            overwriteConfig();
+        }
+    }
+
+    public static void setFrameGenMultiplier(int multiplier, boolean write) {
+        Options.frameGenMultiplier = clamp(multiplier, 1, Math.max(1, getFrameGenMaxMultiplier()));
+        nativeSetFrameGenMultiplier(Options.frameGenMultiplier, write);
+        if (write) {
+            overwriteConfig();
+        }
     }
 
     public native static void nativeSetRayBounces(int bounces, boolean write);
@@ -3947,56 +3205,12 @@ public class Options {
         }
     }
 
-    // --- OMM ---
-    public native static void nativeSetOMMEnabled(boolean enabled, boolean write);
-
-    public static void setOMMEnabled(boolean enabled, boolean write) {
-        Options.ommEnabled = enabled;
-        nativeSetOMMEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Greedy Meshing ---
-    public native static void nativeSetGreedyMeshingEnabled(boolean enabled, boolean write);
-
-    public static void setGreedyMeshingEnabled(boolean enabled, boolean write) {
-        Options.greedyMeshingEnabled = enabled;
-        nativeSetGreedyMeshingEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- OMM Baker Level ---
-    public native static void nativeSetOMMBakerLevel(int level, boolean write);
-
-    public static void setOMMBakerLevel(int level, boolean write) {
-        Options.ommBakerLevel = Math.max(1, Math.min(8, level));
-        nativeSetOMMBakerLevel(Options.ommBakerLevel, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
     // --- Simplified Indirect ---
     public native static void nativeSetSimplifiedIndirect(boolean enabled, boolean write);
 
     public static void setSimplifiedIndirect(boolean enabled, boolean write) {
         Options.simplifiedIndirect = enabled;
         nativeSetSimplifiedIndirect(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Noise LOD ---
-    public native static void nativeSetNoiseLOD(boolean enabled, boolean write);
-
-    public static void setNoiseLOD(boolean enabled, boolean write) {
-        Options.noiseLOD = enabled;
-        try { nativeSetNoiseLOD(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) {
             overwriteConfig();
         }
@@ -4015,180 +3229,128 @@ public class Options {
 
     // --- EON Diffuse ---
     public native static void nativeSetEonDiffuse(boolean enabled, boolean write);
+    public native static void nativeSetDiffuseModel(int model, boolean write);
 
     public static void setEonDiffuse(boolean enabled, boolean write) {
         Options.eonDiffuse = enabled;
+        Options.diffuseModel = enabled ? DIFFUSE_MODEL_EON : DIFFUSE_MODEL_LEGACY;
+        try { nativeSetDiffuseModel(Options.diffuseModel, write); } catch (UnsatisfiedLinkError ignored) {}
         try { nativeSetEonDiffuse(enabled, write); } catch (UnsatisfiedLinkError ignored) {}
         if (write) {
             overwriteConfig();
         }
     }
 
-    // --- POM (Parallax Occlusion Mapping) ---
-    public native static void nativeSetPOMEnabled(boolean enabled, boolean write);
-    public native static void nativeSetPOMHeightScale(float scale, boolean write);
-    public native static void nativeSetPOMSteps(int steps, boolean write);
-    public native static void nativeSetPOMRefinement(int refinement, boolean write);
-    public native static void nativeSetPOMFadeDistance(float distance, boolean write);
-
-    public static void setPOMEnabled(boolean enabled, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("pomEnabled=" + enabled);
-        Options.pomEnabled = enabled;
-        nativeSetPOMEnabled(enabled, write);
-        if (write) { overwriteConfig(); }
+    public static void setDiffuseModel(int model, boolean write) {
+        Options.diffuseModel = clampDiffuseModel(model);
+        Options.eonDiffuse = Options.diffuseModel != DIFFUSE_MODEL_LEGACY;
+        try { nativeSetDiffuseModel(Options.diffuseModel, write); } catch (UnsatisfiedLinkError ignored) {}
+        if (write) {
+            overwriteConfig();
+        }
     }
 
-    public static void setPOMHeightScalePercent(int percent, boolean write) {
-        Options.pomHeightScalePercent = Math.max(1, Math.min(50, percent));
-        nativeSetPOMHeightScale(Options.pomHeightScalePercent / 100.0f, write);
-        if (write) { overwriteConfig(); }
+    private static int clampDiffuseModel(int model) {
+        return clamp(model, DIFFUSE_MODEL_EON, DIFFUSE_MODEL_LEGACY);
     }
 
-    public static void setPOMSteps(int steps, boolean write) {
-        Options.pomSteps = Math.max(8, Math.min(512, steps));
-        nativeSetPOMSteps(Options.pomSteps, write);
-        if (write) { overwriteConfig(); }
+    public static int diffuseModelFromProperties(Properties props, int fallbackDiffuseModel, boolean fallbackEonDiffuse) {
+        if (props.containsKey("diffuseModel")) {
+            return clampDiffuseModel(Integer.parseInt(props.getProperty("diffuseModel", String.valueOf(fallbackDiffuseModel))));
+        }
+        boolean enabled = Boolean.parseBoolean(props.getProperty("eonDiffuse", String.valueOf(fallbackEonDiffuse)));
+        return enabled ? DIFFUSE_MODEL_EON : DIFFUSE_MODEL_LEGACY;
     }
 
-    public static void setPOMRefinement(int refinement, boolean write) {
-        Options.pomRefinement = Math.max(0, Math.min(8, refinement));
-        nativeSetPOMRefinement(Options.pomRefinement, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    public static void setPOMFadeDistance(int distance, boolean write) {
-        Options.pomFadeDistance = Math.max(8, Math.min(256, distance));
-        nativeSetPOMFadeDistance((float) Options.pomFadeDistance, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    // --- Displacement ---
-    public native static void nativeSetDisplacementQuality(int quality, boolean write);
-
-    public static void setDisplacementQuality(int quality, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("displacementQuality=" + quality);
-        Options.displacementQuality = Math.max(0, Math.min(4, quality));
-        nativeSetDisplacementQuality(Options.displacementQuality, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    public native static void nativeSetTessMaxLevel(int v, boolean write);
-    public native static void nativeSetTessNearDist(int v, boolean write);
-    public native static void nativeSetTessMidDist(int v, boolean write);
-    public native static void nativeSetTessFarDist(int v, boolean write);
-
-    public static void setTessMaxLevel(int v, boolean write) {
-        tessMaxLevel = Math.max(2, Math.min(32, v));
-        nativeSetTessMaxLevel(tessMaxLevel, write);
-        if (write) { overwriteConfig(); }
-    }
-    public static void setTessNearDist(int v, boolean write) {
-        tessNearDist = Math.max(8, Math.min(256, v));
-        nativeSetTessNearDist(tessNearDist, write);
-        if (write) { overwriteConfig(); }
-    }
-    public static void setTessMidDist(int v, boolean write) {
-        tessMidDist = Math.max(16, Math.min(384, v));
-        nativeSetTessMidDist(tessMidDist, write);
-        if (write) { overwriteConfig(); }
-    }
-    public static void setTessFarDist(int v, boolean write) {
-        tessFarDist = Math.max(32, Math.min(512, v));
-        nativeSetTessFarDist(tessFarDist, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    // --- SER (Shader Execution Reordering) ---
     public native static void nativeSetSEREnabled(boolean enabled, boolean write);
     public native static void nativeSetSERHintsEnabled(boolean enabled, boolean write);
-
-    public static void setSEREnabled(boolean enabled, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("serEnabled=" + enabled);
-        Options.serEnabled = enabled;
-        nativeSetSEREnabled(enabled, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    public static void setSERHintsEnabled(boolean enabled, boolean write) {
-        com.radiance.client.debug.CrashContext.recordChange("serHintsEnabled=" + enabled);
-        Options.serHintsEnabled = enabled;
-        nativeSetSERHintsEnabled(enabled, write);
-        if (write) { overwriteConfig(); }
-    }
-
-    // --- SHARC Radiance Cache ---
     public native static void nativeSetSharcEnabled(boolean enabled, boolean write);
     public native static void nativeSetSharcSceneScale(float scale, boolean write);
     public native static void nativeSetSharcRoughnessThreshold(float threshold, boolean write);
     public native static void nativeSetSharcAccumulationFrames(int frames, boolean write);
     public native static void nativeSetSharcStaleFrames(int frames, boolean write);
     public native static void nativeSetSharcDownscale(int downscale, boolean write);
+    public native static void nativeSetSharcUpdateBlockSize(int blockSize, boolean write);
+    public native static void nativeSetSharcUpdateBounces(int bounces, boolean write);
+    public native static void nativeSetSharcCapacityExponent(int exponent, boolean write);
+    public native static void nativeSetSharcQueryMode(int mode, boolean write);
+
+    public static void setSEREnabled(boolean enabled, boolean write) {
+        Options.serEnabled = enabled;
+        nativeSetSEREnabled(enabled, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void setSERHintsEnabled(boolean enabled, boolean write) {
+        Options.serHintsEnabled = enabled;
+        nativeSetSERHintsEnabled(enabled, write);
+        if (write) overwriteConfig();
+    }
 
     public static void setSharcEnabled(boolean enabled, boolean write) {
         Options.sharcEnabled = enabled;
         nativeSetSharcEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcSceneScaleTenths(int tenths, boolean write) {
-        Options.sharcSceneScaleTenths = Math.max(10, Math.min(200, tenths));
+        Options.sharcSceneScaleTenths = clamp(tenths, 10, 200);
         nativeSetSharcSceneScale(Options.sharcSceneScaleTenths / 10.0f, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcRoughnessThresholdPercent(int percent, boolean write) {
-        Options.sharcRoughnessThresholdPercent = Math.max(0, Math.min(100, percent));
+        Options.sharcRoughnessThresholdPercent = clamp(percent, 0, 100);
         nativeSetSharcRoughnessThreshold(Options.sharcRoughnessThresholdPercent / 100.0f, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcAccumulationFrames(int frames, boolean write) {
-        Options.sharcAccumulationFrames = Math.max(4, Math.min(256, frames));
+        Options.sharcAccumulationFrames = clamp(frames, 4, 256);
         nativeSetSharcAccumulationFrames(Options.sharcAccumulationFrames, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcStaleFrames(int frames, boolean write) {
-        Options.sharcStaleFrames = Math.max(4, Math.min(128, frames));
+        Options.sharcStaleFrames = clamp(frames, 4, 128);
         nativeSetSharcStaleFrames(Options.sharcStaleFrames, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcDownscale(int downscale, boolean write) {
-        Options.sharcDownscale = Math.max(1, Math.min(8, downscale));
+        Options.sharcDownscale = clamp(downscale, 1, 8);
         nativeSetSharcDownscale(Options.sharcDownscale, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
-    public native static void nativeSetSharcUpdateBlockSize(int blockSize, boolean write);
-    public native static void nativeSetSharcUpdateBounces(int bounces, boolean write);
-    public native static void nativeSetSharcCapacityExponent(int exponent, boolean write);
-
     public static void setSharcUpdateBlockSize(int blockSize, boolean write) {
-        Options.sharcUpdateBlockSize = Math.max(1, Math.min(8, blockSize));
+        Options.sharcUpdateBlockSize = clamp(blockSize, 1, 8);
         nativeSetSharcUpdateBlockSize(Options.sharcUpdateBlockSize, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcUpdateBounces(int bounces, boolean write) {
-        Options.sharcUpdateBounces = Math.max(2, Math.min(16, bounces));
+        Options.sharcUpdateBounces = clamp(bounces, 2, 8);
         nativeSetSharcUpdateBounces(Options.sharcUpdateBounces, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
     public static void setSharcCapacityExponent(int exponent, boolean write) {
-        Options.sharcCapacityExponent = Math.max(18, Math.min(26, exponent));
+        Options.sharcCapacityExponent = clamp(exponent, 18, 24);
         nativeSetSharcCapacityExponent(Options.sharcCapacityExponent, write);
-        if (write) { overwriteConfig(); }
+        if (write) overwriteConfig();
     }
 
-    /** Apply a quality preset. Index 0-4 are presets, 5 = custom (no change). */
-    public static void applySharcPreset(int presetIndex, boolean write) {
-        Options.sharcQualityPreset = presetIndex;
-        if (presetIndex >= 0 && presetIndex < SHARC_PRESETS.length) {
-            int[] p = SHARC_PRESETS[presetIndex];
+    public static void setSharcQueryMode(int mode, boolean write) {
+        Options.sharcQueryMode = clamp(mode, 0, 2);
+        nativeSetSharcQueryMode(Options.sharcQueryMode, write);
+        if (write) overwriteConfig();
+    }
+
+    public static void applySharcPreset(int preset, boolean write) {
+        Options.sharcQualityPreset = clamp(preset, 0, 5);
+        if (Options.sharcQualityPreset < SHARC_PRESETS.length) {
+            int[] p = SHARC_PRESETS[Options.sharcQualityPreset];
             setSharcSceneScaleTenths(p[0], false);
             setSharcRoughnessThresholdPercent(p[1], false);
             setSharcAccumulationFrames(p[2], false);
@@ -4198,920 +3360,291 @@ public class Options {
             setSharcUpdateBounces(p[6], false);
             setSharcCapacityExponent(p[7], false);
         }
-        if (write) { overwriteConfig(); }
+        if (write) {
+            overwriteConfig();
+        }
     }
 
-    /** Check if current SHARC settings match any preset. Returns preset index or 5 (Custom). */
     public static int detectSharcPreset() {
         for (int i = 0; i < SHARC_PRESETS.length; i++) {
             int[] p = SHARC_PRESETS[i];
-            if (sharcSceneScaleTenths == p[0] && sharcRoughnessThresholdPercent == p[1]
-                && sharcAccumulationFrames == p[2] && sharcStaleFrames == p[3]
-                && sharcDownscale == p[4] && sharcUpdateBlockSize == p[5]
-                && sharcUpdateBounces == p[6] && sharcCapacityExponent == p[7]) {
+            if (Options.sharcSceneScaleTenths == p[0]
+                    && Options.sharcRoughnessThresholdPercent == p[1]
+                    && Options.sharcAccumulationFrames == p[2]
+                    && Options.sharcStaleFrames == p[3]
+                    && Options.sharcDownscale == p[4]
+                    && Options.sharcUpdateBlockSize == p[5]
+                    && Options.sharcUpdateBounces == p[6]
+                    && Options.sharcCapacityExponent == p[7]) {
                 return i;
             }
         }
-        return 5; // Custom
+        return 5;
     }
 
-    // --- Area Lights ---
-    public native static void nativeSetAreaLightsEnabled(boolean enabled, boolean write);
-
-    public static void setAreaLightsEnabled(boolean enabled, boolean write) {
-        Options.areaLightsEnabled = enabled;
-        nativeSetAreaLightsEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetRestirEnabled(boolean enabled, boolean write);
-
-    public static void setRestirEnabled(boolean enabled, boolean write) {
-        Options.restirEnabled = enabled;
-        nativeSetRestirEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetAreaLightIntensity(float intensity, boolean write);
-
-    public static void setAreaLightIntensityPercent(int percent, boolean write) {
-        Options.areaLightIntensityPercent = Math.max(0, Math.min(500, percent));
-        nativeSetAreaLightIntensity(Options.areaLightIntensityPercent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetAreaLightRange(int range, boolean write);
-
-    public static void setAreaLightRange(int range, boolean write) {
-        Options.areaLightRange = Math.max(8, Math.min(512, range));
-        nativeSetAreaLightRange(Options.areaLightRange, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetShadowSoftness(float softness, boolean write);
-
-    public static void setShadowSoftnessPercent(int percent, boolean write) {
-        Options.shadowSoftnessPercent = Math.max(0, Math.min(200, percent));
-        nativeSetShadowSoftness(Options.shadowSoftnessPercent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetAreaLightBlockIntensity(int lightTypeId, float intensity);
-
-    public static void setAreaLightBlockIntensityPercent(int lightTypeId, int percent, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            Options.areaLightBlockIntensity[lightTypeId] = Math.max(0, Math.min(500, percent));
-            nativeSetAreaLightBlockIntensity(lightTypeId, Options.areaLightBlockIntensity[lightTypeId] / 100.0f);
-        }
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Per-block scale, Y offset, color ---
-
-    public native static void nativeSetAreaLightBlockScale(int lightTypeId, float scale);
-
-    public static void setAreaLightBlockScale(int lightTypeId, int percent, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            Options.areaLightBlockScale[lightTypeId] = Math.max(10, Math.min(500, percent));
-            nativeSetAreaLightBlockScale(lightTypeId, Options.areaLightBlockScale[lightTypeId] / 100.0f);
-        }
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetAreaLightBlockYOffset(int lightTypeId, float offset);
-
-    public static void setAreaLightBlockYOffset(int lightTypeId, int centibleocks, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            Options.areaLightBlockYOffset[lightTypeId] = Math.max(-50, Math.min(50, centibleocks));
-            nativeSetAreaLightBlockYOffset(lightTypeId, Options.areaLightBlockYOffset[lightTypeId] / 100.0f);
-        }
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetAreaLightBlockColor(int lightTypeId, float r, float g, float b);
-
-    public native static void nativeSetBlockLightMode(int lightTypeId, int mode);
-
-    public static void setBlockLightMode(int lightTypeId, int mode, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            blockLightMode[lightTypeId] = Math.max(0, Math.min(2, mode));
-            nativeSetBlockLightMode(lightTypeId, blockLightMode[lightTypeId]);
-            if (write) {
-                overwriteConfig();
-                nativeRebuildChunks();
-                debouncedChunkReload();
+    // --- Cube-block height-field geometry displacement ---
+    public native static void nativeSetGeometryDisplacementEnabled(boolean enabled, boolean write);
+    public native static void nativeSetGeometryDisplacementDepthScale(float scale, boolean write);
+    public native static void nativeSetGeometryDisplacementPrimarySteps(int steps, boolean write);
+    public native static void nativeSetGeometryDisplacementRefinementSteps(int refinement, boolean write);
+    public native static void nativeSetGeometryDisplacementFadeDistance(float distance, boolean write);
+    public native static void nativeSetPOMEnabled(boolean enabled, boolean write);
+    public native static void nativeSetPOMHeightScale(float scale, boolean write);
+    public native static void nativeSetPOMSteps(int steps, boolean write);
+    public native static void nativeSetPOMRefinement(int refinement, boolean write);
+    public native static void nativeSetPOMFadeDistance(float distance, boolean write);
+    public native static void nativeSetDisplacementQuality(int quality, boolean write);
+    private static void applyDisplacementQualityPreset(int quality) {
+        Options.displacementQuality = clamp(quality, DISPLACEMENT_QUALITY_LOW, DISPLACEMENT_QUALITY_ULTRA);
+        switch (Options.displacementQuality) {
+            case DISPLACEMENT_QUALITY_LOW -> {
+                Options.displacementSteps = 16;
+                Options.displacementRefinement = 2;
+            }
+            case DISPLACEMENT_QUALITY_HIGH -> {
+                Options.displacementSteps = 64;
+                Options.displacementRefinement = 5;
+            }
+            case DISPLACEMENT_QUALITY_ULTRA -> {
+                Options.displacementSteps = 96;
+                Options.displacementRefinement = 6;
+            }
+            default -> {
+                Options.displacementQuality = DISPLACEMENT_QUALITY_BALANCED;
+                Options.displacementSteps = 32;
+                Options.displacementRefinement = 4;
             }
         }
+        Options.pomSteps = Options.displacementSteps;
+        Options.pomRefinement = Options.displacementRefinement;
     }
 
-    public static void setGlobalLightMode(int mode, boolean write) {
-        globalLightMode = Math.max(0, Math.min(2, mode));
-        for (int i = 0; i < AREA_LIGHT_TYPE_COUNT; i++) {
-            blockLightMode[i] = globalLightMode;
-            nativeSetBlockLightMode(i, globalLightMode);
-        }
+    public static String displacementQualityName(int quality) {
+        return switch (clamp(quality, DISPLACEMENT_QUALITY_LOW, DISPLACEMENT_QUALITY_ULTRA)) {
+            case DISPLACEMENT_QUALITY_LOW -> "Low";
+            case DISPLACEMENT_QUALITY_HIGH -> "High";
+            case DISPLACEMENT_QUALITY_ULTRA -> "Ultra";
+            default -> "Balanced";
+        };
+    }
+
+    private static void syncDisplacementNative(boolean write) {
+        Options.pomEnabled = Options.displacementEnabled;
+        Options.pomHeightScalePercent = Options.displacementDepthCapPercent;
+        Options.pomFadeDistance = Options.displacementFadeDistance;
+        nativeSetGeometryDisplacementEnabled(Options.displacementEnabled, write);
+        nativeSetGeometryDisplacementDepthScale(Options.displacementDepthCapPercent / 100.0f, false);
+        nativeSetGeometryDisplacementPrimarySteps(Options.displacementSteps, false);
+        nativeSetGeometryDisplacementRefinementSteps(Options.displacementRefinement, false);
+        nativeSetGeometryDisplacementFadeDistance((float) Options.displacementFadeDistance, false);
+        nativeSetDisplacementQuality(Options.displacementQuality, false);
+    }
+
+    public static void setDisplacementEnabled(boolean enabled, boolean write) {
+        com.radiance.client.debug.CrashContext.recordChange("displacementEnabled=" + enabled);
+        Options.displacementEnabled = enabled;
+        syncDisplacementNative(write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setDisplacementDepthCapPercent(int percent, boolean write) {
+        Options.displacementDepthCapPercent = clamp(percent, 1, 50);
+        com.radiance.client.debug.CrashContext.recordChange("displacementDepthCapPercent=" + Options.displacementDepthCapPercent);
+        syncDisplacementNative(false);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setDisplacementQuality(int quality, boolean write) {
+        applyDisplacementQualityPreset(quality);
+        com.radiance.client.debug.CrashContext.recordChange("displacementQuality=" + Options.displacementQuality);
+        syncDisplacementNative(false);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setDisplacementFadeDistance(int distance, boolean write) {
+        Options.displacementFadeDistance = clamp(distance, 8, 256);
+        com.radiance.client.debug.CrashContext.recordChange("displacementFadeDistance=" + Options.displacementFadeDistance);
+        syncDisplacementNative(false);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMEnabled(boolean enabled, boolean write) {
+        setDisplacementEnabled(enabled, write);
+    }
+
+    public static void setPOMHeightScalePercent(int percent, boolean write) {
+        setDisplacementDepthCapPercent(percent, write);
+    }
+
+    public static void setPOMSteps(int steps, boolean write) {
+        Options.displacementSteps = clamp(steps, 8, 512);
+        Options.pomSteps = Options.displacementSteps;
+        nativeSetGeometryDisplacementPrimarySteps(Options.displacementSteps, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMRefinement(int refinement, boolean write) {
+        Options.displacementRefinement = clamp(refinement, 0, 8);
+        Options.pomRefinement = Options.displacementRefinement;
+        nativeSetGeometryDisplacementRefinementSteps(Options.displacementRefinement, write);
+        if (write) { overwriteConfig(); }
+    }
+
+    public static void setPOMFadeDistance(int distance, boolean write) {
+        setDisplacementFadeDistance(distance, write);
+    }
+
+    public static void setLoggingEnabled(boolean enabled, boolean write) {
+        Options.loggingEnabled = enabled;
+        nativeSetLoggingEnabled(enabled, write);
         if (write) {
             overwriteConfig();
-            nativeRebuildChunks();
-            debouncedChunkReload();
         }
     }
 
-    public static void setAreaLightBlockColorR(int lightTypeId, int value, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            Options.areaLightBlockColorR[lightTypeId] = Math.max(0, Math.min(255, value));
-            nativeSetAreaLightBlockColor(lightTypeId,
-                Options.areaLightBlockColorR[lightTypeId] / 255.0f,
-                Options.areaLightBlockColorG[lightTypeId] / 255.0f,
-                Options.areaLightBlockColorB[lightTypeId] / 255.0f);
+    public static void setGpuDebugLabels(boolean enabled, boolean write) {
+        Options.gpuDebugLabels = enabled;
+        nativeSetGpuDebugLabels(enabled, write);
+        if (write) {
+            overwriteConfig();
         }
-        if (write) overwriteConfig();
     }
 
-    public static void setAreaLightBlockColorG(int lightTypeId, int value, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            Options.areaLightBlockColorG[lightTypeId] = Math.max(0, Math.min(255, value));
-            nativeSetAreaLightBlockColor(lightTypeId,
-                Options.areaLightBlockColorR[lightTypeId] / 255.0f,
-                Options.areaLightBlockColorG[lightTypeId] / 255.0f,
-                Options.areaLightBlockColorB[lightTypeId] / 255.0f);
+    public static void applyDeferredSettings() {
+        if (loggingEnabled) {
+            nativeSetLoggingEnabled(true, false);
+            com.radiance.client.debug.RadianceLogger.setEnabled(true);
         }
-        if (write) overwriteConfig();
+        if (gpuDebugLabels) {
+            nativeSetGpuDebugLabels(true, false);
+        }
     }
 
-    public static void setAreaLightBlockColorB(int lightTypeId, int value, boolean write) {
-        if (lightTypeId >= 0 && lightTypeId < AREA_LIGHT_TYPE_COUNT) {
-            Options.areaLightBlockColorB[lightTypeId] = Math.max(0, Math.min(255, value));
-            nativeSetAreaLightBlockColor(lightTypeId,
-                Options.areaLightBlockColorR[lightTypeId] / 255.0f,
-                Options.areaLightBlockColorG[lightTypeId] / 255.0f,
-                Options.areaLightBlockColorB[lightTypeId] / 255.0f);
+    public static void restoreWindow() {
+        try {
+            var window = MinecraftClient.getInstance().getWindow();
+            if (window.isFullscreen()) {
+                return;
+            }
+            long handle = window.getHandle();
+            int[] mx = new int[1], my = new int[1], mw = new int[1], mh = new int[1];
+            long monitor = org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
+            if (monitor == 0) {
+                return;
+            }
+            org.lwjgl.glfw.GLFW.glfwGetMonitorWorkarea(monitor, mx, my, mw, mh);
+
+            int w = windowWidth;
+            int h = windowHeight;
+            int x = windowPosX;
+            int y = windowPosY;
+            if (w > 0 && h > 0) {
+                w = Math.min(w, mw[0]);
+                h = Math.min(h, mh[0]);
+            }
+            if (x != -1 && y != -1 && w > 0 && h > 0) {
+                x = Math.max(mx[0], Math.min(x, mx[0] + mw[0] - w));
+                y = Math.max(my[0], Math.min(y, my[0] + mh[0] - h));
+                org.lwjgl.glfw.GLFW.glfwSetWindowSize(handle, w, h);
+                org.lwjgl.glfw.GLFW.glfwSetWindowPos(handle, x, y);
+                pendingWindowX = x;
+                pendingWindowY = y;
+                windowRestoreSucceeded = true;
+            }
+        } catch (Exception e) {
+            RadianceClient.LOGGER.warn("Failed to restore saved window bounds.", e);
         }
-        if (write) overwriteConfig();
     }
 
-    // --- Per-Block Temperature ---
-    public native static void nativeSetBlockTemperature(int typeId, float kelvin, boolean write);
+    public static void autoDetectReflexVrr() {
+        if (reflexExplicitlyConfigured) {
+            return;
+        }
+        if (isReflexSupported()) {
+            setReflexEnabled(true, true);
+            setVrrMode(true, true);
+        }
+    }
 
-    /**
-     * Get current temperature for a block in Celsius.
-     */
+    public native static void nativeRebuildChunks();
+    public native static void nativeSetBlockTemperature(int lightTypeId, float kelvin, boolean write);
+    public native static void nativeSetOfflineGroundTruth(boolean enabled, boolean write);
+    public native static void nativeSetBeerLawShadows(boolean enabled, boolean write);
+    public native static void nativeSetNoEmissionClamp(boolean enabled, boolean write);
+    public native static void nativeSetPhysicalSunDisk(boolean enabled, boolean write);
+    public native static void nativeSetNoHandAmbient(boolean enabled, boolean write);
+
+    private static void updateBlockEmissionColor(EmissiveBlock block) {
+        if (block == null || !block.isThermal()) {
+            return;
+        }
+        int tempC = getBlockTemperature(block);
+        float kelvin = tempC + 273.15f;
+        block.setSurfaceNits(EmissiveBlock.blackbodyLuminance(kelvin) * block.getEmissivity());
+    }
+
     public static int getBlockTemperature(EmissiveBlock block) {
         return blockTemperatures.getOrDefault(block.getId(), block.getDefaultTemperatureCelsius());
     }
 
-    /**
-     * Set temperature for a thermal block in Celsius (500-4000°C).
-     * Updates both area light blackbody color (C++ side) and emissive surfaceNits (Java side).
-     * surfaceNits = blackbodyLuminance(T) × emissivity
-     */
     public static void setBlockTemperature(EmissiveBlock block, int celsius, boolean write) {
-        celsius = Math.max(500, Math.min(4000, celsius));
-        blockTemperatures.put(block.getId(), celsius);
-        float kelvin = celsius + 273.15f;
-
-        // Update emissive surfaceNits from Planck's law
-        block.setSurfaceNits(EmissiveBlock.blackbodyLuminance(kelvin) * block.getEmissivity());
-
-        // Update area light color on C++ side (blackbody -> BT.2020)
-        if (block.getLightTypeId() >= 0) {
-            nativeSetBlockTemperature(block.getLightTypeId(), kelvin, write);
+        if (block == null || !block.isThermal()) {
+            return;
         }
-
-        // Update flame colorant area light color
+        int clamped = clamp(celsius, 500, 4000);
+        blockTemperatures.put(block.getId(), clamped);
         updateBlockEmissionColor(block);
-
+        if (block.getLightTypeId() >= 0) {
+            nativeSetBlockTemperature(block.getLightTypeId(), clamped + 273.15f, write);
+        }
         if (write) {
             overwriteConfig();
         }
     }
-
-    // --- Flame Colorant: Wavelength + Purity ---
 
     public static int getBlockWavelength(EmissiveBlock block) {
         return blockWavelengths.getOrDefault(block.getId(), block.getDefaultWavelengthNm());
     }
 
-    public static void setBlockWavelength(EmissiveBlock block, int nm, boolean write) {
-        nm = (nm <= 0) ? 0 : Math.max(380, Math.min(780, nm));
-        blockWavelengths.put(block.getId(), nm);
-        updateBlockEmissionColor(block);
-        if (write) overwriteConfig();
+    public static void setBlockWavelength(EmissiveBlock block, int wavelengthNm, boolean write) {
+        if (block == null) {
+            return;
+        }
+        blockWavelengths.put(block.getId(), clamp(wavelengthNm, 0, 780));
+        if (write) {
+            overwriteConfig();
+        }
     }
 
     public static int getBlockPurity(EmissiveBlock block) {
         return blockPurities.getOrDefault(block.getId(), block.getDefaultPurityPercent());
     }
 
-    public static void setBlockPurity(EmissiveBlock block, int percent, boolean write) {
-        percent = Math.max(0, Math.min(100, percent));
-        blockPurities.put(block.getId(), percent);
-        updateBlockEmissionColor(block);
-        if (write) overwriteConfig();
-    }
-
-    // --- Per-Emissive-Block Gamut Boost ---
-
-    public static int getBlockGamutBoost(EmissiveBlock block) {
-        return blockGamutBoosts.getOrDefault(block.getId(), 100);
-    }
-
-    public static void setBlockGamutBoost(EmissiveBlock block, int value, boolean write) {
-        value = Math.max(0, Math.min(200, value));
-        blockGamutBoosts.put(block.getId(), value);
-        if (write) overwriteConfig();
-    }
-
-    /**
-     * Push spectral flame color to area light system.
-     * When wavelength > 0: compute BT.2020 flame color, convert to BT.709, set perBlockColor.
-     * When wavelength = 0: reset perBlockColor to sentinel (-1), let C++ use blackbody.
-     */
-    public static void updateBlockEmissionColor(EmissiveBlock block) {
-        if (block.getLightTypeId() < 0) return;
-        int wavelength = getBlockWavelength(block);
-        int purity = getBlockPurity(block);
-        if (wavelength <= 0 || purity <= 0) {
-            // Reset to blackbody sentinel — C++ will use LIGHT_DEFS blackbody
-            nativeSetAreaLightBlockColor(block.getLightTypeId(), -1, -1, -1);
+    public static void setBlockPurity(EmissiveBlock block, int purityPercent, boolean write) {
+        if (block == null) {
             return;
         }
-        int tempC = getBlockTemperature(block);
-        float tempK = tempC + 273.15f;
-        float[] bt2020 = com.radiance.client.util.SpectralColor.computeFlameColor(tempK, wavelength, purity / 100.0f);
-        float[] bt709 = com.radiance.client.util.SpectralColor.bt2020ToBT709(bt2020);
-        nativeSetAreaLightBlockColor(block.getLightTypeId(), bt709[0], bt709[1], bt709[2]);
-    }
-
-    // --- ReSTIR DI Tuning ---
-    public native static void nativeSetRestirCandidates(int candidates, boolean write);
-
-    public static void setRestirCandidates(int value, boolean write) {
-        Options.restirCandidates = Math.max(8, Math.min(64, value));
-        nativeSetRestirCandidates(Options.restirCandidates, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetRestirTemporalMClamp(int clamp, boolean write);
-
-    public static void setRestirTemporalMClamp(int value, boolean write) {
-        Options.restirTemporalMClamp = Math.max(5, Math.min(50, value));
-        nativeSetRestirTemporalMClamp(Options.restirTemporalMClamp, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetRestirWClamp(int clamp, boolean write);
-
-    public static void setRestirWClamp(int value, boolean write) {
-        Options.restirWClamp = Math.max(10, Math.min(200, value));
-        nativeSetRestirWClamp(Options.restirWClamp, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetRestirSpatialTaps(int taps, boolean write);
-
-    public static void setRestirSpatialTaps(int value, boolean write) {
-        Options.restirSpatialTaps = Math.max(1, Math.min(10, value));
-        nativeSetRestirSpatialTaps(Options.restirSpatialTaps, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetRestirSpatialRadius(int radius, boolean write);
-
-    public static void setRestirSpatialRadius(int value, boolean write) {
-        Options.restirSpatialRadius = Math.max(5, Math.min(60, value));
-        nativeSetRestirSpatialRadius(Options.restirSpatialRadius, write);
-        if (write) overwriteConfig();
-    }
-
-    // --- ReSTIR Performance ---
-    public native static void nativeSetRestirSimplifiedBRDF(boolean enabled, boolean write);
-
-    public static void setRestirSimplifiedBRDF(boolean enabled, boolean write) {
-        Options.restirSimplifiedBRDF = enabled;
-        nativeSetRestirSimplifiedBRDF(enabled, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetRestirSpatialEnabled(boolean enabled, boolean write);
-
-    public static void setRestirSpatialEnabled(boolean enabled, boolean write) {
-        Options.restirSpatialEnabled = enabled;
-        nativeSetRestirSpatialEnabled(enabled, write);
-        if (write) overwriteConfig();
-    }
-
-    public native static void nativeSetRestirBounceEnabled(boolean enabled, boolean write);
-
-    public static void setRestirBounceEnabled(boolean enabled, boolean write) {
-        Options.restirBounceEnabled = enabled;
-        nativeSetRestirBounceEnabled(enabled, write);
-        if (write) overwriteConfig();
-    }
-
-    // --- Output Scale 2x ---
-    public native static void nativeSetOutputScale2x(boolean enabled, boolean write);
-
-    public static void setOutputScale2x(boolean enabled, boolean write) {
-        Options.outputScale2x = enabled;
-        nativeSetOutputScale2x(enabled, write);
+        blockPurities.put(block.getId(), clamp(purityPercent, 0, 100));
         if (write) {
             overwriteConfig();
         }
     }
 
-    public static void setLoggingEnabled(boolean enabled, boolean write) {
-        Options.loggingEnabled = enabled;
-        nativeSetLoggingEnabled(enabled, write);
-        com.radiance.client.debug.RadianceLogger.setEnabled(enabled);
-        if (write) overwriteConfig();
+    public static int getBlockGamutBoost(EmissiveBlock block) {
+        int defaultBoost = block != null && "lava".equals(block.getId()) ? 200 : 100;
+        return block == null ? defaultBoost : blockGamutBoosts.getOrDefault(block.getId(), defaultBoost);
     }
 
-    /** Apply deferred settings that require renderer to be initialized. */
-    public static void applyDeferredSettings() {
-        if (loggingEnabled) {
-            nativeSetLoggingEnabled(true, false);
-            com.radiance.client.debug.RadianceLogger.setEnabled(true);
+    public static void setBlockGamutBoost(EmissiveBlock block, int boostPercent, boolean write) {
+        if (block == null) {
+            return;
         }
-    }
-
-    /** Restore saved window size and position, clamped to monitor work area. */
-    public static void restoreWindow() {
-        try {
-            var window = net.minecraft.client.MinecraftClient.getInstance().getWindow();
-            if (window.isFullscreen()) return;
-            long handle = window.getHandle();
-
-            // Get primary monitor work area (excludes taskbar)
-            int[] mx = new int[1], my = new int[1], mw = new int[1], mh = new int[1];
-            long monitor = org.lwjgl.glfw.GLFW.glfwGetPrimaryMonitor();
-            if (monitor == 0) return;
-            org.lwjgl.glfw.GLFW.glfwGetMonitorWorkarea(monitor, mx, my, mw, mh);
-            int monX = mx[0], monY = my[0], monW = mw[0], monH = mh[0];
-
-            int w = windowWidth, h = windowHeight, x = windowPosX, y = windowPosY;
-
-            // Clamp size to monitor work area
-            if (w > 0 && h > 0) {
-                w = Math.min(w, monW);
-                h = Math.min(h, monH);
-            }
-
-            // Clamp position so window stays on-screen
-            if (x != -1 && y != -1 && w > 0 && h > 0) {
-                x = Math.max(monX, Math.min(x, monX + monW - w));
-                y = Math.max(monY, Math.min(y, monY + monH - h));
-
-                // Set size first, then schedule position for next tick
-                // (OS window manager moves the window asynchronously after resize)
-                org.lwjgl.glfw.GLFW.glfwSetWindowSize(handle, w, h);
-                org.lwjgl.glfw.GLFW.glfwSetWindowPos(handle, x, y);
-                // Also schedule a deferred position set for next tick to override OS drift
-                pendingWindowX = x;
-                pendingWindowY = y;
-                System.out.println("[Radiance] Restored window: " + w + "x" + h + " at (" + x + "," + y + ") + deferred");
-                windowRestoreSucceeded = true;
-            }
-        } catch (Exception e) {
-            System.err.println("[Radiance] Failed to restore window: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    /** Auto-enable Reflex + VRR on first run if hardware supports it. */
-    public static void autoDetectReflexVrr() {
-        if (reflexExplicitlyConfigured) return; // user already made a choice
-        if (isReflexSupported()) {
-            setReflexEnabled(true, true);
-            setVrrMode(true, true);
-            System.out.println("[Radiance] Auto-enabled Reflex + VRR (hardware supported)");
-        }
-    }
-
-    // --- NVIDIA Reflex ---
-    public native static void nativeSetReflexEnabled(boolean enabled, boolean write);
-    public native static void nativeSetReflexBoost(boolean enabled, boolean write);
-    public native static boolean nativeIsReflexSupported();
-
-    public static boolean isReflexSupported() {
-        try { return nativeIsReflexSupported(); }
-        catch (UnsatisfiedLinkError e) { return false; }
-    }
-
-    public static void setReflexEnabled(boolean enabled, boolean write) {
-        Options.reflexEnabled = enabled;
-        nativeSetReflexEnabled(enabled, write);
-        // DLSS-G requires Reflex — auto-disable Frame Gen if Reflex is turned off
-        if (!enabled && Options.frameGenMode != 0) {
-            setFrameGenMode(0, write);
-        }
+        blockGamutBoosts.put(block.getId(), clamp(boostPercent, 0, 200));
         if (write) {
             overwriteConfig();
         }
     }
 
-    public static void setReflexBoost(boolean enabled, boolean write) {
-        Options.reflexBoost = enabled;
-        nativeSetReflexBoost(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- VRR Mode (Reflex frame cap) ---
-    public native static void nativeSetVrrMode(boolean enabled, boolean write);
-    public native static int nativeGetDisplayRefreshRate();
-    public native static void nativeApplyReflexSettings();
-
-    public static void setVrrMode(boolean enabled, boolean write) {
-        Options.vrrMode = enabled;
-        nativeSetVrrMode(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static int getDisplayRefreshRate() {
-        try { return nativeGetDisplayRefreshRate(); }
-        catch (UnsatisfiedLinkError e) { return 0; }
-    }
-
-    // --- Frame Generation (DLSS-G) ---
-    public native static void nativeSetFrameGenMode(int mode, boolean write);
-    public native static void nativeSetFrameGenMultiplier(int multiplier, boolean write);
-    public native static boolean nativeIsFrameGenSupported();
-    public native static int nativeGetFrameGenMaxMultiplier();
-
-    public static boolean isFrameGenSupported() {
-        try { return nativeIsFrameGenSupported(); }
-        catch (UnsatisfiedLinkError e) { return false; }
-    }
-
-    public static int getFrameGenMaxMultiplier() {
-        try { return nativeGetFrameGenMaxMultiplier(); }
-        catch (UnsatisfiedLinkError e) { return 0; }
-    }
-
-    public static void setFrameGenMode(int mode, boolean write) {
-        Options.frameGenMode = mode;
-        // DLSS-G requires Reflex — auto-enable it when Frame Gen is turned on
-        if (mode != 0 && !Options.reflexEnabled && isReflexSupported()) {
-            setReflexEnabled(true, write);
-        }
-        nativeSetFrameGenMode(mode, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setFrameGenMultiplier(int multiplier, boolean write) {
-        Options.frameGenMultiplier = multiplier;
-        nativeSetFrameGenMultiplier(multiplier, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Min Exposure ---
-    public native static void nativeSetMinExposure(float minExposure, boolean write);
-
-    public static void setMinExposure(int tenK, boolean write) {
-        Options.minExposureTenK = tenK;
-        nativeSetMinExposure(tenK * 1e-7f, write);  // 1-10000 → 1e-7 to 1e-3
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetMaxExposure(int maxExposure, boolean write);
-
-    public static void setMaxExposure(int maxExposure, boolean write) {
-        Options.maxExposure = maxExposure;
-        nativeSetMaxExposure(maxExposure, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-
-
-    public native static void nativeSetDlssPreset(int preset, boolean write);
-
-    private static ScheduledFuture<?> upscalerPresetTask;
-
-    public static void setUpscalerPreset(int preset, boolean write) {
-        Options.upscalerPreset = preset;
-        if (Options.dlssDEnabled) {
-            if (upscalerPresetTask != null) upscalerPresetTask.cancel(false);
-            upscalerPresetTask = scheduler.schedule(
-                () -> runOnClientThread(() -> nativeSetDlssPreset(preset, write)),
-                500,
-                TimeUnit.MILLISECONDS);
-        }
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Exposure Compensation (float EV offset) ---
-    public native static void nativeSetExposureCompensation(float ec, boolean write);
-
-    public native static void nativeSetManualExposureEnabled(boolean enabled, boolean write);
-
-    public static void setManualExposureEnabled(boolean enabled, boolean write) {
-        Options.manualExposureEnabled = enabled;
-        nativeSetManualExposureEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetManualExposure(float exposure, boolean write);
-
-    public static void setManualExposureEV100Tenths(int tenths, boolean write) {
-        tenths = clamp(tenths, -40, 200);
-        Options.manualExposureEV100Tenths = tenths;
-        nativeSetManualExposure(ev100ToLinearExposure(tenths), write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    /**
-     * Convert EV100 (in tenths) to linear exposure multiplier.
-     * Formula: exposure = 1 / (1.2 * 2^EV100)
-     * EV15 (sunny day) -> ~2.54e-5, EV0 -> 0.833, EV-4 -> 13.3
-     */
-    public static float ev100ToLinearExposure(int ev100Tenths) {
-        float ev = ev100Tenths / 10.0f;
-        return 1.0f / (1.2f * (float) Math.pow(2.0, ev));
-    }
-
-    public native static void nativeSetSharpenerMode(int mode, boolean write);
-
-    public static void setSharpenerMode(int mode, boolean write) {
-        Options.sharpenerMode = clamp(mode, 0, 2);
-        nativeSetSharpenerMode(mode, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetCasSharpness(float sharpness, boolean write);
-
-    public static void setCasSharpnessPercent(int percent, boolean write) {
-        percent = clamp(percent, 0, 100);
-        Options.casSharpnessPercent = percent;
-        nativeSetCasSharpness(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setExposureCompensation(int tenths, boolean write) {
-        Options.exposureCompensation = tenths;
-        nativeSetExposureCompensation(tenths / 10.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Middle Grey ---
-    public native static void nativeSetMiddleGrey(float mg, boolean write);
-
-    public static void setMiddleGrey(int percent, boolean write) {
-        Options.middleGreyPercent = percent;
-        nativeSetMiddleGrey(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Exposure Adaptation (v21: exponential decay) ---
-    public native static void nativeSetBrightAdaptSpeed(float speed, boolean write);
-    public native static void nativeSetDarkAdaptSpeed(float speed, boolean write);
-    public native static void nativeSetSceneChangeThreshold(float threshold, boolean write);
-    public native static void nativeSetCenterWeightStrength(float strength, boolean write);
-    public native static void nativeSetHighlightWeight(float weight, boolean write);
-    public native static void nativeSetPsychoPeakSDR(float peak, boolean write);
-
-    public static void setHighlightWeight(int percent, boolean write) {
-        percent = clamp(percent, 0, 100);
-        Options.highlightWeightPercent = percent;
-        nativeSetHighlightWeight(percent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setPsychoPeakSDR(int tenths, boolean write) {
-        tenths = clamp(tenths, 5, 80);
-        Options.psychoPeakSDRTenths = tenths;
-        nativeSetPsychoPeakSDR(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setBrightAdaptSpeedTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 1, 50);
-        Options.brightAdaptSpeedTenths = tenths;
-        nativeSetBrightAdaptSpeed(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setDarkAdaptSpeedTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 5, 100);
-        Options.darkAdaptSpeedTenths = tenths;
-        nativeSetDarkAdaptSpeed(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setSceneChangeThresholdTenths(int tenths, boolean write) {
-        tenths = clamp(tenths, 20, 100);
-        Options.sceneChangeThresholdTenths = tenths;
-        nativeSetSceneChangeThreshold(tenths / 10.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    public static void setCenterWeightPercent(int percent, boolean write) {
-        percent = clamp(percent, 0, 100);
-        Options.centerWeightPercent = percent;
-        nativeSetCenterWeightStrength(percent / 100.0f, write);
-        if (write) overwriteConfig();
-    }
-
-    // --- Lwhite (Reinhard white point) ---
-    public native static void nativeSetLwhite(float lw, boolean write);
-
-    public static void setLwhite(int tenths, boolean write) {
-        Options.LwhiteTenths = tenths;
-        nativeSetLwhite(tenths / 10.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Saturation ---
-    public native static void nativeSetSaturation(float saturation, boolean write);
-    public native static void nativeSetSaturationAdaptive(boolean enabled, boolean write);
-
-    public static void setSaturation(int percent, boolean write) {
-        Options.saturationPercent = percent;
-        nativeSetSaturation(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setSaturationAdaptive(boolean enabled, boolean write) {
-        Options.saturationAdaptive = enabled;
-        nativeSetSaturationAdaptive(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- Color Expansion (per-block vivid chroma boost) ---
-    public native static void nativeSetColorExpansion(float colorExpansion, boolean write);
-
-    public static void setColorExpansion(int percent, boolean write) {
-        Options.colorExpansionPercent = percent;
-        nativeSetColorExpansion(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- HDR Tonemapper ---
-    public native static void nativeSetHdrTonemapMode(int mode, boolean write);
-    public static void setHdrTonemapMode(int mode, boolean write) {
-        Options.hdrTonemapMode = mode;
-        nativeSetHdrTonemapMode(mode, write);
-        if (write) overwriteConfig();
-    }
-
-    // --- PsychoV Tonemapper ---
-    public native static void nativeSetPsychoEnabled(boolean enabled, boolean write);
-    public native static void nativeSetPsychoHighlights(float value, boolean write);
-    public native static void nativeSetPsychoShadows(float value, boolean write);
-    public native static void nativeSetPsychoContrast(float value, boolean write);
-    public native static void nativeSetPsychoPurity(float value, boolean write);
-    public native static void nativeSetPsychoBleaching(float value, boolean write);
-    public native static void nativeSetPsychoClipPoint(float value, boolean write);
-    public native static void nativeSetPsychoHueRestore(float value, boolean write);
-    public native static void nativeSetPsychoAdaptContrast(float value, boolean write);
-    public native static void nativeSetPsychoWhiteCurve(int value, boolean write);
-    public native static void nativeSetPsychoConeExponent(float value, boolean write);
-
-    // SDR dual-stage tonemapping
-
-    public static void setPsychoEnabled(boolean enabled, boolean write) {
-        Options.psychoEnabled = enabled;
-        nativeSetPsychoEnabled(enabled, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoHighlights(int percent, boolean write) {
-        Options.psychoHighlightsPercent = percent;
-        nativeSetPsychoHighlights(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoShadows(int percent, boolean write) {
-        Options.psychoShadowsPercent = percent;
-        nativeSetPsychoShadows(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoContrast(int percent, boolean write) {
-        Options.psychoContrastPercent = percent;
-        nativeSetPsychoContrast(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoPurity(int percent, boolean write) {
-        Options.psychoPurityPercent = percent;
-        nativeSetPsychoPurity(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoBleaching(int percent, boolean write) {
-        Options.psychoBleachingPercent = percent;
-        nativeSetPsychoBleaching(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoClipPoint(int tenths, boolean write) {
-        Options.psychoClipPointTenths = tenths;
-        nativeSetPsychoClipPoint(tenths / 10.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoHueRestore(int percent, boolean write) {
-        Options.psychoHueRestorePercent = percent;
-        nativeSetPsychoHueRestore(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoAdaptContrast(int percent, boolean write) {
-        Options.psychoAdaptContrastPercent = percent;
-        nativeSetPsychoAdaptContrast(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoWhiteCurve(int value, boolean write) {
-        Options.psychoWhiteCurve = value;
-        nativeSetPsychoWhiteCurve(value, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public static void setPsychoConeExponent(int percent, boolean write) {
-        Options.psychoConeExponentPercent = percent;
-        nativeSetPsychoConeExponent(percent / 100.0f, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    // --- HDR10 Output ---
-    public native static void nativeSetHdrEnabled(boolean enabled, boolean write);
-    public native static void nativeSetHdrScrgbMode(boolean scrgb, boolean write);
-
-    public static void setHdrScrgbMode(boolean scrgb, boolean write) {
-        Options.hdrScrgbMode = scrgb;
-        nativeSetHdrScrgbMode(scrgb, write);
-        if (write) {
-            try {
-                Pipeline.loadPipeline();
-                Pipeline.build();
-            } catch (Exception e) {
-                RadianceClient.LOGGER.error("Failed to rebuild pipeline after scRGB toggle.", e);
-            }
-            nativeSetHdrScrgbMode(scrgb, true);
-            overwriteConfig();
-        }
-    }
-
-    public static void setHdrEnabled(boolean enabled, boolean write) {
-        if (enabled) {
-            sdrTonemappingMode = clampTonemappingMode(tonemappingMode);
-        }
-
-        Options.hdrEnabled = enabled;
-        nativeSetHdrEnabled(enabled, false);
-
-        if (!enabled) {
-            tonemappingMode = clampTonemappingMode(sdrTonemappingMode);
-            nativeSetTonemappingMode(tonemappingMode, false);
-            pushActiveTonemapParams();
-        }
-
-        if (write) {
-            try {
-                Pipeline.loadPipeline();
-                Pipeline.build();
-            } catch (Exception e) {
-                RadianceClient.LOGGER.error("Failed to rebuild pipeline after HDR toggle.",
-                    e);
-            }
-
-            nativeSetHdrEnabled(enabled, true);
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetHdrPeakNits(int nits, boolean write);
-
-    public static void setHdrPeakNits(int nits, boolean write) {
-        Options.hdrPeakNits = nits;
-        nativeSetHdrPeakNits(nits, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetHdrPaperWhiteNits(int nits, boolean write);
-
-    public static void setHdrPaperWhiteNits(int nits, boolean write) {
-        Options.hdrPaperWhiteNits = nits;
-        nativeSetHdrPaperWhiteNits(nits, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static void nativeSetHdrUiBrightnessNits(int nits, boolean write);
-
-    public static void setHdrUiBrightnessNits(int nits, boolean write) {
-        Options.hdrUiBrightnessNits = nits;
-        nativeSetHdrUiBrightnessNits(nits, write);
-        if (write) {
-            overwriteConfig();
-        }
-    }
-
-    public native static boolean nativeIsHdrActive();
-
-    public native static boolean nativeIsHdrSupported();
-
-    public static boolean isHdrActive() {
-        if (!hdrEnabled) {
-            return false;
-        }
-
-        try {
-            return nativeIsHdrActive();
-        } catch (UnsatisfiedLinkError e) {
-            return false;
-        }
-    }
-
-    public static boolean isHdrSupported() {
-        try {
-            return nativeIsHdrSupported();
-        } catch (UnsatisfiedLinkError e) {
-            return false;
-        }
-    }
-
-    public native static void nativeRebuildChunks();
-    public native static void nativeResetExposureAdaptation();
-
-    // --- Offline Accumulation ---
-    public native static void nativeSetOfflineGroundTruth(boolean enabled, boolean write);
-    public native static void nativeSetBeerLawShadows(boolean enabled, boolean write);
-    public native static void nativeSetNoEmissionClamp(boolean enabled, boolean write);
-    public native static void nativeSetPhysicalSunDisk(boolean enabled, boolean write);
-    public native static void nativeSetNoHandAmbient(boolean enabled, boolean write);
     public native static void nativeSetEntityNormalsEnabled(boolean enabled, boolean write);
     public native static void nativeSetOfflineState(int state, boolean write);
     public native static void nativeSetOfflineBounces(int bounces, boolean write);
@@ -5124,6 +3657,19 @@ public class Options {
     public static void setDofStrength(int percent, boolean write) {
         dofStrengthPercent = clamp(percent, 100, 2000);
         nativeSetDofStrength(percent / 100.0f, write);
+    }
+
+    public static void setShaderPackPath(String path, boolean write) {
+        String value = path == null || path.isBlank()
+            ? Pipeline.VANILLA_RAY_TRACING_SHADER_PACK_PATH
+            : path.trim();
+        if (!Pipeline.setRayTracingShaderPackPath(value, true)) {
+            return;
+        }
+        shaderPackPath = value;
+        if (write) {
+            overwriteConfig();
+        }
     }
     public native static void nativeSetOfflineNativeRes(boolean enabled, boolean write);
     public native static void nativeSetOfflineDenoised(int mode, boolean write);
@@ -5163,6 +3709,11 @@ public class Options {
     public static void setUiGlobalAlphaPercent(int percent, boolean write) {
         uiGlobalAlphaPercent = Math.max(0, Math.min(100, percent));
         com.radiance.client.gui.RadianceTheme.setGlobalAlpha(uiGlobalAlphaPercent / 100f);
+        if (write) overwriteConfig();
+    }
+
+    public static void setMaterialLabOpacityPercent(int percent, boolean write) {
+        materialLabOpacityPercent = clamp(percent, 35, 100);
         if (write) overwriteConfig();
     }
 

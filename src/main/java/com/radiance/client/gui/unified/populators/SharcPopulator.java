@@ -41,6 +41,14 @@ public class SharcPopulator implements ContentPopulator {
         section.tooltip("SHARC caches indirect lighting in a hash grid. Downscale reduces update cost.");
 
         if (Options.sharcEnabled) {
+            SelectionDropdownWidget sharcQueryMode = new SelectionDropdownWidget(
+                0, 0, 150, 20, "Query",
+                Options.SHARC_QUERY_MODE_NAMES,
+                Options.sharcQueryMode,
+                value -> Options.setSharcQueryMode(value, true));
+            section.addTwoWidgets(sharcQueryMode, null);
+            section.tooltip("Query controls the isolated SHARC lookup pass. Observe gathers hit-rate counters without changing pixels; Active is experimental.");
+
             // ── Row 2: Quality Preset slider (full width) ──
             // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
             ResettableSliderWidget presetSlider = new ResettableSliderWidget(
@@ -118,7 +126,7 @@ public class SharcPopulator implements ContentPopulator {
             blockSize.settingKey = Options.SHARC_UPDATE_BLOCK_SIZE_KEY;
 
             ResettableSliderWidget bounces = new ResettableSliderWidget(
-                0, 0, 200, 20, 2, 16,
+                0, 0, 200, 20, 2, 8,
                 Options.sharcUpdateBounces, 4,
                 value -> Text.translatable(Options.SHARC_UPDATE_BOUNCES_KEY)
                     .append(": ").append(Text.literal(Integer.toString(value))),
@@ -130,9 +138,9 @@ public class SharcPopulator implements ContentPopulator {
             section.addTwoSliders(blockSize, bounces);
             section.tooltip("Block Size = NxN pixel blocks per frame (lower = more coverage). Bounces = ray depth for cache updates.");
 
-            // Cache Capacity (exponent: 20-24 → display 2^N entries + VRAM)
+            // Cache Capacity (exponent: 18-24 -> display 2^N entries + VRAM)
             ResettableSliderWidget capacity = new ResettableSliderWidget(
-                0, 0, 200, 20, 18, 26,
+                0, 0, 200, 20, 18, 24,
                 Options.sharcCapacityExponent, 21,
                 value -> {
                     long entries = 1L << value;
@@ -211,6 +219,11 @@ public class SharcPopulator implements ContentPopulator {
         public List<? extends Element> children() {
             return List.of();
         }
+
+        @Override
+        public boolean isGridFullSpan() {
+            return true;
+        }
     }
 
     @Override
@@ -218,6 +231,7 @@ public class SharcPopulator implements ContentPopulator {
         return java.util.List.of(
             new UnifiedSearchOverlay.SearchEntry("SHARC Enabled", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Quality Preset", category, nodeId, true),
+            new UnifiedSearchOverlay.SearchEntry("SHARC Query Mode", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Scene Scale", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Roughness Threshold", category, nodeId, true),
             new UnifiedSearchOverlay.SearchEntry("SHARC Accumulation Frames", category, nodeId, true),

@@ -1,9 +1,13 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.radiance.client.texture.IdentifierInputStream;
+import com.radiance.client.texture.compat.ResourcePackModelFallback;
+import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Predicate;
 import net.minecraft.resource.InputSupplier;
 import net.minecraft.resource.NamespaceResourceManager;
@@ -22,9 +26,29 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class NamespaceResourceManagerMixins {
 
     @Shadow
+    public abstract List<Resource> getAllResources(Identifier id);
+
+    @Shadow
     private static InputSupplier<InputStream> wrapForDebug(Identifier id, ResourcePack pack,
         InputSupplier<InputStream> supplier) {
         return null;
+    }
+
+    @Inject(method = "getResource", at = @At("RETURN"), cancellable = true)
+    private void fallbackMalformedModelJson(Identifier id,
+        CallbackInfoReturnable<Optional<Resource>> cir) {
+        if (!ResourcePackModelFallback.isModelJson(id)) {
+            return;
+        }
+        Optional<Resource> fallback = ResourcePackModelFallback.fallbackForMalformedSelectedModel(
+            id, cir.getReturnValue(), this.getAllResources(id));
+        if (fallback.isPresent()) {
+            cir.setReturnValue(fallback);
+            return;
+        }
+        Optional<Resource> repaired = ResourcePackModelFallback.repairSelectedModelTextureReferences(
+            id, cir.getReturnValue());
+        repaired.ifPresent(resource -> cir.setReturnValue(Optional.of(resource)));
     }
 
     @Inject(method = "createResource(Lnet/minecraft/resource/ResourcePack;Lnet/minecraft/util/Identifier;Lnet/minecraft/resource/InputSupplier;Lnet/minecraft/resource/InputSupplier;)Lnet/minecraft/resource/Resource;", at = @At(value = "HEAD"),
@@ -45,7 +69,7 @@ public abstract class NamespaceResourceManagerMixins {
     }
 
     /**
-     * Filter PBR auxiliary textures (_s, _n, _f suffixed) from resource discovery
+     * Filter PBR auxiliary textures (_s, _n, _f, _e suffixed) from resource discovery
      * results so they are not stitched into the vanilla sprite atlas. This prevents
      * the 4x memory waste that occurs when specular/normal map PNGs end up in the
      * block/item atlas alongside their base textures.
@@ -82,26 +106,11 @@ public abstract class NamespaceResourceManagerMixins {
 
     /**
      * Returns true if the given identifier refers to a PBR auxiliary texture
-     * (_s, _n, or _f suffix) that sits in an atlas-eligible path and should
+     * (_s, _n, _f, or _e suffix) that sits in an atlas-eligible path and should
      * therefore be excluded from the vanilla sprite atlas.
      */
     @Unique
     private static boolean radiance$isPbrAuxiliaryTexture(Identifier id) {
-        String path = id.getPath();
-
-        // Only filter textures in atlas-eligible directories
-        if (!path.startsWith("textures/block/") && !path.startsWith("textures/item/")
-            && !path.startsWith("textures/entity/")) {
-            return false;
-        }
-
-        // Must be a .png file
-        if (!path.endsWith(".png")) {
-            return false;
-        }
-
-        // Strip extension, check for PBR suffixes
-        String baseName = path.substring(0, path.length() - 4); // remove ".png"
-        return baseName.endsWith("_s") || baseName.endsWith("_n") || baseName.endsWith("_f");
+        return ResourcePackTextureNames.isAtlasEligiblePbrAuxiliaryTexture(id);
     }
 }

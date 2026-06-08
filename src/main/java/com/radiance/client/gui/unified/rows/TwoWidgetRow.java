@@ -1,6 +1,8 @@
 package com.radiance.client.gui.unified.rows;
 
 import com.radiance.client.gui.RadianceTheme;
+import com.radiance.client.gui.MaterialDropdownWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.SettingsRow;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,9 +15,10 @@ import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.text.Text;
 
 /**
- * A row with two generic ClickableWidgets side by side.
+ * A row with one or two generic ClickableWidgets.
  * Uses custom rendering: detects widget type (slider vs button/toggle)
- * and renders appropriately. If the right widget is null, the left takes full width.
+ * and renders appropriately. If the right widget is null, the left keeps a
+ * compact preferred width.
  */
 public class TwoWidgetRow extends SettingsRow {
 
@@ -64,7 +67,9 @@ public class TwoWidgetRow extends SettingsRow {
         boolean hovered = mouseX >= x && mouseX < x + w
             && mouseY >= y && mouseY < y + h;
 
-        if (widget instanceof SliderWidget slider) {
+        if (widget instanceof SelectionDropdownWidget || widget instanceof MaterialDropdownWidget) {
+            widget.render(ctx, mouseX, mouseY, 0);
+        } else if (widget instanceof SliderWidget slider) {
             // For SliderWidget subclasses (ResettableSliderWidget overrides renderWidget,
             // but plain SliderWidget from SimpleOption doesn't). Delegate to the widget's
             // own render which may be custom.
@@ -77,7 +82,7 @@ public class TwoWidgetRow extends SettingsRow {
 
             if (looksLikeToggle) {
                 boolean isOn = msg.contains(ON_TEXT);
-                RadianceTheme.drawCustomToggle(ctx, x, y, w, h,
+                RadianceTheme.drawCompactToggle(ctx, x, y, w, h,
                     isOn, hovered, renderer, widget.getMessage());
             } else {
                 RadianceTheme.drawCustomButton(ctx, x, y, w, h,

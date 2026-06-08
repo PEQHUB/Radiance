@@ -136,13 +136,13 @@ public class MaterialDropdownWidget extends ClickableWidget {
     /** Compute dropdown top Y — renders upward if downward would overflow screen. */
     private int getDropdownY() {
         int totalHeight = OPTIONS.length * ITEM_HEIGHT + 2;
-        int screenHeight = MinecraftClient.getInstance().getWindow().getScaledHeight();
-        int downY = getY() + getHeight();
-        if (downY + totalHeight > screenHeight - 4) {
-            // Render upward
-            return getY() - totalHeight;
-        }
-        return downY;
+        return SelectionDropdownWidget.dropdownY(getY(), getHeight(), totalHeight,
+            SelectionDropdownWidget.OpenDirection.AUTO);
+    }
+
+    private int rowAt(double mouseX, double mouseY) {
+        return SelectionDropdownWidget.rowIndexAt(getX(), getDropdownY(), getWidth(), ITEM_HEIGHT,
+            OPTIONS.length, mouseX, mouseY);
     }
 
     /**
@@ -175,14 +175,16 @@ public class MaterialDropdownWidget extends ClickableWidget {
         for (int i = 0; i < OPTIONS.length; i++) {
             int itemY = y + 1 + i * ITEM_HEIGHT;
             boolean hovered = mouseX >= x && mouseX < x + w && mouseY >= itemY && mouseY < itemY + ITEM_HEIGHT;
+            if (OPTIONS[i] == selected) {
+                context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgActive, alphaMult * 0.55f));
+                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT,
+                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
+            }
             if (hovered) {
                 hoveredIndex = i;
                 context.fill(x + 1, itemY, x + w - 1, itemY + ITEM_HEIGHT,
-                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, alphaMult));
-            }
-            if (OPTIONS[i] == selected) {
-                context.fill(x + 1, itemY, x + 3, itemY + ITEM_HEIGHT,
-                        RadianceTheme.scaleAlpha(RadianceTheme.SELECTED_BAR, alphaMult));
+                        RadianceTheme.scaleAlpha(RadianceTheme.widgetBgHover, Math.min(1.0f, alphaMult * 1.15f)));
             }
             RadianceTheme.drawOutlinedText(context, tr, Text.literal(OPTIONS[i].getLabel()),
                     x + 6, itemY + 2, RadianceTheme.textPrimary, alphaMult);
@@ -209,8 +211,9 @@ public class MaterialDropdownWidget extends ClickableWidget {
 
         // Click on dropdown list item
         if (open && isInDropdownBounds(mouseX, mouseY)) {
-            if (hoveredIndex >= 0 && hoveredIndex < OPTIONS.length) {
-                FlameColorant choice = OPTIONS[hoveredIndex];
+            int clickedIndex = rowAt(mouseX, mouseY);
+            if (clickedIndex >= 0 && clickedIndex < OPTIONS.length) {
+                FlameColorant choice = OPTIONS[clickedIndex];
                 if (choice != FlameColorant.CUSTOM) {
                     selected = choice;
                     updateMessage();

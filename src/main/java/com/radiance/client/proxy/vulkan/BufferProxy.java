@@ -14,19 +14,17 @@ import com.radiance.client.constant.Constants;
 import com.radiance.client.fpv.FirstPersonView;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.EmissiveBlock;
-import com.radiance.client.util.MaterialBlock;
 import com.radiance.client.util.SpectralColor;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.compat.ResourcePackLightmapResolver;
+import com.radiance.client.texture.compat.ResourcePackLightmapResolver.LightmapSample;
 import com.radiance.v2.bridge.EngineBridge;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.BuiltBuffer;
 import net.minecraft.client.render.Camera;
-import net.minecraft.block.BlockState;
 import net.minecraft.client.render.Fog;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
 import net.minecraft.client.render.RenderPhase;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.world.ClientWorld;
@@ -218,9 +216,14 @@ public class BufferProxy {
     public static void updateWorldUniform(Camera camera, Matrix4f viewMatrix,
         Matrix4f effectedViewMatrix, Matrix4f projectionMatrix, int overlayTextureID, Fog fog,
         ClientWorld world, int endSkyTextureID, int endPortalTextureID) {
-        animTick++;
-        // Update animated sprite textures (water, lava, etc.) — re-uploads current frame pixels
-        com.radiance.client.proxy.world.BlockModelBridge.updateAnimatedSprites(animTick);
+        int nextAnimTick = world != null ? (int) world.getTime() : animTick + 1;
+        if (nextAnimTick != animTick) {
+            animTick = nextAnimTick;
+            if (com.radiance.client.texture.TextureTracker.textureArrayAnimationUpdatesEnabled) {
+                // Update animated sprite textures (water, lava, etc.) - re-uploads current frame pixels
+                com.radiance.client.proxy.vulkan.TextureArrayBridge.updateAnimatedSprites(animTick);
+            }
+        }
         try (MemoryStack stack = stackPush()) {
             int size = 560 + 50 * 16 + 13 * 16; // base + emissionData[50] + emissiveGamut[13] (materialData moved to SSBO)
             ByteBuffer bb = stack.malloc(size);
@@ -288,24 +291,12 @@ public class BufferProxy {
 
             baseAddr += Float.BYTES; // rayBounces (C++ fills)
 
-            // Camera-inside-block tmin: skip enclosing non-solid block geometry on primary rays.
-            // When camera is inside a non-full block (grass, vines, water, flowers), rays at tmin=0
-            // hit interior faces producing black pixels. Compute the max exit distance so all
-            // primary rays start outside the enclosing block.
+            // Do not skip world geometry with a block-sized tmin. The previous
+            // camera-inside-block workaround quantized to the camera's block and
+            // advanced every primary ray by up to the block diagonal, which carved
+            // a large snapping void through nearby terrain. Interior foliage/camera
+            // clipping needs per-hit handling, not a global ray start shift.
             float cameraTmin = 0.0f;
-            BlockPos camBlockPos = camera.getBlockPos();
-            BlockState camBlockState = world.getBlockState(camBlockPos);
-            if (!camBlockState.isAir() && !camBlockState.isOpaqueFullCube()
-                    && camBlockState.getFluidState().isEmpty()) {
-                Vec3d camPos = camera.getPos();
-                double fx = camPos.x - camBlockPos.getX();
-                double fy = camPos.y - camBlockPos.getY();
-                double fz = camPos.z - camBlockPos.getZ();
-                double dx = Math.max(fx, 1.0 - fx);
-                double dy = Math.max(fy, 1.0 - fy);
-                double dz = Math.max(fz, 1.0 - fz);
-                cameraTmin = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-            }
             bb.putFloat(baseAddr, cameraTmin);
             baseAddr += Float.BYTES;
 
@@ -375,14 +366,7 @@ public class BufferProxy {
             }
             baseAddr += 13 * 16; // 13 × vec4
 
-            // Material data now lives in MaterialClassMapping SSBO (set 1, binding 11).
-            // No longer packed into WorldUBO — saves ~18 KB from UBO.
-
             updateWorldUniform(addr);
-
-            // Upload material SSBO (unified material system — replaces old UBO packing)
-            com.radiance.client.material.MaterialRegistry.init();
-            com.radiance.client.material.MaterialRegistry.uploadIfDirty();
         }
     }
 
@@ -410,6 +394,7 @@ public class BufferProxy {
             int size = 304;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
+            memSet(addr, 0, size);
             int baseAddr = 0;
 
             bb.putFloat(baseAddr, baseColorR);
@@ -458,19 +443,56 @@ public class BufferProxy {
 
             bb.putFloat(baseAddr, rainGradient);
             baseAddr += Float.BYTES;
-            baseAddr += Float.BYTES; // hdrRadianceScale
+            bb.putFloat(baseAddr, 1.0f); // hdrRadianceScale
+            baseAddr += Float.BYTES;
             bb.putFloat(baseAddr, thunderGradient);
             baseAddr += Float.BYTES;
-            baseAddr += Float.BYTES; // pad2
+            bb.putFloat(baseAddr, Options.wetSurfaceStrengthPercent / 100.0f);
+            baseAddr += Float.BYTES;
 
             // AtmosphereParams
-            baseAddr += Float.BYTES * 4 * 3; // skip
+            bb.putFloat(baseAddr, 6360000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 6460000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 8000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 1200.0f);
+            baseAddr += Float.BYTES;
 
-            baseAddr += Float.BYTES * 3; // sunRadiance
+            bb.putFloat(baseAddr, 5.802e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 13.558e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 33.100e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.80f);
+            baseAddr += Float.BYTES;
+
+            bb.putFloat(baseAddr, 21.000e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 21.000e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 21.000e-6f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.02f);
+            baseAddr += Float.BYTES;
+
+            bb.putFloat(baseAddr, 100000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 100000.0f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 100000.0f);
+            baseAddr += Float.BYTES;
             bb.putInt(baseAddr, sunTextureID);
             baseAddr += Integer.BYTES; // sunTextureID
 
-            baseAddr += Float.BYTES * 3; // moonRadiance
+            bb.putFloat(baseAddr, 0.05f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.06f);
+            baseAddr += Float.BYTES;
+            bb.putFloat(baseAddr, 0.12f);
+            baseAddr += Float.BYTES;
             bb.putInt(baseAddr, moonTextureID);
             baseAddr += Integer.BYTES; // moonTextureID
 
@@ -553,7 +575,6 @@ public class BufferProxy {
     }
 
     public static native void updateMapping(long ptr);
-    public static native void updateMaterialClassMapping(long ptr);
 
     // TextureMapEntry: 5 ints + 4 reserved floats = 9 uint32s (36 bytes)
     // Sprite bounds fields (indices 5-8) unused — greedy mesher stores bounds per-vertex instead.
@@ -599,15 +620,6 @@ public class BufferProxy {
 
             // Flush pending mask registrations — ensures texture data is uploaded before
             // the mask ID appears in the TextureMapping SSBO (prevents UNDEFINED-layout reads)
-            TextureTracker.flushPendingMasks();
-
-            // Material class mask textures (R8_UNORM, per-texel class index)
-            for (int id = 0; id < TEX_ENTRY_COUNT; id++) {
-                if (TextureTracker.GLID2MaskGLID[id] != -1) {
-                    texView.put(id * TEX_ENTRY_INTS + 4, TextureTracker.GLID2MaskGLID[id]);
-                }
-            }
-
             updateMapping(texAddr);
 
             // V2 mirror — same byte layout, just routed through the bridge
@@ -625,9 +637,11 @@ public class BufferProxy {
     public static void updateLightMapUniform(float ambientLightFactor, float skyFactor,
         float blockFactor, boolean useBrightLightmap, Vector3f skyLightColor,
         float nightVisionFactor, float darknessScale, float darkenWorldFactor,
-        float brightnessFactor) {
+        float brightnessFactor, ClientWorld world, float tickDelta) {
+        LightmapSample customLightmap = ResourcePackLightmapResolver.resolve(world, tickDelta,
+            skyFactor, blockFactor, nightVisionFactor);
         try (MemoryStack stack = stackPush()) {
-            int size = 48;
+            int size = 576;
             ByteBuffer bb = stack.malloc(size);
             long addr = memAddress(bb);
             int baseAddr = 0;
@@ -656,9 +670,32 @@ public class BufferProxy {
             baseAddr += Float.BYTES;
             bb.putFloat(baseAddr, brightnessFactor);
             baseAddr += Float.BYTES;
-            baseAddr += Integer.BYTES; // pad0
+            bb.putInt(baseAddr, customLightmap.enabled() ? 1 : 0);
+            baseAddr += Integer.BYTES;
+            bb.putInt(baseAddr, customLightmap.includesNightVision() ? 1 : 0);
+            baseAddr += Integer.BYTES;
+            baseAddr += Integer.BYTES * 3; // pad0..2; align vec4 arrays to 16 bytes
+
+            writeLightmapArray(bb, baseAddr, customLightmap.skyRgb());
+            baseAddr += 16 * Float.BYTES * 4;
+            writeLightmapArray(bb, baseAddr, customLightmap.blockRgb());
 
             updateLightMapUniform(addr);
+        }
+    }
+
+    private static void writeLightmapArray(ByteBuffer bb, int baseAddr, float[] rgb) {
+        int offset = baseAddr;
+        for (int level = 0; level < 16; level++) {
+            int source = level * 3;
+            bb.putFloat(offset, rgb[source]);
+            offset += Float.BYTES;
+            bb.putFloat(offset, rgb[source + 1]);
+            offset += Float.BYTES;
+            bb.putFloat(offset, rgb[source + 2]);
+            offset += Float.BYTES;
+            bb.putFloat(offset, 1.0f);
+            offset += Float.BYTES;
         }
     }
 

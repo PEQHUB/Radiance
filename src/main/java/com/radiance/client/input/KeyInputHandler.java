@@ -1,14 +1,13 @@
 package com.radiance.client.input;
 
 import com.radiance.client.RadianceClient;
+import com.radiance.client.autopbr.AutoPbrTexturePicker;
+import com.radiance.client.debug.DebugInspectReporter;
 import com.radiance.client.gui.MaterialsSettingsScreen;
 import com.radiance.client.gui.unified.RadianceUnifiedScreen;
 import com.radiance.client.gui.unified.populators.UnifiedEmissionPopulator;
-import com.radiance.client.material.EntityMaterial;
 import com.radiance.client.option.Options;
 import com.radiance.client.util.EmissiveBlock;
-import com.radiance.client.util.LightSourceRegistry;
-import com.radiance.client.util.MaterialBlock;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.block.BlockState;
@@ -16,7 +15,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import org.lwjgl.glfw.GLFW;
 
@@ -32,6 +30,7 @@ public class KeyInputHandler {
 
     public static KeyBinding focusKey;
     public static KeyBinding inspectKey;
+    public static KeyBinding debugInspectKey;
 
     // Debounce for AF-S click (prevent re-triggering on same press)
     private static boolean afClickConsumed = false;
@@ -59,7 +58,7 @@ public class KeyInputHandler {
         ));
 
         materialPickerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
-            Options.KEY_MATERIAL_PICKER,
+            Options.KEY_AUTOPBR_PICKER,
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_M,
             Options.KEY_CATEGORY_RADIANCE
@@ -97,6 +96,13 @@ public class KeyInputHandler {
             "key.radiance.inspect",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_I,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        debugInspectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.debug_inspect",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_UNKNOWN,
             Options.KEY_CATEGORY_RADIANCE
         ));
 
@@ -297,8 +303,7 @@ public class KeyInputHandler {
                     String target = resolveInspectTarget(client);
                     if (target != null) {
                         if ("materials".equals(target)) {
-                            // Direct to material editor (ordinal already set by resolveInspectTarget)
-                            client.setScreen(new MaterialsSettingsScreen(null));
+                            client.setScreen(new MaterialsSettingsScreen(null, AutoPbrTexturePicker.pick(client)));
                         } else {
                             // Emission, area lights, entity materials → unified screen
                             if (!Options.advancedMode) {
@@ -318,7 +323,7 @@ public class KeyInputHandler {
                     String target = resolveInspectTarget(client);
                     if (target != null) {
                         if ("materials".equals(target)) {
-                            client.setScreen(new MaterialsSettingsScreen(null));
+                            client.setScreen(new MaterialsSettingsScreen(null, AutoPbrTexturePicker.pick(client)));
                         } else {
                             if (!Options.advancedMode) {
                                 Options.advancedMode = true;
@@ -330,14 +335,20 @@ public class KeyInputHandler {
                     }
                 }
             }
+
+            while (debugInspectKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    DebugInspectReporter.captureCurrentTarget(client);
+                }
+            }
         });
     }
 
     // Ground truth preset: saved values for restore
     private static boolean savedBeerLaw, savedNoEmissionClamp, savedPhysicalSun;
     private static boolean savedNoHandAmbient;
-    private static boolean savedSimplifiedIndirect, savedSharcEnabled, savedNoiseLOD;
-    private static boolean savedAreaLights, savedDisableRR, savedDisableClamp;
+    private static boolean savedSimplifiedIndirect, savedSharcEnabled;
+    private static boolean savedDisableRR, savedDisableClamp;
 
     /** Apply ground truth preset — save current values, set all to GT values. */
     public static void applyGroundTruthPreset() {
@@ -348,8 +359,6 @@ public class KeyInputHandler {
         savedNoHandAmbient = Options.noHandAmbient;
         savedSimplifiedIndirect = Options.simplifiedIndirect;
         savedSharcEnabled = Options.sharcEnabled;
-        savedNoiseLOD = Options.noiseLOD;
-        savedAreaLights = Options.areaLightsEnabled;
         savedDisableRR = Options.offlineDisableRR;
         savedDisableClamp = Options.offlineDisableClamp;
 
@@ -360,8 +369,6 @@ public class KeyInputHandler {
         Options.noHandAmbient = true;
         Options.simplifiedIndirect = false;
         Options.sharcEnabled = false;
-        Options.noiseLOD = false;
-        Options.areaLightsEnabled = false;
         Options.offlineDisableRR = true;
         Options.offlineDisableClamp = true;
 
@@ -372,8 +379,6 @@ public class KeyInputHandler {
         Options.nativeSetNoHandAmbient(true, false);
         Options.setSimplifiedIndirect(false, false);
         Options.setSharcEnabled(false, false);
-        Options.setNoiseLOD(false, false);
-        Options.setAreaLightsEnabled(false, false);
         Options.nativeSetOfflineDisableRR(true, false);
         Options.nativeSetOfflineDisableClamp(true, false);
     }
@@ -386,8 +391,6 @@ public class KeyInputHandler {
         Options.noHandAmbient = savedNoHandAmbient;
         Options.simplifiedIndirect = savedSimplifiedIndirect;
         Options.sharcEnabled = savedSharcEnabled;
-        Options.noiseLOD = savedNoiseLOD;
-        Options.areaLightsEnabled = savedAreaLights;
         Options.offlineDisableRR = savedDisableRR;
         Options.offlineDisableClamp = savedDisableClamp;
 
@@ -397,8 +400,6 @@ public class KeyInputHandler {
         Options.nativeSetNoHandAmbient(savedNoHandAmbient, false);
         Options.setSimplifiedIndirect(savedSimplifiedIndirect, false);
         Options.setSharcEnabled(savedSharcEnabled, false);
-        Options.setNoiseLOD(savedNoiseLOD, false);
-        Options.setAreaLightsEnabled(savedAreaLights, false);
         Options.nativeSetOfflineDisableRR(savedDisableRR, false);
         Options.nativeSetOfflineDisableClamp(savedDisableClamp, false);
     }
@@ -408,84 +409,35 @@ public class KeyInputHandler {
         Options.setFocusToast(message, color, (int) durationMs);
     }
 
-    private static int getTargetMaterialOrdinal(MinecraftClient client) {
-        if (client.world == null || client.player == null) return -1;
-
-        // 1. Try the normal crosshair target (solid blocks)
-        if (client.crosshairTarget instanceof BlockHitResult blockHit
-                && blockHit.getType() != HitResult.Type.MISS) {
-            int ord = MaterialBlock.getOrdinalForBlock(
-                client.world.getBlockState(blockHit.getBlockPos()).getBlock());
-            if (ord >= 0) return ord;
-        }
-
-        // 2. Fallback: raycast with fluid handling for water/lava
-        double reach = client.player.getBlockInteractionRange();
-        HitResult fluidHit = client.player.raycast(reach, 1.0f, true);
-        if (fluidHit instanceof BlockHitResult fluidBlockHit
-                && fluidBlockHit.getType() != HitResult.Type.MISS) {
-            int ord = MaterialBlock.getOrdinalForBlock(
-                client.world.getBlockState(fluidBlockHit.getBlockPos()).getBlock());
-            if (ord >= 0) return ord;
-        }
-
-        return -1;
-    }
-
     /**
      * Resolve what the player is looking at into a settings tree node ID.
-     * Priority: emissive block → area light → material block → entity → fluid fallback.
+     * Priority: emissive block, otherwise texture-primary AutoPBR.
      */
     private static String resolveInspectTarget(MinecraftClient client) {
         if (client.world == null || client.player == null) return null;
 
-        // Block at crosshair
         if (client.crosshairTarget instanceof BlockHitResult blockHit
                 && blockHit.getType() != HitResult.Type.MISS) {
             BlockState state = client.world.getBlockState(blockHit.getBlockPos());
-
             EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
             if (eb != null) {
                 UnifiedEmissionPopulator.navigateToBlock(eb);
                 return "emission";
             }
-
-            if (LightSourceRegistry.getLightSource(state) != null) {
-                return "area_lights";
-            }
-
-            int mbOrd = MaterialBlock.getOrdinalForBlock(state.getBlock());
-            if (mbOrd >= 0) {
-                MaterialsSettingsScreen.setCurrentOrdinal(mbOrd);
-                return "materials";
-            }
+            return "materials";
         }
 
-        // Entity at crosshair
-        if (client.crosshairTarget instanceof EntityHitResult entityHit) {
-            if (EntityMaterial.getOrdinalForEntity(entityHit.getEntity()) >= 0) {
-                return "entity_materials";
-            }
-        }
-
-        // Fluid fallback — retry with fluid-inclusive raycast
         double reach = client.player.getBlockInteractionRange();
         HitResult fluidHit = client.player.raycast(reach, 1.0f, true);
         if (fluidHit instanceof BlockHitResult fluidBlockHit
                 && fluidBlockHit.getType() != HitResult.Type.MISS) {
             BlockState state = client.world.getBlockState(fluidBlockHit.getBlockPos());
-
             EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
             if (eb != null) {
                 UnifiedEmissionPopulator.navigateToBlock(eb);
                 return "emission";
             }
-
-            int mbOrd = MaterialBlock.getOrdinalForBlock(state.getBlock());
-            if (mbOrd >= 0) {
-                MaterialsSettingsScreen.setCurrentOrdinal(mbOrd);
-                return "materials";
-            }
+            return "materials";
         }
 
         return null;

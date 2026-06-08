@@ -1,6 +1,5 @@
 package com.radiance.client.gui.unified.rows;
 
-import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.SettingsRow;
 import java.util.ArrayList;
@@ -11,7 +10,7 @@ import net.minecraft.client.gui.widget.ClickableWidget;
 
 /**
  * A row with two side-by-side sliders. If the right slider is null,
- * the left slider takes the full width.
+ * the left slider keeps a compact preferred width.
  */
 public class TwoSliderRow extends SettingsRow {
 
@@ -35,14 +34,12 @@ public class TwoSliderRow extends SettingsRow {
         left.setY(y);
         left.setWidth(right != null ? colW : width);
         left.render(context, mouseX, mouseY, delta);
-        RadianceTheme.drawModifiedDot(context, left.getX(), y, getHeight(), !left.isDefault());
 
         if (right != null) {
             right.setX(x + colW + GAP);
             right.setY(y);
             right.setWidth(colW);
             right.render(context, mouseX, mouseY, delta);
-            RadianceTheme.drawModifiedDot(context, right.getX(), y, getHeight(), !right.isDefault());
         }
     }
 

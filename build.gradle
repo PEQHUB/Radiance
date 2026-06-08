@@ -79,17 +79,44 @@ dependencies {
 //        ./gradlew buildAllPlatforms           (builds both)
 def platform = project.hasProperty('platform') ? project.property('platform') : 'windows'
 
+def resolveGitCommit = {
+    try {
+        def stdout = new ByteArrayOutputStream()
+        def stderr = new ByteArrayOutputStream()
+        def result = exec {
+            commandLine 'git', 'rev-parse', '--short=12', 'HEAD'
+            standardOutput = stdout
+            errorOutput = stderr
+            ignoreExitValue = true
+        }
+        def text = stdout.toString('UTF-8').trim()
+        return result.exitValue == 0 && !text.isEmpty() ? text : 'unknown'
+    } catch (Exception ignored) {
+        return 'unknown'
+    }
+}
+
+def gitCommit = resolveGitCommit()
+
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", project.minecraft_version
     inputs.property "loader_version", project.loader_version
     inputs.property "platform", platform
+    inputs.property "git_commit", gitCommit
     filteringCharset "UTF-8"
 
     filesMatching("fabric.mod.json") {
         expand "version": project.version,
                 "minecraft_version": project.minecraft_version,
                 "loader_version": project.loader_version
+    }
+    filesMatching("radiance-build.properties") {
+        expand "version": project.version,
+                "minecraft_version": project.minecraft_version,
+                "loader_version": project.loader_version,
+                "platform": platform,
+                "git_commit": gitCommit
     }
 
     // Copy platform-specific native libraries into jar resources
@@ -156,6 +183,26 @@ tasks.register("buildAllPlatforms") {
 
 tasks.named("remapSourcesJar") {
     archiveFileName.set("${project.archives_base_name}-${project.version}-fabric-${project.minecraft_version}-sources.jar")
+}
+
+tasks.register("materialLabSelfTest", JavaExec) {
+    group = "verification"
+    description = "Runs strict Material Lab recipe and texture-rule ABI checks"
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = "com.radiance.client.autopbr.MaterialLabSelfTest"
+    javaLauncher = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.register("autopbrGraphSelfTest") {
+    group = "verification"
+    description = "Deprecated alias for materialLabSelfTest"
+    dependsOn tasks.named("materialLabSelfTest")
+}
+
+tasks.named("check") {
+    dependsOn tasks.named("materialLabSelfTest")
 }
 
 // configure the maven publication

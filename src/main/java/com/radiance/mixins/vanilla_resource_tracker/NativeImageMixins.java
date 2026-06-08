@@ -30,6 +30,9 @@ public abstract class NativeImageMixins implements INativeImageExt {
     private NativeImage flagImage = null;
 
     @Unique
+    private byte auxSource = 0;
+
+    @Unique
     private int specularUploadedLevelsMask = 0;
 
     @Unique
@@ -105,6 +108,16 @@ public abstract class NativeImageMixins implements INativeImageExt {
     public void neoVoxelRT$setFlagNativeImage(NativeImage image) {
         this.flagImage = image;
         this.flagUploadedLevelsMask = 0;
+    }
+
+    @Override
+    public byte neoVoxelRT$getAuxSource() {
+        return auxSource;
+    }
+
+    @Override
+    public void neoVoxelRT$setAuxSource(byte source) {
+        this.auxSource = source;
     }
 
     @Override

@@ -11,6 +11,7 @@
   ],
   "client": [
     "vanilla_resource_tracker.AbstractTextureMixins",
+    "vanilla_resource_tracker.AtlasLoaderMixins",
     "vanilla_resource_tracker.BitmapFontGlyphMixins",
     "vanilla_resource_tracker.BuiltinEmptyGlyphMixins",
     "vanilla_resource_tracker.FontStorageMixins",
@@ -34,7 +35,6 @@
     "vulkan_render_integration.CameraAccessorMixin",
     "vulkan_render_integration.BlockColorsMixins",
     "vulkan_render_integration.BlockModelRendererMixins",
-    "vulkan_render_integration.BlockShouldDrawSideMixin",
     "vulkan_render_integration.BufferRendererMixins",
     "vulkan_render_integration.BuiltBufferMixins",
     "vulkan_render_integration.BuiltChunkStorageMixins",

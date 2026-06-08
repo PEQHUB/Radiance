@@ -2,11 +2,14 @@ package com.radiance.client.texture;
 
 import com.radiance.client.constant.VulkanConstants;
 import com.radiance.client.proxy.vulkan.TextureProxy;
-import com.radiance.client.util.MaterialBlock;
+import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
+import com.radiance.client.texture.compat.ResourcePackTextureNames;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -15,75 +18,25 @@ import net.minecraft.client.texture.NativeImage;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.MathHelper;
 
 public enum AuxiliaryTextures {
-    SPECULAR("specular", "_s", (identifier, source) -> {
-        String namespace = identifier.getNamespace();
-        String path = identifier.getPath();
-        String[] pathComponents = path.split("/");
-        String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String suffixedFileName = String.join("",
-            new String[]{fileNameComponents[0], "_s.", fileNameComponents[1]});
-
-        // Primary: same-directory LabPBR layout (e.g. textures/block/stone_s.png)
-        String[] sameDir = pathComponents.clone();
-        sameDir[sameDir.length - 1] = suffixedFileName;
-        String sameDirPath = String.join("/", sameDir);
-        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
-
-        // Fallback: separate subfolder layout (e.g. textures/specular/block/stone_s.png)
-        String subfolderPath = sameDirPath.replace("textures/", "textures/specular/");
-        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
-
-        return List.of(sameDirId, subfolderId);
-    }, INativeImageExt::neoVoxelRT$getSpecularNativeImage,
+    SPECULAR("specular", (identifier, source) ->
+        auxiliaryCandidates(identifier, "specular", true, "_s", "_spec", "_specular"),
+        INativeImageExt::neoVoxelRT$getSpecularNativeImage,
         INativeImageExt::neoVoxelRT$setSpecularNativeImage,
         INativeImageExt::neoVoxelRT$getSpecularUploadedLevelsMask,
         INativeImageExt::neoVoxelRT$setSpecularUploadedLevelsMask,
-        TextureTracker.GLID2SpecularGLID), NORMAL("normal", "_n", (identifier, source) -> {
-        String namespace = identifier.getNamespace();
-        String path = identifier.getPath();
-        String[] pathComponents = path.split("/");
-        String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String suffixedFileName = String.join("",
-            new String[]{fileNameComponents[0], "_n.", fileNameComponents[1]});
-
-        // Primary: same-directory LabPBR layout (e.g. textures/block/stone_n.png)
-        String[] sameDir = pathComponents.clone();
-        sameDir[sameDir.length - 1] = suffixedFileName;
-        String sameDirPath = String.join("/", sameDir);
-        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
-
-        // Fallback: separate subfolder layout (e.g. textures/normal/block/stone_n.png)
-        String subfolderPath = sameDirPath.replace("textures/", "textures/normal/");
-        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
-
-        return List.of(sameDirId, subfolderId);
-    }, INativeImageExt::neoVoxelRT$getNormalNativeImage,
+        TextureTracker.GLID2SpecularGLID), NORMAL("normal", (identifier, source) ->
+        auxiliaryCandidates(identifier, "normal", true, "_n", "_normal", "_norm"),
+        INativeImageExt::neoVoxelRT$getNormalNativeImage,
         INativeImageExt::neoVoxelRT$setNormalNativeImage,
         INativeImageExt::neoVoxelRT$getNormalUploadedLevelsMask,
         INativeImageExt::neoVoxelRT$setNormalUploadedLevelsMask,
         TextureTracker.GLID2NormalGLID), FLAG(
-        "flag", "_f", (identifier, source) -> {
-        String namespace = identifier.getNamespace();
-        String path = identifier.getPath();
-        String[] pathComponents = path.split("/");
-        String[] fileNameComponents = pathComponents[pathComponents.length - 1].split("\\.");
-        String suffixedFileName = String.join("",
-            new String[]{fileNameComponents[0], "_f.", fileNameComponents[1]});
-
-        // Primary: same-directory layout (e.g. textures/block/stone_f.png)
-        String[] sameDir = pathComponents.clone();
-        sameDir[sameDir.length - 1] = suffixedFileName;
-        String sameDirPath = String.join("/", sameDir);
-        Identifier sameDirId = Identifier.of(namespace, sameDirPath);
-
-        // Fallback: separate subfolder layout (e.g. textures/flag/block/stone_f.png)
-        String subfolderPath = sameDirPath.replace("textures/", "textures/flag/");
-        Identifier subfolderId = Identifier.of(namespace, subfolderPath);
-
-        return List.of(sameDirId, subfolderId);
-    }, INativeImageExt::neoVoxelRT$getFlagNativeImage,
+        "flag", (identifier, source) ->
+        auxiliaryCandidates(identifier, "flag", true, "_f"),
+        INativeImageExt::neoVoxelRT$getFlagNativeImage,
         INativeImageExt::neoVoxelRT$setFlagNativeImage,
         INativeImageExt::neoVoxelRT$getFlagUploadedLevelsMask,
         INativeImageExt::neoVoxelRT$setFlagUploadedLevelsMask,
@@ -91,7 +44,13 @@ public enum AuxiliaryTextures {
 
     private static final List<AuxiliaryTextures> ALL_TEXTURES = Collections.unmodifiableList(
         Arrays.stream(values()).collect(Collectors.toList()));
-    private final String suffix;
+    private static final String[] ROUGHNESS_SUFFIXES = {"_roughness", "_rough"};
+    private static final String[] METALLIC_SUFFIXES = {"_metallic", "_metalness"};
+    private static final String[] HEIGHT_SUFFIXES = {"_height", "_displacement", "_disp"};
+    private static final String[] AO_SUFFIXES = {"_ao", "_ambientocclusion", "_ambient_occlusion"};
+    private static final int LABPBR_DEFAULT_SPECULAR_ARGB = 0xFF000000;
+    private static final int LABPBR_FLAT_NORMAL_ARGB = 0xFF8080FF;
+    private static final int LABPBR_METAL_CODE = 238;
     private final IdentifierCandidateProvider identifierCandidateProvider;
     private final Getter getter;
     private final Setter setter;
@@ -100,11 +59,66 @@ public enum AuxiliaryTextures {
     private final String name;
     private final int[] GLIDMapping;
 
-    AuxiliaryTextures(String name, String suffix,
+    private static List<Identifier> auxiliaryCandidates(Identifier identifier, String folder,
+        boolean includeUnsuffixedFolder, String... suffixes) {
+        if (identifier == null) {
+            return List.of();
+        }
+        String namespace = identifier.getNamespace();
+        String path = identifier.getPath();
+        int dot = path.lastIndexOf('.');
+        int slash = path.lastIndexOf('/');
+        LinkedHashSet<Identifier> fallbacks = new LinkedHashSet<>();
+
+        if (dot > slash) {
+            String basePath = path.substring(0, dot);
+            String extension = path.substring(dot);
+            for (String suffix : suffixes) {
+                fallbacks.add(Identifier.of(namespace, basePath + suffix + extension));
+            }
+            if (basePath.startsWith("textures/")) {
+                String folderBase = "textures/" + folder + "/" + basePath.substring("textures/".length());
+                for (String suffix : suffixes) {
+                    fallbacks.add(Identifier.of(namespace, folderBase + suffix + extension));
+                }
+                if (includeUnsuffixedFolder) {
+                    fallbacks.add(Identifier.of(namespace, folderBase + extension));
+                }
+            }
+        }
+
+        return withCtmSidecarCandidates(identifier, suffixes, fallbacks);
+    }
+
+    private static List<Identifier> withCtmSidecarCandidates(Identifier identifier, String[] suffixes,
+        LinkedHashSet<Identifier> fallbackIds) {
+        LinkedHashSet<Identifier> candidates = new LinkedHashSet<>();
+        for (String suffix : suffixes) {
+            Identifier ctmSidecar = ResourcePackCompatCtmTiles.ctmSidecarResourceIdentifier(identifier, suffix);
+            if (ctmSidecar != null) {
+                candidates.add(ctmSidecar);
+            }
+        }
+        for (String suffix : suffixes) {
+            candidates.addAll(ResourcePackCompatCtmTiles.ctmMaterialFallbackSidecarResourceIdentifiers(
+                identifier, suffix));
+        }
+        candidates.addAll(fallbackIds);
+        return List.copyOf(candidates);
+    }
+
+    private static List<Identifier> scalarCandidates(Identifier identifier, ScalarSidecar sidecar) {
+        LinkedHashSet<Identifier> candidates = new LinkedHashSet<>();
+        for (String folder : sidecar.folders()) {
+            candidates.addAll(auxiliaryCandidates(identifier, folder, true, sidecar.suffixes()));
+        }
+        return List.copyOf(candidates);
+    }
+
+    AuxiliaryTextures(String name,
         IdentifierCandidateProvider identifierCandidateProvider, Getter getter, Setter setter,
         IntGetter uploadedLevelsMaskGetter, IntSetter uploadedLevelsMaskSetter,
         int[] GLIDMapping) {
-        this.suffix = suffix;
         this.identifierCandidateProvider = identifierCandidateProvider;
         this.getter = getter;
         this.setter = setter;
@@ -124,6 +138,179 @@ public enum AuxiliaryTextures {
         return 1 << level;
     }
 
+    private void markPackProvided(int glid) {
+        if (glid < 0) return;
+        if (this == SPECULAR) {
+            TextureTracker.packProvidedSpecularGLIDs.add(glid);
+            TextureTracker.customSpecularGLIDs.remove(glid);
+        } else if (this == NORMAL) {
+            TextureTracker.packProvidedNormalGLIDs.add(glid);
+            TextureTracker.customNormalGLIDs.remove(glid);
+        }
+    }
+
+    private void markCustomProvided(int glid) {
+        if (glid < 0) return;
+        if (this == SPECULAR) {
+            TextureTracker.packProvidedSpecularGLIDs.remove(glid);
+            TextureTracker.customSpecularGLIDs.add(glid);
+        } else if (this == NORMAL) {
+            TextureTracker.packProvidedNormalGLIDs.remove(glid);
+            TextureTracker.customNormalGLIDs.add(glid);
+        }
+    }
+
+    private void markGenerated(int glid) {
+        if (glid < 0) return;
+        if (this == SPECULAR) {
+            TextureTracker.packProvidedSpecularGLIDs.remove(glid);
+            TextureTracker.customSpecularGLIDs.remove(glid);
+        } else if (this == NORMAL) {
+            TextureTracker.packProvidedNormalGLIDs.remove(glid);
+            TextureTracker.customNormalGLIDs.remove(glid);
+        }
+    }
+
+    private ComposedAuxiliary composeFromScalarSidecars(ResourceManager resourceManager,
+        Identifier identifier, NativeImage source, int level) {
+        return switch (this) {
+            case SPECULAR -> composeSpecularFromScalarSidecars(resourceManager, identifier, source, level);
+            case NORMAL -> composeNormalFromScalarSidecars(resourceManager, identifier, source, level);
+            case FLAG -> null;
+        };
+    }
+
+    private static ComposedAuxiliary composeSpecularFromScalarSidecars(ResourceManager resourceManager,
+        Identifier identifier, NativeImage source, int level) {
+        try (NativeImage roughness = readPackImage(resourceManager,
+            scalarCandidates(identifier, ScalarSidecar.ROUGHNESS), level);
+             NativeImage metallic = readPackImage(resourceManager,
+                 scalarCandidates(identifier, ScalarSidecar.METALLIC), level)) {
+            if (roughness == null && metallic == null) {
+                return null;
+            }
+            NativeImage image = new NativeImage(NativeImage.Format.RGBA, source.getWidth(),
+                source.getHeight(), false);
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    int roughnessArgb = roughness == null ? 0 : sampleScaled(roughness, x, y, image);
+                    int metallicArgb = metallic == null ? 0 : sampleScaled(metallic, x, y, image);
+                    image.setColorArgb(x, y, composeSpecularPixel(
+                        roughnessArgb, roughness != null, metallicArgb, metallic != null));
+                }
+            }
+            return new ComposedAuxiliary(image);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static ComposedAuxiliary composeNormalFromScalarSidecars(ResourceManager resourceManager,
+        Identifier identifier, NativeImage source, int level) {
+        try (NativeImage height = readPackImage(resourceManager,
+            scalarCandidates(identifier, ScalarSidecar.HEIGHT), level);
+             NativeImage ao = readPackImage(resourceManager,
+                 scalarCandidates(identifier, ScalarSidecar.AO), level)) {
+            if (height == null && ao == null) {
+                return null;
+            }
+            NativeImage image = new NativeImage(NativeImage.Format.RGBA, source.getWidth(),
+                source.getHeight(), false);
+            for (int y = 0; y < image.getHeight(); y++) {
+                for (int x = 0; x < image.getWidth(); x++) {
+                    int heightArgb = height == null ? 0 : sampleScaled(height, x, y, image);
+                    int aoArgb = ao == null ? 0 : sampleScaled(ao, x, y, image);
+                    image.setColorArgb(x, y, composeNormalPixel(
+                        heightArgb, height != null, aoArgb, ao != null));
+                }
+            }
+            return new ComposedAuxiliary(image);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static NativeImage readPackImage(ResourceManager resourceManager, List<Identifier> candidates,
+        int level) throws IOException {
+        for (Identifier candidate : candidates) {
+            Optional<Resource> optionalResource = resourceManager.getResource(candidate);
+            if (optionalResource.isPresent()) {
+                try (InputStream input = optionalResource.get().getInputStream();
+                     NativeImage tmpImage = NativeImage.read(input)) {
+                    return MipmapUtil.getSpecificMipmapLevelImage(tmpImage, level);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static int composeSpecularPixel(int roughnessArgb, boolean hasRoughness,
+        int metallicArgb, boolean hasMetallic) {
+        int smoothness = 0;
+        if (hasRoughness) {
+            float roughness = luminance(roughnessArgb);
+            smoothness = MathHelper.clamp(
+                Math.round((1.0f - (float) Math.sqrt(MathHelper.clamp(roughness, 0.02f, 0.98f))) * 255.0f),
+                0, 255);
+        }
+        int metallic = hasMetallic && luminanceByte(metallicArgb) >= 128 ? LABPBR_METAL_CODE : 0;
+        return (LABPBR_DEFAULT_SPECULAR_ARGB & 0xFF0000FF)
+            | (smoothness << 16)
+            | (metallic << 8);
+    }
+
+    private static int composeNormalPixel(int heightArgb, boolean hasHeight, int aoArgb, boolean hasAo) {
+        int height = hasHeight ? luminanceByte(heightArgb) : 255;
+        int ao = hasAo ? luminanceByte(aoArgb) : 255;
+        return (height << 24)
+            | (LABPBR_FLAT_NORMAL_ARGB & 0x00FFFF00)
+            | ao;
+    }
+
+    private static int sampleScaled(NativeImage image, int x, int y, NativeImage sourceSpace) {
+        if (image.getWidth() == sourceSpace.getWidth() && image.getHeight() == sourceSpace.getHeight()) {
+            return image.getColorArgb(x, y);
+        }
+        int sx = MathHelper.clamp(x * image.getWidth() / sourceSpace.getWidth(), 0, image.getWidth() - 1);
+        int sy = MathHelper.clamp(y * image.getHeight() / sourceSpace.getHeight(), 0, image.getHeight() - 1);
+        return image.getColorArgb(sx, sy);
+    }
+
+    private static float luminance(int argb) {
+        return luminanceByte(argb) / 255.0f;
+    }
+
+    private static int luminanceByte(int argb) {
+        float r = ((argb >>> 16) & 0xFF) / 255.0f;
+        float g = ((argb >>> 8) & 0xFF) / 255.0f;
+        float b = (argb & 0xFF) / 255.0f;
+        return MathHelper.clamp(Math.round((r * 0.2126f + g * 0.7152f + b * 0.0722f) * 255.0f), 0, 255);
+    }
+
+    public static boolean hasVisibleHeightAlphaRange(NativeImage normal, NativeImage albedo) {
+        if (normal == null || normal.getWidth() <= 0 || normal.getHeight() <= 0) {
+            return false;
+        }
+        int min = 255;
+        int max = 0;
+        boolean foundOpaquePixel = false;
+        int stepX = Math.max(1, normal.getWidth() / 64);
+        int stepY = Math.max(1, normal.getHeight() / 64);
+        for (int y = 0; y < normal.getHeight(); y += stepY) {
+            for (int x = 0; x < normal.getWidth(); x += stepX) {
+                if (albedo != null
+                    && (((sampleScaled(albedo, x, y, normal) >>> 24) & 0xFF) == 0)) {
+                    continue;
+                }
+                int alpha = (normal.getColorArgb(x, y) >>> 24) & 0xFF;
+                min = Math.min(min, alpha);
+                max = Math.max(max, alpha);
+                foundOpaquePixel = true;
+            }
+        }
+        return foundOpaquePixel && max > min;
+    }
+
     public static void loadAndUpload(NativeImage source, INativeImageExt sourceExt, int level,
         int offsetX, int offsetY, int unpackSkipPixels, int unpackSkipRows, int regionWidth,
         int regionHeight, boolean blur) {
@@ -131,21 +318,22 @@ public enum AuxiliaryTextures {
         Identifier identifier = sourceExt.neoVoxelRT$getIdentifier();
 
         ResourceManager resourceManager = MinecraftClient.getInstance().getResourceManager();
+        if (targetId < 0 || targetId >= TextureTracker.MAX_TEXTURES
+            || !TextureTracker.GLID2Texture.containsKey(targetId)) {
+            return;
+        }
 
         if (identifier != null) {
-            if (ALL_TEXTURES.stream().anyMatch(texture -> {
-                String path = identifier.getPath();
-                int dotIndex = path.lastIndexOf('.');
-                String baseName = (dotIndex != -1) ? path.substring(0, dotIndex) : path;
-
-                return baseName.endsWith(texture.suffix);
-            })) {
+            if (ResourcePackTextureNames.hasNonEmissivePbrAuxiliarySuffix(identifier.getPath())) {
                 return;
             }
 
             int levelBit = getLevelBit(level);
             for (AuxiliaryTextures auxiliaryTexture : ALL_TEXTURES) {
                 NativeImage auxiliaryTemplateImage = auxiliaryTexture.getter.get(sourceExt);
+                byte auxiliarySource = auxiliaryTemplateImage != null
+                    ? ((INativeImageExt) (Object) auxiliaryTemplateImage).neoVoxelRT$getAuxSource()
+                    : TextureTracker.SOURCE_GENERATED;
                 int uploadedLevelsMask = auxiliaryTexture.uploadedLevelsMaskGetter.get(sourceExt);
 
                 if (auxiliaryTemplateImage != null
@@ -188,149 +376,46 @@ public enum AuxiliaryTextures {
                     }
                 }
 
-                if (auxiliaryTemplateImage == null && (
-                    identifier.getPath().contains("textures/block") || identifier.getPath()
-                        .contains("textures/item") || identifier.getPath()
-                        .contains("textures/entity"))) {
+                if (auxiliaryTemplateImage == null
+                    && ResourcePackTextureNames.allowsPbrAuxiliaryLookup(identifier)) {
                     List<Identifier> candidates = auxiliaryTexture.identifierCandidateProvider.get(
                         identifier, source);
 
-                    boolean success = false;
-                    for (Identifier candidate : candidates) {
-                        Optional<Resource> optionalResource = resourceManager.getResource(
-                            candidate);
-                        if (optionalResource.isPresent()) {
-                            try (NativeImage tmpImage = NativeImage.read(
-                                optionalResource.get().getInputStream())) {
-                                auxiliaryTemplateImage = MipmapUtil.getSpecificMipmapLevelImage(
-                                    tmpImage, level);
-
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-
+                    boolean success;
+                    try {
+                        auxiliaryTemplateImage = readPackImage(resourceManager, candidates, level);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    success = auxiliaryTemplateImage != null;
+                    if (!success) {
+                        ComposedAuxiliary composed = auxiliaryTexture.composeFromScalarSidecars(
+                            resourceManager, identifier, source, level);
+                        if (composed != null) {
+                            auxiliaryTemplateImage = composed.image();
                             success = true;
-                            break;
                         }
                     }
 
-                    // Precompute per-block luminance histogram bounds for GPU-side AutoPBR
-                    // Must run for ALL AutoPBR blocks, even those with existing LabPBR textures,
-                    // because the GPU shader always needs tight bounds for roughness derivation.
-                    if (level == 0) {
-                        int lumOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                        if (lumOrdinal >= 0 && com.radiance.client.option.Options.autoPBREnabled
-                                && com.radiance.client.option.Options.materialAutoPBR[lumOrdinal]) {
-                            float wR = 0.2126f, wG = 0.7152f, wB = 0.0722f; // BT.709 (sRGB primaries)
-                            // Use block's sprite region, not the full atlas
-                            int rx = offsetX + unpackSkipPixels;
-                            int ry = offsetY + unpackSkipRows;
-                            int rw = regionWidth > 0 ? regionWidth : source.getWidth();
-                            int rh = regionHeight > 0 ? regionHeight : source.getHeight();
-                            float lMin = Float.MAX_VALUE, lMax = 0f;
-                            for (int py = ry; py < ry + rh; py++) {
-                                for (int px = rx; px < rx + rw; px++) {
-                                    if (px < 0 || py < 0 || px >= source.getWidth() || py >= source.getHeight()) continue;
-                                    int pixel = source.getColorArgb(px, py);
-                                    if (((pixel >> 24) & 0xFF) == 0) continue;
-                                    float sr = ((pixel >> 16) & 0xFF) / 255f;
-                                    float sg = ((pixel >> 8) & 0xFF) / 255f;
-                                    float sb = (pixel & 0xFF) / 255f;
-                                    float lr = sr <= 0.04045f ? sr / 12.92f : (float) Math.pow((sr + 0.055) / 1.055, 2.4);
-                                    float lg = sg <= 0.04045f ? sg / 12.92f : (float) Math.pow((sg + 0.055) / 1.055, 2.4);
-                                    float lb = sb <= 0.04045f ? sb / 12.92f : (float) Math.pow((sb + 0.055) / 1.055, 2.4);
-                                    float lum = wR * lr + wG * lg + wB * lb;
-                                    lMin = Math.min(lMin, lum);
-                                    lMax = Math.max(lMax, lum);
-                                }
-                            }
-                            if (lMin >= lMax) { lMin = 0f; lMax = 1f; }
-                            com.radiance.client.material.MaterialRegistry.setLumRange(lumOrdinal, lMin, lMax);
-                        }
+                    if (success && level == 0) {
+                        auxiliaryTexture.markPackProvided(auxiliaryTargetId);
+                        auxiliarySource = TextureTracker.SOURCE_PACK_AUTHORED;
                     }
 
                     if (!success) {
-                        int mbOrdinal = com.radiance.client.util.MaterialBlock.getOrdinalForTexture(identifier.getPath());
-
-                        // Check per-material input type override
-                        int inputType = 0; // 0=Auto
-                        if (mbOrdinal >= 0) {
-                            if (auxiliaryTexture == NORMAL) {
-                                inputType = com.radiance.client.option.Options.materialNormalInputType[mbOrdinal];
-                            } else if (auxiliaryTexture == SPECULAR) {
-                                inputType = com.radiance.client.option.Options.materialSpecularInputType[mbOrdinal];
-                            }
+                        if (level == 0) {
+                            auxiliaryTexture.markGenerated(auxiliaryTargetId);
                         }
 
-                        if (inputType == 2) {
-                            // Flat: neutral normal or zero specular
-                            if (auxiliaryTexture == NORMAL) {
-                                auxiliaryTemplateImage = source.applyToCopy(i -> (128 << 24) | (128 << 16) | (128 << 8) | 255);
-                            } else {
-                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
-                            }
-                        } else if (inputType == 1 && mbOrdinal >= 0) {
-                            // Custom: load from user-specified path
-                            String customPath = (auxiliaryTexture == NORMAL)
-                                ? com.radiance.client.option.Options.materialCustomNormalPath[mbOrdinal]
-                                : com.radiance.client.option.Options.materialCustomSpecularPath[mbOrdinal];
-                            if (customPath != null && !customPath.isEmpty()) {
-                                int customGlid = CustomTextureLoader.loadAndUpload(customPath, source);
-                                if (customGlid >= 0) {
-                                    if (targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES) {
-                                        auxiliaryTexture.GLIDMapping[targetId] = customGlid;
-                                    }
-                                    auxiliaryTexture.uploadedLevelsMaskSetter.set(sourceExt,
-                                        uploadedLevelsMask | levelBit);
-                                    // Track albedo GLID -> block ordinal so material editor works for custom textures
-                                    if (level == 0 && mbOrdinal >= 0) {
-                                        TextureTracker.albedoGLID2BlockOrdinal.put(targetId, mbOrdinal);
-                                    }
-                                    continue;
-                                }
-                            }
-                            // Neutral LabPBR fill for normals (R=128 X=0, G=128 Y=0, B=255 AO=1, A=0 height=0).
-                            // Zero fill causes NaN normals in shader: sqrt(1 - dot((-1,-1),(-1,-1))) = sqrt(-1).
-                            int customFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
-                            auxiliaryTemplateImage = source.applyToCopy(i -> customFallback);
+                        if (auxiliaryTexture == NORMAL) {
+                            auxiliarySource = TextureTracker.SOURCE_FLAT;
+                            auxiliaryTemplateImage = source.applyToCopy(i -> LABPBR_FLAT_NORMAL_ARGB);
                         } else {
-                            // Auto: existing LabPBR/auto-PBR path
-                            boolean autoPBR = mbOrdinal >= 0
-                                && com.radiance.client.option.Options.autoPBREnabled && com.radiance.client.option.Options.materialAutoPBR[mbOrdinal];
-                            // lumMin/lumMax already computed above (before !success guard)
-                            if (autoPBR && auxiliaryTexture == NORMAL) {
-                                // Keep generating normal texture for POM height data (alpha channel)
-                                auxiliaryTemplateImage = AutoPBRGenerator.generateNormal(source,
-                                    com.radiance.client.option.Options.materialNormalStrength[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 2) != 0,
-                                    com.radiance.client.option.Options.materialAutoPBRHeightGamma[mbOrdinal],
-                                    (com.radiance.client.option.Options.materialAutoPBRFlags[mbOrdinal] & 4) != 0,
-                                    AutoPBRGenerator.HeightParams.fromOptions(mbOrdinal),
-                                    com.radiance.client.option.Options.materialPomAOStrength[mbOrdinal]);
-                                TextureTracker.hasHeightMap.add(targetId);
-                            } else if (autoPBR && auxiliaryTexture == SPECULAR) {
-                                // GPU-side AutoPBR: roughness computed in shader, skip CPU bake
-                                auxiliaryTemplateImage = source.applyToCopy(i -> 0);
-                            } else {
-                                // Neutral LabPBR fill for normals; zero for specular
-                                int autoFallback = (auxiliaryTexture == NORMAL) ? 0x00FF8080 : 0;
-                                auxiliaryTemplateImage = source.applyToCopy(i -> autoFallback);
-                            }
-                            // Always cache albedo and track GLIDs for block textures at mip 0,
-                            // so LiveNormalReuploader can generate Auto-PBR on demand later
-                            if (level == 0 && mbOrdinal >= 0) {
-                                TextureTracker.albedoGLID2BlockOrdinal.put(targetId, mbOrdinal);
-                                if (auxiliaryTexture == NORMAL) {
-                                    if (!TextureTracker.materialBlockAlbedoCache.containsKey(targetId)) {
-                                        TextureTracker.materialBlockAlbedoCache.put(targetId, source.applyToCopy(i -> i));
-                                    }
-                                    TextureTracker.autoPBRNormalGLIDs.add(targetId);
-                                } else if (auxiliaryTexture == SPECULAR) {
-                                    TextureTracker.autoPBRSpecularGLIDs.add(targetId);
-                                }
-                            }
+                            auxiliarySource = TextureTracker.SOURCE_FLAT;
+                            auxiliaryTemplateImage = source.applyToCopy(i -> 0);
                         }
-                    } else if (auxiliaryTexture == NORMAL) {
+                    } else if (auxiliaryTexture == NORMAL
+                        && hasVisibleHeightAlphaRange(auxiliaryTemplateImage, source)) {
                         // Resource pack LabPBR normal loaded — alpha contains height data
                         TextureTracker.hasHeightMap.add(targetId);
                     }
@@ -341,6 +426,8 @@ public enum AuxiliaryTextures {
                         source);
                     ((INativeImageExt) (Object) auxiliaryImage).neoVoxelRT$setTargetID(
                         auxiliaryTargetId);
+                    ((INativeImageExt) (Object) auxiliaryImage).neoVoxelRT$setAuxSource(
+                        auxiliarySource);
                     if (auxiliaryTemplateImage != auxiliaryImage) {
                         auxiliaryTemplateImage.close();
                     }
@@ -360,32 +447,74 @@ public enum AuxiliaryTextures {
                 }
             }
 
-            // Material class mask auto-generation (Phase B): create 1x1 R8_UNORM mask
-            // for registered blocks so every texel maps to the correct MaterialClass.
-            if (level == 0
-                    && !(targetId >= 0 && targetId < TextureTracker.MAX_TEXTURES && TextureTracker.GLID2MaskGLID[targetId] != -1)
-                    && !TextureTracker.pendingMaskGLID.containsKey(targetId)) {
-                int mbOrdinal = MaterialBlock.getOrdinalForTexture(identifier.getPath());
-                if (mbOrdinal >= 0 && mbOrdinal < 256) {
-                    // Registered block: create per-block 1x1 mask texture
-                    int maskTexId = TextureProxy.generateTextureId();
-                    TextureProxy.prepareImage(maskTexId, 1, 1, 1,
-                        VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM);
-                    TextureProxy.setFilter(maskTexId, 0, 0); // NEAREST — no interpolation
-
-                    java.nio.ByteBuffer maskData = org.lwjgl.system.MemoryUtil.memAlloc(1);
-                    maskData.put(0, (byte) mbOrdinal);
-                    long maskPtr = org.lwjgl.system.MemoryUtil.memAddress(maskData);
-                    TextureProxy.queueUpload(maskPtr, 1, 1, maskTexId, 0, 0, 0, 0, 1, 1, 0);
-                    org.lwjgl.system.MemoryUtil.memFree(maskData);
-
-                    TextureTracker.pendingMaskGLID.put(targetId, maskTexId);
-                    TextureTracker.GLID2Texture.put(maskTexId,
-                        new TextureTracker.Texture(1, 1, 1,
-                            VulkanConstants.VkFormat.VK_FORMAT_R8_UNORM, 0));
-                }
-            }
         }
+    }
+
+    public static List<Identifier> candidatesForTest(AuxiliaryTextures texture, Identifier identifier) {
+        if (texture == null) {
+            return List.of();
+        }
+        return texture.identifierCandidateProvider.get(identifier, null);
+    }
+
+    public static List<Identifier> scalarCandidatesForTest(String channel, Identifier identifier) {
+        ScalarSidecar sidecar = ScalarSidecar.fromChannel(channel);
+        return sidecar == null ? List.of() : scalarCandidates(identifier, sidecar);
+    }
+
+    public static int composedSpecularPixelForTest(Integer roughnessArgb, Integer metallicArgb) {
+        return composeSpecularPixel(
+            roughnessArgb == null ? 0 : roughnessArgb,
+            roughnessArgb != null,
+            metallicArgb == null ? 0 : metallicArgb,
+            metallicArgb != null);
+    }
+
+    public static int composedNormalPixelForTest(Integer heightArgb, Integer aoArgb) {
+        return composeNormalPixel(
+            heightArgb == null ? 0 : heightArgb,
+            heightArgb != null,
+            aoArgb == null ? 0 : aoArgb,
+            aoArgb != null);
+    }
+
+    private enum ScalarSidecar {
+        ROUGHNESS(new String[] {"roughness"}, ROUGHNESS_SUFFIXES),
+        METALLIC(new String[] {"metallic", "metalness"}, METALLIC_SUFFIXES),
+        HEIGHT(new String[] {"height", "displacement"}, HEIGHT_SUFFIXES),
+        AO(new String[] {"ao", "ambientocclusion", "ambient_occlusion"}, AO_SUFFIXES);
+
+        private final String[] folders;
+        private final String[] suffixes;
+
+        ScalarSidecar(String[] folders, String[] suffixes) {
+            this.folders = folders;
+            this.suffixes = suffixes;
+        }
+
+        String[] folders() {
+            return folders;
+        }
+
+        String[] suffixes() {
+            return suffixes;
+        }
+
+        static ScalarSidecar fromChannel(String channel) {
+            if (channel == null) {
+                return null;
+            }
+            return switch (channel) {
+                case "roughness" -> ROUGHNESS;
+                case "metallic", "metalness" -> METALLIC;
+                case "height", "displacement" -> HEIGHT;
+                case "ao", "ambientocclusion", "ambient_occlusion" -> AO;
+                default -> null;
+            };
+        }
+    }
+
+    private record ComposedAuxiliary(NativeImage image) {
     }
 
     public interface IdentifierCandidateProvider {

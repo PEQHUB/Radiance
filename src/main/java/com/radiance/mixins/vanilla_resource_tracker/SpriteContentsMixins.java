@@ -1,6 +1,7 @@
 package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
+import com.radiance.client.texture.TextureTracker;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import net.minecraft.client.texture.NativeImage;
@@ -34,6 +35,14 @@ public class SpriteContentsMixins implements ISpriteContentsExt {
     @Override
     public NativeImage neoVoxelRT$getImage() {
         return image;
+    }
+
+    @Inject(method = "upload(II)V", at = @At("HEAD"), cancellable = true)
+    public void bypassVanillaBlockAtlasUpload(int x, int y, CallbackInfo ci) {
+        if (TextureTracker.shouldBypassVanillaBlockAtlasUpload(this.targetID)) {
+            TextureTracker.recordVanillaBlockAtlasUploadBypass();
+            ci.cancel();
+        }
     }
 
     @Inject(method = "upload(IIII[Lnet/minecraft/client/texture/NativeImage;)V",

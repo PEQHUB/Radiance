@@ -1,6 +1,8 @@
 package com.radiance.client.gui.unified.rows;
 
 import com.radiance.client.gui.RadianceTheme;
+import com.radiance.client.gui.MaterialDropdownWidget;
+import com.radiance.client.gui.SelectionDropdownWidget;
 import com.radiance.client.gui.unified.SettingsRow;
 import java.util.List;
 import net.minecraft.client.MinecraftClient;
@@ -33,6 +35,10 @@ public class ToggleRow extends SettingsRow {
         widget.setX(x);
         widget.setY(y);
         widget.setWidth(width);
+        if (widget instanceof SelectionDropdownWidget || widget instanceof MaterialDropdownWidget) {
+            widget.render(context, mouseX, mouseY, delta);
+            return;
+        }
 
         // Detect toggle state from message text
         String msg = widget.getMessage().getString();
@@ -41,7 +47,7 @@ public class ToggleRow extends SettingsRow {
         boolean hovered = mouseX >= x && mouseX < x + width
             && mouseY >= y && mouseY < y + getHeight();
 
-        RadianceTheme.drawCustomToggle(context, x, y, width, getHeight(),
+        RadianceTheme.drawCompactToggle(context, x, y, width, getHeight(),
             isOn, hovered, MinecraftClient.getInstance().textRenderer, widget.getMessage());
     }
 

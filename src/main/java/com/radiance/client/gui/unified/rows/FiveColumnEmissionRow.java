@@ -1,7 +1,6 @@
 package com.radiance.client.gui.unified.rows;
 
 import com.radiance.client.gui.MaterialDropdownWidget;
-import com.radiance.client.gui.RadianceTheme;
 import com.radiance.client.gui.ResettableSliderWidget;
 import com.radiance.client.gui.unified.SettingsRow;
 import java.util.ArrayList;
@@ -72,7 +71,11 @@ public class FiveColumnEmissionRow extends SettingsRow {
         slider.setY(y);
         slider.setWidth(colW);
         slider.render(context, mouseX, mouseY, delta);
-        RadianceTheme.drawModifiedDot(context, slider.getX(), y, getHeight(), !slider.isDefault());
+    }
+
+    @Override
+    public boolean isGridFullSpan() {
+        return true;
     }
 
     /**

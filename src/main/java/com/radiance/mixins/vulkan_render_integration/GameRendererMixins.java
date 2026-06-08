@@ -4,6 +4,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.world.EntityProxy;
+import com.radiance.client.texture.material.FirstFrameTextureReadiness;
 import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IGameRendererExt;
 import net.minecraft.client.MinecraftClient;
@@ -179,9 +180,13 @@ public class GameRendererMixins implements IGameRendererExt {
         }
 
         if (!EngineBridge.nativeIsInitialized()) {
+            // Render RT world on EVERY frame, not just tick frames.
+            // The tick flag controls game logic (20 TPS), not rendering.
+            // Gating on tick limited RT output to ~10 FPS on 240 Hz.
+            boolean worldPresent = client.world != null;
+            boolean firstFrameTextureReady = FirstFrameTextureReadiness.readyOrTimedOut(worldPresent);
             RendererProxy.shouldRenderWorld(
-                !this.client.skipGameRender && finishedLoading && tick
-                    && client.world != null);
+                !this.client.skipGameRender && finishedLoading && worldPresent && firstFrameTextureReady);
         }
     }
 

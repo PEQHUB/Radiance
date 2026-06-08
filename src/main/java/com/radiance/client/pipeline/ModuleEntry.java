@@ -108,6 +108,7 @@ public class ModuleEntry {
             for (ImageConfig imageConfig : module.outputImageConfigs) {
                 imageConfig.owner = module;
             }
+            module.staticAttributeConfigs = Module.copyAttributeConfigs(module.attributeConfigs);
             return module;
         } catch (Exception e) {
             throw new RuntimeException("Failed to load module from: " + this.resourcePath, e);

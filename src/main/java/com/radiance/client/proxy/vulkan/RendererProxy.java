@@ -65,9 +65,26 @@ public class RendererProxy {
     // GPU profiler: returns "ModuleName:ms,...,TOTAL:ms" or "" if disabled
     public static native String nativeGetGpuProfile();
     public static native void nativeSetGpuProfileEnabled(boolean enabled);
+    public static native int nativeGetRtDebugFlags();
+    public static native void nativeSetRtDebugFlags(int flags);
+
+    // Native feature truth: compiled/runtime renderer reality, not just Java option intent
+    public static native String nativeGetFeatureTruth();
+
+    // Native build identity: git/config/toolchain metadata emitted by MCVR at compile time
+    public static native String nativeBuildInfoJson();
+
+    // Color pipeline reality: swapchain format/color space, HDR mode, tonemap, saturation, sharpener
+    public static native String nativeGetColorPipelineDiagnostics();
+
+    // DLSS-G latency and Streamline input-completion diagnostics
+    public static native String nativeGetDlssgLatencyDiag();
 
     // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"
     public static native String nativeGetVmaStats();
+
+    // Texture reload diagnostics: texture generation, array IDs/bytes, chunk generation histogram
+    public static native String nativeGetTextureReloadDiagnostics();
 
     // Overlay compositor diagnostics (CSV key=value pairs)
     public static native String nativeGetOverlayDiag();

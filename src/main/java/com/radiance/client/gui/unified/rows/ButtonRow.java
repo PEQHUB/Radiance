@@ -10,7 +10,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.ClickableWidget;
 
 /**
- * A row containing a single full-width button.
+ * A row containing a single compact button.
  * Uses custom flat rendering instead of Minecraft's vanilla button textures.
  */
 public class ButtonRow extends SettingsRow {
@@ -25,6 +25,7 @@ public class ButtonRow extends SettingsRow {
     public void render(DrawContext context, int x, int y, int width,
                        int mouseX, int mouseY, float delta, float alphaMult) {
         if (alphaMult <= 0f) return;
+
         // Position the underlying widget (for click handling)
         button.setX(x);
         button.setY(y);

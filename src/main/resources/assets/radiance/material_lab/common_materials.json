@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "units": {
+    "roughness": "linear_0_1",
+    "ior": "unitless",
+    "f0": "linear_reflectance_0_1",
+    "transmission": "linear_0_1"
+  },
+  "sources": {
+    "optical_constants": "refractiveindex.info database; common values normalized for realtime material presets",
+    "f0": "F0 computed from real IOR for dielectrics and representative visible-spectrum conductor values for metals"
+  },
+  "materials": [
+    {"id": "iron", "label": "Iron", "group": "Common Metals", "metal": true, "f0": 0.512, "conductorF0Rgb": [0.531, 0.512, 0.496], "labPbrMetalCode": 230, "roughness": 0.35, "note": "Johnson & Christy 1974"},
+    {"id": "gold", "label": "Gold", "group": "Precious Metals", "metal": true, "f0": 0.776, "conductorF0Rgb": [0.944, 0.776, 0.373], "labPbrMetalCode": 231, "roughness": 0.25, "note": "Johnson & Christy 1972"},
+    {"id": "copper", "label": "Copper", "group": "Common Metals", "metal": true, "f0": 0.721, "conductorF0Rgb": [0.926, 0.721, 0.504], "labPbrMetalCode": 234, "roughness": 0.32, "note": "Johnson & Christy 1972"},
+    {"id": "silver", "label": "Silver", "group": "Precious Metals", "metal": true, "f0": 0.950, "conductorF0Rgb": [0.969, 0.950, 0.920], "labPbrMetalCode": 237, "roughness": 0.18, "note": "Measured conductor"},
+    {"id": "aluminum", "label": "Aluminum", "group": "Common Metals", "metal": true, "f0": 0.910, "conductorF0Rgb": [0.913, 0.910, 0.905], "labPbrMetalCode": 232, "roughness": 0.22, "note": "LabPBR aluminium code"},
+    {"id": "chrome", "label": "Chrome", "group": "Common Metals", "metal": true, "f0": 0.650, "conductorF0Rgb": [0.654, 0.650, 0.620], "labPbrMetalCode": 233, "roughness": 0.16, "note": "LabPBR chrome code"},
+    {"id": "lead", "label": "Lead", "group": "Common Metals", "metal": true, "f0": 0.630, "conductorF0Rgb": [0.640, 0.620, 0.570], "labPbrMetalCode": 235, "roughness": 0.46, "note": "LabPBR lead code"},
+    {"id": "platinum", "label": "Platinum", "group": "Precious Metals", "metal": true, "f0": 0.690, "conductorF0Rgb": [0.710, 0.690, 0.650], "labPbrMetalCode": 236, "roughness": 0.22, "note": "LabPBR platinum code"},
+    {"id": "titanium", "label": "Titanium", "group": "Common Metals", "metal": true, "f0": 0.570, "conductorF0Rgb": [0.580, 0.570, 0.530], "labPbrMetalCode": 0, "roughness": 0.38, "note": "Measured RadSER conductor; no exact LabPBR code"},
+    {"id": "rose_gold", "label": "Rose Gold", "group": "Alloys", "metal": true, "f0": 0.690, "conductorF0Rgb": [0.900, 0.640, 0.470], "labPbrMetalCode": 0, "roughness": 0.28, "note": "Alloy approximation"},
+    {"id": "steel", "label": "Steel", "group": "Alloys", "metal": true, "f0": 0.560, "conductorF0Rgb": [0.580, 0.560, 0.530], "labPbrMetalCode": 230, "roughness": 0.33, "note": "Iron-family approximation"},
+    {"id": "netherite", "label": "Netherite Analogue", "group": "Minecraft Specials", "metal": true, "f0": 0.470, "conductorF0Rgb": [0.480, 0.468, 0.445], "labPbrMetalCode": 0, "roughness": 0.55, "note": "Tungsten analogue"},
+    {"id": "water", "label": "Water", "group": "Transparent Dielectrics", "metal": false, "ior": 1.333, "f0": 0.020, "roughness": 0.02, "transmission": 1.0},
+    {"id": "ice", "label": "Ice", "group": "Transparent Dielectrics", "metal": false, "ior": 1.309, "f0": 0.018, "roughness": 0.06, "transmission": 0.35},
+    {"id": "glass", "label": "Glass", "group": "Transparent Dielectrics", "metal": false, "ior": 1.5, "f0": 0.040, "roughness": 0.02, "transmission": 0.95},
+    {"id": "quartz", "label": "Quartz", "group": "Minerals", "metal": false, "ior": 1.544, "f0": 0.045, "roughness": 0.18},
+    {"id": "diamond", "label": "Diamond", "group": "Minerals", "metal": false, "ior": 2.417, "f0": 0.172, "roughness": 0.06, "transmission": 0.55},
+    {"id": "honey", "label": "Honey", "group": "Liquids / Resins", "metal": false, "ior": 1.504, "f0": 0.035, "roughness": 0.24, "transmission": 0.65},
+    {"id": "resin", "label": "Resin", "group": "Liquids / Resins", "metal": false, "ior": 1.52, "f0": 0.035, "roughness": 0.20, "transmission": 0.35},
+    {"id": "slime", "label": "Slime / Gel", "group": "Liquids / Resins", "metal": false, "ior": 1.38, "f0": 0.028, "roughness": 0.30, "transmission": 0.45},
+    {"id": "plastic", "label": "Plastic", "group": "Opaque Dielectrics", "metal": false, "ior": 1.49, "f0": 0.040, "roughness": 0.42},
+    {"id": "ceramic", "label": "Ceramic", "group": "Opaque Dielectrics", "metal": false, "ior": 1.54, "f0": 0.045, "roughness": 0.28},
+    {"id": "wood", "label": "Wood", "group": "Organic", "metal": false, "ior": 1.45, "f0": 0.035, "roughness": 0.68},
+    {"id": "stone", "label": "Stone", "group": "Stone", "metal": false, "ior": 1.55, "f0": 0.046, "roughness": 0.74},
+    {"id": "polished_stone", "label": "Polished Stone", "group": "Stone", "metal": false, "ior": 1.55, "f0": 0.046, "roughness": 0.22},
+    {"id": "earth", "label": "Earth / Soil", "group": "Earth", "metal": false, "ior": 1.43, "f0": 0.032, "roughness": 0.88},
+    {"id": "foliage", "label": "Foliage", "group": "Organic", "metal": false, "ior": 1.40, "f0": 0.028, "roughness": 0.72, "note": "SSS roadmap preset metadata only"}
+  ]
+}

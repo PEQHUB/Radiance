@@ -86,4 +86,9 @@ public class ButtonGroupRow extends SettingsRow {
         for (ButtonWidget b : buttons) list.add(b);
         return list;
     }
+
+    @Override
+    public boolean isGridFullSpan() {
+        return true;
+    }
 }

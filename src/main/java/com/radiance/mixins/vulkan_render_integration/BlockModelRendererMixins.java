@@ -1,22 +1,21 @@
 package com.radiance.mixins.vulkan_render_integration;
 
-import com.radiance.client.option.Options;
-import com.radiance.client.util.ChunkLightCollector;
 import com.radiance.client.util.EmissiveBlock;
-import com.radiance.client.util.MaterialBlock;
-import com.radiance.client.util.VividColorBlock;
-import com.radiance.client.util.LightSourceDef;
-import com.radiance.client.util.LightSourceRegistry;
+import com.radiance.client.texture.compat.ResourcePackColorPropertiesResolver;
+import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver;
 import com.radiance.client.vertex.PBRVertexConsumer;
 
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IBlockColorsExt;
 import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.state.property.Properties;
 import net.minecraft.client.color.block.BlockColors;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.block.BlockModelRenderer;
 import net.minecraft.client.render.model.BakedQuad;
+import net.minecraft.client.texture.Sprite;
 import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.BlockRenderView;
 import org.spongepowered.asm.mixin.Final;
@@ -29,12 +28,26 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(BlockModelRenderer.class)
 public class BlockModelRendererMixins {
 
+    private static final Identifier GRASS_BLOCK_SIDE =
+        Identifier.ofVanilla("block/grass_block_side");
+    private static final Identifier GRASS_BLOCK_SIDE_OVERLAY =
+        Identifier.ofVanilla("block/grass_block_side_overlay");
+
     @Final
     @Shadow
     private BlockColors colors;
 
     private static final ThreadLocal<float[]> BRIGHTNESS_BUFFER = ThreadLocal.withInitial(() -> new float[4]);
     private static final ThreadLocal<int[]> LIGHT_BUFFER = ThreadLocal.withInitial(() -> new int[4]);
+
+    private static boolean isGrassBlockSideBaseQuad(BlockState state, BakedQuad quad) {
+        if (state.getBlock() != Blocks.GRASS_BLOCK || quad == null) {
+            return false;
+        }
+        Sprite sprite = quad.getSprite();
+        return sprite != null && sprite.getContents() != null &&
+            GRASS_BLOCK_SIDE.equals(sprite.getContents().getId());
+    }
 
     @Inject(method =
         "renderQuad(Lnet/minecraft/world/BlockRenderView;Lnet/minecraft/block/BlockState;Lnet/minecraft/util/math/BlockPos;"
@@ -66,6 +79,8 @@ public class BlockModelRendererMixins {
         float emission;
         if (quad.hasTint()) {
             int i = this.colors.getColor(state, world, pos, quad.getTintIndex());
+            i = ResourcePackColorPropertiesResolver.resolveBlockColor(state, world, pos,
+                quad.getTintIndex(), i);
             f = (i >> 16 & 0xFF) / 255.0F;
             g = (i >> 8 & 0xFF) / 255.0F;
             h = (i & 0xFF) / 255.0F;
@@ -73,11 +88,28 @@ public class BlockModelRendererMixins {
             emission = ((IBlockColorsExt) this.colors).neoVoxelRT$getEmission(state, world, pos,
                 quad.getTintIndex());
         } else {
-            f = 1.0F;
-            g = 1.0F;
-            h = 1.0F;
+            int i = ResourcePackColorPropertiesResolver.resolveBlockColor(state, world, pos,
+                -1, 0xFFFFFF);
+            f = (i >> 16 & 0xFF) / 255.0F;
+            g = (i >> 8 & 0xFF) / 255.0F;
+            h = (i & 0xFF) / 255.0F;
 
             emission = 0.0F;
+        }
+
+        boolean foldGrassSideOverlay = isGrassBlockSideBaseQuad(state, quad)
+            && !ResourcePackTextureVariantResolver.hasBlockSpriteRule(
+                GRASS_BLOCK_SIDE_OVERLAY,
+                world,
+                state,
+                pos,
+                quad.getFace());
+        if (foldGrassSideOverlay) {
+            int i = this.colors.getColor(state, world, pos, 0);
+            i = ResourcePackColorPropertiesResolver.resolveBlockColor(state, world, pos, 0, i);
+            f = (i >> 16 & 0xFF) / 255.0F;
+            g = (i >> 8 & 0xFF) / 255.0F;
+            h = (i & 0xFF) / 255.0F;
         }
 
         // Convert emission to physical nits (cd/m²)
@@ -95,66 +127,18 @@ public class BlockModelRendererMixins {
             emissionNits = 0.0f;
         }
 
-        // Look up light source definition for this block (used for area light mode below)
-        LightSourceDef lightDef = LightSourceRegistry.getLightSource(state);
-
         PBRVertexConsumer pbrVertexConsumer = null;
         if (vertexConsumer instanceof PBRVertexConsumer pbr) {
             pbrVertexConsumer = pbr;
-
-            // --- Mutual exclusion: resolve effective light mode ---
-            int effectiveMode;
-
-            if (lightDef != null && lightDef.typeId >= 0 && lightDef.typeId < Options.AREA_LIGHT_TYPE_COUNT) {
-                int configuredMode = Options.blockLightMode[lightDef.typeId];
-                if (configuredMode == Options.LIGHT_MODE_FORCE_AREA) {
-                    effectiveMode = Options.LIGHT_MODE_FORCE_AREA;
-                } else if (configuredMode == Options.LIGHT_MODE_FORCE_EMISSIVE) {
-                    effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
-                } else {
-                    // Auto: area lights on → route to ReSTIR; off → emissive bounce lighting
-                    effectiveMode = Options.areaLightsEnabled
-                        ? Options.LIGHT_MODE_FORCE_AREA
-                        : Options.LIGHT_MODE_FORCE_EMISSIVE;
-                }
-            } else {
-                // No area light available — emissive only
-                effectiveMode = Options.LIGHT_MODE_FORCE_EMISSIVE;
-            }
-
-            // Write emissive block type ordinal for UBO multiplier lookup
+            pbrVertexConsumer.setBase(pos.getX(), pos.getY(), pos.getZ());
+            pbrVertexConsumer.setPendingBlockContext(world, state, pos);
+            pbrVertexConsumer.pushBlockGeometryContext();
             if (eb != null) {
                 pbrVertexConsumer.setPendingEmissiveBlockType(eb.ordinal());
             }
-
-            // Tag material blocks for physically accurate material override (enum + dynamic)
-            int materialOrdinal = MaterialBlock.getOrdinalForBlock(state.getBlock());
-            if (materialOrdinal >= 0) {
-                pbrVertexConsumer.setPendingMaterialBlockType(materialOrdinal);
-            }
-
-            // Unique block type ID for greedy mesher merge prevention (bits 17-31 of emissiveBlockType)
-            pbrVertexConsumer.setPendingBlockTypeId(
-                com.radiance.client.material.BlockTypeIdRegistry.getBlockTypeId(state.getBlock()));
-
-            // Tag vivid color blocks for chroma expansion (bit 16 of emissiveBlockType)
-            pbrVertexConsumer.setPendingVividColor(VividColorBlock.isVivid(state.getBlock()));
-
-            // Apply based on effective mode
-            if (effectiveMode == Options.LIGHT_MODE_FORCE_AREA && lightDef != null) {
-                // AREA LIGHT MODE: negative emission = signal to shader to suppress bounce
-                // abs(value) used for primary-hit self-glow and bloom
-                pbrVertexConsumer.setPendingEmission(-Math.max(emissionNits, 0.001f));
-                if (ChunkLightCollector.isActive()) {
-                    ChunkLightCollector.addLight(pos, lightDef);
-                }
-            } else {
-                // EMISSIVE MODE: positive emission in nits, no area light collection
-                pbrVertexConsumer.setPendingEmission(emissionNits);
-                // Area light NOT added to collector — emissive path handles illumination
-            }
+            pbrVertexConsumer.setPendingEmission(emissionNits);
+            pbrVertexConsumer.setPendingOverlayAlphaMask(foldGrassSideOverlay);
         }
-
         float[] brightness = BRIGHTNESS_BUFFER.get();
         brightness[0] = brightness0;
         brightness[1] = brightness1;
@@ -180,11 +164,12 @@ public class BlockModelRendererMixins {
                 true);
         } finally {
             if (pbrVertexConsumer != null) {
+                pbrVertexConsumer.popBlockGeometryContext();
+                pbrVertexConsumer.clearPendingBlockContext();
+                pbrVertexConsumer.setBase(0.0F, 0.0F, 0.0F);
                 pbrVertexConsumer.setPendingEmission(0.0F);
                 pbrVertexConsumer.setPendingEmissiveBlockType(255);
-                pbrVertexConsumer.setPendingMaterialBlockType(255);
-                pbrVertexConsumer.setPendingVividColor(false);
-                pbrVertexConsumer.setPendingBlockTypeId(0);
+                pbrVertexConsumer.setPendingOverlayAlphaMask(false);
             }
         }
 

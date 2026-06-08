@@ -20,7 +20,7 @@ public class PresetManager {
     /** Keys excluded from presets (machine-specific, not transferable). */
     private static final Set<String> EXCLUDED_KEYS = Set.of(
         "windowPosX", "windowPosY", "windowWidth", "windowHeight",
-        "optionsVersion", "loggingEnabled", "gpuDiagnostics",
+        "optionsVersion", "loggingEnabled", "gpuDebugLabels", "gpuDiagnostics",
         "advancedMode", "uiGlobalAlphaPercent"
     );
 

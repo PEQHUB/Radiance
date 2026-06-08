@@ -2,7 +2,6 @@ package com.radiance.client.debug;
 
 import com.radiance.client.RadianceClient;
 import com.radiance.client.option.Options;
-import com.radiance.client.util.MaterialBlock;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.util.math.BlockPos;
 
@@ -18,14 +17,15 @@ import java.util.List;
 /**
  * Captures diagnostic context on crash. Always active, near-zero overhead.
  *
- * <p>A shutdown hook checks whether the C++ crash ring buffer was just written
- * (radiance/logs/crash_ring.txt modified within 5 seconds). If so, it dumps
- * all current settings, recent changes, and player state to crash-context.txt
- * in the same directory.</p>
+ * <p>A shutdown hook dumps current settings, recent changes, and player state
+ * to crash-context.txt. If the C++ crash ring was just written, it inspects the
+ * ring entries for failed Vulkan results before labeling the exit as a GPU
+ * crash.</p>
  */
 public final class CrashContext {
 
     private static final int MAX_RECENT_CHANGES = 40;
+    private static final int CRASH_RING_FRESH_WINDOW_MS = 5000;
     private static final DateTimeFormatter FMT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS").withZone(ZoneId.systemDefault());
 
@@ -74,11 +74,13 @@ public final class CrashContext {
 
             // Always dump on shutdown — distinguishes clean vs crash via ring file presence
             Path ringFile = logsDir.resolve("crash_ring.txt");
+            boolean freshRing = false;
             boolean gpuCrash = false;
             if (Files.exists(ringFile)) {
                 long lastMod = Files.getLastModifiedTime(ringFile).toMillis();
                 long now = System.currentTimeMillis();
-                gpuCrash = (now - lastMod) < 5000;
+                freshRing = (now - lastMod) < CRASH_RING_FRESH_WINDOW_MS;
+                gpuCrash = freshRing && crashRingHasFailedVulkanResult(ringFile);
             }
 
             Files.createDirectories(logsDir);
@@ -87,7 +89,11 @@ public final class CrashContext {
 
             sb.append("=== Radiance Crash Context ===\n");
             sb.append("Time: ").append(FMT.format(Instant.now())).append("\n");
-            sb.append("Type: ").append(gpuCrash ? "GPU crash (VK_ERROR_DEVICE_LOST)" : "Java/JVM crash or forced exit").append("\n\n");
+            String exitType = gpuCrash
+                ? "GPU crash (failed Vulkan result in crash ring)"
+                : (freshRing ? "Clean shutdown (crash ring has no failed Vulkan results)"
+                    : "Java/JVM crash or forced exit");
+            sb.append("Type: ").append(exitType).append("\n\n");
 
             // Player position
             try {
@@ -99,7 +105,7 @@ public final class CrashContext {
                 }
             } catch (Exception ignored) {}
 
-            sb.append("Pipeline: default\n");
+            sb.append("Pipeline: ").append(resolvePipelineName()).append("\n");
             sb.append("\n");
 
             // Recent settings changes
@@ -116,14 +122,16 @@ public final class CrashContext {
 
             // Global settings
             sb.append("--- Global Settings ---\n");
-            sb.append("materialOverridesEnabled=").append(Options.materialOverridesEnabled).append("\n");
             sb.append("autoPBREnabled=").append(Options.autoPBREnabled).append("\n");
             sb.append("rayBounces=").append(Options.rayBounces).append("\n");
             sb.append("upscalerResOverride=").append(Options.upscalerResOverride).append("\n");
-            sb.append("pomEnabled=").append(Options.pomEnabled).append("\n");
-            sb.append("pomHeightScalePercent=").append(Options.pomHeightScalePercent).append("\n");
-            sb.append("pomSteps=").append(Options.pomSteps).append("\n");
-            sb.append("pomFadeDistance=").append(Options.pomFadeDistance).append("\n");
+            sb.append("displacementEnabled=").append(Options.displacementEnabled).append("\n");
+            sb.append("displacementDepthCapPercent=").append(Options.displacementDepthCapPercent).append("\n");
+            sb.append("displacementQuality=").append(Options.displacementQuality)
+                .append(" (").append(Options.displacementQualityName(Options.displacementQuality)).append(")\n");
+            sb.append("displacementSteps=").append(Options.displacementSteps).append("\n");
+            sb.append("displacementRefinement=").append(Options.displacementRefinement).append("\n");
+            sb.append("displacementFadeDistance=").append(Options.displacementFadeDistance).append("\n");
             sb.append("sharcQualityPreset=").append(Options.sharcQualityPreset).append("\n");
             sb.append("sharcCapacityExponent=").append(Options.sharcCapacityExponent).append("\n");
             sb.append("reflexEnabled=").append(Options.reflexEnabled).append("\n");
@@ -132,24 +140,8 @@ public final class CrashContext {
             sb.append("chunkBuildingTotalBatches=").append(Options.chunkBuildingTotalBatches).append("\n");
             sb.append("\n");
 
-            // Per-block materials with non-default POM or transmission (most crash-relevant)
-            sb.append("--- Per-Block Materials (non-default POM/Transmission) ---\n");
-            for (MaterialBlock mb : MaterialBlock.values()) {
-                int i = mb.ordinal();
-                boolean hasPom = Options.materialPomDepth[i] > 0;
-                boolean hasTrans = Options.materialTransmission[i] > 0;
-                boolean hasAutoPBR = Options.materialAutoPBR[i];
-                if (hasPom || hasTrans) {
-                    sb.append("  ").append(mb.getId()).append(": ");
-                    sb.append("roughness=").append(Options.materialRoughness[i]);
-                    sb.append(" transmission=").append(Options.materialTransmission[i]);
-                    sb.append(" pomDepth=").append(Options.materialPomDepth[i]);
-                    sb.append(" normalStr=").append(Options.materialNormalStrength[i]);
-                    sb.append(" autoPBR=").append(hasAutoPBR);
-                    sb.append(" flags=").append(Options.materialAutoPBRFlags[i]);
-                    sb.append("\n");
-                }
-            }
+            sb.append("--- Material Lab ---\n");
+            sb.append("  mode=texture-primary\n");
             sb.append("\n=== End ===\n");
 
             Files.writeString(outFile, sb.toString(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
@@ -158,5 +150,57 @@ public final class CrashContext {
         } catch (Exception e) {
             System.err.println("[CrashContext] Failed to write crash context: " + e.getMessage());
         }
+    }
+
+    private static boolean crashRingHasFailedVulkanResult(Path ringFile) {
+        try {
+            for (String line : Files.readAllLines(ringFile)) {
+                if (line.contains("DEVICE_LOST") || line.contains("VK_ERROR")) {
+                    return true;
+                }
+
+                int vkIndex = line.indexOf("vk=");
+                if (vkIndex < 0) {
+                    continue;
+                }
+
+                int valueStart = vkIndex + 3;
+                while (valueStart < line.length() && Character.isWhitespace(line.charAt(valueStart))) {
+                    valueStart++;
+                }
+
+                int valueEnd = valueStart;
+                if (valueEnd < line.length() && line.charAt(valueEnd) == '-') {
+                    valueEnd++;
+                }
+                while (valueEnd < line.length() && Character.isDigit(line.charAt(valueEnd))) {
+                    valueEnd++;
+                }
+
+                if (valueEnd > valueStart) {
+                    int vkResult = Integer.parseInt(line.substring(valueStart, valueEnd));
+                    if (vkResult != 0) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+
+        return false;
+    }
+
+    private static String resolvePipelineName() {
+        if (logsDir == null || logsDir.getParent() == null) {
+            return "unknown";
+        }
+
+        Path radianceDir = logsDir.getParent();
+        if (Files.exists(radianceDir.resolve("pipeline_fork.yaml"))) {
+            return "pipeline_fork.yaml";
+        }
+        if (Files.exists(radianceDir.resolve("pipeline.yaml"))) {
+            return "pipeline.yaml";
+        }
+        return "default";
     }
 }

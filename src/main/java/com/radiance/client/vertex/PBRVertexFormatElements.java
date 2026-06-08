@@ -11,7 +11,50 @@ public class PBRVertexFormatElements {
     public static final int PBR_FLAG_USE_OVERLAY      = 1 << 3;
     public static final int PBR_FLAG_USE_GLINT        = 1 << 4;
     public static final int PBR_FLAG_USE_LIGHT        = 1 << 5;
+    public static final int PBR_FLAG_OVERLAY_ALPHA_MASK = 1 << 7;
     public static final int PBR_FLAG_COORD_SHIFT      = 8;
+    public static final int PBR_FLAG_BLOCK_GEOMETRY   = 1 << 14;
+    public static final int PBR_FLAG_FLUID_GEOMETRY   = 1 << 15;
+    public static final int PBR_FLAG_ALPHA_MODE_SHIFT = 16;
+    public static final int PBR_FLAG_ALPHA_MODE_MASK  = 0x3 << PBR_FLAG_ALPHA_MODE_SHIFT;
+    public static final int PBR_ALPHA_MODE_OPAQUE      = 0;
+    public static final int PBR_ALPHA_MODE_CUTOUT      = 1;
+    public static final int PBR_ALPHA_MODE_TRANSPARENT = 2;
+    public static final int PBR_FLAG_TEXT_MODE_SHIFT = 18;
+    public static final int PBR_FLAG_TEXT_MODE_MASK  = 0xF << PBR_FLAG_TEXT_MODE_SHIFT;
+    public static final int PBR_FLAG_WATER_GEOMETRY = 1 << 22;
+    public static final int PBR_TEXT_MODE_BACKGROUND = 1;
+    public static final int PBR_TEXT_MODE_INTENSITY = 2;
+    public static final int PBR_TEXT_MODE_RGBA = 3;
+    public static final int PBR_TEXT_MODE_BACKGROUND_SEE_THROUGH = 4;
+    public static final int PBR_TEXT_MODE_INTENSITY_SEE_THROUGH = 5;
+    public static final int PBR_TEXT_MODE_RGBA_SEE_THROUGH = 6;
+    public static final int PBR_TEXT_MODE_INTENSITY_POLYGON_OFFSET = 7;
+    public static final int PBR_TEXT_MODE_RGBA_POLYGON_OFFSET = 8;
+
+    public static final int PBR_PACKED_EMISSIVE_TYPE_NONE = 255;
+    public static final int PBR_PACKED_EMISSIVE_TYPE_MASK = 0xFF;
+    public static final int PBR_PACKED_SHADER_BLOCK_ID_SHIFT = 17;
+    public static final int PBR_PACKED_SHADER_BLOCK_ID_MAX = 0x3FFF;
+    public static final int PBR_PACKED_SHADER_BLOCK_ID_MASK =
+        PBR_PACKED_SHADER_BLOCK_ID_MAX << PBR_PACKED_SHADER_BLOCK_ID_SHIFT;
+    public static final int PBR_PACKED_THIN_CUTOUT_PLANT = 1 << 31;
+
+    public static int fluidGeometryFlags(boolean isWater) {
+        int flags = PBR_FLAG_BLOCK_GEOMETRY | PBR_FLAG_FLUID_GEOMETRY;
+        return isWater ? (flags | PBR_FLAG_WATER_GEOMETRY) : flags;
+    }
+
+    public static int packShaderBlockId(int shaderBlockId) {
+        if (shaderBlockId <= 0 || shaderBlockId > PBR_PACKED_SHADER_BLOCK_ID_MAX) {
+            return 0;
+        }
+        return (shaderBlockId << PBR_PACKED_SHADER_BLOCK_ID_SHIFT) & PBR_PACKED_SHADER_BLOCK_ID_MASK;
+    }
+
+    public static int unpackShaderBlockId(int packedBlockType) {
+        return (packedBlockType & PBR_PACKED_SHADER_BLOCK_ID_MASK) >>> PBR_PACKED_SHADER_BLOCK_ID_SHIFT;
+    }
 
     // --- Vertex format elements (order matches 96-byte PBRTriangle struct) ---
 

@@ -82,7 +82,7 @@ public class ResettableSliderWidget extends SliderWidget {
     public void renderWidget(DrawContext context, int mouseX, int mouseY, float delta) {
         RadianceTheme.drawCustomSlider(context, getX(), getY(), getWidth(), getHeight(),
             this.value, isHovered(), dragging || precisionDragging,
-            MinecraftClient.getInstance().textRenderer, getMessage());
+            MinecraftClient.getInstance().textRenderer, getMessage(), !isDefault());
     }
 
     // ── Mouse handling ──
@@ -96,6 +96,9 @@ public class ResettableSliderWidget extends SliderWidget {
             mc.setScreen(new NumericSliderInputScreen(parent, this.getMessage(), current(), min, max, value -> {
                 setCurrentValue(value);
                 onChange.accept(value);
+                if (onRelease != null) {
+                    onRelease.run();
+                }
             }));
             return true;
         }
@@ -107,6 +110,9 @@ public class ResettableSliderWidget extends SliderWidget {
             this.value = MathHelper.clamp(this.value, 0.0, 1.0);
             updateMessage();
             applyValue();
+            if (onRelease != null) {
+                onRelease.run();
+            }
             return true;
         }
 
