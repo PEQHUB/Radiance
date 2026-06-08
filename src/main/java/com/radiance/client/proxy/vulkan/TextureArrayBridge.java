@@ -200,6 +200,8 @@ public final class TextureArrayBridge {
     public static native int nativeMaxRenderableSpriteCount();
     public static native int nativeTextureUploadCapabilities();
     public static native String nativeTextureStreamingStatusJson();
+    public static native String nativeTextureTierStatusJson();
+    public static native String nativeGpuUploadQueueStatusJson();
     public static native String nativeTextureMemoryStatusJson();
     public static native String nativeMaterialResidencyStatusJson();
     public static native void nativeReceiveSpriteTable(long metaPtr, int count,
