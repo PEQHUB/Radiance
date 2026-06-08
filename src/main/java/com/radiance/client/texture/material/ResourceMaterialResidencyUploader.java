@@ -46,6 +46,10 @@ public final class ResourceMaterialResidencyUploader {
     private static final int DEFAULT_LAYER_DECODE_THREADS = 4;
     private static final int MAX_LAYER_DECODE_THREADS = 8;
     private static final long MAX_PAGE_BYTES = 128L * 1024L * 1024L;
+    private static final Object PAGE_ALLOCATOR_LOCK = new Object();
+    private static long pageAllocatorGeneration = -1L;
+    private static int nextAllocatorPage = FIRST_COMPAT_PAGE;
+    private static int nextAllocatorLayer = 0;
 
     private ResourceMaterialResidencyUploader() {
     }
@@ -148,23 +152,27 @@ public final class ResourceMaterialResidencyUploader {
         long defaultNormalPtr = memAddress(defaultNormal);
         ExecutorService layerExecutor = newLayerExecutor(layerDecodeThreads);
         try {
-            for (int page = FIRST_COMPAT_PAGE;
-                 page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX && nextItem < items.size();
-                 page++) {
+            while (nextItem < items.size()) {
                 if (!generationMatches(generation)) {
                     json.addProperty("cancelled", true);
                     json.addProperty("cancelReason", "stale_generation_before_page");
                     ResourceMaterialRuntimeStatus.write("residencyCancelled", generation, json);
                     break;
                 }
+                PageAllocation allocation = allocatePageRange(generation, items.size() - nextItem, pageCapacity);
+                if (allocation.layerCount() <= 0) {
+                    json.addProperty("pagePoolFull", true);
+                    break;
+                }
+                int page = allocation.page();
                 int visiblePendingCandidates = promoteVisibleItems(items, nextItem, generation);
                 long pageStartedNanos = System.nanoTime();
                 UploadStats pageStats = new UploadStats();
                 long allocationStartedNanos = System.nanoTime();
-                ByteBuffer albedo = directPageBuffer(pageCapacity, bytesPerLayer);
-                ByteBuffer specular = directPageBuffer(pageCapacity, bytesPerLayer);
-                ByteBuffer normal = directPageBuffer(pageCapacity, bytesPerLayer);
-                ByteBuffer flag = directPageBuffer(pageCapacity, bytesPerLayer);
+                ByteBuffer albedo = directPageBuffer(allocation.layerCount(), bytesPerLayer);
+                ByteBuffer specular = directPageBuffer(allocation.layerCount(), bytesPerLayer);
+                ByteBuffer normal = directPageBuffer(allocation.layerCount(), bytesPerLayer);
+                ByteBuffer flag = directPageBuffer(allocation.layerCount(), bytesPerLayer);
                 pageStats.pageAllocationNanos += elapsedNanos(allocationStartedNanos);
                 long albedoPtr = memAddress(albedo);
                 long specularPtr = memAddress(specular);
@@ -177,11 +185,13 @@ public final class ResourceMaterialResidencyUploader {
 
                 JsonObject pageReport = new JsonObject();
                 pageReport.addProperty("page", page);
+                pageReport.addProperty("startLayer", allocation.startLayer());
+                pageReport.addProperty("layerCapacity", allocation.layerCapacity());
                 pageReport.addProperty("visiblePendingCandidates", visiblePendingCandidates);
                 pageReport.addProperty("layerDecodeThreads", layerDecodeThreads);
                 List<LayerUploadFuture> layerFutures = new ArrayList<>();
                 int layer = 0;
-                while (layer < pageCapacity && nextItem < items.size()) {
+                while (layer < allocation.layerCount() && nextItem < items.size()) {
                     UploadItem item = items.get(nextItem++);
                     int targetLayer = layer++;
                     long targetAlbedoPtr = albedoPtr + (long) targetLayer * bytesPerLayer;
@@ -218,7 +228,7 @@ public final class ResourceMaterialResidencyUploader {
                         displacementBlocked++;
                     }
                     pageHandles.put(uploadResult.materialId(), ResourceMaterialRegistry.ResidencyHandle.sameLayer(
-                        page, layerFuture.layer(), layerSize, result.hasSpecular(),
+                        page, allocation.startLayer() + layerFuture.layer(), layerSize, result.hasSpecular(),
                         result.displacementEligible(), result.displacementBlocked(),
                         result.heightRangePacked()));
                 }
@@ -236,8 +246,8 @@ public final class ResourceMaterialResidencyUploader {
                 boolean uploaded;
                 long nativeStartedNanos = System.nanoTime();
                 try {
-                    uploaded = TextureArrayBridge.nativeReceiveMaterialTexturePage(
-                        page, layerSize, layer,
+                    uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
+                        page, layerSize, allocation.startLayer(), layer, allocation.layerCapacity(),
                         albedoPtr, specularPtr, normalPtr, flagPtr, generation);
                 } catch (UnsatisfiedLinkError e) {
                     uploaded = false;
@@ -309,6 +319,39 @@ public final class ResourceMaterialResidencyUploader {
         LOGGER.info("[MaterialCompat] Material page upload: {} materials across {} pages, {} deferred",
             handles.size(), uploadedPages, Math.max(0, items.size() - nextItem));
         return json;
+    }
+
+    private static PageAllocation allocatePageRange(long generation, int requestedCount, int pageCapacity) {
+        if (requestedCount <= 0 || pageCapacity <= 0) {
+            return PageAllocation.empty();
+        }
+        synchronized (PAGE_ALLOCATOR_LOCK) {
+            if (pageAllocatorGeneration != generation) {
+                pageAllocatorGeneration = generation;
+                nextAllocatorPage = FIRST_COMPAT_PAGE;
+                nextAllocatorLayer = 0;
+            }
+            if (nextAllocatorPage >= ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX) {
+                return PageAllocation.empty();
+            }
+            if (nextAllocatorLayer >= pageCapacity) {
+                nextAllocatorPage++;
+                nextAllocatorLayer = 0;
+            }
+            if (nextAllocatorPage >= ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX) {
+                return PageAllocation.empty();
+            }
+            int available = pageCapacity - nextAllocatorLayer;
+            int count = Math.min(Math.max(1, requestedCount), available);
+            PageAllocation allocation =
+                new PageAllocation(nextAllocatorPage, nextAllocatorLayer, pageCapacity, count);
+            nextAllocatorLayer += count;
+            if (nextAllocatorLayer >= pageCapacity) {
+                nextAllocatorPage++;
+                nextAllocatorLayer = 0;
+            }
+            return allocation;
+        }
     }
 
     private static ExecutorService newLayerExecutor(int threads) {
@@ -760,6 +803,15 @@ public final class ResourceMaterialResidencyUploader {
     private record LayerUploadFuture(int layer,
                                      UploadItem item,
                                      Future<LayerUploadResult> future) {
+    }
+
+    private record PageAllocation(int page,
+                                  int startLayer,
+                                  int layerCapacity,
+                                  int layerCount) {
+        static PageAllocation empty() {
+            return new PageAllocation(-1, 0, 0, 0);
+        }
     }
 
     private record LayerUploadResult(int materialId,
