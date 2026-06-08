@@ -48,6 +48,9 @@ logs.
 - Texture animation payload scan/build is skipped by default while texture-array
   animation updates are disabled. The native path receives an empty animation
   payload instead of building data that would be discarded.
+- If texture-array animation updates are explicitly enabled for diagnostics,
+  transformed animation frame payloads are cached as compact byte payloads and
+  reported through `textureCacheStatus` byte-cache counters.
 - DebugBridge accepts validation commands for:
   - `materialPagePoolStatus`
   - `materialTableStatus`
@@ -74,14 +77,14 @@ logs.
 ## Not Yet Complete
 
 - The cache now stores runtime CTM dependency roots, transformed CTM residency
-  layer payloads, and transformed vanilla tier frame-0 layer payloads. Animated
-  frame payloads are not cached when animation updates are explicitly enabled.
+  layer payloads, transformed vanilla tier frame-0 layer payloads, and explicit
+  animation-mode frame byte payloads.
 - CTM prewarm/first-frame readiness now has a requested-material queue,
   failed-material tracking, shorter prewarm scheduling, and bounded demand
   upload passes. It is still not a fully blocking no-pop-in first-frame gate.
 - Texture animation payloads are skipped in the default frozen-animation mode.
-  If animation updates are explicitly enabled, that diagnostic path still uses
-  legacy fixed-layer animation payloads.
+  If animation updates are explicitly enabled, frame conversion is cached, but
+  the diagnostic native animation ABI is still fixed-layer.
 
 ## Validation Commands
 
@@ -125,11 +128,9 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- Animated frame transformed-payload disk caching for explicit animation-update
-  mode and a fully blocking first-frame CTM no-pop-in gate are still remaining
+- A fully blocking first-frame CTM no-pop-in gate is still remaining
   architecture work.
-- The payload cache key follows the active resource-pack selection. If a pack is
-  edited in place without changing that selection, clear
-  `<minecraft>/radiance/cache/texture-loader-v3/` before judging the result.
+- The payload cache key follows the active resource-pack selection plus
+  resource-pack file size/mtime inventory.
 - Patrix 128x runtime completion must not be claimed until the validation matrix
   has been run in-game and the DebugBridge/status/log evidence supports it.

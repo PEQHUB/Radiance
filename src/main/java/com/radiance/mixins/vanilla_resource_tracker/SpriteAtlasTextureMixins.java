@@ -486,6 +486,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             TextureArrayBridge.nativeReceiveAnimationFrames(0, 0);
             TextureReloadTimeline.end("nativeAnimationUpload", phaseStart);
         } else {
+            String animationCacheKey = ResourcePackRuntimeMaterialBootstrap.cacheKeyForResourceManager(
+                MinecraftClient.getInstance().getResourceManager());
         phaseStart = TextureReloadTimeline.start("animationScan");
         long animDataSizeLong = 0L;
         for (int i = 0; i < count; i++) {
@@ -516,6 +518,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             ByteBuffer animBuf = ByteBuffer.allocateDirect(animDataSize)
                 .order(ByteOrder.nativeOrder());
             int animOffset = 0;
+            int animationCacheHits = 0;
+            int animationCacheMisses = 0;
+            int animationCacheWrites = 0;
 
             for (int i = 0; i < uploadCount; i++) {
                 Sprite sprite = sorted.get(i).getValue();
@@ -539,17 +544,34 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     animBuf.putShort(animOffset + 2, (short) frame);
                     animOffset += 4;
 
-                    if (w == spriteSize && h == spriteSize && srcRowBytes == w * 4) {
-                        // Fast path: contiguous, correct width
-                        long frameSrc = srcBase + (long) frame * h * srcRowBytes;
-                        memCopy(frameSrc, memAddress(animBuf) + animOffset, bytesPerSprite);
+                    long frameDst = memAddress(animBuf) + animOffset;
+                    String frameKey = animationFramePayloadKey(sorted.get(i).getKey(), contents, frame, spriteSize);
+                    byte[] cachedFrame =
+                        TextureLoaderDiskCache.readBytePayload(animationCacheKey, frameKey, bytesPerSprite);
+                    if (cachedFrame != null) {
+                        memByteBuffer(frameDst, cachedFrame.length).put(cachedFrame);
+                        animationCacheHits++;
                     } else {
-                        writeSpriteFramePixels(img, w, h, frame, spriteSize,
-                            memAddress(animBuf) + animOffset);
+                        animationCacheMisses++;
+                        if (w == spriteSize && h == spriteSize && srcRowBytes == w * 4) {
+                            // Fast path: contiguous, correct width
+                            long frameSrc = srcBase + (long) frame * h * srcRowBytes;
+                            memCopy(frameSrc, frameDst, bytesPerSprite);
+                        } else {
+                            writeSpriteFramePixels(img, w, h, frame, spriteSize, frameDst);
+                        }
+                        TextureLoaderDiskCache.writeBytePayload(animationCacheKey, frameKey,
+                            copyPlane(frameDst, bytesPerSprite));
+                        if (animationCacheKey != null && !animationCacheKey.isBlank() && !frameKey.isBlank()) {
+                            animationCacheWrites++;
+                        }
                     }
                     animOffset += bytesPerSprite;
                 }
             }
+            TextureReloadTimeline.addSummary("animationPayloadCacheHits", animationCacheHits);
+            TextureReloadTimeline.addSummary("animationPayloadCacheMisses", animationCacheMisses);
+            TextureReloadTimeline.addSummary("animationPayloadCacheWrites", animationCacheWrites);
 
             TextureReloadTimeline.end("animationBufferBuild", phaseStart);
             phaseStart = TextureReloadTimeline.start("nativeAnimationUpload");
@@ -810,6 +832,18 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             + "|w=" + contents.getWidth()
             + "|h=" + contents.getHeight()
             + "|tier=" + tierSize);
+    }
+
+    private static String animationFramePayloadKey(Identifier spriteId, SpriteContents contents,
+                                                   int frame, int spriteSize) {
+        if (spriteId == null || contents == null || frame < 0 || spriteSize <= 0) {
+            return "";
+        }
+        return TextureLoaderDiskCache.keyFor("animation-frame-v1|sprite=" + spriteId
+            + "|w=" + contents.getWidth()
+            + "|h=" + contents.getHeight()
+            + "|frame=" + frame
+            + "|layer=" + spriteSize);
     }
 
     private static void fillDefaultNormal(ByteBuffer buffer, int layerCount, int spriteSize) {

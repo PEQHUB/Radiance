@@ -23,7 +23,9 @@ public final class TextureLoaderDiskCache {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final int ROOT_VERSION = 1;
     private static final int LAYER_VERSION = 1;
+    private static final int BYTE_VERSION = 1;
     private static final String LAYER_MAGIC = "radser-layer-payload";
+    private static final String BYTE_MAGIC = "radser-byte-payload";
     private static final AtomicLong READS = new AtomicLong();
     private static final AtomicLong WRITES = new AtomicLong();
     private static final AtomicLong HITS = new AtomicLong();
@@ -34,12 +36,20 @@ public final class TextureLoaderDiskCache {
     private static final AtomicLong LAYER_HITS = new AtomicLong();
     private static final AtomicLong LAYER_MISSES = new AtomicLong();
     private static final AtomicLong LAYER_FAILURES = new AtomicLong();
+    private static final AtomicLong BYTE_READS = new AtomicLong();
+    private static final AtomicLong BYTE_WRITES = new AtomicLong();
+    private static final AtomicLong BYTE_HITS = new AtomicLong();
+    private static final AtomicLong BYTE_MISSES = new AtomicLong();
+    private static final AtomicLong BYTE_FAILURES = new AtomicLong();
     private static volatile String lastKey = "";
     private static volatile String lastPath = "";
     private static volatile String lastFailure = "";
     private static volatile String lastLayerKey = "";
     private static volatile String lastLayerPath = "";
     private static volatile String lastLayerFailure = "";
+    private static volatile String lastByteKey = "";
+    private static volatile String lastBytePath = "";
+    private static volatile String lastByteFailure = "";
 
     private TextureLoaderDiskCache() {
     }
@@ -165,16 +175,76 @@ public final class TextureLoaderDiskCache {
                 writePlane(output, payload.normal());
                 writePlane(output, payload.flag());
             }
-            try {
-                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (IOException atomicMoveFailure) {
-                Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
-            }
+            moveAtomicallyOrReplace(temp, path);
             LAYER_WRITES.incrementAndGet();
             lastLayerFailure = "";
         } catch (IOException e) {
             LAYER_FAILURES.incrementAndGet();
             lastLayerFailure = e.toString();
+        }
+    }
+
+    public static byte[] readBytePayload(String rootKey, String payloadKey, int expectedBytes) {
+        BYTE_READS.incrementAndGet();
+        lastByteKey = payloadKey == null ? "" : payloadKey;
+        Path path = bytePayloadPath(rootKey, payloadKey);
+        lastBytePath = path.toAbsolutePath().toString();
+        if (rootKey == null || rootKey.isBlank() || payloadKey == null || payloadKey.isBlank()
+            || expectedBytes <= 0 || !Files.isRegularFile(path)) {
+            BYTE_MISSES.incrementAndGet();
+            return null;
+        }
+        try (DataInputStream input = new DataInputStream(Files.newInputStream(path))) {
+            String magic = input.readUTF();
+            int version = input.readInt();
+            String storedRootKey = input.readUTF();
+            String storedPayloadKey = input.readUTF();
+            int storedBytes = input.readInt();
+            if (!BYTE_MAGIC.equals(magic)
+                || version != BYTE_VERSION
+                || !rootKey.equals(storedRootKey)
+                || !payloadKey.equals(storedPayloadKey)
+                || storedBytes != expectedBytes) {
+                BYTE_MISSES.incrementAndGet();
+                return null;
+            }
+            byte[] data = new byte[storedBytes];
+            input.readFully(data);
+            BYTE_HITS.incrementAndGet();
+            lastByteFailure = "";
+            return data;
+        } catch (Exception e) {
+            BYTE_FAILURES.incrementAndGet();
+            lastByteFailure = e.toString();
+            return null;
+        }
+    }
+
+    public static void writeBytePayload(String rootKey, String payloadKey, byte[] payload) {
+        if (rootKey == null || rootKey.isBlank() || payloadKey == null || payloadKey.isBlank()
+            || payload == null || payload.length <= 0) {
+            return;
+        }
+        Path path = bytePayloadPath(rootKey, payloadKey);
+        lastByteKey = payloadKey;
+        lastBytePath = path.toAbsolutePath().toString();
+        try {
+            Files.createDirectories(path.getParent());
+            Path temp = path.resolveSibling(path.getFileName().toString() + ".tmp");
+            try (DataOutputStream output = new DataOutputStream(Files.newOutputStream(temp))) {
+                output.writeUTF(BYTE_MAGIC);
+                output.writeInt(BYTE_VERSION);
+                output.writeUTF(rootKey);
+                output.writeUTF(payloadKey);
+                output.writeInt(payload.length);
+                output.write(payload);
+            }
+            moveAtomicallyOrReplace(temp, path);
+            BYTE_WRITES.incrementAndGet();
+            lastByteFailure = "";
+        } catch (IOException e) {
+            BYTE_FAILURES.incrementAndGet();
+            lastByteFailure = e.toString();
         }
     }
 
@@ -185,6 +255,7 @@ public final class TextureLoaderDiskCache {
         json.addProperty("cacheKind", "runtime_ctm_dependency_root_and_layer_payloads");
         json.addProperty("rootVersion", ROOT_VERSION);
         json.addProperty("layerVersion", LAYER_VERSION);
+        json.addProperty("byteVersion", BYTE_VERSION);
         json.addProperty("cacheDirectory", cacheDirectory().toAbsolutePath().toString());
         json.addProperty("lastKey", lastKey);
         json.addProperty("lastPath", lastPath);
@@ -202,6 +273,14 @@ public final class TextureLoaderDiskCache {
         json.addProperty("lastLayerKey", lastLayerKey);
         json.addProperty("lastLayerPath", lastLayerPath);
         json.addProperty("lastLayerFailure", lastLayerFailure);
+        json.addProperty("byteReads", BYTE_READS.get());
+        json.addProperty("byteWrites", BYTE_WRITES.get());
+        json.addProperty("byteHits", BYTE_HITS.get());
+        json.addProperty("byteMisses", BYTE_MISSES.get());
+        json.addProperty("byteFailures", BYTE_FAILURES.get());
+        json.addProperty("lastByteKey", lastByteKey);
+        json.addProperty("lastBytePath", lastBytePath);
+        json.addProperty("lastByteFailure", lastByteFailure);
         return json;
     }
 
@@ -226,6 +305,12 @@ public final class TextureLoaderDiskCache {
         return cacheDirectory().resolve("layers").resolve(safeRoot).resolve(safeLayer + ".bin");
     }
 
+    private static Path bytePayloadPath(String rootKey, String payloadKey) {
+        String safeRoot = rootKey == null ? "unknown" : rootKey.replaceAll("[^a-zA-Z0-9._-]", "_");
+        String safePayload = payloadKey == null ? "unknown" : payloadKey.replaceAll("[^a-zA-Z0-9._-]", "_");
+        return cacheDirectory().resolve("bytes").resolve(safeRoot).resolve(safePayload + ".bin");
+    }
+
     private static Path cacheDirectory() {
         MinecraftClient client = MinecraftClient.getInstance();
         Path runDirectory = client == null || client.runDirectory == null
@@ -247,6 +332,14 @@ public final class TextureLoaderDiskCache {
     private static void writePlane(DataOutputStream output, byte[] data) throws IOException {
         output.writeInt(data.length);
         output.write(data);
+    }
+
+    private static void moveAtomicallyOrReplace(Path temp, Path path) throws IOException {
+        try {
+            Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException atomicMoveFailure) {
+            Files.move(temp, path, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     public record LayerPayload(byte[] albedo,
