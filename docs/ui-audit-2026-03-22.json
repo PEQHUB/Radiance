@@ -1,0 +1,1024 @@
+{
+  "meta": {
+    "date": "2026-03-22",
+    "branch": "displacement",
+    "mcvr_commit": "fe1e837",
+    "radiance_commit": "facef93",
+    "scope": "Full UI audit: bugs, grey-outs, slider sizing, menu density",
+    "implementation_status": "report_only"
+  },
+  "bugs": {
+    "p0": [
+      {
+        "id": "BUG-001",
+        "title": "SelectionDropdownWidget static list memory leak",
+        "file": "src/main/java/com/radiance/client/gui/SelectionDropdownWidget.java",
+        "line": 20,
+        "detail": "ALL_DROPDOWNS ArrayList grows unbounded. clearInstances() is never called. Stale widget references accumulate, holding references to dead screens.",
+        "impact": "OOM over time, GC pressure spikes/stutter",
+        "fix": "Call SelectionDropdownWidget.clearInstances() in ContentPanelWidget.clearContent()"
+      },
+      {
+        "id": "BUG-002",
+        "title": "Phantom click interception from dead dropdowns",
+        "file": "src/main/java/com/radiance/client/gui/SelectionDropdownWidget.java",
+        "line_range": [72, 83],
+        "detail": "Stale widgets in ALL_DROPDOWNS with open=true intercept clicks via handleOverlayClick, silently swallowing user input.",
+        "impact": "User clicks silently eaten by invisible dead widgets",
+        "fix": "Same as BUG-001 — clearing the static list prevents stale interception"
+      }
+    ],
+    "p1": [
+      {
+        "id": "BUG-003",
+        "title": "Reset to Defaults doesn't persist to disk",
+        "file": "src/main/java/com/radiance/client/gui/unified/RadianceUnifiedScreen.java",
+        "line_range": [98, 101],
+        "detail": "resetAllToDefaults() pushes values to C++ via JNI but never calls Options.overwriteConfig(). Values revert on restart.",
+        "impact": "User expects reset to persist, values silently revert on next launch",
+        "fix": "Add Options.overwriteConfig() after Options.resetAllToDefaults()"
+      },
+      {
+        "id": "BUG-004",
+        "title": "Escape cancels material edits silently",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line_range": [463, 468],
+        "detail": "close() calls cancelChanges() which calls restoreSnapshot(), reverting all edits. Pressing Escape instead of Apply silently reverts all material work.",
+        "impact": "User loses all material edits by pressing Escape",
+        "fix": "Either auto-save on close, prompt user to save/discard, or make Escape behave like Apply"
+      },
+      {
+        "id": "BUG-005",
+        "title": "Scroll changes NoiseType when dropdown is closed",
+        "file": "src/main/java/com/radiance/client/gui/NoiseTypeDropdownWidget.java",
+        "line_range": [210, 219],
+        "detail": "mouseScrolled() fires onSelect.accept(selected) even when dropdown is closed. Scrolling the page silently mutates noise type.",
+        "impact": "Unintentional setting change via scroll",
+        "fix": "Guard with if (!open) return false"
+      }
+    ],
+    "p2": [
+      {
+        "id": "BUG-006",
+        "title": "Space key hijacks search overlay — can't type spaces in text fields",
+        "file": "src/main/java/com/radiance/client/gui/unified/RadianceUnifiedScreen.java",
+        "line_range": [509, 511],
+        "detail": "keyPressed unconditionally consumes GLFW_KEY_SPACE to toggle search overlay, even when a text field has focus.",
+        "fix": "Check if any child widget has focus before consuming Space"
+      },
+      {
+        "id": "BUG-007",
+        "title": "Tab always triggers peek mode, search cycling is dead code",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line_range": [381, 387],
+        "detail": "handlePeekKeyPressed on line 381 consumes Tab first. Tab-based search cycling code on line 387 is unreachable.",
+        "fix": "Reverse priority or use a different key for peek mode"
+      },
+      {
+        "id": "BUG-008",
+        "title": "Right-click precision drag broken in overlay screens",
+        "file": "src/main/java/com/radiance/client/gui/unified/RadianceUnifiedScreen.java",
+        "line_range": [544, 556],
+        "detail": "When overlay is showing, mouseDragged delegates to overlayScreen but right-click drag logic at line 551-553 never fires because overlay check at line 546 returns first.",
+        "fix": "Forward button 1 drag events through overlay delegation path"
+      },
+      {
+        "id": "BUG-009",
+        "title": "Smooth scroll visual/hitbox desync",
+        "file": "src/main/java/com/radiance/client/gui/WideOptionListWidget.java",
+        "line_range": [57, 62],
+        "detail": "renderWidget uses displayScrollY for visuals but hit-testing uses getScrollY() (target value). During scroll animation, clicks hit wrong entries.",
+        "fix": "Use displayScrollY for hit-testing during animation, or snap scroll on click"
+      },
+      {
+        "id": "BUG-010",
+        "title": "RenderPipelineScreen header buttons have wrong click targets",
+        "file": "src/main/java/com/radiance/client/gui/RenderPipelineScreen.java",
+        "line_range": [399, 404],
+        "detail": "mouseClicked divides coords by GLOBAL_SCALE before passing to super.mouseClicked(), but header buttons were positioned unscaled. Buttons only clickable at 60% of their visual position.",
+        "fix": "Pass unscaled coordinates to super.mouseClicked() for header buttons"
+      },
+      {
+        "id": "BUG-011",
+        "title": "No error feedback on invalid numeric input",
+        "file": "src/main/java/com/radiance/client/gui/NumericSliderInputScreen.java",
+        "line_range": [53, 61],
+        "detail": "submit() catches NumberFormatException silently. No visual feedback when user types non-numeric values.",
+        "fix": "Show error text or flash the input field red on invalid input"
+      }
+    ],
+    "p3": [
+      {
+        "id": "BUG-012",
+        "title": "Search overlay is non-functional — traps keyboard input",
+        "file": "src/main/java/com/radiance/client/gui/unified/UnifiedSearchOverlay.java",
+        "detail": "Records typed characters but never searches. Returns true for ALL key events, consuming input. Comment says 'full implementation was lost during branch cleanup.'",
+        "fix": "Either implement search or remove the overlay and Space key binding"
+      },
+      {
+        "id": "BUG-013",
+        "title": "Enter on tree category does nothing visible",
+        "file": "src/main/java/com/radiance/client/gui/unified/TreeNavigationWidget.java",
+        "line_range": [294, 303],
+        "detail": "Enter sets node.expanded=true but doesn't fire onSelect callback. User presses Enter expecting to see content.",
+        "fix": "Call selectFlatNode after expanding, or fire onSelect for category nodes with populators"
+      },
+      {
+        "id": "BUG-014",
+        "title": "Double-click on MaterialBrowser uses raw millis with no distance check",
+        "file": "src/main/java/com/radiance/client/gui/MaterialBrowserScreen.java",
+        "line_range": [704, 711],
+        "detail": "400ms window with System.currentTimeMillis(). Two intentional single clicks on same cell can trigger Apply unintentionally.",
+        "fix": "Add minimum distance check or reduce window to 250ms"
+      }
+    ]
+  },
+  "missing_greyouts": [
+    {
+      "id": "GREY-001",
+      "priority": "P1",
+      "settings": ["SHARC Scene Scale", "SHARC Roughness Threshold", "SHARC Accum Frames", "SHARC Stale Frames", "SHARC Block Size", "SHARC Bounces", "SHARC Capacity", "SHARC Quality Preset", "SHARC Downscale"],
+      "gate_condition": "sharcEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/SharcPopulator.java",
+      "detail": "All 9 SHARC tuning controls shown regardless of SHARC enabled state"
+    },
+    {
+      "id": "GREY-002",
+      "priority": "P1",
+      "settings": ["ReSTIR toggle", "ReSTIR Candidates", "ReSTIR M Clamp", "ReSTIR W Clamp", "ReSTIR Simplified BRDF", "ReSTIR Bounce Enabled"],
+      "gate_condition": "areaLightsEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/AreaLightPopulator.java",
+      "line_range": [57, 95],
+      "detail": "All ReSTIR controls shown when area lights are disabled. ReSTIR only used for area light sampling."
+    },
+    {
+      "id": "GREY-003",
+      "priority": "P1",
+      "settings": ["ReSTIR Candidates", "ReSTIR M Clamp", "ReSTIR W Clamp"],
+      "gate_condition": "restirEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/AreaLightPopulator.java",
+      "line_range": [63, 82],
+      "detail": "ReSTIR tuning sliders shown even when ReSTIR toggle is off"
+    },
+    {
+      "id": "GREY-004",
+      "priority": "P1",
+      "settings": "47 per-block light type buttons (Torch, Lantern, etc.)",
+      "gate_condition": "areaLightsEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/AreaLightPopulator.java",
+      "line_range": [98, 114],
+      "detail": "All per-block buttons shown regardless of area lights being on/off"
+    },
+    {
+      "id": "GREY-005",
+      "priority": "P1",
+      "settings": ["Area Light Intensity", "Area Light Range", "Shadow Softness"],
+      "gate_condition": "areaLightsEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/AreaLightPopulator.java",
+      "line_range": [42, 55],
+      "detail": "Global area light sliders always shown. SimpleLightingPopulator gates intensity correctly, but AreaLightPopulator does not."
+    },
+    {
+      "id": "GREY-006",
+      "priority": "P1",
+      "settings": ["Vol Cloud Quality", "Vol Cloud Scatter Bounces", "Vol Cloud Density", "Vol Cloud Detail", "Vol Cloud Coverage", "Vol Cloud Wind Speed", "Vol Cloud Type", "Vol Cloud Altitude", "Vol Cloud Thickness"],
+      "gate_condition": "volCloudQuality > 0",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/CloudPopulator.java",
+      "line_range": [82, 159],
+      "detail": "10+ volumetric cloud sliders shown when quality is Off"
+    },
+    {
+      "id": "GREY-007",
+      "priority": "P2",
+      "settings": ["Offline Disable Russian Roulette"],
+      "gate_condition": "offlineDenoised != 1",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+      "line_range": [117, 127],
+      "detail": "Toggle looks clickable but clicks are silently swallowed when Raw Accurate is selected. Should be visually greyed out."
+    },
+    {
+      "id": "GREY-008",
+      "priority": "P2",
+      "settings": ["DLSS-D Enabled"],
+      "gate_condition": "upscalerMode == 0",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+      "line_range": [41, 46],
+      "detail": "DLSS-D toggle visible when FSR3 or Off is selected. Toggling it silently switches upscaler mode to DLSS-RR."
+    },
+    {
+      "id": "GREY-009",
+      "priority": "P2",
+      "settings": ["OMM Baker Level"],
+      "gate_condition": "ommEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/RayTracingPopulator.java",
+      "line_range": [36, 46],
+      "detail": "OMM Baker Level dropdown always shown regardless of OMM state"
+    },
+    {
+      "id": "GREY-010",
+      "priority": "P2",
+      "settings": ["SER Hints Enabled"],
+      "gate_condition": "serEnabled == true",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/RayTracingPopulator.java",
+      "line_range": [68, 72],
+      "detail": "SER Hints shown when SER is disabled"
+    },
+    {
+      "id": "GREY-011",
+      "priority": "P2",
+      "settings": "All PsychoV sliders (Highlights, Shadows, Contrast, Purity, Bleaching, Hue Restore, White Curve, Clip Point, Cone Exponent)",
+      "gate_condition": "tonemappingMode == 8 (SDR) or hdrTonemapMode == 0 (HDR)",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/PsychoVPopulator.java",
+      "detail": "PsychoV page always navigable in tree regardless of active tonemapper"
+    },
+    {
+      "id": "GREY-012",
+      "priority": "P2",
+      "settings": ["Reflex Enabled"],
+      "gate_condition": "frameGenMode != 0 (forced on)",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+      "line_range": [132, 138],
+      "detail": "Toggle looks normal but clicks are silently dropped when FG is active. Needs visual locked indicator."
+    },
+    {
+      "id": "GREY-013",
+      "priority": "P3",
+      "settings": ["Focus Distance"],
+      "gate_condition": "focusMode == 0 (Manual Focus)",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+      "line_range": [202, 214],
+      "detail": "Focus Distance slider meaningless in AF-C mode (continuously overwritten by autofocus)"
+    },
+    {
+      "id": "GREY-014",
+      "priority": "P3",
+      "settings": ["DOF Strength"],
+      "gate_condition": "offline mode active",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/SimpleCameraPopulator.java",
+      "line_range": [27, 31],
+      "detail": "DOF only activates in offline mode but slider shown in normal play camera settings"
+    }
+  ],
+  "setting_conflicts": [
+    {
+      "id": "CONF-001",
+      "title": "DLSS-D toggle vs Upscaler Mode dropdown",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+      "line_range": [33, 46],
+      "detail": "Both on same row. setDlssDEnabled(true) calls setUpscalerMode(0). Toggling DLSS-D silently switches the dropdown. Dual controls for same state.",
+      "severity": "P2"
+    },
+    {
+      "id": "CONF-002",
+      "title": "Reflex toggle vs Frame Generation",
+      "file": "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+      "line_range": [132, 138],
+      "detail": "FG forces Reflex on, toggle looks normal, clicks silently dropped.",
+      "severity": "P2"
+    },
+    {
+      "id": "CONF-003",
+      "title": "PsychoV enabled flag unused",
+      "file": "src/main/java/com/radiance/Options.java",
+      "line": 730,
+      "detail": "psychoEnabled flag exists but is never checked in UI navigation gate. PsychoV page always accessible.",
+      "severity": "P3"
+    }
+  ],
+  "slider_sizing": {
+    "should_be_dropdown": [
+      {
+        "id": "SLIDER-001",
+        "option": "PsychoV White Curve",
+        "min": 0, "max": 1, "positions": 2,
+        "values": ["Neutwo", "Naka-Rushton"],
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/PsychoVPopulator.java",
+        "line": 59,
+        "recommendation": "Toggle button or cycle button"
+      },
+      {
+        "id": "SLIDER-002",
+        "option": "Light Mode (per-block)",
+        "min": 0, "max": 2, "positions": 3,
+        "values": ["Auto", "Force Area Light", "Force Emissive"],
+        "file": "src/main/java/com/radiance/client/gui/LightTypeDetailScreen.java",
+        "line": 93,
+        "recommendation": "Cycle button or dropdown"
+      },
+      {
+        "id": "SLIDER-003",
+        "option": "SHARC Quality Preset",
+        "min": 0, "max": 5, "positions": 6,
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/SharcPopulator.java",
+        "line": 45,
+        "recommendation": "Dropdown with named presets"
+      }
+    ],
+    "oversized": [
+      {
+        "id": "SLIDER-004",
+        "option": "Firework Color Temperature",
+        "min": 800, "max": 15000, "positions": 14201,
+        "recommended_positions": 50,
+        "ratio": "284x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/FireworksPopulator.java",
+        "line": 37,
+        "recommendation": "Use logarithmic stepping or 100K increments"
+      },
+      {
+        "id": "SLIDER-005",
+        "option": "Min Exposure",
+        "min": 1, "max": 10000, "positions": 10000,
+        "recommended_positions": 50,
+        "ratio": "200x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/ExposurePopulator.java",
+        "line": 98,
+        "recommendation": "Logarithmic scale"
+      },
+      {
+        "id": "SLIDER-006",
+        "option": "Firework Flash Emission",
+        "min": 0, "max": 10000, "positions": 10001,
+        "recommended_positions": 100,
+        "ratio": "100x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/FireworksPopulator.java",
+        "line": 23,
+        "recommendation": "Logarithmic or 100-nit steps"
+      },
+      {
+        "id": "SLIDER-007",
+        "option": "Particle Temperature",
+        "min": 500, "max": 10000, "positions": 9501,
+        "recommended_positions": 50,
+        "ratio": "190x",
+        "file": "src/main/java/com/radiance/client/gui/unified/EmissionWidgetFactory.java",
+        "line": 148,
+        "recommendation": "Logarithmic or 200K increments"
+      },
+      {
+        "id": "SLIDER-008",
+        "option": "Firework Spark Emission",
+        "min": 0, "max": 5000, "positions": 5001,
+        "recommended_positions": 100,
+        "ratio": "50x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/FireworksPopulator.java",
+        "line": 16,
+        "recommendation": "Logarithmic or 50-nit steps"
+      },
+      {
+        "id": "SLIDER-009",
+        "option": "Block Emission Nits",
+        "min": 0, "max": 5000, "positions": 5001,
+        "recommended_positions": 100,
+        "ratio": "50x",
+        "file": "src/main/java/com/radiance/client/gui/unified/EmissionWidgetFactory.java",
+        "line": 141,
+        "recommendation": "Logarithmic or 50-nit steps"
+      },
+      {
+        "id": "SLIDER-010",
+        "option": "PsychoV Clip Point",
+        "min": 10, "max": 5000, "positions": 4991,
+        "recommended_positions": 50,
+        "ratio": "100x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/PsychoVPopulator.java",
+        "line": 67,
+        "recommendation": "Logarithmic scale"
+      },
+      {
+        "id": "SLIDER-011",
+        "option": "Noise Rotation",
+        "min": 0, "max": 3600, "positions": 3601,
+        "recommended_positions": 361,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 912,
+        "recommendation": "1-degree steps (0-360 range)"
+      },
+      {
+        "id": "SLIDER-012",
+        "option": "Block Temperature",
+        "min": 500, "max": 4000, "positions": 3501,
+        "recommended_positions": 50,
+        "ratio": "70x",
+        "file": "src/main/java/com/radiance/client/gui/unified/EmissionWidgetFactory.java",
+        "line": 38,
+        "recommendation": "50K or 100K increments"
+      },
+      {
+        "id": "SLIDER-013",
+        "option": "Window Width",
+        "min": 640, "max": 3840, "positions": 3201,
+        "recommended_positions": 40,
+        "ratio": "80x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/WindowPopulator.java",
+        "line": 46,
+        "recommendation": "Standard resolution presets or 8px steps"
+      },
+      {
+        "id": "SLIDER-014",
+        "option": "IOR",
+        "min": 1000, "max": 3000, "positions": 2001,
+        "recommended_positions": 201,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 762,
+        "recommendation": "0.01 step (range 1.00-3.00)"
+      },
+      {
+        "id": "SLIDER-015",
+        "option": "Window Height",
+        "min": 360, "max": 2160, "positions": 1801,
+        "recommended_positions": 25,
+        "ratio": "72x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/WindowPopulator.java",
+        "line": 51,
+        "recommendation": "Standard resolution presets or 8px steps"
+      },
+      {
+        "id": "SLIDER-016",
+        "option": "Exposure Highlight Percentile",
+        "min": 9000, "max": 9999, "positions": 1000,
+        "recommended_positions": 100,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/ExposurePopulator.java",
+        "line": 89,
+        "recommendation": "0.1% steps instead of 0.01%"
+      },
+      {
+        "id": "SLIDER-017",
+        "option": "Metallic",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 748,
+        "recommendation": "Range 0-100 (display as 0%-100%)"
+      },
+      {
+        "id": "SLIDER-018",
+        "option": "Transmission",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 773,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-019",
+        "option": "Subsurface",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 779,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-020",
+        "option": "Anisotropic",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 783,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-021",
+        "option": "Coat Weight",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 803,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-022",
+        "option": "Sheen Weight",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 811,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-023",
+        "option": "Sheen Tint",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 815,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-024",
+        "option": "F0 R",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 823,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-025",
+        "option": "F0 G",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 827,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-026",
+        "option": "F0 B",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 831,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-027",
+        "option": "Noise Strength",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 893,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-028",
+        "option": "Noise Mask Threshold",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 932,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-029",
+        "option": "Max FPS",
+        "min": 0, "max": 999, "positions": 1000,
+        "recommended_positions": 15,
+        "ratio": "67x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+        "line": 145,
+        "recommendation": "Preset values: 0(Unlimited),30,60,75,90,120,144,165,200,240,360,480,999"
+      },
+      {
+        "id": "SLIDER-030",
+        "option": "HDR Peak Nits",
+        "min": 10, "max": 1000, "positions": 991,
+        "recommended_positions": 50,
+        "ratio": "20x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/HdrSaturationPopulator.java",
+        "line": 146,
+        "recommendation": "Coarser steps or logarithmic"
+      },
+      {
+        "id": "SLIDER-031",
+        "option": "Block Wavelength",
+        "min": 0, "max": 780, "positions": 781,
+        "recommended_positions": 78,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/EmissionWidgetFactory.java",
+        "line": 47,
+        "recommendation": "10nm steps"
+      },
+      {
+        "id": "SLIDER-032",
+        "option": "Particle Wavelength",
+        "min": 0, "max": 780, "positions": 781,
+        "recommended_positions": 78,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/EmissionWidgetFactory.java",
+        "line": 155,
+        "recommendation": "10nm steps"
+      },
+      {
+        "id": "SLIDER-033",
+        "option": "Firework Wavelength",
+        "min": 0, "max": 780, "positions": 781,
+        "recommended_positions": 78,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/FireworksPopulator.java",
+        "line": 45,
+        "recommendation": "10nm steps"
+      },
+      {
+        "id": "SLIDER-034",
+        "option": "Entity Metallic",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/EntityMaterialPopulator.java",
+        "line": 56,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-035",
+        "option": "Entity Subsurface",
+        "min": 0, "max": 1000, "positions": 1001,
+        "recommended_positions": 101,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/EntityMaterialPopulator.java",
+        "line": 64,
+        "recommendation": "Range 0-100"
+      },
+      {
+        "id": "SLIDER-036",
+        "option": "Entity IOR",
+        "min": 1000, "max": 3000, "positions": 2001,
+        "recommended_positions": 201,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/EntityMaterialPopulator.java",
+        "line": 68,
+        "recommendation": "0.01 step"
+      },
+      {
+        "id": "SLIDER-037",
+        "option": "Block Light Intensity",
+        "min": 0, "max": 500, "positions": 501,
+        "recommended_positions": 101,
+        "ratio": "5x",
+        "file": "src/main/java/com/radiance/client/gui/LightTypeDetailScreen.java",
+        "line": 106,
+        "recommendation": "5% steps or range 0-100 mapped to 0-500%"
+      },
+      {
+        "id": "SLIDER-038",
+        "option": "Block Light Scale",
+        "min": 10, "max": 500, "positions": 491,
+        "recommended_positions": 99,
+        "ratio": "5x",
+        "file": "src/main/java/com/radiance/client/gui/LightTypeDetailScreen.java",
+        "line": 116,
+        "recommendation": "5% steps"
+      },
+      {
+        "id": "SLIDER-039",
+        "option": "Noise Scale",
+        "min": 1, "max": 500, "positions": 500,
+        "recommended_positions": 100,
+        "ratio": "5x",
+        "file": "src/main/java/com/radiance/client/gui/MaterialsSettingsScreen.java",
+        "line": 897,
+        "recommendation": "0.5x steps"
+      },
+      {
+        "id": "SLIDER-040",
+        "option": "HDR Paper White Nits",
+        "min": 1, "max": 500, "positions": 500,
+        "recommended_positions": 50,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/HdrSaturationPopulator.java",
+        "line": 150,
+        "recommendation": "10-nit steps"
+      },
+      {
+        "id": "SLIDER-041",
+        "option": "Saturation (advanced)",
+        "min": 0, "max": 400, "positions": 401,
+        "recommended_positions": 81,
+        "ratio": "5x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/HdrSaturationPopulator.java",
+        "line": 81,
+        "recommendation": "0.05 steps"
+      },
+      {
+        "id": "SLIDER-042",
+        "option": "Tess Near Dist",
+        "min": 8, "max": 256, "positions": 249,
+        "recommended_positions": 32,
+        "ratio": "8x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/RayTracingPopulator.java",
+        "line": 90,
+        "recommendation": "8-block steps"
+      },
+      {
+        "id": "SLIDER-043",
+        "option": "Tess Mid Dist",
+        "min": 16, "max": 384, "positions": 369,
+        "recommended_positions": 24,
+        "ratio": "15x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/RayTracingPopulator.java",
+        "line": 97,
+        "recommendation": "16-block steps"
+      },
+      {
+        "id": "SLIDER-044",
+        "option": "Tess Far Dist",
+        "min": 32, "max": 512, "positions": 481,
+        "recommended_positions": 16,
+        "ratio": "30x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/RayTracingPopulator.java",
+        "line": 101,
+        "recommendation": "32-block steps"
+      },
+      {
+        "id": "SLIDER-045",
+        "option": "SHARC Scene Scale",
+        "min": 10, "max": 200, "positions": 191,
+        "recommended_positions": 39,
+        "ratio": "5x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/SharcPopulator.java",
+        "line": 66,
+        "recommendation": "0.5 steps"
+      },
+      {
+        "id": "SLIDER-046",
+        "option": "SHARC Accum Frames",
+        "min": 4, "max": 256, "positions": 253,
+        "recommended_positions": 7,
+        "ratio": "36x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/SharcPopulator.java",
+        "line": 89,
+        "recommendation": "Powers of 2 only: 4,8,16,32,64,128,256"
+      },
+      {
+        "id": "SLIDER-047",
+        "option": "SHARC Stale Frames",
+        "min": 4, "max": 128, "positions": 125,
+        "recommended_positions": 6,
+        "ratio": "21x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/SharcPopulator.java",
+        "line": 97,
+        "recommendation": "Powers of 2 only: 4,8,16,32,64,128"
+      },
+      {
+        "id": "SLIDER-048",
+        "option": "Offline Bounces",
+        "min": 1, "max": 128, "positions": 128,
+        "recommended_positions": 8,
+        "ratio": "16x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+        "line": 41,
+        "recommendation": "Powers of 2: 1,2,4,8,16,32,64,128"
+      },
+      {
+        "id": "SLIDER-049",
+        "option": "F-Stop",
+        "min": 14, "max": 220, "positions": 207,
+        "recommended_positions": 20,
+        "ratio": "10x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+        "line": 171,
+        "recommendation": "Standard f-stops: 1.4,2,2.8,4,5.6,8,11,16,22 (and thirds)"
+      },
+      {
+        "id": "SLIDER-050",
+        "option": "Focal Length",
+        "min": 14, "max": 200, "positions": 187,
+        "recommended_positions": 20,
+        "ratio": "9x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+        "line": 155,
+        "recommendation": "Standard focal lengths or 5mm steps"
+      },
+      {
+        "id": "SLIDER-051",
+        "option": "Movement Speed",
+        "min": 1, "max": 500, "positions": 500,
+        "recommended_positions": 100,
+        "ratio": "5x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+        "line": 237,
+        "recommendation": "0.5x steps"
+      },
+      {
+        "id": "SLIDER-052",
+        "option": "Focus Distance",
+        "min": 1, "max": 256, "positions": 256,
+        "recommended_positions": 64,
+        "ratio": "4x",
+        "file": "src/main/java/com/radiance/client/gui/unified/populators/OfflinePopulator.java",
+        "line": 203,
+        "recommendation": "4-block steps or logarithmic"
+      }
+    ]
+  },
+  "menu_density": {
+    "bloated_sections": [
+      {
+        "id": "DENSE-001",
+        "section": "Fireworks",
+        "populator": "FireworksPopulator",
+        "rows": 50,
+        "sections_count": 17,
+        "estimated_height_px": 1574,
+        "scrolls": 2.5,
+        "detail": "16 colors each get own section header (22px) + 3 sliders (72px) = 94px per color",
+        "recommendation": "Use FiveColumnEmissionRow format like Particles, or dropdown color selector"
+      },
+      {
+        "id": "DENSE-002",
+        "section": "Entity Materials",
+        "populator": "EntityMaterialPopulator",
+        "rows": 40,
+        "sections_count": 4,
+        "estimated_height_px": 1048,
+        "scrolls": 1.7,
+        "detail": "20 entity categories x 2 TwoSlider rows each",
+        "recommendation": "Collapsible per-group sub-sections or tabbed interface"
+      },
+      {
+        "id": "DENSE-003",
+        "section": "Area Lights",
+        "populator": "AreaLightPopulator",
+        "rows": 31,
+        "sections_count": 4,
+        "estimated_height_px": 832,
+        "scrolls": 1.3,
+        "detail": "47 per-block buttons in 24 paired rows dominate the page",
+        "recommendation": "Searchable/filterable block picker or paginated grid"
+      },
+      {
+        "id": "DENSE-004",
+        "section": "Offline Rendering",
+        "populator": "OfflinePopulator",
+        "rows": 19,
+        "sections_count": 7,
+        "estimated_height_px": 610,
+        "scrolls": 1.0,
+        "detail": "Conflates render presets, accumulation, shader quality, camera, focus, freecam, ground truth",
+        "recommendation": "Break Camera/Focus/Freecam into own sub-leaves"
+      },
+      {
+        "id": "DENSE-005",
+        "section": "Lighting (parent category)",
+        "rows": "all_children",
+        "estimated_height_px": 6148,
+        "scrolls": 9.8,
+        "detail": "Clicking Lighting parent concatenates ALL children: Area Lights + 5 Emission + Fireworks + Materials + Entity Materials",
+        "recommendation": "Don't concatenate or limit to immediate children only"
+      }
+    ],
+    "wasted_space": [
+      {
+        "id": "SPACE-001",
+        "section": "ExposurePopulator",
+        "pairable_sliders": [
+          ["Up Speed", "Down Speed"],
+          ["Min Exposure", "Max Exposure"],
+          ["Compensation", "Middle Grey"],
+          ["Highlight Protection", "Smooth Speed"],
+          ["Log2 Max", "Percentile"]
+        ],
+        "rows_saved": 5
+      },
+      {
+        "id": "SPACE-002",
+        "section": "PsychoVPopulator",
+        "pairable_sliders": [
+          ["Highlights", "Shadows"],
+          ["Purity", "Bleaching"],
+          ["Clip Point", "Cone Exponent"],
+          ["Hue Restore", "(solo or with Contrast)"]
+        ],
+        "rows_saved": 4,
+        "note": "White Curve (2 values) should be toggle, not slider"
+      },
+      {
+        "id": "SPACE-003",
+        "section": "WaterPopulator",
+        "pairable_sliders": [
+          ["Tint R", "Tint G"],
+          ["Tint B", "Fog Strength"]
+        ],
+        "rows_saved": 2
+      },
+      {
+        "id": "SPACE-004",
+        "section": "SunPopulator",
+        "pairable_sliders": [["Size", "Intensity"]],
+        "rows_saved": 1
+      },
+      {
+        "id": "SPACE-005",
+        "section": "MoonPopulator",
+        "pairable_sliders": [["Size", "Intensity"]],
+        "rows_saved": 1
+      }
+    ],
+    "duplications": [
+      {
+        "id": "DUP-001",
+        "settings": ["Sharpener Mode", "CAS Sharpness"],
+        "locations": [
+          "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+          "src/main/java/com/radiance/client/gui/unified/populators/PostProcessingPopulator.java",
+          "src/main/java/com/radiance/client/gui/unified/populators/SimplePostProcessingPopulator.java"
+        ],
+        "recommendation": "Remove from PostProcessingPopulator (only unique content there, makes it empty)"
+      },
+      {
+        "id": "DUP-002",
+        "settings": ["Multi-Scatter GGX", "EON Diffuse"],
+        "locations": [
+          "src/main/java/com/radiance/client/gui/unified/populators/RayTracingPopulator.java",
+          "src/main/java/com/radiance/client/gui/unified/populators/HdrSaturationPopulator.java"
+        ],
+        "recommendation": "Keep in RayTracingPopulator only"
+      },
+      {
+        "id": "DUP-003",
+        "settings": ["VSync", "FPS Limit"],
+        "locations": [
+          "src/main/java/com/radiance/client/gui/unified/populators/WindowPopulator.java",
+          "src/main/java/com/radiance/client/gui/unified/populators/UpscalerPopulator.java",
+          "src/main/java/com/radiance/client/gui/unified/populators/SimpleDisplayPopulator.java"
+        ],
+        "recommendation": "Consolidate to one location"
+      }
+    ],
+    "orphan_sections": [
+      {
+        "id": "ORPHAN-001",
+        "section": "Terrain",
+        "populator": "TerrainPopulator",
+        "rows": 1,
+        "recommendation": "Merge into Window or Pipeline"
+      },
+      {
+        "id": "ORPHAN-002",
+        "section": "Pipeline",
+        "populator": "PipelinePopulator",
+        "rows": 1,
+        "recommendation": "Merge with Terrain into an 'Advanced' leaf"
+      },
+      {
+        "id": "ORPHAN-003",
+        "section": "Post Processing",
+        "populator": "PostProcessingPopulator",
+        "rows": 2,
+        "recommendation": "Delete — content duplicated in UpscalerPopulator"
+      },
+      {
+        "id": "ORPHAN-004",
+        "section": "Sky",
+        "populator": "SkyPopulator",
+        "rows": 2,
+        "recommendation": "Merge into a combined 'Atmosphere' with Clouds"
+      }
+    ],
+    "naming_issues": [
+      {
+        "id": "NAME-001",
+        "current": "HDR / Saturation",
+        "problem": "Contains tonemapper selection, BRDF toggles, per-TM params, AND HDR output config",
+        "suggested": "Tone Mapping"
+      },
+      {
+        "id": "NAME-002",
+        "current": "Lighting vs Light & Color",
+        "problem": "Ambiguous — one is light sources, other is image processing",
+        "suggested": "Light Sources / Image Processing"
+      },
+      {
+        "id": "NAME-003",
+        "current": "Upscaler",
+        "problem": "Contains VSync, Reflex, FPS Limit, Frame Gen — display/performance settings",
+        "suggested": "Move display settings out to Window or new Performance leaf"
+      }
+    ],
+    "parent_scroll_depth": [
+      {"category": "Lighting", "estimated_height_px": 6148, "scrolls": 9.8},
+      {"category": "Light & Color", "estimated_height_px": 1224, "scrolls": 1.9},
+      {"category": "Image Quality", "estimated_height_px": 712, "scrolls": 1.1},
+      {"category": "Environment", "estimated_height_px": 846, "scrolls": 1.3},
+      {"category": "Display", "estimated_height_px": 422, "scrolls": 0.7}
+    ]
+  },
+  "implementation_waves": [
+    {
+      "wave": 1,
+      "name": "Critical Bugs",
+      "items": ["BUG-001", "BUG-002", "BUG-003", "BUG-005", "BUG-006"]
+    },
+    {
+      "wave": 2,
+      "name": "Grey-outs",
+      "items": ["GREY-001", "GREY-002", "GREY-003", "GREY-004", "GREY-005", "GREY-006", "GREY-007", "GREY-008"]
+    },
+    {
+      "wave": 3,
+      "name": "Slider Sizing",
+      "items": ["SLIDER-001", "SLIDER-002", "SLIDER-003", "SLIDER-017", "SLIDER-018", "SLIDER-019", "SLIDER-020", "SLIDER-021", "SLIDER-022", "SLIDER-023", "SLIDER-024", "SLIDER-025", "SLIDER-026", "SLIDER-004", "SLIDER-005", "SLIDER-006", "SLIDER-007"]
+    },
+    {
+      "wave": 4,
+      "name": "Density & Organization",
+      "items": ["DENSE-001", "SPACE-001", "SPACE-002", "SPACE-003", "DUP-001", "DUP-002", "ORPHAN-001", "ORPHAN-002", "ORPHAN-003"]
+    }
+  ]
+}

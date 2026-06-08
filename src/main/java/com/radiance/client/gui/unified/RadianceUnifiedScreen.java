@@ -1,0 +1,632 @@
+package com.radiance.client.gui.unified;
+
+import static net.minecraft.client.option.GameOptions.getGenericValueText;
+
+import com.radiance.client.gui.RadianceTheme;
+import com.radiance.client.gui.ResettableSliderWidget;
+import com.radiance.client.gui.unified.populators.*;
+import com.radiance.client.option.Options;
+import com.radiance.client.option.PresetManager;
+import java.util.List;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.text.Text;
+import org.lwjgl.glfw.GLFW;
+
+/**
+ * Unified Radiance settings screen with tree navigation (left) and content panel (right).
+ * Replaces RadianceSettingsScreen and all 15+ sub-screens in a single panel+sidebar layout.
+ *
+ * Features:
+ * - Category nodes populate ALL child sections at once
+ * - Leaf nodes populate only their own section
+ * - Sub-screens open as modal overlays, not separate screens
+ * - Custom-rendered widgets (no Minecraft textures)
+ * - Global opacity slider and Reset to Defaults in header
+ */
+public class RadianceUnifiedScreen extends Screen {
+
+    private static final int TREE_WIDTH = 160;
+    private static final int HEADER_HEIGHT = 28;
+    private static final int FOOTER_HEIGHT = 0;
+    private static final int TREE_TOP_PAD = 4;
+
+    // ── Persisted menu state (survives close/reopen within same game session) ──
+    private static String rememberedNodeId = null;
+    private static double rememberedScrollY = 0;
+
+    // ── Deferred navigation (set by inspect keybind before opening screen) ──
+    private static String deferredNavigationTarget = null;
+
+    /** Set a deferred navigation target — consumed on next init(). */
+    public static void setDeferredNavigation(String nodeId) {
+        deferredNavigationTarget = nodeId;
+    }
+
+    private final Screen parent;
+    private TreeNavigationWidget tree;
+    private ContentPanelWidget content;
+
+    /** Track which node is currently populating the content panel. */
+    private TreeNode activeNode;
+
+    // ── Modal overlay ──
+    private Screen overlayScreen;
+    private boolean overlayShowing = false;
+
+    // ── Header controls ──
+    private ResettableSliderWidget opacitySlider;
+    private ButtonWidget resetDefaultsButton;
+    private ButtonWidget[] presetButtons;
+
+    // ── Search ──
+    private UnifiedSearchOverlay searchOverlay;
+
+    public RadianceUnifiedScreen(Screen parent) {
+        super(Text.translatable("radiance.settings.title"));
+        this.parent = parent;
+    }
+
+    // ── Initialization ──
+
+    @Override
+    protected void init() {
+        super.init();
+
+        int treeTop = HEADER_HEIGHT + TREE_TOP_PAD;
+        int bodyHeight = this.height - treeTop - FOOTER_HEIGHT;
+
+        // Create tree navigation (left panel)
+        tree = new TreeNavigationWidget(0, treeTop, TREE_WIDTH, bodyHeight);
+        populateTree();
+        this.addDrawableChild(tree);
+
+        // Create content panel (right panel)
+        int contentX = TREE_WIDTH;
+        int contentW = this.width - TREE_WIDTH;
+        content = new ContentPanelWidget(contentX, treeTop, contentW, bodyHeight);
+        this.addDrawableChild(content);
+
+        // ── Header controls ──
+
+        // Reset to Defaults button (top-right)
+        int resetBtnW = 110;
+        int resetBtnH = 18;
+        int resetBtnX = this.width - resetBtnW - 6;
+        int resetBtnY = (HEADER_HEIGHT - resetBtnH) / 2;
+        resetDefaultsButton = ButtonWidget.builder(
+            Text.translatable("radiance.settings.reset_defaults"),
+            btn -> {
+                Options.resetAllToDefaults();
+                Options.overwriteConfig();
+                refreshContent();
+            })
+            .dimensions(resetBtnX, resetBtnY, resetBtnW, resetBtnH)
+            .build();
+        this.addDrawableChild(resetDefaultsButton);
+
+        // Opacity slider (to the left of Reset)
+        int sliderW = 140;
+        int sliderH = 18;
+        int sliderX = resetBtnX - sliderW - 8;
+        int sliderY = (HEADER_HEIGHT - sliderH) / 2;
+        opacitySlider = new ResettableSliderWidget(
+            sliderX, sliderY, sliderW, sliderH,
+            0, 100, Options.uiGlobalAlphaPercent, 55,
+            v -> getGenericValueText(
+                Text.translatable("radiance.settings.menu_transparency"),
+                Text.literal(v + "%")),
+            v -> Options.setUiGlobalAlphaPercent(v, false));
+        opacitySlider.setOnRelease(() -> Options.overwriteConfig());
+        opacitySlider.settingKey = "uiGlobalAlphaPercent";
+        this.addDrawableChild(opacitySlider);
+
+        // Preset buttons (between title and opacity slider)
+        int presetBtnW = 24;
+        int presetBtnH = 18;
+        int presetBtnY = (HEADER_HEIGHT - presetBtnH) / 2;
+        int presetStartX = 8 + this.textRenderer.getWidth(
+            Text.translatable("radiance.settings.title")) + 12;
+        presetButtons = new ButtonWidget[3];
+        for (int slot = 1; slot <= 3; slot++) {
+            final int s = slot;
+            int btnX = presetStartX + (slot - 1) * (presetBtnW + 4);
+            presetButtons[slot - 1] = ButtonWidget.builder(
+                Text.literal(String.valueOf(slot)),
+                btn -> handlePresetClick(s))
+                .dimensions(btnX, presetBtnY, presetBtnW, presetBtnH)
+                .build();
+            this.addDrawableChild(presetButtons[slot - 1]);
+        }
+
+        // Search overlay
+        searchOverlay = new UnifiedSearchOverlay(this);
+
+        // Re-init overlay if active (window may have resized)
+        if (overlayShowing && overlayScreen != null) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            overlayScreen.init(mc, this.width, this.height);
+        }
+
+        // Deferred navigation (from inspect keybind) takes priority
+        if (deferredNavigationTarget != null) {
+            String target = deferredNavigationTarget;
+            deferredNavigationTarget = null;
+            TreeNode found = findNodeById(target);
+            if (found != null) {
+                tree.selectById(target);
+            } else {
+                tree.selectFirst();
+            }
+        } else if (rememberedNodeId != null) {
+            TreeNode found = findNodeById(rememberedNodeId);
+            if (found != null) {
+                tree.selectById(rememberedNodeId);
+                if (rememberedScrollY > 0) {
+                    content.setScrollTarget(rememberedScrollY);
+                }
+            } else {
+                rememberedNodeId = null;
+                tree.selectFirst();
+            }
+        } else {
+            tree.selectFirst();
+        }
+    }
+
+    private TreeNode findNodeById(String id) {
+        for (TreeNode root : tree.getRootNodes()) {
+            TreeNode found = root.findById(id);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    /** Compatibility marker: Options.advancedMode remains loadable but does not shape this menu. */
+    private void advancedModeCompatibilityMarker() {
+        // Retained only as a compatibility marker for old configs.
+        // Full reinit — re-set screen to trigger init()
+    }
+
+    // ── Preset handling ──
+
+    private void handlePresetClick(int slot) {
+        long handle = MinecraftClient.getInstance().getWindow().getHandle();
+        boolean shift = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS
+                     || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS;
+        boolean ctrl = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+
+        if (ctrl && shift) {
+            PresetManager.clear(slot);
+            Options.setFocusToast("Preset " + slot + " cleared", 0xB0B0B0, 1500);
+        } else if (shift) {
+            Options.overwriteConfig();
+            PresetManager.save(slot);
+            Options.setFocusToast("Saved to Preset " + slot, 0x55FF55, 1500);
+        } else {
+            if (PresetManager.isOccupied(slot)) {
+                PresetManager.load(slot);
+                Options.setFocusToast("Loaded Preset " + slot, 0x55FF55, 1500);
+                MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(parent));
+            } else {
+                Options.setFocusToast("Empty — Shift+Click to save", 0xFF5555, 2000);
+            }
+        }
+    }
+
+    // ── Tree structure ──
+
+    private void populateTree() {
+        populateSuperTree();
+        tree.setOnSelect(this::onCategorySelected);
+    }
+
+    /**
+     * Full super menu tree with every settings category exposed.
+     * Category roots remain selectable and show composite child content.
+     */
+    /**
+     * All renderer categories are exposed in one permanent menu.
+     * Root order: Scene, Camera, Surfaces, Lighting, Rendering, System, Debug.
+     */
+    private void populateSuperTree() {
+        // ▼ Scene
+        TreeNode scene = new TreeNode("scene", "Scene");
+        scene.addChild(new TreeNode("sky_atmosphere", "Sky & Atmosphere", new SkyPopulator()));
+        scene.addChild(new TreeNode("clouds", "Clouds", new CloudPopulator()));
+        scene.addChild(new TreeNode("water", "Water", new WaterPopulator()));
+        scene.addChild(new TreeNode("sun_moon", "Sun & Moon",
+            compositeOf(new SunPopulator(), new MoonPopulator())));
+        scene.populator = compositePopulator(scene.children);
+        tree.addRoot(scene);
+
+        // Camera
+        TreeNode camera = new TreeNode("camera", "Camera");
+        camera.addChild(new TreeNode("physical_camera", "Physical Camera", new PhysicalCameraPopulator()));
+        camera.addChild(new TreeNode("offline", "Offline Rendering", new OfflinePopulator()));
+        camera.addChild(new TreeNode("freecam_fpv", "Freecam / First-Person",
+            compositeOf(new FreecamPopulator(), new FpvPopulator())));
+        camera.populator = compositePopulator(camera.children);
+        tree.addRoot(camera);
+
+        // ▼ Surfaces
+        TreeNode surfaces = new TreeNode("surfaces", "Surfaces");
+        surfaces.addChild(new TreeNode("materials", "Material Lab", new MaterialsPopulator()));
+        surfaces.addChild(new TreeNode("emission", "Emission", new UnifiedEmissionPopulator()));
+        surfaces.populator = compositePopulator(surfaces.children);
+        tree.addRoot(surfaces);
+
+        // ▼ Lighting
+        TreeNode lighting = new TreeNode("lighting", "Lighting");
+        lighting.addChild(new TreeNode("exposure", "Exposure", new ExposurePopulator()));
+        lighting.addChild(new TreeNode("tone_mapping", "Tone Mapping / HDR",
+            compositeOf(new PsychoVPopulator(), new HdrSaturationPopulator())));
+        lighting.populator = compositePopulator(lighting.children);
+        tree.addRoot(lighting);
+
+        // ▼ Rendering
+        TreeNode rendering = new TreeNode("rendering", "Rendering");
+        rendering.addChild(new TreeNode("ray_tracing", "Ray Tracing",
+            compositeOf(new RayTracingPopulator(), new SharcPopulator())));
+        rendering.addChild(new TreeNode("shader_packs", "Shader Packs", new ShaderPackPopulator()));
+        rendering.addChild(new TreeNode("upscaler", "Upscaling & FG", new UpscalerPopulator()));
+        rendering.addChild(new TreeNode("post_processing", "Post Processing", new PostProcessingPopulator()));
+        rendering.addChild(new TreeNode("performance", "Frame Pacing", new PerformancePopulator()));
+        rendering.populator = compositePopulator(rendering.children);
+        tree.addRoot(rendering);
+
+        // ▼ Camera
+        // ▼ System
+        TreeNode system = new TreeNode("system", "System");
+        system.addChild(new TreeNode("window", "Window", new WindowPopulator()));
+        system.addChild(new TreeNode("pipeline", "Pipeline", new PipelinePopulator()));
+        system.addChild(new TreeNode("ui_settings", "UI Settings", new UiSettingsPopulator()));
+        system.populator = compositePopulator(system.children);
+        tree.addRoot(system);
+
+        // Debug
+        TreeNode debug = new TreeNode("debug", "Debug");
+        debug.addChild(new TreeNode("debug_status", "Status", new DebugPopulator(DebugPopulator.Page.STATUS)));
+        debug.addChild(new TreeNode("debug_capture_logs", "Capture & Logs", new DebugPopulator(DebugPopulator.Page.CAPTURE_LOGS)));
+        debug.addChild(new TreeNode("debug_gpu_profiling", "GPU / Frame Profiling", new DebugPopulator(DebugPopulator.Page.GPU_PROFILING)));
+        debug.addChild(new TreeNode("debug_dlssg_latency", "DLSS-G Latency", new DebugPopulator(DebugPopulator.Page.DLSSG_LATENCY)));
+        debug.addChild(new TreeNode("debug_resources", "Resources", new DebugPopulator(DebugPopulator.Page.RESOURCES)));
+        debug.addChild(new TreeNode("debug_power_actions", "Power Actions", new DebugPopulator(DebugPopulator.Page.POWER_ACTIONS)));
+        debug.populator = compositePopulator(debug.children);
+        tree.addRoot(debug);
+    }
+
+    /**
+     * Create a composite populator that runs ALL child populators sequentially.
+     * Used for category nodes so clicking "Lighting" shows all sub-sections at once.
+     */
+    private ContentPopulator compositePopulator(List<TreeNode> children) {
+        return (panel, screen) -> {
+            for (TreeNode child : children) {
+                if (child.populator != null) {
+                    child.populator.populate(panel, screen);
+                }
+            }
+        };
+    }
+
+    /** Inline composite for leaf nodes that combine multiple populators (e.g. Sun & Moon). */
+    private ContentPopulator compositeOf(ContentPopulator... populators) {
+        return new ContentPopulator() {
+            @Override
+            public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
+                for (ContentPopulator p : populators) {
+                    p.populate(panel, screen);
+                }
+            }
+
+            @Override
+            public List<UnifiedSearchOverlay.SearchEntry> getSearchEntries(String nodeId, String category) {
+                List<UnifiedSearchOverlay.SearchEntry> all = new java.util.ArrayList<>();
+                for (ContentPopulator p : populators) {
+                    all.addAll(p.getSearchEntries(nodeId, category));
+                }
+                return all;
+            }
+        };
+    }
+
+    private void onCategorySelected(TreeNode node) {
+        if (node == null || node.populator == null) return;
+        if (node == activeNode) return; // Already showing this content
+
+        activeNode = node;
+        rememberedNodeId = node.id; // Persist for next open
+        content.clearContent();
+        node.populator.populate(content, this);
+    }
+
+    /** Re-populate the currently active content (for screen rebuilds after toggle changes). */
+    public void refreshContent() {
+        if (activeNode != null && activeNode.populator != null) {
+            content.clearContent();
+            activeNode.populator.populate(content, this);
+        }
+    }
+
+    /** Navigate to a specific tree node by ID and populate its content. */
+    public void navigateTo(String nodeId) {
+        tree.selectById(nodeId);
+    }
+
+    // ── Modal overlay ──
+
+    /** Show a sub-screen as a modal overlay within this unified screen. */
+    public void showOverlay(Screen target) {
+        this.overlayScreen = target;
+        this.overlayShowing = true;
+        // Initialize the sub-screen with the full window dimensions
+        MinecraftClient mc = MinecraftClient.getInstance();
+        target.init(mc, this.width, this.height);
+    }
+
+    /** Close the modal overlay and return to the unified screen. */
+    public void closeOverlay() {
+        this.overlayScreen = null;
+        this.overlayShowing = false;
+    }
+
+    /** Re-initialize the current overlay screen in place (e.g., after block selector change). */
+    public void refreshOverlay() {
+        if (overlayScreen != null) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            overlayScreen.init(mc, this.width, this.height);
+        }
+    }
+
+    public boolean isOverlayShowing() {
+        return overlayShowing;
+    }
+
+    // ── Rendering ──
+
+    @Override
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Transparent — game world shows through
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Don't render anything in peek mode (Tab hides all UI)
+        if (RadianceTheme.peekActive) return;
+
+        super.render(context, mouseX, mouseY, delta);
+
+        // Header background drawn UNDER the widgets that super.render already drew
+        // We need to draw it before super, but that's not possible, so draw the header
+        // bg first in a pre-pass and re-render header widgets on top
+        renderHeader(context, mouseX, mouseY, delta);
+
+        // Modal overlay on top
+        if (overlayShowing && overlayScreen != null) {
+            renderOverlay(context, mouseX, mouseY, delta);
+        }
+
+        // Search overlay (rendered last, on top of everything)
+        if (searchOverlay != null) {
+            searchOverlay.render(context, this.textRenderer, this.width, this.height);
+        }
+    }
+
+    private void renderHeader(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Header background (hidden during slider drag)
+        float fade = RadianceTheme.inactiveFadeFactor();
+        context.fill(0, 0, this.width, HEADER_HEIGHT,
+            RadianceTheme.scaleAlpha(RadianceTheme.unifiedHeaderBg, fade));
+
+        if (fade > 0.005f) {
+            // Title in accent color
+            RadianceTheme.drawOutlinedText(context, this.textRenderer,
+                Text.translatable("radiance.settings.title"),
+                8, (HEADER_HEIGHT - 8) / 2, RadianceTheme.textAccent, fade);
+
+            // Preset buttons (custom rendering with state-aware colors)
+            if (presetButtons != null) {
+                for (int i = 0; i < presetButtons.length; i++) {
+                    ButtonWidget btn = presetButtons[i];
+                    int bx = btn.getX(), by = btn.getY(), bw = btn.getWidth(), bh = btn.getHeight();
+                    boolean hovered = mouseX >= bx && mouseX < bx + bw
+                        && mouseY >= by && mouseY < by + bh;
+                    int slot = i + 1;
+                    boolean occupied = PresetManager.isOccupied(slot);
+                    boolean active = PresetManager.getActiveSlot() == slot;
+
+                    int bg;
+                    if (active) {
+                        bg = RadianceTheme.withAlpha(0x2AB5A0, fade * 0.8f);
+                    } else if (occupied) {
+                        bg = hovered ? RadianceTheme.buttonHover : RadianceTheme.buttonBg;
+                    } else {
+                        bg = RadianceTheme.withAlpha(0x1A1A1A, fade * 0.5f);
+                    }
+                    context.fill(bx, by, bx + bw, by + bh, bg);
+
+                    int border = active ? RadianceTheme.withAlpha(0x2AB5A0, fade)
+                               : occupied ? RadianceTheme.buttonBorder
+                               : RadianceTheme.withAlpha(0x303030, fade * 0.5f);
+                    context.drawBorder(bx, by, bw, bh, border);
+
+                    int textColor = active ? 0xFFFFFF
+                                  : occupied ? (hovered ? 0xFFFFFF : 0xB0B0B0)
+                                  : 0x606060;
+                    Text label = btn.getMessage();
+                    RadianceTheme.drawOutlinedText(context, this.textRenderer, label,
+                        bx + (bw - this.textRenderer.getWidth(label)) / 2,
+                        by + (bh - 8) / 2, textColor, fade);
+                }
+            }
+
+            // Re-render the header widgets on top of the background
+            // (super.render drew them but the bg was painted over them)
+            if (opacitySlider != null) {
+                opacitySlider.render(context, mouseX, mouseY, delta);
+            }
+            if (resetDefaultsButton != null) {
+                renderHeaderButton(context, mouseX, mouseY, resetDefaultsButton);
+            }
+        }
+    }
+
+    private void renderHeaderButton(DrawContext context, int mouseX, int mouseY, ButtonWidget btn) {
+        int x = btn.getX();
+        int y = btn.getY();
+        int w = btn.getWidth();
+        int h = btn.getHeight();
+        boolean hovered = mouseX >= x && mouseX < x + w
+            && mouseY >= y && mouseY < y + h;
+        RadianceTheme.drawCustomButton(context, x, y, w, h,
+            hovered, this.textRenderer, btn.getMessage());
+    }
+
+    private void renderOverlay(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Dark semi-transparent backdrop
+        context.getMatrices().push();
+        context.getMatrices().translate(0, 0, 400);
+        context.fill(0, 0, this.width, this.height,
+            RadianceTheme.withAlpha(0x000000, 0.6f));
+
+        // Render the sub-screen
+        overlayScreen.render(context, mouseX, mouseY, delta);
+        context.getMatrices().pop();
+    }
+
+    // ── Input handling ──
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Search overlay consumes clicks when visible
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.mouseClicked(mouseX, mouseY, button);
+        }
+        if (overlayShowing && overlayScreen != null) {
+            return overlayScreen.mouseClicked(mouseX, mouseY, button);
+        }
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (overlayShowing && overlayScreen != null) {
+            return overlayScreen.mouseReleased(mouseX, mouseY, button);
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY,
+                                  double horizontalAmount, double verticalAmount) {
+        if (overlayShowing && overlayScreen != null) {
+            return overlayScreen.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        // Search overlay consumes all input when visible
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        // Overlay intercepts input
+        if (overlayShowing && overlayScreen != null) {
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                closeOverlay();
+                return true;
+            }
+            return overlayScreen.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        // Peek mode
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
+            RadianceTheme.peekActive = true;
+            return true;
+        }
+
+        // Don't toggle search when an overlay screen is showing
+        if (overlayScreen != null) return super.keyPressed(keyCode, scanCode, modifiers);
+
+        // Search: Space or Ctrl+F opens search (when no overlay active)
+        boolean ctrl = (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+        if (keyCode == GLFW.GLFW_KEY_SPACE || (ctrl && keyCode == GLFW.GLFW_KEY_F)) {
+            if (searchOverlay != null) searchOverlay.toggle();
+            return true;
+        }
+
+        // Escape closes screen
+        if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+            this.close();
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (searchOverlay != null && searchOverlay.isVisible()) {
+            return searchOverlay.charTyped(chr, modifiers);
+        }
+        return super.charTyped(chr, modifiers);
+    }
+
+    @Override
+    public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        if (overlayShowing && overlayScreen != null) {
+            return overlayScreen.keyReleased(keyCode, scanCode, modifiers);
+        }
+        if (keyCode == GLFW.GLFW_KEY_TAB) {
+            RadianceTheme.peekActive = false;
+            return true;
+        }
+        return super.keyReleased(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button,
+                                double deltaX, double deltaY) {
+        if (overlayShowing && overlayScreen != null) {
+            return overlayScreen.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        if (super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY)) return true;
+        // Propagate right-click drag (button 1) for precision slider mode
+        if (button == 1) {
+            Element focused = getFocused();
+            if (focused != null) return focused.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        }
+        return false;
+    }
+
+    @Override
+    public void close() {
+        if (overlayShowing) {
+            closeOverlay();
+            return;
+        }
+        // Save scroll position before closing
+        if (content != null) {
+            rememberedScrollY = content.getScrollTarget();
+        }
+        // Ensure overlay is fully cleaned up
+        overlayScreen = null;
+        overlayShowing = false;
+        RadianceTheme.peekActive = false;
+        RadianceTheme.endSliderFocus();
+        MinecraftClient.getInstance().setScreen(parent);
+    }
+
+    // ── Accessors ──
+
+    public Screen getParent() { return parent; }
+    public ContentPanelWidget getContentPanel() { return content; }
+    public TreeNavigationWidget getTree() { return tree; }
+}

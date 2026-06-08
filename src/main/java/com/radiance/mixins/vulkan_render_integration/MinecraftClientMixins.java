@@ -1,0 +1,232 @@
+package com.radiance.mixins.vulkan_render_integration;
+
+import com.radiance.client.UnsafeManager;
+import com.radiance.client.cloud.CloudTileManager;
+import com.radiance.client.option.Options;
+import com.radiance.client.pipeline.Pipeline;
+import com.radiance.client.proxy.vulkan.RendererProxy;
+import com.radiance.client.proxy.vulkan.TextureProxy;
+import com.radiance.client.proxy.world.ChunkProxy;
+import java.util.Optional;
+import java.util.function.Consumer;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.GlTimer;
+import net.minecraft.client.gl.ShaderLoader;
+import net.minecraft.client.gl.WindowFramebuffer;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.client.texture.TextureManager;
+import net.minecraft.client.util.Window;
+import net.minecraft.resource.ReloadableResourceManagerImpl;
+import net.minecraft.resource.ResourceReloader;
+import org.objectweb.asm.Opcodes;
+import org.spongepowered.asm.mixin.Final;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+
+@Mixin(MinecraftClient.class)
+public class MinecraftClientMixins {
+
+    @Shadow
+    @Final
+    private Window window;
+
+    @Shadow
+    public net.minecraft.client.render.GameRenderer gameRenderer;
+
+    //region <isAmbientOcclusionEnabled>
+    @Inject(method = "isAmbientOcclusionEnabled()Z", at = @At(value = "HEAD"), cancellable = true)
+    private static void disableAmbientOcclusion(CallbackInfoReturnable<Boolean> cir) {
+        cir.setReturnValue(false);
+    }
+    // endregion
+
+    // region <init>
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;initRenderer(IZ)V"))
+    public void initRenderer(int debugVerbosity, boolean debugSync) {
+        // Restore window size+position BEFORE Vulkan init so swapchain picks up correct dimensions.
+        // Suppress the framebuffer callback to avoid NPE (gameRenderer null during constructor).
+        com.radiance.client.option.Options.suppressResizeCallback = true;
+        com.radiance.client.option.Options.restoreWindow();
+        com.radiance.client.option.Options.suppressResizeCallback = false;
+
+        long stackSize = 512 * 1024 * 1024; // 32MB
+        Runnable myRunnable = () -> {
+            RendererProxy.initRenderer(window);
+            Pipeline.collectNativeModules();
+        };
+
+        Thread myThread = new Thread(null, myRunnable, "", stackSize);
+        myThread.start();
+        try {
+            myThread.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        Pipeline.loadPipeline();
+        Pipeline.build();
+
+        // Apply settings that require renderer to be initialized
+        com.radiance.client.option.Options.applyDeferredSettings();
+
+
+        // Auto-enable Reflex + VRR if hardware supports it and user hasn't explicitly configured
+        com.radiance.client.option.Options.autoDetectReflexVrr();
+
+        // Schedule resolution sync — Minecraft's internal state needs updating after suppressed resize
+        if (com.radiance.client.option.Options.windowWidth > 0) {
+            pendingResolutionSync = true;
+        }
+    }
+
+    private static boolean pendingResolutionSync = false;
+
+    @Inject(method = "tick()V", at = @At("HEAD"))
+    public void onTick(CallbackInfo ci) {
+        if (pendingResolutionSync) {
+            pendingResolutionSync = false;
+            // Now gameRenderer exists — tell Minecraft about the actual window size
+            ((MinecraftClient)(Object)this).onResolutionChanged();
+        }
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "NEW", target = "net/minecraft/client/gl/WindowFramebuffer"))
+    public WindowFramebuffer cancelNewFramebuffer(int width, int height) {
+        return UnsafeManager.INSTANCE.allocateInstance(WindowFramebuffer.class);
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "FIELD",
+            target = "Lnet/minecraft/client/MinecraftClient;framebuffer:Lnet/minecraft/client/gl/Framebuffer;",
+            opcode = org.objectweb.asm.Opcodes.PUTFIELD))
+    public void writeNullFramebuffer(MinecraftClient instance, Framebuffer value) {
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V", at = @At(value = "NEW", target = "net/minecraft/client/gl/ShaderLoader"))
+    public ShaderLoader cancelNewShaderLoader(TextureManager textureManager, Consumer<?> onError) {
+        return UnsafeManager.INSTANCE.allocateInstance(ShaderLoader.class);
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "FIELD",
+            target = "Lnet/minecraft/client/MinecraftClient;shaderLoader:Lnet/minecraft/client/gl/ShaderLoader;",
+            opcode = org.objectweb.asm.Opcodes.PUTFIELD))
+    public void writeNullShaderLoader(MinecraftClient instance, ShaderLoader value) {
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/resource/ReloadableResourceManagerImpl;registerReloader" +
+                "(Lnet/minecraft/resource/ResourceReloader;)V",
+            ordinal = 2))
+    public void cancelShaderLoaderRegister(ReloadableResourceManagerImpl instance,
+        ResourceReloader reloader) {
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;setClearColor(FFFF)V"))
+    public void cancelSetClearColor(Framebuffer instance, float r, float g, float b, float a) {
+
+    }
+
+    @Redirect(method = "<init>(Lnet/minecraft/client/RunArgs;)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;clear()V"))
+    public void cancelClear(Framebuffer instance) {
+
+    }
+
+    @Redirect(method = "<init>",
+        at = @At(value = "FIELD",
+            opcode = Opcodes.GETFIELD,
+            target = "Lnet/minecraft/client/gl/Framebuffer;textureWidth:I",
+            ordinal = 0))
+    public int redirectFramebufferTextureWidth(Framebuffer framebuffer) {
+        return this.window.getFramebufferWidth();
+    }
+
+    @Redirect(method = "<init>",
+        at = @At(value = "FIELD", opcode = Opcodes.GETFIELD, target = "Lnet/minecraft/client/gl/Framebuffer;textureHeight:I"),
+        require = 0)
+    public int redirectFramebufferTextureHeight(Framebuffer framebuffer) {
+        return this.window.getFramebufferHeight();
+    }
+    // endregion
+
+    // region <render>
+    @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;beginWrite(Z)V"))
+    public void cancelFramebufferBeginWrite(Framebuffer instance, boolean setViewport) {
+
+    }
+
+    @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;endWrite()V"))
+    public void cancelFramebufferEndWrite(Framebuffer instance, boolean setViewport) {
+        ChunkProxy.waitImportantChunkRebuild();
+        synchronized (TextureProxy.class) {
+            RendererProxy.submitCommandAndPresent();
+            RendererProxy.acquireContext();
+        }
+    }
+
+    @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;draw(II)V"))
+    public void cancelFramebufferDraw(Framebuffer instance, int width, int height) {
+
+    }
+
+    @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/systems/RenderSystem;limitDisplayFPS(I)V"))
+    public void disableFPSLimit(int fps) {
+
+    }
+
+    @Redirect(method = "render(Z)V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/GlTimer;getInstance()Ljava/util/Optional;"))
+    public Optional<GlTimer> disableGLTimerInstance() {
+        return Optional.empty();
+    }
+    // endregion
+
+    // region <onResolutionChanged>
+
+    @Redirect(method = "onResolutionChanged()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/Framebuffer;resize(II)V"))
+    public void cancelFramebufferResize(Framebuffer instance, int width, int height) {
+
+    }
+    // endregion
+
+    // region <close>
+    @Redirect(method = "close()V", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gl/ShaderLoader;close()V"))
+    public void cancelShaderLoaderClose(ShaderLoader instance) {
+        Options.overwriteConfig();
+    }
+    //endregion
+
+    // region <close>
+    @Inject(method = "close()V", at = @At(value = "HEAD"))
+    public void closeNativeRenderer(CallbackInfo ci) {
+        CloudTileManager.shutdown();
+        RendererProxy.close();
+    }
+    // endregion
+
+    // region <disconnect>
+    @Redirect(method = "disconnect(Lnet/minecraft/client/gui/screen/Screen;Z)V",
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/MinecraftClient;render(Z)V"))
+    public void cancelRenderAfterStop(MinecraftClient instance, boolean tick) {
+
+    }
+
+    @Inject(method = "disconnect(Lnet/minecraft/client/gui/screen/Screen;Z)V",
+        at = @At(value = "HEAD"))
+    public void resetBuiltChunkNum(Screen disconnectionScreen, boolean transferring,
+        CallbackInfo ci) {
+        ChunkProxy.builtChunkNum = 0;
+    }
+    // endregion
+
+}

@@ -1,0 +1,825 @@
+{
+  "meta": {
+    "date": "2026-03-22",
+    "branch": "displacement",
+    "mcvr_commit": "fe1e837",
+    "radiance_commit": "facef93",
+    "scope": "CPU, GPU, VRAM, RAM, Vulkan best practices, Minecraft optimization mod compatibility",
+    "implementation_status": "report_only"
+  },
+
+  "cpu": {
+    "java_high": [
+      {
+        "id": "CPU-J1",
+        "title": "Mass StorageVertexConsumerProvider allocation per entity per frame",
+        "file": "Radiance/src/main/java/com/radiance/client/proxy/world/EntityProxy.java",
+        "lines": [227, 306, 329, 434, 454, 510, 577, 634, 705, 710, 856, 894, 961],
+        "frequency": "per_entity_per_frame",
+        "detail": "One new SVCP per entity per frame, each allocates 2 internal HashMaps. With 50+ entities = 50+ SVCP + 100+ HashMaps per frame.",
+        "fix": "Pool SVCPs per frame or use a pre-allocated ring of providers",
+        "severity": "HIGH"
+      },
+      {
+        "id": "CPU-J7",
+        "title": "synchronized(ChunkBuilder.class) serializes ALL chunk building",
+        "file": "Radiance/src/main/java/com/radiance/client/proxy/world/ChunkProxy.java",
+        "line": 255,
+        "frequency": "per_chunk_rebuild",
+        "detail": "Global lock on ChunkBuilder.class wraps entire SectionBuilder.build() call. Serializes the two chunk rebuild thread pools (important + background). Only one chunk can build at a time despite 2 threads.",
+        "fix": "Use per-chunk lock or lock-free queue. The synchronized block should only protect shared state access, not the entire build.",
+        "severity": "HIGH"
+      }
+    ],
+    "java_medium": [
+      {
+        "id": "CPU-J2",
+        "title": "14x memAlloc/memFree per queueBuild call",
+        "file": "Radiance/src/main/java/com/radiance/client/proxy/world/EntityProxy.java",
+        "line_range": [1022, 1183],
+        "frequency": "per_frame",
+        "detail": "Each queueBuild call does 14 native MemoryUtil.memAlloc() + 14 memFree() = 28 native heap ops. 5-7 calls/frame = 140-196 native malloc/free per frame.",
+        "fix": "Single allocation with offsets, or pool ByteBuffers since sizes are predictable",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-J6",
+        "title": "System.out.printf in chunk rebuild hot path",
+        "file": "Radiance/src/main/java/com/radiance/client/proxy/world/ChunkProxy.java",
+        "line_range": [152, 153],
+        "frequency": "per_frame_during_load",
+        "detail": "String.format + console I/O in render thread when >5 chunks queued. Fires continuously during world load.",
+        "fix": "Remove or gate behind debug flag",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-J9",
+        "title": "TextureProxy: all JNI methods synchronized",
+        "file": "Radiance/src/main/java/com/radiance/client/proxy/vulkan/TextureProxy.java",
+        "line_range": [8, 38],
+        "frequency": "per_texture_op",
+        "detail": "Every native texture method is synchronized static native. Creates JNI + monitor enter + JNI + monitor exit per call. Bottleneck during texture loading.",
+        "fix": "Remove synchronized — if thread safety is needed, use lock on C++ side",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-J10",
+        "title": "ConcurrentHashMap<Integer,Integer> autoboxing in TextureTracker",
+        "file": "Radiance/src/main/java/com/radiance/client/texture/TextureTracker.java",
+        "line_range": [13, 18],
+        "frequency": "per_frame",
+        "detail": "GLID2SpecularGLID, GLID2NormalGLID, etc. are ConcurrentHashMap<Integer,Integer>. ~16K boxed Integer objects with 4096 texture entries. Iterated every frame in BufferProxy.updateMapping().",
+        "fix": "Use fastutil IntIntHashMap or simple int[] arrays indexed by GL ID",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-J16",
+        "title": "Vec3d allocation per entity in filtering",
+        "file": "Radiance/src/main/java/com/radiance/mixins/vulkan_render_integration/WorldRendererMixins.java",
+        "line": 173,
+        "frequency": "per_entity_per_frame",
+        "detail": "entity.getPos().subtract(new Vec3d(x, y, z)) allocates 2 Vec3d objects per entity. 100 entities = 200 Vec3d/frame.",
+        "fix": "Inline distance calculation without object allocation",
+        "severity": "MEDIUM"
+      }
+    ],
+    "cpp_high": [
+      {
+        "id": "CPU-C1",
+        "title": "Full TLAS rebuild every frame — never uses UPDATE mode",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp",
+        "line": 196,
+        "frequency": "per_frame",
+        "detail": "Creates new TLASBuilder, populates all instances, full TLAS build every frame. VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE would be 3-10x faster when only entity transforms change. The defineUpdateProperty API exists (as.cpp:478) but is unused.",
+        "fix": "Build TLAS with ALLOW_UPDATE flag. Use UPDATE mode when instance count unchanged. Full rebuild only on chunk add/remove.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "CPU-C2",
+        "title": "6 DeviceLocalBuffer allocations per frame for metadata",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp",
+        "line_range": [59, 93],
+        "frequency": "per_frame",
+        "detail": "blasOffsets, vertexBufferAddr, indexBufferAddr, lastVertexBufferAddr, lastIndexBufferAddr, lastObjToWorldMat all re-allocated every frame. Each = VMA allocation + staging buffer + DMA transfer.",
+        "fix": "Pre-allocate and resize only when capacity changes",
+        "severity": "HIGH"
+      },
+      {
+        "id": "CPU-C11",
+        "title": "recursive_mutex held across entire TLAS build (400 lines)",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp",
+        "line": 155,
+        "frequency": "per_frame",
+        "detail": "Lock acquired at line 155, held through TLAS build + entity processing + area light gathering (~lines 155-554). Blocks all chunk builder threads from completing.",
+        "fix": "Copy needed data under lock, release lock, then build TLAS",
+        "severity": "HIGH"
+      }
+    ],
+    "cpp_medium": [
+      {
+        "id": "CPU-C3",
+        "title": "Area light buffer re-allocated every frame",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp",
+        "line_range": [506, 517],
+        "frequency": "per_frame",
+        "detail": "DeviceLocalBuffer::create() for area lights every frame even when light count unchanged.",
+        "fix": "Persist across frames, only re-create when light count changes",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-C4",
+        "title": "Entity vertex/index buffers allocated every frame",
+        "file": "MCVR/src/core/render/entities.cpp",
+        "line_range": [86, 93],
+        "frequency": "per_frame",
+        "detail": "EntityBuildDataBatch::build() creates new vertexBuffer and indexBuffer every frame via VMA.",
+        "fix": "Pool/resize instead of reallocate",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-C6",
+        "title": "std::map for entity motion vector tracking — should be unordered_map",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp",
+        "line_range": [205, 214],
+        "frequency": "per_frame",
+        "detail": "std::map has O(log n) lookup with pointer chasing per node. New map created every frame. Cache-unfriendly for per-entity iteration.",
+        "fix": "Use std::unordered_map for O(1) lookup",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "CPU-C13",
+        "title": "Chunk1 shared_ptr indirection in hot iteration loop",
+        "file": "MCVR/src/core/render/chunks.hpp",
+        "line_range": [152, 181],
+        "frequency": "per_frame",
+        "detail": "Chunk1 has 7 shared_ptr members. Area light loop iterates ALL chunks every frame with double pointer indirection per chunk. 1000+ chunks = measurable cache misses.",
+        "fix": "SoA layout for hot fields (blas, lightSources) or raw pointers with RAII owner",
+        "severity": "MEDIUM"
+      }
+    ]
+  },
+
+  "gpu": {
+    "high": [
+      {
+        "id": "GPU-001",
+        "title": "PrimaryRay payload ~71 registers — causes LMEM spill",
+        "file": "MCVR/src/shader/util/ray_payloads.glsl",
+        "line_range": [37, 80],
+        "detail": "30 fields totaling ~71 registers just for the payload. Combined with the 1714-line CHS (full Disney BSDF, ReSTIR DI, noise, gamut boost, 4 traceRayEXT calls), this almost certainly spills to local memory. On Ada, each spilled register costs 2-5x penalty across millions of threads.",
+        "estimated_impact": "30-50% RT performance",
+        "fix": "Split into minimal rayPayload (~16 regs: origin, direction, throughput, hitT, seed, flags) and write rest to global image/buffer at CHS exit. Pack boolean flags (noisy, lobeType, stop, cont, isHand, insideBoat) into single uint bitmask.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "GPU-002",
+        "title": "CHS traces 4 shadow rays inside closest-hit shader",
+        "file": "MCVR/src/shader/world/ray_tracing/world_solid_transparent.rchit",
+        "lines": [1057, 1265, 1369, 1537],
+        "detail": "Sun shadow + up to 3 area light shadow rays traced from CHS. Kills SER effectiveness — reordered threads immediately diverge at shadow trace. Each shadow also invokes full shadow.rahit AHS.",
+        "estimated_impact": "Destroys SER coherence benefit on shadow rays",
+        "fix": "Defer shadow rays to rgen bounce loop (write hit info to buffer, trace shadows in separate pass). Or accept the cost and ensure shadow AHS is minimal.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "GPU-003",
+        "title": "SVGF denoiser ALL_COMMANDS_BIT barriers",
+        "file": "MCVR/src/core/render/modules/world/svgf/svgf_denoiser.cpp",
+        "line": 513,
+        "detail": "srcStageMask = ALL_COMMANDS_BIT for 9+ images at RT→denoiser transition. Forces GPU to drain ALL prior work. This is the hottest barrier in the frame.",
+        "fix": "Use VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT as srcStage",
+        "severity": "HIGH"
+      },
+      {
+        "id": "GPU-004",
+        "title": "NRD wrapper ALL_COMMANDS_BIT barriers",
+        "file": "MCVR/src/core/render/modules/world/nrd/nrd_wrapper.cpp",
+        "line": 589,
+        "detail": "Same pattern as SVGF — ALL_COMMANDS_BIT as srcStage for all NRD input images.",
+        "fix": "Same as GPU-003",
+        "severity": "HIGH"
+      },
+      {
+        "id": "GPU-005",
+        "title": "maxPipelineRayRecursionDepth = 16 but actual depth is 2-3",
+        "file": "MCVR/src/core/vulkan/pipeline.cpp",
+        "line": 346,
+        "detail": "Set to 16 matching max bounce count, but actual recursion is iterative in rgen. CHS shadow traces are the only recursive calls (depth ~2-3). Higher depth forces driver to allocate larger per-thread stack memory on every RT core.",
+        "fix": "Set to 2 or 3 (rgen → CHS → shadow CHS)",
+        "severity": "HIGH"
+      },
+      {
+        "id": "GPU-006",
+        "title": "VK_SUBOPTIMAL_KHR not handled on acquire — crashes",
+        "file": "MCVR/src/core/render/render_framework.cpp",
+        "line": 380,
+        "detail": "vkAcquireNextImageKHR returns VK_SUBOPTIMAL_KHR on some platforms (Linux/Wayland, window resize). Code falls through to crashExit() instead of handling it.",
+        "fix": "Treat VK_SUBOPTIMAL_KHR same as OUT_OF_DATE or simply continue (image is usable)",
+        "severity": "HIGH"
+      }
+    ],
+    "medium": [
+      {
+        "id": "GPU-007",
+        "title": "ReSTIR stableId O(N) fallback scan — 512 SSBO reads worst case",
+        "file": "MCVR/src/shader/world/ray_tracing/world_solid_transparent.rchit",
+        "line_range": [1184, 1193],
+        "detail": "When temporal reuse breaks (camera motion, new lights), every pixel does a linear scan of up to 512 lights to find stableId match. 4K = 4.2 billion SSBO reads worst case.",
+        "fix": "Upload a small stableId→index hash table from Java each frame, or sorted array for binary search",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-008",
+        "title": "Oklab gamut boost matrices duplicated 4x in same CHS",
+        "file": "MCVR/src/shader/world/ray_tracing/world_solid_transparent.rchit",
+        "lines": [695, 949],
+        "detail": "Four copies of four 3x3 const mat3 matrices (bt2020↔lms↔lab). Bloats shader binary and I-cache.",
+        "fix": "Factor into single oklabChromaScale(vec3, float) in shared header",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-009",
+        "title": "Noise gradient: 6x fbmTyped calls for normal perturbation (18x in triplanar)",
+        "file": "MCVR/src/shader/world/ray_tracing/world_solid_transparent.rchit",
+        "line_range": [833, 861],
+        "detail": "noiseGradientTyped() calls fbmTyped() 6 times. Each can do 8 octaves. Triplanar = 3x base = 18x cost. Skip threshold at 48 blocks is generous.",
+        "fix": "Lower skip threshold or reduce gradient octaves with distance",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-010",
+        "title": "46 imageStore calls in world.rgen — no early-out for sky hits",
+        "file": "MCVR/src/shader/world/ray_tracing/world.rgen",
+        "detail": "Sky-hit pixels write ~15 images with zeros/defaults. Hand pass re-writes most images even on miss.",
+        "fix": "Early-out branch for sky-hit that writes all zero buffers in one block, then return",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-011",
+        "title": "Swapchain acquire semaphore waits on ALL_COMMANDS_BIT",
+        "file": "MCVR/src/core/render/render_framework.cpp",
+        "line": 507,
+        "detail": "Should be COLOR_ATTACHMENT_OUTPUT_BIT — only the final blit needs the swapchain image, not the start of the frame. ALL_COMMANDS prevents early-frame work from overlapping with previous present.",
+        "fix": "Change to VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-012",
+        "title": "Per-frame single-write descriptor updates",
+        "file": "MCVR/src/core/vulkan/descriptor.cpp",
+        "line": 62,
+        "detail": "Each bindImage()/bindSamplerImage() call does a single vkUpdateDescriptorSets() with 1 write. 26 RT output images = 26 separate calls.",
+        "fix": "Batch into single vkUpdateDescriptorSets() with multiple VkWriteDescriptorSet entries",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-013",
+        "title": "Full shadow any-hit shader on primary shadow rays",
+        "file": "MCVR/src/shader/world/ray_tracing/shadow.rahit",
+        "line_range": [90, 271],
+        "detail": "Primary shadow rays (bounce 0) hit full AHS: vertex interpolation, texture sampling, color layers, glint, material class lookup, Beer's Law. OMM helps on bounces but not bounce 0.",
+        "fix": "Consider simplified AHS for primary shadow or leverage OMM on primary too",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "GPU-014",
+        "title": "vkDeviceWaitIdle during SHARC capacity change",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/ray_tracing_module.cpp",
+        "line": 1798,
+        "detail": "Full GPU stall triggered by settings slider. Defer to garbage collector or next recreate().",
+        "fix": "Queue resize for next frame boundary",
+        "severity": "MEDIUM"
+      }
+    ],
+    "positive": [
+      "Single queue submit per render frame on main queue (ideal)",
+      "SER implementation is exemplary (hitObject + geometry-based hints)",
+      "SBT layout correctly aligned, 3 separate buffers",
+      "BLAS build flags match usage (FAST_BUILD for chunks, FAST_TRACE for entities/TLAS)",
+      "Swapchain MAILBOX + Reflex integration correct per NVIDIA guide",
+      "Pipeline cache saved/loaded to disk",
+      "Synchronization2 extension enabled for modern barrier API",
+      "OMM 2-state forcing on indirect bounces (excellent optimization)",
+      "Push descriptors for NRD dynamic bindings",
+      "Proper fence/semaphore lifecycle for frames-in-flight (2-3 FIF)"
+    ]
+  },
+
+  "vram": {
+    "high": [
+      {
+        "id": "VRAM-001",
+        "title": "RGBA32F overuse for normal_roughness and position_view_space",
+        "files": ["MCVR/src/core/render/modules/world/ray_tracing/ray_tracing.yaml"],
+        "detail": "normal_roughness (RGBA32F) — normals are unit vectors, RGBA16F has 10-bit mantissa which suffices. position_view_space (RGBA32F) — RGBA16F range (65504) adequate for view-space coords. NOTE: Verify DLSS-RR doesn't require FP32 normals.",
+        "savings_4k_per_frame_mb": 265.4,
+        "savings_4k_3fif_mb": 796.2,
+        "severity": "HIGH"
+      },
+      {
+        "id": "VRAM-002",
+        "title": "5x ReSTIR reservoir images (RGBA32F) allocated unconditionally",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/ray_tracing_module.cpp",
+        "line_range": [124, 140],
+        "detail": "2 reservoir + 3 bounce reservoir images, all RGBA32F at render resolution. Allocated even when ReSTIR is disabled. Reservoir data (W, M, lightIdx, stableId) could fit RGBA16F with clamping.",
+        "cost_4k_mb": 663,
+        "fix": "Only allocate when ReSTIR enabled. Try RGBA16F format.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "VRAM-003",
+        "title": "No BLAS compaction — 2-3x BLAS memory overhead",
+        "file": "MCVR/src/core/vulkan/as.cpp",
+        "detail": "Zero compaction support. No ALLOW_COMPACTION_BIT, no compacted size query, no copy. Uncompacted BLAS can be 2-3x larger. Hundreds of chunk BLAS = hundreds of MB to 1+ GB waste.",
+        "estimated_savings_mb": "200-1000",
+        "fix": "Add compaction for entity BLAS (PREFER_FAST_TRACE, rebuilt infrequently). Chunk BLAS (PREFER_FAST_BUILD) may not benefit due to rebuild frequency.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "VRAM-004",
+        "title": "No VMA budget queries — cannot react to VRAM pressure",
+        "file": "MCVR/src/core/vulkan/vma.cpp",
+        "line_range": [21, 45],
+        "detail": "VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT not set. No vmaGetHeapBudgets() calls. Renderer blind to VRAM pressure from other apps.",
+        "fix": "Enable budget bit, query before large allocations",
+        "severity": "MEDIUM"
+      }
+    ],
+    "medium": [
+      {
+        "id": "VRAM-005",
+        "title": "SHARC buffers allocated when disabled",
+        "file": "MCVR/src/core/render/modules/world/ray_tracing/ray_tracing_module.cpp",
+        "line_range": [1292, 1297],
+        "detail": "Hash + accumulation + resolved buffers. At 2^22 entries = 160 MB, at 2^24 = 640 MB. Allocated regardless of sharcEnabled.",
+        "fix": "Defer allocation until SHARC first enabled",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "VRAM-006",
+        "title": "SVGF resources allocated when NRD denoiser is active",
+        "file": "MCVR/src/core/render/modules/world/svgf/svgf_denoiser.cpp",
+        "line_range": [84, 146],
+        "detail": "~14 images x 2 history sets. ~170 MB at 1080p, ~680 MB at 4K. Created even when NRD is the active denoiser.",
+        "fix": "Only create SVGF resources when SVGF denoiser is selected",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "VRAM-007",
+        "title": "motion_vector and reflection_mv use RG32F — RG16F may suffice",
+        "files": ["MCVR/src/core/render/modules/world/ray_tracing/ray_tracing.yaml"],
+        "detail": "Motion vectors at sub-pixel precision. DLSS-RR may need FP32 for temporal stability — verify before changing.",
+        "savings_4k_per_frame_mb": 66.4,
+        "severity": "MEDIUM"
+      }
+    ],
+    "budget_estimate_4k_native": {
+      "note": "Per swapchain image (multiply by 2-3 for FIF)",
+      "rt_output_26_images_mb": 1318,
+      "restir_reservoirs_5_images_mb": 663,
+      "svgf_denoiser_history_mb": 680,
+      "sharc_buffers_mb": "160-640",
+      "blas_chunks_uncompacted_mb": "500-2000",
+      "blas_entities_mb": "50-200",
+      "tlas_mb": "5-20",
+      "texture_atlases_mb": "100-400",
+      "total_estimated_range_mb": "3500-6000",
+      "with_format_fixes_mb": "2000-3500"
+    }
+  },
+
+  "ram": {
+    "high": [
+      {
+        "id": "RAM-C1",
+        "title": "CPU vertex/index data retained permanently after BLAS build — never read",
+        "file": "MCVR/src/core/render/chunks.hpp",
+        "line_range": [173, 174],
+        "detail": "Each Chunk1 keeps shared_ptr<vector<vector<PBRTriangle>>> vertices and indices indefinitely. PBRTriangle = 128 bytes/vertex. At 16 render distance (~16000 chunks, ~2000 avg vertices/chunk): 16000 x 2000 x 128 = ~3.8 GB. Plus indices: ~192 MB. This data is NEVER READ after being stored — no module accesses .vertices or .indices from ChunkRenderData.",
+        "estimated_impact_gb": 4.0,
+        "fix": "Don't store vertices/indices in Chunk1 at all, or null them after BLAS build in enqueue(). ChunkRenderData::vertices/indices fields are never accessed by any render module.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "RAM-J3",
+        "title": "materialBlockAlbedoCache: full NativeImage copies never cleared",
+        "file": "Radiance/src/main/java/com/radiance/client/texture/TextureTracker.java",
+        "line": 46,
+        "detail": "Stores source.applyToCopy(i -> i) — full RGBA NativeImage copy of every block texture's albedo. Never cleared or evicted. 1024x1024 atlas = 4 MB. With resource packs = 10-20 MB off-heap.",
+        "estimated_impact_mb": "10-20",
+        "fix": "Add eviction mechanism, or lazy reload from GPU readback when LiveNormalReuploader needs them. Clear on world change.",
+        "severity": "HIGH"
+      },
+      {
+        "id": "RAM-C10",
+        "title": "Peak RAM during chunk loading storm",
+        "detail": "Simultaneously holds: old chunk BLAS+buffers in GC (2-3 frame delay), new CPU vertex data (C1, ~4 GB), new GPU buffers being uploaded, BLAS scratch buffers (~50% BLAS size), persistent staging buffers shadowing every GPU buffer (C5).",
+        "estimated_peak_gb": "8-10",
+        "fix": "Fix RAM-C1 (saves ~4 GB), fix RAM-C5 (halves staging), release scratch after build",
+        "severity": "HIGH"
+      }
+    ],
+    "medium": [
+      {
+        "id": "RAM-C5",
+        "title": "Persistent staging doubles all device-local buffers",
+        "file": "MCVR/src/core/vulkan/buffer.cpp",
+        "line_range": [131, 204],
+        "detail": "persistStaging_=true (default) keeps a host-visible staging buffer of same size as every device-local buffer. Chunk vertex/index buffers use this default. Staging only needed during upload but persists permanently.",
+        "fix": "Use persistStaging_=false for chunk buffers. Non-persistent path creates/destroys staging on-demand.",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "RAM-C8",
+        "title": "BLAS scratch buffers retained until GC sweep",
+        "file": "MCVR/src/core/vulkan/as.hpp",
+        "line_range": [147, 148],
+        "detail": "BLASBuilder holds scratchBuffer_ after buildAndSubmit(). Freed when BLASBuilder destroyed via GC (2-3 frame delay). During chunk loading, many builders accumulate, each holding scratch.",
+        "estimated_impact_mb": "100s during spikes",
+        "fix": "Explicitly null scratchBuffer_ after build commands complete (fence signal)",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "RAM-C2",
+        "title": "Full RGBA CPU copies of all textures for displacement",
+        "file": "MCVR/src/core/render/textures.hpp",
+        "line_range": [74, 75],
+        "detail": "textureRGBAData_ keeps 4 bytes/texel for every texture (needed for CPU-side displacement tessellation). textureAlphaData_ keeps 1 byte/texel (for OMM baking).",
+        "estimated_impact_mb": 50,
+        "fix": "Lazy load textureRGBAData_ only for blocks with displacement enabled",
+        "severity": "MEDIUM"
+      },
+      {
+        "id": "RAM-J4",
+        "title": "MaterialSphereRenderer texture cache: unbounded growth, GPU textures leaked",
+        "file": "Radiance/src/main/java/com/radiance/client/gui/MaterialSphereRenderer.java",
+        "line": 59,
+        "detail": "ConcurrentHashMap grows with every unique material preview. clearCache() clears map but old Vulkan textures remain allocated (64 KB each, per code comment). One-way GPU memory leak during material editor use.",
+        "fix": "Properly destroy Vulkan textures on clearCache()",
+        "severity": "MEDIUM"
+      }
+    ],
+    "positive": [
+      "EntityProxy: Proper try-finally for all 14 ByteBuffers in queueBuild",
+      "Pipeline.java: allocAndTrack pattern correctly frees all native buffers",
+      "VMA allocations are RAII-wrapped via SharedObject<T> base class",
+      "HostVisibleBuffer uses VMA_ALLOCATION_CREATE_MAPPED_BIT (persistent mapping, best practice)",
+      "ChunkProxy: Proper cleanup on unload — clear(), invalidateSingle() defer to C++ GC",
+      "ChunkBuildData uses clean move semantics into Chunk1 (no duplication)"
+    ]
+  },
+
+  "mod_compatibility": {
+    "summary": "30 Fabric optimization mods analyzed. 13 are directly compatible, 6 are incompatible (OGL renderer replacements), 7 need investigation, 4 are candidates for custom reimplementation.",
+    "categories": {
+      "incompatible_ogl_renderer": [
+        {
+          "mod": "Sodium",
+          "downloads": 133388140,
+          "reason": "Replaces entire vanilla OGL chunk renderer. Radiance already replaces the renderer with Vulkan RT. Fundamentally incompatible — two renderers cannot coexist.",
+          "custom_impl": "NOT NEEDED — Radiance IS the renderer replacement. Sodium's chunk meshing optimizations (face culling, compact vertex format) are already covered by ChunkProxy/SectionBuilder.",
+          "verdict": "INCOMPATIBLE"
+        },
+        {
+          "mod": "Iris Shaders",
+          "downloads": 103259411,
+          "reason": "OGL shader pack loader. Injects custom fragment/vertex shaders into Sodium's pipeline. Radiance uses SPIR-V RT shaders on Vulkan. No compatibility possible.",
+          "custom_impl": "NOT NEEDED — Radiance is its own shader system.",
+          "verdict": "INCOMPATIBLE"
+        },
+        {
+          "mod": "Sodium Extra",
+          "downloads": 61088108,
+          "reason": "Addon for Sodium. Depends on Sodium's renderer APIs. Won't load without Sodium.",
+          "custom_impl": "PARTIAL VALUE — Some features (particle culling, animation toggle, fog toggle) could be reimplemented as Radiance options. Most already exist in Options.java.",
+          "verdict": "INCOMPATIBLE"
+        },
+        {
+          "mod": "Embeddium",
+          "downloads": 23219848,
+          "reason": "Sodium fork for Forge/NeoForge. Same OGL renderer replacement. Incompatible.",
+          "verdict": "INCOMPATIBLE"
+        },
+        {
+          "mod": "Enhanced Block Entities",
+          "downloads": 19557066,
+          "reason": "Converts block entity rendering from immediate mode to baked OGL vertex buffers. Radiance handles block entities via EntityProxy JNI submission to Vulkan BLAS.",
+          "custom_impl": "CONCEPT VALUE — The idea of baking block entity geometry into static BLAS (instead of per-frame entity submission) is worth exploring for static block entities like signs, banners, beds.",
+          "verdict": "INCOMPATIBLE"
+        },
+        {
+          "mod": "Modern UI",
+          "downloads": 12039348,
+          "reason": "OGL-based UI framework with custom text rendering. Would conflict with Radiance's overlay pass and GLFW window management.",
+          "verdict": "INCOMPATIBLE"
+        }
+      ],
+      "compatible_game_logic": [
+        {
+          "mod": "Lithium",
+          "downloads": 81001314,
+          "reason": "Optimizes game logic: AI pathfinding, block tick scheduling, entity collision, world generation, explosion calculations. Zero rendering code. Pure game-thread optimization.",
+          "risk": "NONE — no rendering interaction. May slightly improve frame times by reducing game tick overhead that currently delays render frame submission.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Krypton",
+          "downloads": 27933332,
+          "reason": "Networking stack optimization: Netty flush consolidation, compression improvements. Zero rendering code.",
+          "risk": "NONE",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "BadOptimizations",
+          "downloads": 23846394,
+          "reason": "Non-rendering optimizations: sky angle calculation caching, biome blending, map color lookups.",
+          "risk": "LOW — verify sky angle caching doesn't conflict with Radiance's sun/moon direction calculation in WorldRendererMixins.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Language Reload",
+          "downloads": 25849132,
+          "reason": "Reduces language file load times. No rendering.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "FastQuit",
+          "downloads": 15181132,
+          "reason": "Background world saving. No rendering.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Fast IP Ping",
+          "downloads": 14277672,
+          "reason": "DNS lookup optimization. No rendering.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "LazyDFU",
+          "downloads": 12202034,
+          "reason": "Defers DataFixerUpper initialization. Faster boot. No rendering.",
+          "risk": "NONE — DFU is world data migration, completely unrelated to rendering.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Let Me Despawn",
+          "downloads": 15586396,
+          "reason": "Mob despawn rules. Reduces entity count = fewer BLAS instances = faster TLAS build.",
+          "risk": "NONE — indirect performance benefit for Radiance.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Very Many Players",
+          "downloads": 11189418,
+          "reason": "Server-side performance. No client rendering impact.",
+          "verdict": "COMPATIBLE",
+          "recommended": false,
+          "note": "Server-only, no benefit for single player."
+        },
+        {
+          "mod": "Packet Fixer",
+          "downloads": 17728543,
+          "reason": "Network packet fixes. No rendering.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Debugify",
+          "downloads": 23242956,
+          "reason": "Vanilla bug fixes. Most are game logic. Some may touch rendering paths — review changelogs per version.",
+          "risk": "LOW — some fixes may conflict with Radiance's mixin targets if they inject at the same points.",
+          "verdict": "COMPATIBLE_WITH_CAUTION",
+          "recommended": true
+        },
+        {
+          "mod": "Starlight",
+          "downloads": 13292171,
+          "reason": "Light engine rewrite. Radiance uses RT lighting, but Minecraft's light engine still runs for gameplay mechanics (mob spawning, crop growth). Starlight makes that faster.",
+          "risk": "LOW — Radiance reads vanilla light values for fallback ambient. Starlight should produce identical values, just faster.",
+          "verdict": "COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Remove Reloading Screen",
+          "downloads": 16216118,
+          "reason": "Background resource pack loading. No rendering conflict.",
+          "risk": "LOW — may need to coordinate with Radiance's texture atlas rebuild (AuxiliaryTextures) which assumes synchronous resource load completion.",
+          "verdict": "COMPATIBLE_WITH_CAUTION",
+          "recommended": false
+        }
+      ],
+      "needs_investigation": [
+        {
+          "mod": "FerriteCore",
+          "downloads": 96021862,
+          "reason": "Memory optimization: compacts blockstate palettes, deduplicates property maps, reduces empty chunk overhead. No direct rendering code.",
+          "risk": "LOW-MEDIUM — palette compaction changes how block states are stored. Radiance's SectionBuilderMixins accesses block states during chunk meshing. If FerriteCore changes the internal representation, mixin targets could break.",
+          "investigation": "Test with Radiance: load world, check chunk rendering. If blocks render correctly, it's safe.",
+          "verdict": "LIKELY_COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "ModernFix",
+          "downloads": 53602475,
+          "reason": "Mixed bag: some fixes are rendering-agnostic (dynamic resource unloading, model deduplication), some touch OGL (texture stitching, model baking). The rendering-touching fixes may conflict.",
+          "investigation": "Review ModernFix config options. Disable any rendering-related fixes. Keep memory/resource fixes enabled.",
+          "verdict": "PARTIAL_COMPATIBLE",
+          "recommended": false
+        },
+        {
+          "mod": "Dynamic FPS",
+          "downloads": 42691077,
+          "reason": "Reduces FPS when game is in background or idle. Implementation typically hooks into OGL present/swap. May conflict with Radiance's Vulkan swapchain present and Reflex integration.",
+          "investigation": "Check if it hooks GLFW callbacks or OGL swap. If GLFW-level only (glfwSwapInterval), may conflict with Radiance's swapchain present mode selection.",
+          "custom_impl": "EASY — Add background detection to Radiance's render loop: skip present when !glfwGetWindowAttrib(GLFW_FOCUSED). Already partially handled by Reflex frame pacing.",
+          "verdict": "INVESTIGATE",
+          "recommended": false
+        },
+        {
+          "mod": "Memory Leak Fix",
+          "downloads": 30371778,
+          "reason": "Fixes vanilla memory leaks. Some may be in rendering paths that Radiance has already replaced or rerouted via mixins.",
+          "investigation": "Review which leaks it fixes. Game-logic leaks = safe. Render-path leaks = may conflict with Radiance mixins.",
+          "verdict": "LIKELY_COMPATIBLE",
+          "recommended": true
+        },
+        {
+          "mod": "Cubes Without Borders",
+          "downloads": 16632051,
+          "reason": "Borderless fullscreen window. Uses GLFW window hints. Radiance manages its own GLFW window (WindowPopulator, swapchain creation).",
+          "investigation": "Check if it conflicts with Radiance's swapchain surface creation or fullscreen toggle.",
+          "custom_impl": "EASY — Already partially implemented in WindowPopulator (fullscreen toggle). Add borderless mode as a window mode option.",
+          "verdict": "INVESTIGATE",
+          "recommended": false
+        },
+        {
+          "mod": "Model Gap Fix",
+          "downloads": 25543132,
+          "reason": "Fixes visual gaps between block model faces. OGL-level vertex offset. With RT, gaps manifest differently (light leaks through micro-cracks).",
+          "investigation": "May not be needed — RT doesn't have the same z-fighting/gap issues as rasterization. But if the fix is at the model/mesh level (pre-rasterization), it would affect Radiance's input geometry.",
+          "verdict": "INVESTIGATE",
+          "recommended": false
+        },
+        {
+          "mod": "Concurrent Chunk Management Engine",
+          "downloads": 21945171,
+          "reason": "Multi-threaded chunk generation and loading. Affects how fast chunks appear. Could interact with Radiance's chunk build thread pools and ChunkProxy synchronization.",
+          "risk": "MEDIUM — C2ME parallelizes chunk operations that Radiance's ChunkProxy.rebuildSingle() serializes with synchronized(ChunkBuilder.class). The interaction between C2ME's threading and Radiance's chunk submission needs testing.",
+          "investigation": "Test with Radiance: teleport around, check for missing chunks or crashes. The global lock at ChunkProxy:255 may need to be relaxed.",
+          "verdict": "LIKELY_COMPATIBLE_WITH_TESTING",
+          "recommended": true
+        }
+      ],
+      "custom_implementation_candidates": [
+        {
+          "mod": "Entity Culling",
+          "downloads": 95915232,
+          "reason": "Uses async OGL occlusion queries to cull invisible entities. OGL implementation incompatible with Vulkan RT.",
+          "custom_impl": {
+            "value": "HIGH",
+            "approach": "RT-based frustum + depth-buffer occlusion culling for entity BLAS instances",
+            "detail": "Use previous frame's linear_depth buffer to test entity bounding boxes against depth. Skip TLAS instances for occluded entities. This saves: BLAS instance slot, shadow AHS invocations, entity vertex/index upload.",
+            "estimated_savings": "10-30% TLAS build time, 5-15% RT trace time with many entities",
+            "complexity": "MEDIUM — add CPU-side frustum cull + depth readback test in world_prepare.cpp before populating TLAS instances",
+            "files_affected": ["MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp", "MCVR/src/core/render/entities.cpp"]
+          },
+          "verdict": "CUSTOM_REIMPL"
+        },
+        {
+          "mod": "More Culling",
+          "downloads": 41635530,
+          "reason": "Extra block face culling (snow layers, leaves, etc.). OGL-level culling incompatible.",
+          "custom_impl": {
+            "value": "MEDIUM",
+            "approach": "Enhanced face culling in SectionBuilder during chunk mesh generation",
+            "detail": "Radiance's SectionBuilderMixins already does standard face culling. More Culling's additional rules (cull snow sides against solid blocks, cull leaf interior faces, cull powder snow) could be added to the mixin without any C++ changes. Fewer triangles = smaller BLAS = faster build + trace.",
+            "estimated_savings": "5-15% chunk BLAS size in foliage-heavy biomes",
+            "complexity": "LOW — Java-side only, add culling rules to SectionBuilderMixins",
+            "files_affected": ["Radiance/src/main/java/com/radiance/mixins/vulkan_render_integration/SectionBuilderMixins.java"]
+          },
+          "verdict": "CUSTOM_REIMPL"
+        },
+        {
+          "mod": "ImmediatelyFast",
+          "downloads": 78860722,
+          "reason": "Batches immediate-mode rendering (entity nametags, text, particles, UI). OGL batching not applicable.",
+          "custom_impl": {
+            "value": "MEDIUM",
+            "approach": "Batch overlay draw calls in RendererProxy",
+            "detail": "Radiance already batches entity rendering via EntityProxy.queueBuild(). The main optimization target is the overlay pass (HUD, text, debug screen) which does many small drawOverlay() JNI calls. Batching these into a single command buffer submission would reduce JNI overhead.",
+            "estimated_savings": "Minor — overlay is not the bottleneck. But reduces frame time jitter.",
+            "complexity": "LOW-MEDIUM",
+            "files_affected": ["Radiance/src/main/java/com/radiance/client/proxy/vulkan/RendererProxy.java", "MCVR/src/core/render/render_framework.cpp"]
+          },
+          "verdict": "CUSTOM_REIMPL"
+        },
+        {
+          "mod": "Distant Horizons",
+          "downloads": 20975371,
+          "reason": "LOD system for far chunks. Renders simplified geometry beyond vanilla render distance. Deep integration needed with BLAS/TLAS system.",
+          "custom_impl": {
+            "value": "VERY HIGH",
+            "approach": "Multi-LOD BLAS system with distance-based detail",
+            "detail": "Build simplified BLAS for distant chunks (merge coplanar faces, reduce triangle count). Use TLAS custom instance index to select LOD level. Could render 64+ chunk distance with acceptable VRAM. This is the single highest-impact feature for visual quality.",
+            "estimated_savings": "Enables 4x render distance with 2x VRAM vs current full-detail BLAS",
+            "complexity": "VERY HIGH — requires LOD mesh generation, BLAS LOD management, seamless LOD transitions, integration with chunk loading system",
+            "files_affected": ["MCVR/src/core/render/chunks.cpp", "MCVR/src/core/render/chunks.hpp", "MCVR/src/core/render/modules/world/ray_tracing/submodules/world_prepare.cpp", "Radiance/src/main/java/com/radiance/client/proxy/world/ChunkProxy.java"],
+            "note": "Consider Distant Horizons API integration instead of from-scratch — DH exposes LOD data that could be consumed by Radiance's chunk system."
+          },
+          "verdict": "CUSTOM_REIMPL_FUTURE"
+        }
+      ]
+    }
+  },
+
+  "implementation_waves": [
+    {
+      "wave": 1,
+      "name": "Quick Wins — Large Impact, Low Risk",
+      "items": [
+        {"id": "RAM-C1", "impact": "Saves ~4 GB RAM", "effort": "trivial", "detail": "Remove/null vertices+indices in Chunk1 after BLAS build"},
+        {"id": "GPU-005", "impact": "Reduces RT stack memory", "effort": "trivial", "detail": "Set maxPipelineRayRecursionDepth to 2-3"},
+        {"id": "GPU-006", "impact": "Prevents crash on resize", "effort": "trivial", "detail": "Handle VK_SUBOPTIMAL_KHR on acquire"},
+        {"id": "GPU-011", "impact": "Enables early-frame overlap", "effort": "trivial", "detail": "Change semaphore wait to COLOR_ATTACHMENT_OUTPUT_BIT"},
+        {"id": "CPU-J6", "impact": "Removes hot-path printf", "effort": "trivial", "detail": "Remove or gate System.out.printf in ChunkProxy"},
+        {"id": "GPU-014", "impact": "Removes UI-triggered GPU stall", "effort": "low", "detail": "Defer SHARC resize to next frame boundary"}
+      ]
+    },
+    {
+      "wave": 2,
+      "name": "Barrier & Allocation Fixes — Medium Effort, High Impact",
+      "items": [
+        {"id": "GPU-003", "impact": "Enables RT/denoiser overlap", "effort": "low", "detail": "Fix SVGF ALL_COMMANDS_BIT barriers"},
+        {"id": "GPU-004", "impact": "Enables RT/NRD overlap", "effort": "low", "detail": "Fix NRD ALL_COMMANDS_BIT barriers"},
+        {"id": "CPU-C2", "impact": "Eliminates 6 VMA allocs/frame", "effort": "medium", "detail": "Pre-allocate metadata buffers, resize on capacity change"},
+        {"id": "CPU-C3", "impact": "Eliminates 1 VMA alloc/frame", "effort": "low", "detail": "Persist area light buffer across frames"},
+        {"id": "VRAM-002", "impact": "Saves 663 MB at 4K", "effort": "low", "detail": "Lazy-allocate ReSTIR reservoirs"},
+        {"id": "VRAM-005", "impact": "Saves 160-640 MB", "effort": "low", "detail": "Lazy-allocate SHARC buffers"},
+        {"id": "VRAM-006", "impact": "Saves 170-680 MB at 4K", "effort": "low", "detail": "Lazy-allocate SVGF when not active denoiser"}
+      ]
+    },
+    {
+      "wave": 3,
+      "name": "Structural Optimizations — High Effort, High Impact",
+      "items": [
+        {"id": "GPU-001", "impact": "30-50% RT throughput", "effort": "high", "detail": "Redesign ray payload — split minimal payload + global buffer writes"},
+        {"id": "CPU-C1", "impact": "3-10x faster TLAS", "effort": "medium", "detail": "Implement TLAS update mode when instance count unchanged"},
+        {"id": "CPU-C11", "impact": "Unblocks chunk builders", "effort": "medium", "detail": "Copy data under lock, release, then build TLAS"},
+        {"id": "CPU-J7", "impact": "Enables parallel chunk building", "effort": "medium", "detail": "Replace global ChunkBuilder.class lock with per-chunk synchronization"},
+        {"id": "CPU-J1", "impact": "Eliminates 100+ objects/frame", "effort": "medium", "detail": "Pool StorageVertexConsumerProviders"},
+        {"id": "VRAM-001", "impact": "Saves 796 MB at 4K", "effort": "medium", "detail": "Downgrade normal_roughness + position_view_space to RGBA16F (verify DLSS-RR compat)"},
+        {"id": "VRAM-003", "impact": "Saves 200-1000 MB", "effort": "high", "detail": "Implement BLAS compaction for entity BLAS"}
+      ]
+    },
+    {
+      "wave": 4,
+      "name": "Custom Mod Reimplementations",
+      "items": [
+        {"id": "MOD-EntityCulling", "impact": "10-30% TLAS build time", "effort": "medium", "detail": "RT-based frustum + depth occlusion for entity BLAS instances"},
+        {"id": "MOD-MoreCulling", "impact": "5-15% chunk BLAS size", "effort": "low", "detail": "Enhanced face culling in SectionBuilderMixins"},
+        {"id": "MOD-DynamicFPS", "impact": "Power savings when idle", "effort": "low", "detail": "Skip present when window unfocused"},
+        {"id": "MOD-DistantHorizons", "impact": "4x render distance", "effort": "very_high", "detail": "Multi-LOD BLAS system (future project)"}
+      ]
+    }
+  ],
+
+  "recommended_mod_loadout": {
+    "note": "Mods that are safe to install alongside Radiance on Fabric 1.21.4",
+    "install": [
+      "Lithium",
+      "FerriteCore",
+      "Krypton",
+      "Starlight",
+      "BadOptimizations",
+      "LazyDFU",
+      "FastQuit",
+      "Fast IP Ping",
+      "Language Reload",
+      "Packet Fixer",
+      "Let Me Despawn",
+      "Debugify",
+      "Memory Leak Fix",
+      "C2ME"
+    ],
+    "test_first": [
+      "FerriteCore — verify chunk rendering after blockstate palette compaction",
+      "C2ME — verify no crashes with Radiance's synchronized chunk building",
+      "Debugify — verify no mixin target conflicts"
+    ],
+    "avoid": [
+      "Sodium", "Iris", "Sodium Extra", "Embeddium",
+      "Enhanced Block Entities", "Modern UI",
+      "Dynamic FPS", "Cubes Without Borders",
+      "ModernFix", "ImmediatelyFast", "Model Gap Fix",
+      "Remove Reloading Screen"
+    ]
+  }
+}

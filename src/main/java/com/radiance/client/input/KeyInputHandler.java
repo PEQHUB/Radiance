@@ -1,0 +1,445 @@
+package com.radiance.client.input;
+
+import com.radiance.client.RadianceClient;
+import com.radiance.client.autopbr.AutoPbrTexturePicker;
+import com.radiance.client.debug.DebugInspectReporter;
+import com.radiance.client.gui.MaterialsSettingsScreen;
+import com.radiance.client.gui.unified.RadianceUnifiedScreen;
+import com.radiance.client.gui.unified.populators.UnifiedEmissionPopulator;
+import com.radiance.client.option.Options;
+import com.radiance.client.util.EmissiveBlock;
+import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.minecraft.block.BlockState;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
+import org.lwjgl.glfw.GLFW;
+
+public class KeyInputHandler {
+
+    public static KeyBinding radianceSettingsKey;
+    public static KeyBinding offlineModeKey;
+    public static KeyBinding lockCameraKey;
+    public static KeyBinding materialPickerKey;
+    public static KeyBinding offlineDenoisedKey;
+    public static KeyBinding offlineGroundTruthKey;
+    public static KeyBinding offlineNativeResKey;
+
+    public static KeyBinding focusKey;
+    public static KeyBinding inspectKey;
+    public static KeyBinding debugInspectKey;
+
+    // Debounce for AF-S click (prevent re-triggering on same press)
+    private static boolean afClickConsumed = false;
+
+    public static void register() {
+        radianceSettingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            Options.KEY_RADIANCE_SETTINGS,
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_O,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineModeKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_mode",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_F7,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        lockCameraKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.lock_camera",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_F5,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        materialPickerKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            Options.KEY_AUTOPBR_PICKER,
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_M,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineDenoisedKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_denoised",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_D,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineGroundTruthKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_ground_truth",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_G,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        offlineNativeResKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.offline_native_res",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_N,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        focusKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.focus",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_F,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        inspectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.inspect",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_I,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        debugInspectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.radiance.debug_inspect",
+            InputUtil.Type.KEYSYM,
+            GLFW.GLFW_KEY_UNKNOWN,
+            Options.KEY_CATEGORY_RADIANCE
+        ));
+
+        ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            while (radianceSettingsKey.wasPressed()) {
+                if (client.currentScreen == null) {
+                    MinecraftClient.getInstance().setScreen(new RadianceUnifiedScreen(null));
+                }
+            }
+
+            // F7: toggle offline mode (NORMAL <-> FREE)
+            while (offlineModeKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    if (Options.offlineState == 0) {
+                        Options.offlineState = 1;
+                        Options.frozenDayTimeTicks = client.world.getTimeOfDay() % 24000L;
+                        Options.nativeSetOfflineState(1, false);
+                        // Initialize freecam at current camera position
+                        if (Options.freecamEnabled) {
+                            Options.freecam.initFromCamera(client.gameRenderer.getCamera());
+                        }
+                        // Clear existing particles — they'll never age/die with tick frozen
+                        var pmExt = (com.radiance.mixin_related.extensions.vulkan_render_integration.IParticleManagerExt) client.particleManager;
+                        pmExt.neoVoxelRT$getParticles().values().forEach(java.util.Queue::clear);
+                        RadianceClient.LOGGER.info("[Offline] Entered FREE mode (time frozen at {})", Options.frozenDayTimeTicks);
+                    } else {
+                        Options.offlineState = 0;
+                        Options.frozenDayTimeTicks = -1;
+                        Options.focusMode = 0; // reset to MF on exit
+                        Options.nativeSetOfflineState(0, false);
+                        Options.nativeResetAccumulation();
+                        RadianceClient.LOGGER.info("[Offline] Exited offline mode");
+                    }
+                }
+            }
+
+            // F5: toggle camera lock (FREE <-> ACCUMULATING)
+            while (lockCameraKey.wasPressed()) {
+                if (Options.offlineState != 0 && client.currentScreen == null && client.world != null) {
+                    if (Options.offlineState == 1) {
+                        // Lock camera: capture from freecam or player camera
+                        if (Options.freecamEnabled) {
+                            Options.frozenCamX = Options.freecam.x;
+                            Options.frozenCamY = Options.freecam.y;
+                            Options.frozenCamZ = Options.freecam.z;
+                            Options.frozenCamYaw = Options.freecam.yaw;
+                            Options.frozenCamPitch = Options.freecam.pitch;
+                        } else {
+                            var camera = client.gameRenderer.getCamera();
+                            var pos = camera.getPos();
+                            Options.frozenCamX = pos.x;
+                            Options.frozenCamY = pos.y;
+                            Options.frozenCamZ = pos.z;
+                            Options.frozenCamYaw = camera.getYaw();
+                            Options.frozenCamPitch = camera.getPitch();
+                        }
+                        Options.offlineState = 2;
+                        Options.accumStartTimeNanos = System.nanoTime();
+                        Options.nativeSetOfflineState(2, false);
+                        Options.nativeResetAccumulation();
+                        RadianceClient.LOGGER.info("[Offline] Camera locked, accumulation started");
+                    } else if (Options.offlineState == 2) {
+                        Options.offlineState = 1;
+                        Options.nativeSetOfflineState(1, false);
+                        Options.nativeResetAccumulation();
+                        // Reinit freecam at the frozen position so user can adjust from there
+                        if (Options.freecamEnabled) {
+                            Options.freecam.x = Options.frozenCamX;
+                            Options.freecam.y = Options.frozenCamY;
+                            Options.freecam.z = Options.frozenCamZ;
+                            Options.freecam.yaw = Options.frozenCamYaw;
+                            Options.freecam.pitch = Options.frozenCamPitch;
+                        }
+                        RadianceClient.LOGGER.info("[Offline] Camera unlocked, accumulation reset");
+                    }
+                }
+            }
+
+            // Freecam movement is now per-frame in WorldRendererMixins (smooth, frame-rate independent)
+
+            // ── Focus mode handling ──
+            // F key: enter AF-S (single), Ctrl+F: toggle AF-C (continuous)
+            while (focusKey.wasPressed()) {
+                if (Options.offlineState != 0 && client.currentScreen == null) {
+                    long handle = client.getWindow().getHandle();
+                    boolean ctrl = GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS;
+                    if (ctrl) {
+                        // Ctrl+F: toggle AF-C
+                        if (Options.focusMode == 2) {
+                            Options.focusMode = 0; // AF-C → MF
+                        } else {
+                            Options.focusMode = 2; // any → AF-C
+                        }
+                    } else {
+                        // F: enter AF-S (or cancel if already in AF-S)
+                        if (Options.focusMode == 1) {
+                            Options.focusMode = 0; // cancel AF-S
+                        } else {
+                            Options.focusMode = 1; // enter AF-S pick mode
+                            afClickConsumed = false;
+                        }
+                    }
+                }
+            }
+
+            // AF-S: left click sets focus distance via raycast
+            if (Options.focusMode == 1 && client.currentScreen == null && client.world != null) {
+                long handle = client.getWindow().getHandle();
+                boolean leftDown = GLFW.glfwGetMouseButton(handle, GLFW.GLFW_MOUSE_BUTTON_LEFT) == GLFW.GLFW_PRESS;
+
+                if (leftDown && !afClickConsumed) {
+                    afClickConsumed = true;
+                    double dist = FocusUtil.raycastFromCurrentCamera(client.world);
+                    if (dist > 0) {
+                        float blocks = (float) Math.max(0.5, Math.min(256.0, dist));
+                        Options.offlineFocalDistance = blocks;
+                        Options.nativeSetOfflineFocalDistance(blocks, true);
+                        if (Options.offlineState == 2) Options.nativeResetAccumulation();
+                        setFocusToast(String.format("Focus: %.1f blocks", blocks), 0x55FF55, 1500);
+                        Options.focusMode = 0; // back to MF
+                        RadianceClient.LOGGER.info("[Offline] AF-S focus: {} blocks", blocks);
+                    } else {
+                        setFocusToast("No hit \u2014 try again", 0xFF5555, 2000);
+                        // stay in AF-S
+                    }
+                }
+                if (!leftDown) {
+                    afClickConsumed = false; // reset debounce when released
+                }
+
+                // Right click or Escape cancels AF-S
+                if (GLFW.glfwGetMouseButton(handle, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_ESCAPE) == GLFW.GLFW_PRESS) {
+                    Options.focusMode = 0;
+                }
+            }
+
+            // AF-C: continuous raycast every tick in FREE mode
+            if (Options.focusMode == 2 && Options.offlineState == 1
+                && client.currentScreen == null && client.world != null) {
+                double dist = FocusUtil.raycastFromCurrentCamera(client.world);
+                if (dist > 0) {
+                    float blocks = (float) Math.max(0.5, Math.min(256.0, dist));
+                    if (Math.abs(blocks - Options.offlineFocalDistance) > 0.03f) {
+                        Options.offlineFocalDistance = blocks;
+                        Options.nativeSetOfflineFocalDistance(blocks, true);
+                    }
+                }
+            }
+
+            // G: toggle ground truth preset (global — saves/restores individual toggles)
+            while (offlineGroundTruthKey.wasPressed()) {
+                if (client.currentScreen == null) {
+                    Options.offlineGroundTruth = !Options.offlineGroundTruth;
+                    if (Options.offlineGroundTruth) {
+                        applyGroundTruthPreset();
+                    } else {
+                        restoreGroundTruthPreset();
+                    }
+                    Options.nativeSetOfflineGroundTruth(Options.offlineGroundTruth, false);
+                    if (Options.offlineState == 2) {
+                        Options.nativeResetAccumulation();
+                    }
+                    RadianceClient.LOGGER.info("[Radiance] Ground truth: {}", Options.offlineGroundTruth);
+                }
+            }
+
+            // D: cycle render preset (skip in FREE+freecam since D is strafe)
+            // 0=Raw Fast (RR on), 1=Raw Accurate (RR off), 2=Denoised (epoch-based DLSS-RR)
+            while (offlineDenoisedKey.wasPressed()) {
+                boolean freecamActive = Options.offlineState == 1 && Options.freecamEnabled;
+                if (Options.offlineState != 0 && !freecamActive && client.currentScreen == null) {
+                    Options.offlineDenoised = (Options.offlineDenoised + 1) % 3;
+                    Options.nativeSetOfflineDenoised(Options.offlineDenoised, false);
+                    if (Options.offlineState == 2) {
+                        Options.nativeResetAccumulation();
+                    }
+                    String[] presetNames = {"Raw Fast", "Raw Accurate", "Denoised"};
+                    RadianceClient.LOGGER.info("[Offline] Preset: {}", presetNames[Options.offlineDenoised]);
+                }
+            }
+
+            // N: toggle native resolution (FREE mode only — accumulation always native)
+            while (offlineNativeResKey.wasPressed()) {
+                if (Options.offlineState == 1 && client.currentScreen == null) {
+                    Options.offlineNativeRes = !Options.offlineNativeRes;
+                    Options.nativeSetOfflineNativeRes(Options.offlineNativeRes, true);
+                    if (Options.offlineState == 2) {
+                        Options.nativeResetAccumulation();
+                    }
+                    RadianceClient.LOGGER.info("[Offline] Native res: {}", Options.offlineNativeRes ? "ON" : "OFF (upscaler quality)");
+                }
+            }
+
+            // M: universal inspect — routes to materials, emission, or entity editor
+            while (materialPickerKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    String target = resolveInspectTarget(client);
+                    if (target != null) {
+                        if ("materials".equals(target)) {
+                            client.setScreen(new MaterialsSettingsScreen(null, AutoPbrTexturePicker.pick(client)));
+                        } else {
+                            // Emission, area lights, entity materials → unified screen
+                            if (!Options.advancedMode) {
+                                Options.advancedMode = true;
+                                Options.overwriteConfig();
+                            }
+                            RadianceUnifiedScreen.setDeferredNavigation(target);
+                            client.setScreen(new RadianceUnifiedScreen(null));
+                        }
+                    }
+                }
+            }
+
+            // I: same as M (kept for backwards compatibility)
+            while (inspectKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    String target = resolveInspectTarget(client);
+                    if (target != null) {
+                        if ("materials".equals(target)) {
+                            client.setScreen(new MaterialsSettingsScreen(null, AutoPbrTexturePicker.pick(client)));
+                        } else {
+                            if (!Options.advancedMode) {
+                                Options.advancedMode = true;
+                                Options.overwriteConfig();
+                            }
+                            RadianceUnifiedScreen.setDeferredNavigation(target);
+                            client.setScreen(new RadianceUnifiedScreen(null));
+                        }
+                    }
+                }
+            }
+
+            while (debugInspectKey.wasPressed()) {
+                if (client.currentScreen == null && client.world != null) {
+                    DebugInspectReporter.captureCurrentTarget(client);
+                }
+            }
+        });
+    }
+
+    // Ground truth preset: saved values for restore
+    private static boolean savedBeerLaw, savedNoEmissionClamp, savedPhysicalSun;
+    private static boolean savedNoHandAmbient;
+    private static boolean savedSimplifiedIndirect, savedSharcEnabled;
+    private static boolean savedDisableRR, savedDisableClamp;
+
+    /** Apply ground truth preset — save current values, set all to GT values. */
+    public static void applyGroundTruthPreset() {
+        // Save current values
+        savedBeerLaw = Options.beerLawShadows;
+        savedNoEmissionClamp = Options.noEmissionClamp;
+        savedPhysicalSun = Options.physicalSunDisk;
+        savedNoHandAmbient = Options.noHandAmbient;
+        savedSimplifiedIndirect = Options.simplifiedIndirect;
+        savedSharcEnabled = Options.sharcEnabled;
+        savedDisableRR = Options.offlineDisableRR;
+        savedDisableClamp = Options.offlineDisableClamp;
+
+        // Apply ground truth values
+        Options.beerLawShadows = true;
+        Options.noEmissionClamp = true;
+        Options.physicalSunDisk = true;
+        Options.noHandAmbient = true;
+        Options.simplifiedIndirect = false;
+        Options.sharcEnabled = false;
+        Options.offlineDisableRR = true;
+        Options.offlineDisableClamp = true;
+
+        // Sync all to C++
+        Options.nativeSetBeerLawShadows(true, false);
+        Options.nativeSetNoEmissionClamp(true, false);
+        Options.nativeSetPhysicalSunDisk(true, false);
+        Options.nativeSetNoHandAmbient(true, false);
+        Options.setSimplifiedIndirect(false, false);
+        Options.setSharcEnabled(false, false);
+        Options.nativeSetOfflineDisableRR(true, false);
+        Options.nativeSetOfflineDisableClamp(true, false);
+    }
+
+    /** Restore values saved before ground truth was applied. */
+    public static void restoreGroundTruthPreset() {
+        Options.beerLawShadows = savedBeerLaw;
+        Options.noEmissionClamp = savedNoEmissionClamp;
+        Options.physicalSunDisk = savedPhysicalSun;
+        Options.noHandAmbient = savedNoHandAmbient;
+        Options.simplifiedIndirect = savedSimplifiedIndirect;
+        Options.sharcEnabled = savedSharcEnabled;
+        Options.offlineDisableRR = savedDisableRR;
+        Options.offlineDisableClamp = savedDisableClamp;
+
+        Options.nativeSetBeerLawShadows(savedBeerLaw, false);
+        Options.nativeSetNoEmissionClamp(savedNoEmissionClamp, false);
+        Options.nativeSetPhysicalSunDisk(savedPhysicalSun, false);
+        Options.nativeSetNoHandAmbient(savedNoHandAmbient, false);
+        Options.setSimplifiedIndirect(savedSimplifiedIndirect, false);
+        Options.setSharcEnabled(savedSharcEnabled, false);
+        Options.nativeSetOfflineDisableRR(savedDisableRR, false);
+        Options.nativeSetOfflineDisableClamp(savedDisableClamp, false);
+    }
+
+    /** Show a temporary toast message on the HUD. Delegates to Options.setFocusToast(). */
+    private static void setFocusToast(String message, int color, long durationMs) {
+        Options.setFocusToast(message, color, (int) durationMs);
+    }
+
+    /**
+     * Resolve what the player is looking at into a settings tree node ID.
+     * Priority: emissive block, otherwise texture-primary AutoPBR.
+     */
+    private static String resolveInspectTarget(MinecraftClient client) {
+        if (client.world == null || client.player == null) return null;
+
+        if (client.crosshairTarget instanceof BlockHitResult blockHit
+                && blockHit.getType() != HitResult.Type.MISS) {
+            BlockState state = client.world.getBlockState(blockHit.getBlockPos());
+            EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
+            if (eb != null) {
+                UnifiedEmissionPopulator.navigateToBlock(eb);
+                return "emission";
+            }
+            return "materials";
+        }
+
+        double reach = client.player.getBlockInteractionRange();
+        HitResult fluidHit = client.player.raycast(reach, 1.0f, true);
+        if (fluidHit instanceof BlockHitResult fluidBlockHit
+                && fluidBlockHit.getType() != HitResult.Type.MISS) {
+            BlockState state = client.world.getBlockState(fluidBlockHit.getBlockPos());
+            EmissiveBlock eb = EmissiveBlock.fromBlock(state.getBlock());
+            if (eb != null) {
+                UnifiedEmissionPopulator.navigateToBlock(eb);
+                return "emission";
+            }
+            return "materials";
+        }
+
+        return null;
+    }
+}

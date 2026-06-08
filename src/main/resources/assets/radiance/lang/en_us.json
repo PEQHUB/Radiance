@@ -1,0 +1,475 @@
+{
+  "options.video.category.gameplay": "Game Play",
+  "options.video.category.window": "Display",
+  "options.video.category.ray_tracing": "Ray Tracing",
+  "options.video.category.shader_packs": "Shader Packs",
+  "options.video.category.upscaler": "Upscaler",
+  "options.video.category.terrain": "Terrain Build",
+  "options.video.category.pipeline": "Pipeline Setup",
+  "options.video.category.environment": "Environmental Settings",
+  "options.video.category.camera_controls": "Camera Controls",
+  "options.video.ray_bounces": "Ray Bounces",
+  "options.video.pom_enabled": "Geometry Displacement",
+  "options.video.simplified_indirect": "Simplified Indirect Lighting",
+  "options.video.multi_scatter_ggx": "Multi-Scatter GGX",
+  "options.video.eon_diffuse": "EON Diffuse",
+  "options.video.diffuse_model": "Diffuse Model",
+  "options.video.category.sharc": "SHARC Radiance Cache",
+  "options.video.sharc_enabled": "SHARC Enabled",
+  "options.video.sharc_scene_scale": "Grid Scene Scale",
+  "options.video.sharc_roughness_threshold": "Roughness Threshold",
+  "options.video.sharc_accumulation_frames": "Accumulation Frames",
+  "options.video.sharc_stale_frames": "Stale Eviction Frames",
+  "options.video.sharc_downscale": "Update Downscale",
+  "options.video.sharc_update_block_size": "Update Block Size",
+  "options.video.sharc_update_bounces": "Update Bounces",
+  "options.video.sharc_capacity_exponent": "Cache Capacity",
+  "options.video.sharc_quality_preset": "Quality Preset",
+  "options.video.sharc_query_mode": "Query Mode",
+  "options.video.shader_pack": "Shader Pack",
+  "options.video.shader_pack.status": "Shader Pack Status",
+  "options.video.shader_pack.settings": "Pack Settings",
+  "options.video.shader_pack.reload": "Reload Packs",
+  "options.video.shader_pack.selected_path": "Selected Path",
+  "options.video.shader_pack.available_packs": "Available Packs",
+  "options.video.shader_pack.expected_builtin": "Expected Built-In",
+  "options.video.shader_pack.none_found": "None found",
+  "options.video.shader_pack.runtime_status": "Runtime Status",
+  "options.video.shader_pack.current_path": "Current: %s",
+  "options.video.shader_pack.status.ready": "Ready",
+  "options.video.shader_pack.status.fixed_fallback": "Fixed fallback",
+  "options.video.shader_pack.status.partial_adapter": "Partial adapter",
+  "options.video.shader_pack.status.pack_executor": "Pack executor",
+  "options.video.shader_pack.status.missing": "Missing; native fallback will use Vanilla PT",
+  "options.video.shader_pack.status.invalid": "Invalid path; native fallback will use Vanilla PT",
+  "options.video.output_scale_2x": "4xSSAA",
+  "options.video.output_scale_2x.tooltip": "Renders at 2x resolution for better visuals, then downscales via Lanczos 3. May cause artifacts with certain DLSS upscale ratios (Performance/UltraPerformance). Use Quality or Native mode for best results.",
+  "options.video.chunk_building_batch_size": "Amount of chunks to build in a single submit",
+  "options.video.chunk_building_total_batches": "Amount of building chunk batches",
+  "options.video.chunk_cull_distance": "Chunk Cull Distance",
+  "options.video.pipeline_setup": "Setup Pipeline...",
+  "render_pipeline_screen.back": "Back",
+  "render_pipeline_screen.save_and_build": "Save & Build",
+  "render_pipeline_screen.reload": "Reload",
+  "render_pipeline_screen.add_module": "Add Module",
+  "render_pipeline_screen.back_hint": "Experimental Render Pipeline Screen (press ESC or click Back to return)",
+  "render_pipeline.module.dlss.name": "DLSS",
+  "render_pipeline.module.dlss.attribute.mode": "Mode",
+  "render_pipeline.module.dlss.attribute.mode.performance": "Performance",
+  "render_pipeline.module.dlss.attribute.mode.balanced": "Balanced",
+  "render_pipeline.module.dlss.attribute.mode.quality": "Quality",
+  "render_pipeline.module.dlss.attribute.mode.dlaa": "DLAA",
+  "render_pipeline.module.ray_tracing.name": "Ray Tracing",
+  "render_pipeline.module.ray_tracing.attribute.num_ray_bounces": "Num Ray Bounces",
+  "render_pipeline.module.ray_tracing.attribute.use_jitter": "Use Jitter",
+  "render_pipeline.module.ray_tracing.attribute.shader_pack_path": "Shader Pack Path",
+  "render_pipeline.module.temporal_accumulation.name": "Temporal Accumulation",
+  "render_pipeline.module.tone_mapping.name": "Tone Mapping",
+  "render_pipeline.module.tone_mapping.attribute.middle_grey": "Middle Grey",
+  "render_pipeline.module.post_render.name": "Post Render",
+  "render_pipeline.module.fsr3_upscaler.name": "FSR3 Upscaler",
+  "render_pipeline.module.fsr3_upscaler.attribute.enable": "Enable FSR3 Upscaler",
+  "render_pipeline.module.fsr3_upscaler.attribute.quality_mode": "Quality Mode",
+  "render_pipeline.module.fsr3_upscaler.attribute.quality_mode.native": "Native AA",
+  "render_pipeline.module.fsr3_upscaler.attribute.quality_mode.quality": "Quality (Experimental)",
+  "render_pipeline.module.fsr3_upscaler.attribute.quality_mode.balanced": "Balanced (Experimental)",
+  "render_pipeline.module.fsr3_upscaler.attribute.quality_mode.performance": "Performance (Experimental)",
+  "render_pipeline.module.fsr3_upscaler.attribute.quality_mode.ultra": "Ultra Performance (Experimental)",
+  "render_pipeline.module.fsr3_upscaler.attribute.sharpness": "Sharpness",
+  "render_pipeline.module.nrd.name": "NRD",
+  "render_pipeline.module.nrd.attribute.max_accumulated_frame_num": "Max Accumulated Frames",
+  "render_pipeline.module.nrd.attribute.max_fast_accumulated_frame_num": "Max Fast Accumulated Frames",
+  "render_pipeline.module.nrd.attribute.min_blur_radius": "Min Blur Radius",
+  "render_pipeline.module.nrd.attribute.max_blur_radius": "Max Blur Radius",
+  "render_pipeline.module.nrd.attribute.enable_anti_firefly": "Enable Anti-Firefly",
+  "render_pipeline.module.nrd.attribute.hit_distance_reconstruction_mode": "Hit Distance Reconstruction Mode",
+  "render_pipeline.module.temporal_accumulation.attribute.alpha": "Alpha (History Weight)",
+  "render_pipeline.module.temporal_accumulation.attribute.depth_threshold": "Depth Threshold",
+  "render_pipeline.module.temporal_accumulation.attribute.depth_scale": "Depth Scale",
+  "module_attribute_screen.no_attributes": "No Attributes",
+  "shader_pack_settings_screen.title": "Shader Pack Settings",
+  "shader_pack_settings_screen.no_attributes": "No pack-owned settings for the active shader pack.",
+  "render_pipeline.true": "On",
+  "render_pipeline.false": "Off",
+
+  "radiance.settings.title": "Radiance Settings",
+  "radiance.settings.camera_controls.title": "Camera Controls",
+  "radiance.settings.exposure.title": "Exposure",
+  "radiance.settings.post_processing.title": "Post Processing",
+  "options.video.camera_controls": "Camera Controls...",
+  "options.video.camera_controls.exposure": "Exposure...",
+  "options.video.camera_controls.post_processing": "Post Processing...",
+  "options.video.category.exposure": "Exposure",
+  "options.video.category.exposure_tonemapping": "Exposure & Tonemapping",
+  "options.video.category.post_processing": "Post Processing",
+  "options.video.category.tonemapping": "Tonemapping",
+  "options.video.tonemap_mode": "Tonemapping",
+  "options.video.tonemap_mode.pbr_neutral": "PBR Neutral",
+  "options.video.tonemap_mode.reinhard_extended": "Reinhard Extended",
+  "options.video.tonemap_mode.aces": "ACES",
+  "options.video.tonemap_mode.agx": "AgX",
+  "options.video.tonemap_mode.lottes": "Lottes",
+  "options.video.tonemap_mode.frostbite": "Frostbite",
+  "options.video.tonemap_mode.uncharted2": "Uncharted 2",
+  "options.video.tonemap_mode.gt": "GT (Gran Turismo)",
+  "options.video.tonemap_mode.psychovisual": "PsychoVisual",
+  "options.video.hdr_tonemap_mode": "HDR Tonemapper",
+  "options.video.hdr_tonemap_mode.psychovisual": "PsychoVisual",
+  "options.video.hdr_tonemap_mode.bt2390": "ITU EETF (Hermite)",
+  "options.video.tonemap_mode.hdr_hermite_reinhard": "Hermite Spline Reinhard",
+  "options.video.tonemap_mode.hdr_reinhard_extended": "Reinhard Extended",
+  "options.video.tonemap_mode.hdr_bt2390": "BT.2390 EETF",
+  "options.video.tonemap_mode.hdr_frostbite": "Frostbite",
+  "options.video.min_exposure": "Min Exposure",
+  "options.video.max_exposure": "Max Exposure",
+  "options.video.sdr_transfer_function": "SDR Transfer Function",
+  "options.video.sdr_transfer_function.srgb": "sRGB",
+  "options.video.sdr_transfer_function.gamma22": "Gamma 2.2",
+  "options.video.saturation": "Saturation",
+  "options.video.exposure_compensation": "Exposure Compensation",
+  "options.video.manual_exposure_enabled": "Manual Exposure",
+  "options.video.manual_exposure": "Manual Exposure Value",
+  "options.video.sharpener_mode": "Sharpener",
+  "options.video.cas_sharpness": "Sharpness",
+  "options.video.bright_adapt_speed": "Bright Adapt",
+  "options.video.dark_adapt_speed": "Dark Adapt",
+  "options.video.scene_change_threshold": "Scene Cut",
+  "options.video.center_weight_strength": "Center Weight",
+  "options.video.highlight_weight": "Highlight Weight",
+  "options.video.middle_grey": "Middle Grey",
+  "options.video.lwhite": "White Point",
+  "options.video.psycho.enabled": "PsychoV (HDR Only)",
+  "options.video.psycho.category": "Psycho Visual Settings...",
+  "options.video.psycho.highlights": "Highlights",
+  "options.video.psycho.shadows": "Shadows",
+  "options.video.psycho.contrast": "Contrast",
+  "options.video.psycho.purity": "Purity (Saturation)",
+  "options.video.psycho.bleaching": "Bleaching",
+  "options.video.psycho.clip_point": "Clip Point",
+  "options.video.psycho.hue_restore": "Hue Restore",
+  "options.video.psycho.adapt_contrast": "Adaptation Contrast",
+  "options.video.psycho.white_curve": "White Curve",
+  "options.video.psycho.cone_exponent": "Cone Exponent",
+  "options.video.psycho.peak_sdr": "SDR Peak",
+  "key.radiance.settings": "Radiance Settings",
+  "options.video.saturation_adaptive": "Adaptive Saturation",
+  "options.video.noise_lod": "Noise LOD",
+  "key.radiance.offline_mode": "Toggle Offline Mode",
+  "key.radiance.lock_camera": "Lock Camera / Accumulate",
+  "key.radiance.autopbr_picker": "Material Lab Picker",
+  "key.radiance.offline_native_res": "Toggle Native Resolution (Offline)",
+  "key.radiance.offline_denoised": "Cycle Denoised Mode (Offline)",
+  "key.radiance.offline_ground_truth": "Toggle Ground Truth (Offline)",
+  "key.radiance.focus": "Focus Mode",
+  "key.radiance.inspect": "Inspect Block/Entity",
+  "key.radiance.debug_inspect": "Log Debug Inspect",
+  "key.category.radiance": "Radiance",
+  "render_pipeline.module.tone_mapping.attribute.tonemap_mode": "Tonemapping Mode",
+  "render_pipeline.module.tone_mapping.attribute.tonemap_mode.pbr_neutral": "PBR Neutral",
+  "render_pipeline.module.tone_mapping.attribute.tonemap_mode.reinhard_extended": "Reinhard Extended",
+  "render_pipeline.module.tone_mapping.attribute.lwhite": "White Point (Lwhite)",
+  "render_pipeline.module.tone_mapping.attribute.max_exposure": "Max Exposure",
+  "render_pipeline.module.tone_mapping.attribute.tonemap_mode.gt": "GT (Gran Turismo)",
+  "render_pipeline.module.tone_mapping.attribute.exposure_compensation": "Exposure Compensation",
+
+  "options.video.upscaler_mode": "Upscaler",
+  "options.video.upscaler_mode.off": "Off",
+  "options.video.upscaler_mode.fsr3": "FSR3",
+  "options.video.upscaler_mode.dlss_sr": "DLSS (Ray Reconstruction)",
+  "options.video.upscaler_quality": "Upscaler Quality",
+  "options.video.upscaler_quality.performance": "Performance",
+  "options.video.upscaler_quality.balanced": "Balanced",
+  "options.video.upscaler_quality.quality": "Quality",
+  "options.video.upscaler_quality.native": "Native",
+  "options.video.upscaler_quality.custom": "Custom",
+  "options.video.upscaler_res_override": "Resolution Override",
+  "options.video.upscaler_preset": "Upscaler Preset",
+
+  "options.video.dlss_d_enabled": "DLSS-D (Ray Reconstruction)",
+
+  "options.video.reflex_enabled": "NVIDIA Reflex",
+  "options.video.reflex_boost": "Reflex Boost",
+  "options.video.vrr_mode": "VRR Frame Cap",
+  "options.video.radiance_vsync": "VSync",
+  "options.video.max_fps": "FPS Limit",
+  "options.video.inactivity_fps_limit": "Inactive FPS Limit",
+
+  "options.video.frame_gen_mode": "Frame Generation",
+  "options.video.frame_gen_multiplier": "FG Multiplier",
+
+  "options.video.category.hdr": "HDR Output",
+  "options.video.hdr_enabled": "HDR10 Output",
+  "options.video.hdr_peak_nits": "Peak Brightness",
+  "options.video.hdr_paper_white_nits": "Paper White",
+  "options.video.hdr_ui_brightness_nits": "UI Brightness",
+  "options.video.category.emission": "Emission Settings",
+  "options.video.emission_settings": "Emission Settings...",
+"radiance.settings.emission.title": "Emission Settings",
+  "radiance.settings.emission.temperature_category": "Color Temperature",
+  "options.video.emission.temperature.lava": "Lava Temp",
+  "options.video.emission.temperature.fire": "Fire Temp",
+  "options.video.emission.temperature.torch": "Torch Temp",
+  "options.video.emission.temperature.lantern": "Lantern Temp",
+  "options.video.emission.temperature.campfire": "Campfire Temp",
+  "options.video.emission.temperature.magma_block": "Magma Block Temp",
+  "options.video.emission.temperature.jack_o_lantern": "Jack o'Lantern Temp",
+  "options.video.emission.temperature.candle": "Candle Temp",
+  "options.video.emission.temperature.furnace": "Furnace Temp",
+  "options.video.emission.temperature.blast_furnace": "Blast Furnace Temp",
+  "options.video.emission.temperature.smoker": "Smoker Temp",
+  "options.video.emission.temperature.copper_bulb": "Copper Bulb Temp",
+  "options.video.emission.temperature.brewing_stand": "Brewing Stand Temp",
+  "options.video.emission.temperature.soul_fire": "Soul Fire Temp",
+  "options.video.emission.temperature.soul_torch": "Soul Torch Temp",
+  "options.video.emission.temperature.soul_lantern": "Soul Lantern Temp",
+  "options.video.emission.temperature.soul_campfire": "Soul Campfire Temp",
+  "options.video.emission.wavelength.lava": "Lava \u03bb",
+  "options.video.emission.wavelength.fire": "Fire \u03bb",
+  "options.video.emission.wavelength.soul_fire": "Soul Fire \u03bb",
+  "options.video.emission.wavelength.torch": "Torch \u03bb",
+  "options.video.emission.wavelength.soul_torch": "Soul Torch \u03bb",
+  "options.video.emission.wavelength.lantern": "Lantern \u03bb",
+  "options.video.emission.wavelength.soul_lantern": "Soul Lantern \u03bb",
+  "options.video.emission.wavelength.campfire": "Campfire \u03bb",
+  "options.video.emission.wavelength.soul_campfire": "Soul Campfire \u03bb",
+  "options.video.emission.wavelength.magma_block": "Magma Block \u03bb",
+  "options.video.emission.wavelength.jack_o_lantern": "Jack o'Lantern \u03bb",
+  "options.video.emission.wavelength.candle": "Candle \u03bb",
+  "options.video.emission.wavelength.furnace": "Furnace \u03bb",
+  "options.video.emission.wavelength.blast_furnace": "Blast Furnace \u03bb",
+  "options.video.emission.wavelength.smoker": "Smoker \u03bb",
+  "options.video.emission.wavelength.copper_bulb": "Copper Bulb \u03bb",
+  "options.video.emission.wavelength.brewing_stand": "Brewing Stand \u03bb",
+  "options.video.emission.purity.lava": "Lava Purity",
+  "options.video.emission.purity.fire": "Fire Purity",
+  "options.video.emission.purity.soul_fire": "Soul Fire Purity",
+  "options.video.emission.purity.torch": "Torch Purity",
+  "options.video.emission.purity.soul_torch": "Soul Torch Purity",
+  "options.video.emission.purity.lantern": "Lantern Purity",
+  "options.video.emission.purity.soul_lantern": "Soul Lantern Purity",
+  "options.video.emission.purity.campfire": "Campfire Purity",
+  "options.video.emission.purity.soul_campfire": "Soul Campfire Purity",
+  "options.video.emission.purity.magma_block": "Magma Block Purity",
+  "options.video.emission.purity.jack_o_lantern": "Jack o'Lantern Purity",
+  "options.video.emission.purity.candle": "Candle Purity",
+  "options.video.emission.purity.furnace": "Furnace Purity",
+  "options.video.emission.purity.blast_furnace": "Blast Furnace Purity",
+  "options.video.emission.purity.smoker": "Smoker Purity",
+  "options.video.emission.purity.copper_bulb": "Copper Bulb Purity",
+  "options.video.emission.purity.brewing_stand": "Brewing Stand Purity",
+  "options.video.emission.gamutBoost": "Color Expansion",
+  "options.video.emission.lava": "Lava",
+  "options.video.emission.fire": "Fire",
+  "options.video.emission.soul_fire": "Soul Fire",
+  "options.video.emission.torch": "Torch",
+  "options.video.emission.soul_torch": "Soul Torch",
+  "options.video.emission.lantern": "Lantern",
+  "options.video.emission.soul_lantern": "Soul Lantern",
+  "options.video.emission.campfire": "Campfire",
+  "options.video.emission.soul_campfire": "Soul Campfire",
+  "options.video.emission.glowstone": "Glowstone",
+  "options.video.emission.shroomlight": "Shroomlight",
+  "options.video.emission.sea_lantern": "Sea Lantern",
+  "options.video.emission.froglight": "Froglight",
+  "options.video.emission.magma_block": "Magma Block",
+  "options.video.emission.beacon": "Beacon",
+  "options.video.emission.end_rod": "End Rod",
+  "options.video.emission.jack_o_lantern": "Jack o'Lantern",
+  "options.video.emission.nether_portal": "Nether Portal",
+  "options.video.emission.crying_obsidian": "Crying Obsidian",
+  "options.video.emission.respawn_anchor": "Respawn Anchor",
+  "options.video.emission.conduit": "Conduit",
+  "options.video.emission.amethyst_cluster": "Amethyst Cluster",
+  "options.video.emission.sculk_sensor": "Sculk Sensor",
+  "options.video.emission.sculk_catalyst": "Sculk Catalyst",
+  "options.video.emission.sculk_vein": "Sculk Vein",
+  "options.video.emission.sculk": "Sculk",
+  "options.video.emission.sculk_shrieker": "Sculk Shrieker",
+  "options.video.emission.brewing_stand": "Brewing Stand",
+  "options.video.emission.end_portal": "End Portal",
+  "options.video.emission.redstone_torch": "Redstone Torch",
+  "options.video.emission.redstone_lamp": "Redstone Lamp",
+  "options.video.emission.candle": "Candle",
+  "options.video.emission.cave_vines": "Cave Vines",
+  "options.video.emission.glow_lichen": "Glow Lichen",
+  "options.video.emission.furnace": "Furnace",
+  "options.video.emission.blast_furnace": "Blast Furnace",
+  "options.video.emission.smoker": "Smoker",
+  "options.video.emission.ender_chest": "Ender Chest",
+  "options.video.emission.copper_bulb": "Copper Bulb",
+  "options.video.emission.enchanting_table": "Enchanting Table"
+  ,"options.video.environment_settings": "Environmental Settings..."
+  ,"options.video.environment.dimension": "Dimension"
+  ,"options.video.environment.dimension.overworld": "Overworld"
+  ,"options.video.environment.dimension.nether": "Nether"
+  ,"options.video.environment.dimension.end": "End"
+  ,"radiance.settings.environment.title": "Environmental Settings"
+  ,"radiance.settings.environment.sky.title": "Sky Settings"
+  ,"radiance.settings.environment.clouds.title": "Cloud Settings"
+  ,"radiance.settings.environment.water.title": "Water Settings"
+  ,"radiance.settings.environment.sun.title": "Sun Settings"
+  ,"radiance.settings.environment.moon.title": "Moon Settings"
+  ,"options.video.environment.sky_settings": "Sky Settings..."
+  ,"options.video.environment.cloud_settings": "Cloud Settings..."
+  ,"options.video.environment.water_settings": "Water Settings..."
+  ,"options.video.environment.sun_settings": "Sun Settings..."
+  ,"options.video.environment.moon_settings": "Moon Settings..."
+  ,"options.video.environment.sky.category": "Sky"
+  ,"options.video.environment.clouds.category": "Clouds"
+  ,"options.video.environment.water.category": "Water"
+  ,"options.video.environment.sun.category": "Sun"
+  ,"options.video.environment.moon.category": "Moon"
+  ,"options.video.environment.sky_brightness": "Sky Brightness"
+  ,"options.video.environment.rain_blend": "Rain Blend Strength"
+  ,"options.video.environment.wet_surface": "Wet Surfaces"
+  ,"options.video.environment.cloud_brightness": "Cloud Brightness"
+  ,"options.video.environment.cloud_alpha": "Cloud Alpha"
+  ,"options.video.environment.cloud_height_offset": "Cloud Height Offset"
+  ,"options.video.environment.clouds.legacy_layer.category": "Legacy Cloud Layer"
+  ,"options.video.environment.clouds.shader_pack.category": "Shader Pack Clouds"
+  ,"options.video.environment.volumetric_lighting.category": "Volumetric Lighting"
+  ,"options.video.environment.water_tint_r": "Water Tint Red"
+  ,"options.video.environment.water_tint_g": "Water Tint Green"
+  ,"options.video.environment.water_tint_b": "Water Tint Blue"
+  ,"options.video.environment.water_fog_strength": "Water Fog Strength"
+  ,"options.video.environment.water.shader_pack.category": "Shader Pack Water"
+  ,"options.video.environment.sun_size": "Sun Size"
+  ,"options.video.environment.sun_intensity": "Sun Intensity"
+  ,"options.video.environment.moon_size": "Moon Size"
+  ,"options.video.environment.moon_intensity": "Moon Intensity"
+
+  ,"radiance.dlss_missing.title": "DLSS Libraries Missing"
+  ,"radiance.dlss_missing.line1": "The DLSS runtime libraries were not found."
+  ,"radiance.dlss_missing.line2": "DLSS Ray Reconstruction will be unavailable until they are installed."
+  ,"radiance.dlss_missing.line3": "Download URL (click to copy):"
+  ,"radiance.dlss_missing.line4": "Place the files in (click to copy):"
+  ,"radiance.dlss_missing.copy_url": "Copy Download URL"
+  ,"radiance.dlss_missing.copy_path": "Copy Install Path"
+  ,"radiance.dlss_missing.copied": "✔ Copied to clipboard!"
+  ,"radiance.dlss_missing.recheck": "Re-check Now"
+  ,"radiance.dlss_missing.recheck_failed": "✘ Files not found — copy the DLLs first"
+  ,"options.video.dlss_missing_warning": "⚠ DLSS Files Missing — Click for Details & Copy Links"
+  ,"radiance.dlss_missing.menu_warning": "⚠ DLSS files missing — press O at boot for details"
+
+  ,"options.video.environment.sun.orbit_category": "Sun Orbit"
+  ,"options.video.environment.sun_path_mode": "Sun Path"
+  ,"options.video.environment.sun_path_mode.legacy": "Legacy (Overhead)"
+  ,"options.video.environment.sun_path_mode.physical": "Physical (Tilted)"
+  ,"options.video.environment.sun_inclination": "Inclination"
+  ,"options.video.environment.sun_azimuth_offset": "Azimuth Offset"
+  ,"options.video.environment.moon.orbit_category": "Moon Orbit"
+  ,"options.video.environment.moon_follow_sun": "Follow Sun"
+  ,"options.video.environment.moon_inclination": "Inclination"
+  ,"options.video.environment.moon_azimuth_offset": "Azimuth Offset"
+
+  ,"options.video.category.lighting": "Lighting"
+  ,"options.video.global_light_mode": "Set All Blocks"
+  ,"options.video.global_light_mode.auto": "Auto"
+  ,"options.video.global_light_mode.emissive": "Emissive"
+  ,"options.video.exposure_settings": "Exposure..."
+  ,"options.video.post_processing_settings": "Post Processing..."
+
+  ,"options.video.emission.calibrated_sculk_sensor": "Calibrated Sculk Sensor"
+  ,"options.video.emission.sea_pickle": "Sea Pickle"
+  ,"options.video.emission.end_gateway": "End Gateway"
+  ,"options.video.emission.trial_spawner": "Trial Spawner"
+  ,"options.video.emission.vault": "Vault"
+
+  ,"options.video.materials_settings": "Material Lab..."
+  ,"radiance.settings.materials.title": "Material Lab"
+  ,"radiance.settings.materials.apply": "Apply Material Lab"
+  ,"radiance.settings.materials.cancel": "Cancel"
+  ,"options.video.materials.autoPBR": "Material Lab"
+  ,"options.video.materials.displacementEnabled": "Enable Geometry Displacement"
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ,"options.video.autoPBR.roughnessGamma": "Roughness Gamma"
+  ,"options.video.autoPBR.roughnessMin": "Roughness Min"
+  ,"options.video.autoPBR.roughnessMax": "Roughness Max"
+  ,"options.video.autoPBR.normalStrength": "Normal Strength"
+  ,"options.video.autoPBR.varianceWeight": "Variance Weight"
+  ,"options.video.autoPBR.edgeWeight": "Edge Weight"
+  ,"options.video.autoPBR.invertNormal": "Invert Normal"
+  ,"options.video.autoPBR.invertRoughness": "Invert Roughness"
+
+  ,"radiance.settings.menu_transparency": "Menu Transparency"
+  ,"radiance.settings.search.hint": "Search settings..."
+  ,"radiance.settings.search.no_results": "No matching settings"
+  ,"radiance.settings.recent": "Recent"
+  ,"radiance.settings.overall_quality": "Overall Quality"
+  ,"radiance.settings.reset_defaults": "Reset to Defaults"
+  ,"radiance.settings.welcome_message.on": "Welcome Message: On"
+  ,"radiance.settings.welcome_message.off": "Welcome Message: Off"
+  ,"radiance.welcome_message.line1": "\u00a7bRadiance\u00a7r \u2014 Press \u00a7eO\u00a7r to open the settings menu."
+  ,"radiance.welcome_message.line2": "\u00a77(Disable this message via Welcome Message in the O menu.)\u00a7r"
+
+  ,"radiance.materials.copy": "Copy"
+  ,"radiance.materials.paste": "Paste"
+  ,"radiance.materials.export": "Export"
+  ,"radiance.materials.import": "Import"
+  ,"radiance.materials.browser": "Texture Editor..."
+  ,"radiance.materials.exportAll": "Export All"
+  ,"radiance.materials.importPack": "Import Pack"
+  ,"radiance.materials.copied": "Copied!"
+  ,"radiance.materials.pasted": "Pasted!"
+  ,"radiance.materials.noClipboard": "No material in clipboard"
+  ,"radiance.materials.browser.title": "Texture Editor"
+  ,"radiance.materials.browser.search": "Search textures..."
+  ,"radiance.materials.browser.tab.all": "All"
+  ,"radiance.materials.browser.tab.metals": "Metals"
+  ,"radiance.materials.browser.tab.gems": "Gems"
+  ,"radiance.materials.browser.tab.minerals": "Minerals"
+  ,"radiance.materials.browser.tab.glass": "Glass"
+  ,"radiance.materials.browser.tab.stone": "Stone"
+  ,"radiance.materials.browser.tab.wood": "Wood"
+  ,"radiance.materials.browser.tab.earth": "Earth"
+  ,"radiance.materials.browser.tab.ceramics": "Ceramics"
+  ,"radiance.materials.browser.tab.organic": "Organic"
+  ,"radiance.materials.browser.tab.liquids": "Liquids"
+  ,"radiance.materials.browser.tab.misc": "Misc"
+  ,"radiance.materials.browser.tab.presets": "Presets"
+  ,"radiance.materials.browser.tab.saved": "Saved"
+  ,"radiance.materials.browser.tab.packs": "Packs"
+  ,"radiance.materials.browser.apply": "Apply"
+  ,"radiance.materials.browser.reset": "Reset to Default"
+  ,"radiance.materials.context.copy": "Copy Material"
+  ,"radiance.materials.context.paste": "Paste Material"
+  ,"radiance.materials.context.exportJson": "Export as .radmat"
+  ,"radiance.materials.context.exportTxt": "Export as .txt"
+  ,"radiance.materials.context.reset": "Reset Default"
+  ,"radiance.texture_editor.title": "Texture Editor"
+  ,"radiance.texture_editor.search": "Search textures..."
+  ,"radiance.texture_editor.variants": "Variants"
+  ,"radiance.texture_editor.variant_of": "Variant of: %s"
+  ,"radiance.texture_editor.reset_to_parent": "Reset to Parent"
+  ,"options.video.category.rendering": "Rendering"
+  ,"options.video.rendering_settings": "Rendering Settings..."
+  ,"options.video.firework.spark_intensity": "Spark Intensity"
+  ,"options.video.firework.flash_intensity": "Flash Intensity"
+  ,"options.video.firework.category": "Firework Emission"
+  ,"options.video.firework.colors_category": "Firework Colors (Blackbody Temperature)"
+  ,"options.video.ser_enabled": "SER (Reorder)"
+  ,"options.video.ser_hints": "SER Hints"
+  ,"options.video.ui_adaptive_dimming": "Adaptive Dimming"
+  ,"options.video.category.fpv": "First-Person View"
+  ,"options.video.fpv_enabled": "First-Person Body"
+  ,"options.video.fpv_offset_forward": "Forward"
+  ,"options.video.fpv_offset_vertical": "Vertical"
+  ,"options.video.fpv_offset_lateral": "Lateral"
+}

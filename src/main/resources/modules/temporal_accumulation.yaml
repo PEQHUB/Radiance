@@ -1,0 +1,12 @@
+name: "render_pipeline.module.temporal_accumulation.name"
+inputImageConfigs:
+  - name: "color"
+    format: "R32G32B32A32_SFLOAT"
+  - name: "motion"
+    format: "R32G32_SFLOAT"
+  - name: "normal_roughness"
+    format: "R32G32B32A32_SFLOAT"
+outputImageConfigs:
+  - name: "accumulated_radiance"
+    format: "R32G32B32A32_SFLOAT"
+attributeConfigs: [ ]

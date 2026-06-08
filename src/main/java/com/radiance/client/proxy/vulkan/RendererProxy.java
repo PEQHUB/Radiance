@@ -1,0 +1,143 @@
+package com.radiance.client.proxy.vulkan;
+
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.radiance.client.constant.Constants;
+import com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt;
+import java.nio.ByteBuffer;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.VertexFormat;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.util.Window;
+import org.lwjgl.system.MemoryUtil;
+
+public class RendererProxy {
+
+    private static int pipelineType = -1;
+
+    public static native void initFolderPath(String folderPath);
+
+    public static native void initRenderer(String[] glfwLibCandidates, long windowHandle);
+
+    public static void initRenderer(Window window) {
+        String mapped = System.mapLibraryName("glfw");
+        String[] candidates = {mapped, "libglfw.so.3", "libglfw.3.dylib", "glfw3.dll"};
+        RendererProxy.initRenderer(candidates, window.getHandle());
+        RenderSystem.apiDescription = "Vulkan 1.4";
+    }
+
+    public static native int maxSupportedTextureSize();
+
+    public static native void acquireContext();
+
+    public static native void submitCommand();
+
+    public static native void present();
+
+    public static void submitCommandAndPresent() {
+        submitCommand();
+        present();
+    }
+
+    public static void bindOverlayPipeline(int type) {
+        pipelineType = type;
+    }
+
+    public static native void drawOverlay(int vertexId, int indexId, int pipelineType,
+        int indexCount, int indexType);
+
+    public static void drawOverlay(BufferProxy.VertexIndexBufferHandle handle, int indexCount,
+        VertexFormat.IndexType indexType) {
+        drawOverlay(handle.vertexId, handle.indexId, pipelineType, indexCount,
+            Constants.IndexTypes.getValue(indexType));
+    }
+
+    public static native void fuseWorld();
+
+    public static native void postBlur();
+
+    public static native void close();
+
+    // Window position/size persistence
+    public static native int[] nativeGetWindowPosSize(); // returns [x, y, width, height]
+    public static native void nativeSetWindowPos(int x, int y);
+    public static native void nativeSetWindowSize(int width, int height);
+
+    // GPU profiler: returns "ModuleName:ms,...,TOTAL:ms" or "" if disabled
+    public static native String nativeGetGpuProfile();
+    public static native void nativeSetGpuProfileEnabled(boolean enabled);
+    public static native int nativeGetRtDebugFlags();
+    public static native void nativeSetRtDebugFlags(int flags);
+
+    // Native feature truth: compiled/runtime renderer reality, not just Java option intent
+    public static native String nativeGetFeatureTruth();
+
+    // Color pipeline reality: swapchain format/color space, HDR mode, tonemap, saturation, sharpener
+    public static native String nativeGetColorPipelineDiagnostics();
+
+    // DLSS-G latency and Streamline input-completion diagnostics
+    public static native String nativeGetDlssgLatencyDiag();
+
+    // VMA stats: returns "totalAllocMB:X,usedMB:X,budgetMB:X,budgetUsageMB:X,allocations:N,blocks:N"
+    public static native String nativeGetVmaStats();
+
+    // Texture reload diagnostics: texture generation, array IDs/bytes, chunk generation histogram
+    public static native String nativeGetTextureReloadDiagnostics();
+
+    // Overlay compositor diagnostics (CSV key=value pairs)
+    public static native String nativeGetOverlayDiag();
+
+    public static native void shouldRenderWorld(boolean renderWorld);
+
+    public static native void takeScreenshot(boolean withUI, int width, int height, int channel,
+        long pointer);
+
+    public static native int takeScreenshotRawHdrPacked(boolean withUI, int width, int height,
+        long pointer, int byteSize);
+
+    public record HdrPackedScreenshot(int width, int height, int vkFormat, byte[] packedPixels) {
+    }
+
+    public static HdrPackedScreenshot takeScreenshotHdrPacked(boolean withUI) {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        int width = mc.getWindow().getWidth();
+        int height = mc.getWindow().getHeight();
+
+        int byteSize;
+        try {
+            byteSize = Math.multiplyExact(Math.multiplyExact(width, height), 4);
+        } catch (ArithmeticException e) {
+            return null;
+        }
+
+        ByteBuffer raw = MemoryUtil.memAlloc(byteSize);
+        try {
+            int format = takeScreenshotRawHdrPacked(withUI, width, height, MemoryUtil.memAddress(raw),
+                byteSize);
+            if (format == 0) {
+                return null;
+            }
+
+            byte[] packed = new byte[byteSize];
+            raw.position(0);
+            raw.get(packed);
+            return new HdrPackedScreenshot(width, height, format, packed);
+        } finally {
+            MemoryUtil.memFree(raw);
+        }
+    }
+
+    public static NativeImage takeScreenshotWithoutUI() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        int
+            width =
+            mc.getWindow()
+                .getWidth();
+        int
+            height =
+            mc.getWindow()
+                .getHeight();
+        NativeImage nativeImage = new NativeImage(width, height, false);
+        ((INativeImageExt) (Object) nativeImage).neoVoxelRT$loadFromTextureImageWithoutUI(0, true);
+        return nativeImage;
+    }
+}
