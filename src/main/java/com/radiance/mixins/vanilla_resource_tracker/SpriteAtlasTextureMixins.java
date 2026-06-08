@@ -550,7 +550,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.end("runtimeMaterialBootstrap", phaseStart);
         LOGGER.info("[TextureSystem] Runtime material bootstrap: {}", runtimeMaterialBootstrap.toJson());
         phaseStart = TextureReloadTimeline.start("materialTableUpload");
-        boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+        boolean materialTableUploaded = runtimeMaterialBootstrap.tableUploaded();
+        if (!materialTableUploaded) {
+            materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+        }
         TextureReloadTimeline.end("materialTableUpload", phaseStart);
         if (materialTableUploaded) {
             LOGGER.info("[TextureSystem] Uploaded material-id table: {}",

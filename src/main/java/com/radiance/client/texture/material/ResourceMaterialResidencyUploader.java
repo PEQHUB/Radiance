@@ -179,8 +179,14 @@ public final class ResourceMaterialResidencyUploader {
                 long normalPtr = memAddress(normal);
                 long flagPtr = memAddress(flag);
                 long initStartedNanos = System.nanoTime();
-                memSet(specularPtr, 0, (long) pageCapacity * bytesPerLayer);
-                memSet(flagPtr, 0, (long) pageCapacity * bytesPerLayer);
+                long uploadedBytes = (long) allocation.layerCount() * bytesPerLayer;
+                assertDirectCapacity(albedo, uploadedBytes, "material albedo page upload");
+                assertDirectCapacity(specular, uploadedBytes, "material specular page upload");
+                assertDirectCapacity(normal, uploadedBytes, "material normal page upload");
+                assertDirectCapacity(flag, uploadedBytes, "material flag page upload");
+                assertDirectCapacity(defaultNormal, bytesPerLayer, "material default normal layer");
+                memSet(specularPtr, 0, uploadedBytes);
+                memSet(flagPtr, 0, uploadedBytes);
                 pageStats.pageInitNanos += elapsedNanos(initStartedNanos);
 
                 JsonObject pageReport = new JsonObject();
@@ -198,6 +204,11 @@ public final class ResourceMaterialResidencyUploader {
                     long targetSpecularPtr = specularPtr + (long) targetLayer * bytesPerLayer;
                     long targetNormalPtr = normalPtr + (long) targetLayer * bytesPerLayer;
                     long targetFlagPtr = flagPtr + (long) targetLayer * bytesPerLayer;
+                    long targetOffset = (long) targetLayer * bytesPerLayer;
+                    assertRange(albedo, targetOffset, bytesPerLayer, "material albedo layer write");
+                    assertRange(specular, targetOffset, bytesPerLayer, "material specular layer write");
+                    assertRange(normal, targetOffset, bytesPerLayer, "material normal layer write");
+                    assertRange(flag, targetOffset, bytesPerLayer, "material flag layer write");
                     Future<LayerUploadResult> future = layerExecutor.submit(() -> {
                         UploadStats layerStats = new UploadStats();
                         LayerResult result = writeLayer(resourceManager, item, layerSize,
@@ -246,6 +257,11 @@ public final class ResourceMaterialResidencyUploader {
                 boolean uploaded;
                 long nativeStartedNanos = System.nanoTime();
                 try {
+                    long nativeBytes = (long) layer * bytesPerLayer;
+                    assertDirectCapacity(albedo, nativeBytes, "material albedo native upload");
+                    assertDirectCapacity(specular, nativeBytes, "material specular native upload");
+                    assertDirectCapacity(normal, nativeBytes, "material normal native upload");
+                    assertDirectCapacity(flag, nativeBytes, "material flag native upload");
                     uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
                         page, layerSize, allocation.startLayer(), layer, allocation.layerCapacity(),
                         albedoPtr, specularPtr, normalPtr, flagPtr, generation);
@@ -727,8 +743,28 @@ public final class ResourceMaterialResidencyUploader {
         return buffer;
     }
 
-    private static ByteBuffer directPageBuffer(int pageCapacity, int bytesPerLayer) {
-        return ByteBuffer.allocateDirect(pageCapacity * bytesPerLayer).order(ByteOrder.nativeOrder());
+    private static ByteBuffer directPageBuffer(int layerCount, int bytesPerLayer) {
+        long bytes = (long) layerCount * bytesPerLayer;
+        if (layerCount < 0 || bytesPerLayer < 0 || bytes > Integer.MAX_VALUE) {
+            throw new IllegalStateException("material page buffer size out of range layers="
+                + layerCount + " bytesPerLayer=" + bytesPerLayer);
+        }
+        return ByteBuffer.allocateDirect((int) bytes).order(ByteOrder.nativeOrder());
+    }
+
+    private static void assertDirectCapacity(ByteBuffer buffer, long requiredBytes, String label) {
+        if (buffer == null || requiredBytes < 0 || requiredBytes > buffer.capacity()) {
+            throw new IllegalStateException(label + " requires " + requiredBytes
+                + " bytes but capacity is " + (buffer == null ? 0 : buffer.capacity()));
+        }
+    }
+
+    private static void assertRange(ByteBuffer buffer, long offset, long bytes, String label) {
+        long end = offset + bytes;
+        if (buffer == null || offset < 0 || bytes < 0 || end < offset || end > buffer.capacity()) {
+            throw new IllegalStateException(label + " out of bounds offset=" + offset
+                + " bytes=" + bytes + " capacity=" + (buffer == null ? 0 : buffer.capacity()));
+        }
     }
 
     private static int pageCapacity(int bytesPerLayer) {
