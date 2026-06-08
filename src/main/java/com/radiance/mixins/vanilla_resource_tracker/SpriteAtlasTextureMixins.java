@@ -11,6 +11,7 @@ import com.radiance.client.texture.VanillaTextureManifest;
 import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
+import com.radiance.client.texture.compat.TextureLoaderDiskCache;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
@@ -40,6 +41,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import static org.lwjgl.system.MemoryUtil.memAddress;
+import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.system.MemoryUtil.memPutByte;
 
@@ -562,6 +564,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.addSummary("tieredArrayPages", tierUploadReport.uploadedPages());
         TextureReloadTimeline.addSummary("tieredArrayLayers", tierUploadReport.uploadedLayers());
         TextureReloadTimeline.addSummary("tieredArrayBytes", tierUploadReport.bytesUploaded());
+        TextureReloadTimeline.addSummary("tierPayloadCacheHits", tierUploadReport.cacheHits());
+        TextureReloadTimeline.addSummary("tierPayloadCacheMisses", tierUploadReport.cacheMisses());
+        TextureReloadTimeline.addSummary("tierPayloadCacheWrites", tierUploadReport.cacheWrites());
+        TextureReloadTimeline.addSummary("tierPayloadCachedBytes", tierUploadReport.cachedBytes());
         if (sparseAux) {
             long sparseStart = TextureReloadTimeline.start("sparseAuxLayerUpdates");
             SparseAuxReport sparseAuxReport = stageSparseAuxLayers(sorted, uploadCount, spriteSize, bytesPerSprite);
@@ -633,9 +639,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
     private static TierUploadReport stageVanillaTieredMaterialPages(List<Map.Entry<Identifier, Sprite>> sorted,
                                                                     int uploadCount) {
         if (uploadCount <= 0) {
-            return new TierUploadReport(0, 0, 0L);
+            return new TierUploadReport(0, 0, 0L, 0, 0, 0, 0L);
         }
         final long maxChunkBytes = 128L * 1024L * 1024L;
+        String cacheKey = ResourcePackRuntimeMaterialBootstrap.cacheKeyForResourceManager(
+            MinecraftClient.getInstance().getResourceManager());
         int[] spritePage = new int[uploadCount];
         int[] spriteLayer = new int[uploadCount];
         int[] spriteTierSize = new int[uploadCount];
@@ -660,6 +668,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         int uploadedPages = 0;
         int uploadedLayers = 0;
         long uploadedBytes = 0L;
+        int cacheHits = 0;
+        int cacheMisses = 0;
+        int cacheWrites = 0;
+        long cachedBytes = 0L;
         for (int page = TextureTracker.VANILLA_TIER_FIRST_PAGE;
              page < TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
                  && page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX;
@@ -702,25 +714,56 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     }
                     int w = contents.getWidth();
                     int h = contents.getHeight();
-                    writeSpriteFramePixels(img, w, h, 0, tierSize, memAddress(albedoBuf) + dstBase);
+                    long albedoPtr = memAddress(albedoBuf) + dstBase;
+                    long specPtr = memAddress(specBuf) + dstBase;
+                    long normalPtr = memAddress(normalBuf) + dstBase;
+                    long flagPtr = memAddress(flagBuf) + dstBase;
+                    String layerKey = vanillaTierPayloadKey(sorted.get(i).getKey(), contents, tierSize);
+                    TextureLoaderDiskCache.LayerPayload cached =
+                        TextureLoaderDiskCache.readLayerPayload(cacheKey, layerKey, bytesPerLayer);
+                    if (cached != null) {
+                        writeCachedPlane(cached.albedo(), albedoPtr);
+                        writeCachedPlane(cached.specular(), specPtr);
+                        writeCachedPlane(cached.normal(), normalPtr);
+                        writeCachedPlane(cached.flag(), flagPtr);
+                        cacheHits++;
+                        cachedBytes += (long) bytesPerLayer * 4L;
+                        continue;
+                    }
+                    cacheMisses++;
+                    writeSpriteFramePixels(img, w, h, 0, tierSize, albedoPtr);
                     INativeImageExt auxExt = (INativeImageExt) (Object) img;
                     NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
                     if (specImg != null) {
                         int specH = Math.min(specImg.getHeight(), Math.max(1, h));
                         writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, tierSize,
-                            memAddress(specBuf) + dstBase);
+                            specPtr);
                     }
                     NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
                     if (normalImg != null) {
                         int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
                         writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, tierSize,
-                            memAddress(normalBuf) + dstBase);
+                            normalPtr);
                     }
                     NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
                     if (flagImg != null) {
                         int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
                         writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, tierSize,
-                            memAddress(flagBuf) + dstBase);
+                            flagPtr);
+                    }
+                    int heightRangePacked = heightRangePacked(normalImg, img);
+                    TextureLoaderDiskCache.writeLayerPayload(cacheKey, layerKey,
+                        new TextureLoaderDiskCache.LayerPayload(
+                            copyPlane(albedoPtr, bytesPerLayer),
+                            copyPlane(specPtr, bytesPerLayer),
+                            copyPlane(normalPtr, bytesPerLayer),
+                            copyPlane(flagPtr, bytesPerLayer),
+                            specImg != null,
+                            heightRangePacked >= 0,
+                            false,
+                            heightRangePacked));
+                    if (cacheKey != null && !cacheKey.isBlank() && !layerKey.isBlank()) {
+                        cacheWrites++;
                     }
                 }
 
@@ -747,7 +790,18 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     page, tierSize, layerCapacity);
             }
         }
-        return new TierUploadReport(uploadedPages, uploadedLayers, uploadedBytes);
+        return new TierUploadReport(uploadedPages, uploadedLayers, uploadedBytes,
+            cacheHits, cacheMisses, cacheWrites, cachedBytes);
+    }
+
+    private static String vanillaTierPayloadKey(Identifier spriteId, SpriteContents contents, int tierSize) {
+        if (spriteId == null || contents == null || tierSize <= 0) {
+            return "";
+        }
+        return TextureLoaderDiskCache.keyFor("vanilla-tier-v1|sprite=" + spriteId
+            + "|w=" + contents.getWidth()
+            + "|h=" + contents.getHeight()
+            + "|tier=" + tierSize);
     }
 
     private static void fillDefaultNormal(ByteBuffer buffer, int layerCount, int spriteSize) {
@@ -759,6 +813,20 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             memPutByte(off + 1, (byte) 128);
             memPutByte(off + 2, (byte) 255);
             memPutByte(off + 3, (byte) 255);
+        }
+    }
+
+    private static byte[] copyPlane(long ptr, int bytes) {
+        byte[] data = new byte[Math.max(0, bytes)];
+        if (ptr != 0L && bytes > 0) {
+            memByteBuffer(ptr, bytes).get(data);
+        }
+        return data;
+    }
+
+    private static void writeCachedPlane(byte[] data, long dstPtr) {
+        if (data != null && data.length > 0 && dstPtr != 0L) {
+            memByteBuffer(dstPtr, data.length).put(data);
         }
     }
 
@@ -964,7 +1032,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
     private record TierUploadReport(int uploadedPages,
                                     int uploadedLayers,
-                                    long bytesUploaded) {
+                                    long bytesUploaded,
+                                    int cacheHits,
+                                    int cacheMisses,
+                                    int cacheWrites,
+                                    long cachedBytes) {
     }
 
     private static void writeSpriteFramePixels(NativeImage img, int srcW, int srcH,

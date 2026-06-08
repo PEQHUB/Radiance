@@ -32,6 +32,9 @@ logs.
   cache root. Matching later boots can skip PNG decode and pixel conversion for
   albedo/specular/normal/flag planes and copy the cached RGBA payload straight
   into the native page upload buffers.
+- Vanilla tier page uploads also use the transformed layer payload cache for
+  static frame-0 albedo/specular/normal/flag planes. Warm boots can reuse
+  sprite-sized tier payloads before native page upload.
 - CTM residency now tracks a requested-material queue distinct from
   visible-only fallback accounting. First contact with a pending compat material
   schedules a short-debounce prewarm pass, and completed uploads retire
@@ -61,9 +64,9 @@ logs.
 
 ## Not Yet Complete
 
-- The cache now stores runtime CTM dependency roots and transformed CTM
-  residency layer payloads. Vanilla tier payloads and animated frame payloads
-  are not yet cached.
+- The cache now stores runtime CTM dependency roots, transformed CTM residency
+  layer payloads, and transformed vanilla tier frame-0 layer payloads. Animated
+  frame payloads are not yet cached.
 - CTM prewarm/first-frame readiness now has a requested-material queue and
   shorter prewarm scheduling, but it is still a compatibility scheduler path,
   not a fully budgeted no-pop-in residency system.
@@ -111,7 +114,7 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- Vanilla tier transformed-payload disk caching and fully budgeted first-frame
+- Animated frame transformed-payload disk caching and fully budgeted first-frame
   CTM no-pop-in residency are still remaining architecture work.
 - The payload cache key follows the active resource-pack selection. If a pack is
   edited in place without changing that selection, clear

@@ -79,7 +79,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
 
         ResourceMaterialResidencyDemand.resetForGeneration(generation);
         long startedNanos = System.nanoTime();
-        String cacheKey = cacheKey(resourceManager);
+        String cacheKey = cacheKeyForResourceManager(resourceManager);
         JsonObject cachedRoot = TextureLoaderDiskCache.readRoot(cacheKey);
         RuntimeRoot root = runtimeRootFromCache(cachedRoot, generation);
         boolean cacheHit = root != null;
@@ -299,7 +299,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         return new RuntimeRoot(root, dependencyCount, presentDependencyCount, propertyCount);
     }
 
-    private static String cacheKey(ResourceManager resourceManager) {
+    public static String cacheKeyForResourceManager(ResourceManager resourceManager) {
         StringBuilder key = new StringBuilder("ctm-v1|legacy=")
             .append(Options.materialCompatLegacyMcPatcherEnabled)
             .append("|namespaces=");
