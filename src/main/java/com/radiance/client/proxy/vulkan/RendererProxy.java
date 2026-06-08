@@ -71,6 +71,9 @@ public class RendererProxy {
     // Native feature truth: compiled/runtime renderer reality, not just Java option intent
     public static native String nativeGetFeatureTruth();
 
+    // Native build identity: git/config/toolchain metadata emitted by MCVR at compile time
+    public static native String nativeBuildInfoJson();
+
     // Color pipeline reality: swapchain format/color space, HDR mode, tonemap, saturation, sharpener
     public static native String nativeGetColorPipelineDiagnostics();
 

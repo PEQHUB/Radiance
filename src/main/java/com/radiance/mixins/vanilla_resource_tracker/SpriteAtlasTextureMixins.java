@@ -2,6 +2,7 @@ package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.autopbr.AutoPbrRuntime;
+import com.radiance.client.debug.TextureReloadTimeline;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.AuxiliaryTextures;
@@ -78,12 +79,15 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
         int atlasW = stitchResult.width();
         int atlasH = stitchResult.height();
+        TextureReloadTimeline.begin(atlasId.toString(), regions.size(), atlasW, atlasH);
 
         LOGGER.info("[TextureSystem] Processing block atlas: {} sprites, {}x{}", regions.size(), atlasW, atlasH);
 
         // ---- Step 1: Sort sprites alphabetically for deterministic spriteId assignment ----
+        long phaseStart = TextureReloadTimeline.start("spriteSort");
         List<Map.Entry<Identifier, Sprite>> sorted = new ArrayList<>(regions.entrySet());
         sorted.sort(Comparator.comparing(e -> e.getKey().toString()));
+        TextureReloadTimeline.end("spriteSort", phaseStart);
 
         // Build the sorted identifier list for TextureArrayBridge.serializeQuad() to use
         List<Identifier> sortedIds = new ArrayList<>(sorted.size());
@@ -91,6 +95,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             sortedIds.add(entry.getKey());
         }
 
+        phaseStart = TextureReloadTimeline.start("manifest");
         VanillaTextureManifest manifest =
             VanillaTextureManifest.fromBlockAtlas(atlasId, sorted, atlasW, atlasH);
         manifest.writeDebugDump(MinecraftClient.getInstance().runDirectory.toPath());
@@ -108,25 +113,56 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 LOGGER.error("[TextureRefactor] {}", error);
             }
             LOGGER.error("[TextureRefactor] Aborting texture-array extraction for invalid vanilla manifest");
+            TextureReloadTimeline.addSummary("aborted", "invalidManifest");
+            TextureReloadTimeline.finish();
             return;
         }
+        TextureReloadTimeline.end("manifest", phaseStart);
 
+        phaseStart = TextureReloadTimeline.start("capacityRefresh");
         int renderableSpriteCapacity = TextureArrayBridge.refreshNativeRenderableSpriteCapacity();
+        TextureReloadTimeline.end("capacityRefresh", phaseStart);
         if (sortedIds.size() > renderableSpriteCapacity) {
             LOGGER.warn("[TextureRefactor] Block atlas has {} sprites but native texture arrays can render {}. "
                     + "Overflow sprites will resolve to the material-safe fallback until texture paging lands.",
                 sortedIds.size(), renderableSpriteCapacity);
         }
+        phaseStart = TextureReloadTimeline.start("generationPublish");
         TextureArrayBridge.incrementTextureGeneration();
         TextureArrayBridge.setSortedSpriteIds(sortedIds);
+        TextureReloadTimeline.end("generationPublish", phaseStart);
         int spriteSize = manifest.fixedLayerSize();
-        if (spriteSize <= 0) return;
+        if (spriteSize <= 0) {
+            TextureReloadTimeline.addSummary("aborted", "invalidSpriteSize");
+            TextureReloadTimeline.finish();
+            return;
+        }
 
         int count = sorted.size();
-        int bytesPerSprite = spriteSize * spriteSize * 4; // RGBA8
+        long bytesPerSpriteLong = (long) spriteSize * spriteSize * 4L; // RGBA8
+        long totalSpriteBytes = bytesPerSpriteLong * count;
+        if (bytesPerSpriteLong > Integer.MAX_VALUE || totalSpriteBytes > Integer.MAX_VALUE) {
+            LOGGER.error("[TextureSystem] Texture upload too large: sprites={} layerSize={} bytesPerSprite={} totalBytes={}",
+                count, spriteSize, bytesPerSpriteLong, totalSpriteBytes);
+            TextureReloadTimeline.addSummary("aborted", "textureUploadTooLarge");
+            TextureReloadTimeline.addSummary("spriteCount", count);
+            TextureReloadTimeline.addSummary("spriteLayerSize", spriteSize);
+            TextureReloadTimeline.addSummary("bytesPerSprite", bytesPerSpriteLong);
+            TextureReloadTimeline.addSummary("totalSpriteBytes", totalSpriteBytes);
+            TextureReloadTimeline.finish();
+            return;
+        }
+        int bytesPerSprite = Math.toIntExact(bytesPerSpriteLong);
+        int totalBytes = Math.toIntExact(totalSpriteBytes);
         TextureTracker.currentSpriteLayerSize = spriteSize;
+        TextureReloadTimeline.addSummary("spriteCount", count);
+        TextureReloadTimeline.addSummary("renderableSpriteCapacity", renderableSpriteCapacity);
+        TextureReloadTimeline.addSummary("spriteLayerSize", spriteSize);
+        TextureReloadTimeline.addSummary("bytesPerSprite", bytesPerSprite);
+        TextureReloadTimeline.addSummary("totalSpriteBytes", totalBytes);
 
         TextureTracker.resetSpriteAuxSources(count);
+        phaseStart = TextureReloadTimeline.start("spriteSourceScan");
         for (int i = 0; i < count; i++) {
             Sprite sprite = sorted.get(i).getValue();
             NativeImage img = ((ISpriteContentsExt) sprite.getContents()).neoVoxelRT$getImage();
@@ -147,9 +183,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 TextureTracker.spriteBaselineNormalSource[i] = source;
             }
         }
+        TextureReloadTimeline.end("spriteSourceScan", phaseStart);
 
         // ---- Step 2: Detect overlay sprites (grass_block_side_overlay → grass_block_side) ----
         // overlayOf[i] = spriteId that sprite i is an overlay FOR, or -1
+        phaseStart = TextureReloadTimeline.start("overlayDetect");
         short[] overlayOf = new short[count];
         boolean[] emissiveOverlay = new boolean[count];
         java.util.Arrays.fill(overlayOf, (short) -1);
@@ -198,8 +236,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 }
             }
         }
+        TextureReloadTimeline.end("overlayDetect", phaseStart);
 
         // ---- Step 3: Build metadata table (SpriteMetadata = 16 bytes, packed) ----
+        phaseStart = TextureReloadTimeline.start("metadataBuild");
         int META_SIZE = 16;
         ByteBuffer metaBuf = ByteBuffer.allocateDirect(count * META_SIZE)
             .order(ByteOrder.nativeOrder());
@@ -249,17 +289,23 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             }
             metaBuf.putShort(off + 14, (short) flags);
         }
+        TextureReloadTimeline.end("metadataBuild", phaseStart);
 
+        phaseStart = TextureReloadTimeline.start("nativeSpriteTableUpload");
         TextureArrayBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
+        TextureReloadTimeline.end("nativeSpriteTableUpload", phaseStart);
         LOGGER.info("[TextureSystem] Sent sprite table: {} entries", count);
 
         // ---- Step 4: Build pixel bulk buffer (frame 0 for each sprite, RGBA8) ----
         // NativeImage stores RGBA bytes natively (STB format). We can raw-copy.
-        ByteBuffer pixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
+        phaseStart = TextureReloadTimeline.start("albedoBufferAlloc");
+        ByteBuffer pixelBuf = ByteBuffer.allocateDirect(totalBytes)
             .order(ByteOrder.nativeOrder());
+        TextureReloadTimeline.end("albedoBufferAlloc", phaseStart);
 
         int uploaded = 0;
         int animatedCount = 0;
+        phaseStart = TextureReloadTimeline.start("albedoCopy");
         for (int i = 0; i < count; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
@@ -280,33 +326,42 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             int imgH = (img != null) ? img.getHeight() : h;
             if (imgH > h) animatedCount++;
         }
+        TextureReloadTimeline.end("albedoCopy", phaseStart);
 
-        TextureArrayBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), count * bytesPerSprite);
+        phaseStart = TextureReloadTimeline.start("nativeAlbedoUpload");
+        TextureArrayBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), totalBytes);
+        TextureReloadTimeline.end("nativeAlbedoUpload", phaseStart);
         LOGGER.info("[TextureSystem] Sent {} sprite pixels ({} KB), {} animated",
-            uploaded, (count * bytesPerSprite) / 1024, animatedCount);
+            uploaded, totalBytes / 1024, animatedCount);
 
         // ---- Step 4B: Build specular + normal + flag pixel buffers for texture arrays ----
-        ByteBuffer specPixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
+        phaseStart = TextureReloadTimeline.start("auxBufferAlloc");
+        ByteBuffer specPixelBuf = ByteBuffer.allocateDirect(totalBytes)
             .order(ByteOrder.nativeOrder());
-        ByteBuffer normalPixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
+        ByteBuffer normalPixelBuf = ByteBuffer.allocateDirect(totalBytes)
             .order(ByteOrder.nativeOrder());
-        ByteBuffer flagPixelBuf = ByteBuffer.allocateDirect(count * bytesPerSprite)
+        ByteBuffer flagPixelBuf = ByteBuffer.allocateDirect(totalBytes)
             .order(ByteOrder.nativeOrder());
+        TextureReloadTimeline.end("auxBufferAlloc", phaseStart);
 
         // Fill normal default: (128, 128, 255, 255) = flat normal, AO=1.0, height=1.0
+        phaseStart = TextureReloadTimeline.start("defaultNormalFill");
         {
             long normBase = memAddress(normalPixelBuf);
-            for (int px = 0; px < count * spriteSize * spriteSize; px++) {
-                long off = normBase + (long) px * 4;
+            long pixelCount = (long) count * spriteSize * spriteSize;
+            for (long px = 0; px < pixelCount; px++) {
+                long off = normBase + px * 4L;
                 memPutByte(off,     (byte) 128); // R: normal X = 0.5
                 memPutByte(off + 1, (byte) 128); // G: normal Y = 0.5
                 memPutByte(off + 2, (byte) 255); // B: AO = 1.0
                 memPutByte(off + 3, (byte) 255); // A: height = 1.0
             }
         }
+        TextureReloadTimeline.end("defaultNormalFill", phaseStart);
         // Specular default is all zeros (roughness=1.0, F0=0.02) — already zeroed by allocateDirect
 
         int specCount = 0, normalCount = 0, flagCount = 0;
+        phaseStart = TextureReloadTimeline.start("auxCopy");
         for (int i = 0; i < count; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
@@ -353,16 +408,23 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 flagCount++;
             }
         }
+        TextureReloadTimeline.end("auxCopy", phaseStart);
+        TextureReloadTimeline.addSummary("specularSprites", specCount);
+        TextureReloadTimeline.addSummary("normalSprites", normalCount);
+        TextureReloadTimeline.addSummary("flagSprites", flagCount);
 
+        phaseStart = TextureReloadTimeline.start("nativeAuxUpload");
         TextureArrayBridge.nativeReceiveSpriteAuxPixels(
-            memAddress(specPixelBuf), memAddress(normalPixelBuf), memAddress(flagPixelBuf), count * bytesPerSprite);
+            memAddress(specPixelBuf), memAddress(normalPixelBuf), memAddress(flagPixelBuf), totalBytes);
+        TextureReloadTimeline.end("nativeAuxUpload", phaseStart);
         LOGGER.info("[TextureSystem] Sent aux pixels: {} specular, {} normal, {} flags ({} KB each)",
-            specCount, normalCount, flagCount, (count * bytesPerSprite) / 1024);
+            specCount, normalCount, flagCount, totalBytes / 1024);
 
         // ---- Step 5: Build animation frame data ----
         // Format: [spriteId(u16), frameIndex(u16), pixels(w*h*4)] repeated
         // Only for sprites with frameCount > 1
-        int animDataSize = 0;
+        phaseStart = TextureReloadTimeline.start("animationScan");
+        long animDataSizeLong = 0L;
         for (int i = 0; i < count; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
@@ -372,11 +434,22 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             int imgH = img.getHeight();
             int frameCount = Math.max(1, imgH / h);
             if (frameCount > 1) {
-                animDataSize += frameCount * (4 + bytesPerSprite); // header + pixels per frame
+                animDataSizeLong += (long) frameCount * (4L + bytesPerSpriteLong); // header + pixels per frame
             }
         }
+        TextureReloadTimeline.end("animationScan", phaseStart);
+        if (animDataSizeLong > Integer.MAX_VALUE) {
+            LOGGER.error("[TextureSystem] Animation upload too large: {} bytes", animDataSizeLong);
+            TextureReloadTimeline.addSummary("aborted", "animationUploadTooLarge");
+            TextureReloadTimeline.addSummary("animationBytes", animDataSizeLong);
+            TextureReloadTimeline.finish();
+            return;
+        }
+        int animDataSize = Math.toIntExact(animDataSizeLong);
+        TextureReloadTimeline.addSummary("animationBytes", animDataSize);
 
         if (animDataSize > 0) {
+            phaseStart = TextureReloadTimeline.start("animationBufferBuild");
             ByteBuffer animBuf = ByteBuffer.allocateDirect(animDataSize)
                 .order(ByteOrder.nativeOrder());
             int animOffset = 0;
@@ -415,23 +488,34 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 }
             }
 
+            TextureReloadTimeline.end("animationBufferBuild", phaseStart);
+            phaseStart = TextureReloadTimeline.start("nativeAnimationUpload");
             TextureArrayBridge.nativeReceiveAnimationFrames(memAddress(animBuf), animOffset);
+            TextureReloadTimeline.end("nativeAnimationUpload", phaseStart);
             LOGGER.info("[TextureSystem] Sent {} bytes of animation data", animOffset);
         } else {
             // No animations — send empty
+            phaseStart = TextureReloadTimeline.start("nativeAnimationUpload");
             TextureArrayBridge.nativeReceiveAnimationFrames(0, 0);
+            TextureReloadTimeline.end("nativeAnimationUpload", phaseStart);
         }
 
         // ---- Step 6: Finalize ----
+        phaseStart = TextureReloadTimeline.start("nativeFinalize");
         TextureArrayBridge.nativeTextureFinalize();
         TextureArrayBridge.publishTextureGeneration();
+        TextureReloadTimeline.end("nativeFinalize", phaseStart);
         MinecraftClient mc = MinecraftClient.getInstance();
+        phaseStart = TextureReloadTimeline.start("runtimeMaterialBootstrap");
         ResourcePackRuntimeMaterialBootstrap.BootstrapResult runtimeMaterialBootstrap =
             ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(
                 mc == null ? null : mc.getResourceManager(),
                 TextureArrayBridge.getActiveTextureGeneration());
+        TextureReloadTimeline.end("runtimeMaterialBootstrap", phaseStart);
         LOGGER.info("[TextureSystem] Runtime material bootstrap: {}", runtimeMaterialBootstrap.toJson());
+        phaseStart = TextureReloadTimeline.start("materialTableUpload");
         boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+        TextureReloadTimeline.end("materialTableUpload", phaseStart);
         if (materialTableUploaded) {
             LOGGER.info("[TextureSystem] Uploaded material-id table: {}",
                 ResourceMaterialRegistry.activeSummaryJson());
@@ -439,11 +523,15 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             LOGGER.info("[TextureSystem] Material-id table upload unavailable; Java registry remains active: {}",
                 ResourceMaterialRegistry.activeSummaryJson());
         }
+        TextureReloadTimeline.mark("diagnosticsScheduled");
         ResourcePackCompatDiagnostics.writeReportAsync("block_atlas_finalize", false);
+        phaseStart = TextureReloadTimeline.start("autoPbrRehydrate");
         AutoPbrRuntime.RehydrateReport autoPbrReport = AutoPbrRuntime.rehydrateSavedSidecars(mc);
+        TextureReloadTimeline.end("autoPbrRehydrate", phaseStart);
         if (autoPbrReport.discovered() > 0) {
             LOGGER.info("[TextureSystem] Material Lab recipes applied after finalize: {}", autoPbrReport);
         }
+        phaseStart = TextureReloadTimeline.start("chunkReloadScheduled");
         if (mc != null && mc.world != null && mc.worldRenderer != null) {
             try {
                 Options.nativeRebuildChunks();
@@ -454,6 +542,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         } else {
             LOGGER.debug("[TextureSystem] Texture generation published before world load; chunk reload deferred");
         }
+        TextureReloadTimeline.end("chunkReloadScheduled", phaseStart);
+        TextureReloadTimeline.addSummary("animatedSprites", animatedCount);
+        TextureReloadTimeline.addSummary("albedoUploadedSprites", uploaded);
+        TextureReloadTimeline.finish();
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
     }
 

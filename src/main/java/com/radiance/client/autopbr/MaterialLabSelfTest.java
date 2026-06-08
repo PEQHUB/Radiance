@@ -3804,6 +3804,15 @@ public final class MaterialLabSelfTest {
             "fixed OptiFine block colormap should normalize block states");
         expect(index.resolveBlockColor("minecraft:glass", 0x445566) == 0x445566,
             "blocks without color.properties entries should keep vanilla tint");
+        Object throwingWorld = java.lang.reflect.Proxy.newProxyInstance(
+            MaterialLabSelfTest.class.getClassLoader(),
+            new Class<?>[] {net.minecraft.world.BlockRenderView.class, net.minecraft.world.WorldView.class},
+            (proxy, method, args) -> {
+                throw new IllegalStateException("synthetic biome lookup failure");
+            });
+        expect(index.resolveBlockColor("minecraft:grass_block",
+                (net.minecraft.world.BlockRenderView) throwingWorld, BlockPos.ORIGIN, 0x112233) == 0x112233,
+            "thrown biome palette sampling should fall back to vanilla tint");
     }
 
     private static void lightmapResolverSamplesCustomPalettes() {
