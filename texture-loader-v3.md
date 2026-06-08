@@ -28,6 +28,10 @@ logs.
 - Runtime CTM dependency roots are cached under
   `<minecraft>/radiance/cache/texture-loader-v3/` with stable resource-pack
   selection keys and DebugBridge status counters.
+- Runtime CTM residency writes transformed binary layer payloads under the same
+  cache root. Matching later boots can skip PNG decode and pixel conversion for
+  albedo/specular/normal/flag planes and copy the cached RGBA payload straight
+  into the native page upload buffers.
 - CTM residency now tracks a requested-material queue distinct from
   visible-only fallback accounting. First contact with a pending compat material
   schedules a short-debounce prewarm pass, and completed uploads retire
@@ -47,7 +51,8 @@ logs.
 - `sparseAuxBatchUpload`: true for the legacy fixed-array compatibility path.
 - `tieredArrays`: true. Native status reports `material_page_size_tiers`.
 - `vanillaMaterialPageTiers`: true.
-- `diskCacheEnabled`: true for runtime CTM dependency roots.
+- `diskCacheEnabled`: true for runtime CTM dependency roots and transformed
+  CTM layer payloads.
 - CTM residency uses renderer-owned material pages and sparse material-table
   updates after a successful page upload.
 - CTM demand residency starts from the requested-material queue, so initial
@@ -56,8 +61,9 @@ logs.
 
 ## Not Yet Complete
 
-- The cache currently stores the runtime CTM dependency root. It does not yet
-  store full transformed tier binary payloads for albedo/aux/animation.
+- The cache now stores runtime CTM dependency roots and transformed CTM
+  residency layer payloads. Vanilla tier payloads and animated frame payloads
+  are not yet cached.
 - CTM prewarm/first-frame readiness now has a requested-material queue and
   shorter prewarm scheduling, but it is still a compatibility scheduler path,
   not a fully budgeted no-pop-in residency system.
@@ -93,7 +99,7 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - `materialPagePoolStatus` should report six or more vanilla tier pages
   allocated for the current Patrix stack, with `layersUsed=1810`.
 - `textureCacheStatus` should report `diskCacheEnabled=true`; after the second
-  matching boot it should show cache hits.
+  matching boot it should show root cache hits and layer payload cache hits.
 - `firstFrameReadiness` should expose nonzero prewarm/requested counters when
   pending CTM materials are touched before residency completes, then drain the
   requested queue as uploads are marked resident.
@@ -105,7 +111,10 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- Full transformed-payload disk caching and fully budgeted first-frame CTM
-  no-pop-in residency are still the remaining architecture work.
+- Vanilla tier transformed-payload disk caching and fully budgeted first-frame
+  CTM no-pop-in residency are still remaining architecture work.
+- The payload cache key follows the active resource-pack selection. If a pack is
+  edited in place without changing that selection, clear
+  `<minecraft>/radiance/cache/texture-loader-v3/` before judging the result.
 - Patrix 128x runtime completion must not be claimed until the validation matrix
   has been run in-game and the DebugBridge/status/log evidence supports it.

@@ -57,6 +57,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static volatile long activeResidencyGeneration = -1L;
     private static volatile JsonObject activeResidencyRoot = null;
     private static volatile ResourceMaterialRegistry.Snapshot activeResidencySnapshot = null;
+    private static volatile String activeResidencyCacheKey = "";
 
     private ResourcePackRuntimeMaterialBootstrap() {
     }
@@ -120,7 +121,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                 + "for generation {} in {} ms (tableUploaded={})",
             root.dependencyCount(), root.propertyCount(), generation, String.format(Locale.ROOT, "%.2f", ms),
             tableUploaded);
-        rememberResidencyInput(root.root(), snapshot, generation);
+        rememberResidencyInput(root.root(), snapshot, generation, cacheKey);
         if (shouldDeferResidency(generation)) {
             JsonObject deferEvent = new JsonObject();
             deferEvent.addProperty("dependencyCount", root.dependencyCount());
@@ -452,10 +453,11 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             RESIDENCY_SCHEDULED.set(false);
             JsonObject root = activeResidencyRoot;
             ResourceMaterialRegistry.Snapshot snapshot = activeResidencySnapshot;
+            String cacheKey = activeResidencyCacheKey;
             if (root == null || snapshot == null || generation != activeResidencyGeneration) {
                 return;
             }
-            if (!startResidencyUpload(root, snapshot, generation)
+            if (!startResidencyUpload(root, snapshot, generation, cacheKey)
                 && !shouldDeferResidency(generation)) {
                 scheduleResidencyUpload(generation, delayMs);
             }
@@ -464,6 +466,11 @@ public final class ResourcePackRuntimeMaterialBootstrap {
 
     private static boolean startResidencyUpload(JsonObject root, ResourceMaterialRegistry.Snapshot snapshot,
         long generation) {
+        return startResidencyUpload(root, snapshot, generation, activeResidencyCacheKey);
+    }
+
+    private static boolean startResidencyUpload(JsonObject root, ResourceMaterialRegistry.Snapshot snapshot,
+        long generation, String cacheKey) {
         if (shouldDeferResidency(generation)) {
             return false;
         }
@@ -477,7 +484,8 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             try {
                 JsonObject upload =
                     ResourceMaterialResidencyUploader.uploadFromCompatReport(root, snapshot, true,
-                        Options.ctmDemandResidency && !Options.materialCompatFullPreloadDiagnostic);
+                        Options.ctmDemandResidency && !Options.materialCompatFullPreloadDiagnostic,
+                        cacheKey);
                 boolean tableUploaded = boolProperty(upload, "materialTableUploadedFinal");
                 int uploadedMaterials = intProperty(upload, "uploadedMaterials");
                 LAST_RESIDENCY_BATCH_SIZE.set(uploadedMaterials);
@@ -516,10 +524,11 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     }
 
     private static void rememberResidencyInput(JsonObject root,
-        ResourceMaterialRegistry.Snapshot snapshot, long generation) {
+        ResourceMaterialRegistry.Snapshot snapshot, long generation, String cacheKey) {
         activeResidencyGeneration = generation;
         activeResidencyRoot = root == null ? null : root.deepCopy();
         activeResidencySnapshot = snapshot;
+        activeResidencyCacheKey = cacheKey == null ? "" : cacheKey;
         LAST_RESIDENCY_VISIBLE_COUNT.set(0L);
         LAST_RESIDENCY_BATCH_SIZE.set(0L);
     }

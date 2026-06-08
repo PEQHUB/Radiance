@@ -1,6 +1,7 @@
 package com.radiance.client.texture.material;
 
 import static org.lwjgl.system.MemoryUtil.memAddress;
+import static org.lwjgl.system.MemoryUtil.memByteBuffer;
 import static org.lwjgl.system.MemoryUtil.memCopy;
 import static org.lwjgl.system.MemoryUtil.memPutByte;
 import static org.lwjgl.system.MemoryUtil.memSet;
@@ -12,6 +13,7 @@ import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
+import com.radiance.client.texture.compat.TextureLoaderDiskCache;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt;
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,6 +63,11 @@ public final class ResourceMaterialResidencyUploader {
 
     public static JsonObject uploadFromCompatReport(JsonObject root,
         ResourceMaterialRegistry.Snapshot snapshot, boolean enabled, boolean visibleOnly) {
+        return uploadFromCompatReport(root, snapshot, enabled, visibleOnly, "");
+    }
+
+    public static JsonObject uploadFromCompatReport(JsonObject root,
+        ResourceMaterialRegistry.Snapshot snapshot, boolean enabled, boolean visibleOnly, String cacheKey) {
         JsonObject json = new JsonObject();
         json.addProperty("requested", enabled);
         json.addProperty("backend", "renderer_owned_resolution_tiered_pages");
@@ -68,6 +75,7 @@ public final class ResourceMaterialResidencyUploader {
         json.addProperty("pageBudget", PAGE_BUDGET);
         json.addProperty("visibleOnly", visibleOnly);
         json.addProperty("fullPreloadStarted", enabled && !visibleOnly);
+        json.addProperty("layerPayloadCacheKey", cacheKey == null ? "" : cacheKey);
         if (!enabled) {
             json.addProperty("attempted", false);
             json.addProperty("reason", "native_upload_not_requested");
@@ -213,7 +221,7 @@ public final class ResourceMaterialResidencyUploader {
                         UploadStats layerStats = new UploadStats();
                         LayerResult result = writeLayer(resourceManager, item, layerSize,
                             targetAlbedoPtr, targetSpecularPtr, targetNormalPtr, targetFlagPtr,
-                            defaultNormalPtr, bytesPerLayer, layerStats);
+                            defaultNormalPtr, bytesPerLayer, layerStats, cacheKey);
                         return new LayerUploadResult(item.materialId(), result, layerStats);
                     });
                     layerFutures.add(new LayerUploadFuture(targetLayer, item, future));
@@ -515,12 +523,30 @@ public final class ResourceMaterialResidencyUploader {
 
     private static LayerResult writeLayer(ResourceManager resourceManager, UploadItem item,
         int layerSize, long albedoPtr, long specularPtr, long normalPtr, long flagPtr,
-        long defaultNormalPtr, int bytesPerLayer, UploadStats stats) {
+        long defaultNormalPtr, int bytesPerLayer, UploadStats stats, String cacheKey) {
         NativeImage albedo = null;
         NativeImage specular = null;
         NativeImage normal = null;
         NativeImage flag = null;
+        String layerKey = layerPayloadKey(item, layerSize);
         try {
+            TextureLoaderDiskCache.LayerPayload cached =
+                TextureLoaderDiskCache.readLayerPayload(cacheKey, layerKey, bytesPerLayer);
+            if (cached != null) {
+                writeCachedPlane(cached.albedo(), albedoPtr);
+                writeCachedPlane(cached.specular(), specularPtr);
+                writeCachedPlane(cached.normal(), normalPtr);
+                writeCachedPlane(cached.flag(), flagPtr);
+                if (stats != null) {
+                    stats.layerPayloadCacheHits++;
+                    stats.cachedLayerBytes += (long) bytesPerLayer * 4L;
+                }
+                return new LayerResult(true, false, cached.hasSpecular(),
+                    cached.displacementEligible(), cached.displacementBlocked(), cached.heightRangePacked());
+            }
+            if (stats != null) {
+                stats.layerPayloadCacheMisses++;
+            }
             if (stats != null) {
                 stats.albedoRequested++;
             }
@@ -572,8 +598,14 @@ public final class ResourceMaterialResidencyUploader {
                 }
             }
             HeightInfo height = heightInfo(item.albedoPath(), albedo, normal, stats);
-            return new LayerResult(true, false, hasSpecular,
+            LayerResult result = new LayerResult(true, false, hasSpecular,
                 height.eligible(), height.blocked(), height.rangePacked());
+            TextureLoaderDiskCache.writeLayerPayload(cacheKey, layerKey,
+                layerPayloadFromPointers(albedoPtr, specularPtr, normalPtr, flagPtr, bytesPerLayer, result));
+            if (stats != null && cacheKey != null && !cacheKey.isBlank() && !layerKey.isBlank()) {
+                stats.layerPayloadCacheWrites++;
+            }
+            return result;
         } catch (IOException | RuntimeException e) {
             LOGGER.debug("[MaterialCompat] Failed to upload CTM material {}", item.albedoPath(), e);
             return LayerResult.failed();
@@ -582,6 +614,44 @@ public final class ResourceMaterialResidencyUploader {
             closeQuietly(normal);
             closeQuietly(specular);
             closeQuietly(albedo);
+        }
+    }
+
+    private static String layerPayloadKey(UploadItem item, int layerSize) {
+        if (item == null || item.albedoPath() == null || item.albedoPath().isBlank() || layerSize <= 0) {
+            return "";
+        }
+        return TextureLoaderDiskCache.keyFor("layer-v1|size=" + layerSize
+            + "|albedo=" + item.albedoPath()
+            + "|specular=" + item.specularPresent() + ":" + item.specularPath()
+            + "|normal=" + item.normalPresent() + ":" + item.normalPath()
+            + "|flag=" + item.flagPresent() + ":" + item.flagPath());
+    }
+
+    private static TextureLoaderDiskCache.LayerPayload layerPayloadFromPointers(long albedoPtr,
+        long specularPtr, long normalPtr, long flagPtr, int bytesPerLayer, LayerResult result) {
+        return new TextureLoaderDiskCache.LayerPayload(
+            copyPlane(albedoPtr, bytesPerLayer),
+            copyPlane(specularPtr, bytesPerLayer),
+            copyPlane(normalPtr, bytesPerLayer),
+            copyPlane(flagPtr, bytesPerLayer),
+            result.hasSpecular(),
+            result.displacementEligible(),
+            result.displacementBlocked(),
+            result.heightRangePacked());
+    }
+
+    private static byte[] copyPlane(long ptr, int bytes) {
+        byte[] data = new byte[Math.max(0, bytes)];
+        if (ptr != 0L && bytes > 0) {
+            memByteBuffer(ptr, bytes).get(data);
+        }
+        return data;
+    }
+
+    private static void writeCachedPlane(byte[] data, long dstPtr) {
+        if (data != null && data.length > 0 && dstPtr != 0L) {
+            memByteBuffer(dstPtr, data.length).put(data);
         }
     }
 
@@ -879,6 +949,7 @@ public final class ResourceMaterialResidencyUploader {
         long heightClassificationNanos;
         long nativePageUploadNanos;
         long materialTableReuploadNanos;
+        long cachedLayerBytes;
 
         int albedoRequested;
         int albedoLoaded;
@@ -899,6 +970,9 @@ public final class ResourceMaterialResidencyUploader {
         int heightBlockedByCutoutOrFluid;
         int heightBlockedByAlpha;
         int heightBlockedByUniformAlpha;
+        int layerPayloadCacheHits;
+        int layerPayloadCacheMisses;
+        int layerPayloadCacheWrites;
 
         void add(UploadStats other) {
             if (other == null) {
@@ -916,6 +990,7 @@ public final class ResourceMaterialResidencyUploader {
             heightClassificationNanos += other.heightClassificationNanos;
             nativePageUploadNanos += other.nativePageUploadNanos;
             materialTableReuploadNanos += other.materialTableReuploadNanos;
+            cachedLayerBytes += other.cachedLayerBytes;
 
             albedoRequested += other.albedoRequested;
             albedoLoaded += other.albedoLoaded;
@@ -936,6 +1011,9 @@ public final class ResourceMaterialResidencyUploader {
             heightBlockedByCutoutOrFluid += other.heightBlockedByCutoutOrFluid;
             heightBlockedByAlpha += other.heightBlockedByAlpha;
             heightBlockedByUniformAlpha += other.heightBlockedByUniformAlpha;
+            layerPayloadCacheHits += other.layerPayloadCacheHits;
+            layerPayloadCacheMisses += other.layerPayloadCacheMisses;
+            layerPayloadCacheWrites += other.layerPayloadCacheWrites;
         }
 
         JsonObject timingJson() {
@@ -952,6 +1030,7 @@ public final class ResourceMaterialResidencyUploader {
             json.addProperty("heightClassificationMs", millis(heightClassificationNanos));
             json.addProperty("nativePageUploadMs", millis(nativePageUploadNanos));
             json.addProperty("materialTableReuploadMs", millis(materialTableReuploadNanos));
+            json.addProperty("cachedLayerMiB", cachedLayerBytes / (1024.0 * 1024.0));
             return json;
         }
 
@@ -976,6 +1055,9 @@ public final class ResourceMaterialResidencyUploader {
             json.addProperty("heightBlockedByCutoutOrFluid", heightBlockedByCutoutOrFluid);
             json.addProperty("heightBlockedByAlpha", heightBlockedByAlpha);
             json.addProperty("heightBlockedByUniformAlpha", heightBlockedByUniformAlpha);
+            json.addProperty("layerPayloadCacheHits", layerPayloadCacheHits);
+            json.addProperty("layerPayloadCacheMisses", layerPayloadCacheMisses);
+            json.addProperty("layerPayloadCacheWrites", layerPayloadCacheWrites);
             return json;
         }
     }
