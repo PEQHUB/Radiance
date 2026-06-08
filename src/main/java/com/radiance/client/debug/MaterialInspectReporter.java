@@ -288,7 +288,7 @@ public final class MaterialInspectReporter {
         requested.add("displacementEligible");
         requested.add("displacementHeight");
         json.add("requestedModes", requested);
-        json.addProperty("shaderModeSurface", "not_exposed_as_runtime_toggle_in_this_offline_pass");
+        json.addProperty("shaderModeSurface", "DebugBridge materialDebugMode command, RT debug flags bits 24-27");
         json.addProperty("inspectorProvidesEquivalentFields", true);
         return json;
     }
