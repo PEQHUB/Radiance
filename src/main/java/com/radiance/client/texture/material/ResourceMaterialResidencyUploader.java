@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
 
 public final class ResourceMaterialResidencyUploader {
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
-    private static final int FIRST_COMPAT_PAGE = 1;
+    private static final int FIRST_COMPAT_PAGE = TextureTracker.FIRST_COMPAT_MATERIAL_PAGE;
     private static final int PAGE_BUDGET = ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX - FIRST_COMPAT_PAGE;
     private static final int TARGET_PAGE_CAPACITY = 512;
     private static final int DEFAULT_LAYER_DECODE_THREADS = 4;

@@ -423,18 +423,26 @@ public final class ResourceMaterialRegistry {
         int baseSprite = Math.max(0, record.baseSpriteId());
         int fallback = Math.max(0, record.fallbackMaterialId());
         int flags = effectiveFlags(record, handle);
-        int albedoPage = handle == null ? 0 : handle.albedoPage();
-        int albedoLayer = handle == null ? baseSprite : handle.albedoLayer();
-        int specPage = handle == null ? 0 : handle.specularPage();
+        int tierAlbedoPage = vanillaTierPage(baseSprite, TextureTracker.spriteAlbedoPage);
+        int tierAlbedoLayer = vanillaTierLayer(baseSprite, TextureTracker.spriteAlbedoLayer, baseSprite);
+        int tierSpecPage = vanillaTierPage(baseSprite, TextureTracker.spriteSpecularPage);
+        int tierSpecLayer = vanillaTierLayer(baseSprite, TextureTracker.spriteSpecularLayer, baseSprite);
+        int tierNormalPage = vanillaTierPage(baseSprite, TextureTracker.spriteNormalPage);
+        int tierNormalLayer = vanillaTierLayer(baseSprite, TextureTracker.spriteNormalLayer, baseSprite);
+        int tierFlagPage = vanillaTierPage(baseSprite, TextureTracker.spriteFlagPage);
+        int tierFlagLayer = vanillaTierLayer(baseSprite, TextureTracker.spriteFlagLayer, baseSprite);
+        int albedoPage = handle == null ? tierAlbedoPage : handle.albedoPage();
+        int albedoLayer = handle == null ? tierAlbedoLayer : handle.albedoLayer();
+        int specPage = handle == null ? tierSpecPage : handle.specularPage();
         int specLayer = handle == null
-            ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? baseSprite : -1)
+            ? ((flags & MATERIAL_FLAG_HAS_SPECULAR) != 0 ? tierSpecLayer : -1)
             : handle.specularLayer();
-        int normalPage = handle == null ? 0 : handle.normalPage();
+        int normalPage = handle == null ? tierNormalPage : handle.normalPage();
         int normalLayer = handle == null
-            ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0 ? baseSprite : -1)
+            ? ((flags & MATERIAL_FLAG_HAS_NORMAL) != 0 ? tierNormalLayer : -1)
             : handle.normalLayer();
-        int flagPage = handle == null ? 0 : handle.flagPage();
-        int flagLayer = handle == null ? baseSprite : handle.flagLayer();
+        int flagPage = handle == null ? tierFlagPage : handle.flagPage();
+        int flagLayer = handle == null ? tierFlagLayer : handle.flagLayer();
         int heightRangePacked = handle != null && handle.heightRangePacked() >= 0
             ? handle.heightRangePacked()
             : record.heightRangePacked();
@@ -458,6 +466,20 @@ public final class ResourceMaterialRegistry {
         buffer.putFloat(off + 68, 1.0f);
         buffer.putFloat(off + 72, 0.0f);
         buffer.putFloat(off + 76, 0.0f);
+    }
+
+    private static int vanillaTierPage(int spriteId, int[] pages) {
+        if (spriteId < 0 || spriteId >= pages.length) {
+            return 0;
+        }
+        return Math.max(0, pages[spriteId]);
+    }
+
+    private static int vanillaTierLayer(int spriteId, int[] layers, int fallbackLayer) {
+        if (spriteId < 0 || spriteId >= layers.length || layers[spriteId] < 0) {
+            return fallbackLayer;
+        }
+        return layers[spriteId];
     }
 
     private static int effectiveFlags(MaterialRecord record, ResidencyHandle handle) {

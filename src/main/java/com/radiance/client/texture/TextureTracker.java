@@ -25,6 +25,10 @@ public class TextureTracker {
     public static final int SPRITE_FLAG_NORMAL_SOURCE_SHIFT = 5;
     public static final int SPRITE_FLAG_SOURCE_MASK = 0x3;
     public static final int MAX_SPRITES = 4096;
+    public static final int VANILLA_TIER_FIRST_PAGE = 1;
+    public static final int[] VANILLA_TIER_SIZES = {16, 32, 64, 128, 256, 512, 1024};
+    public static final int FIRST_COMPAT_MATERIAL_PAGE =
+        VANILLA_TIER_FIRST_PAGE + VANILLA_TIER_SIZES.length;
     public static volatile boolean textureArrayAnimationUpdatesEnabled = false;
     public static volatile boolean vanillaBlockAtlasUploadBypassActive = false;
     public static volatile boolean lastVanillaBlockAtlasBypass = false;
@@ -95,6 +99,15 @@ public class TextureTracker {
     public static Map<Integer, NativeImage> spriteBaselineSpecularCache = new ConcurrentHashMap<>();
     public static Map<Integer, NativeImage> spriteBaselineNormalCache = new ConcurrentHashMap<>();
     public static volatile int currentSpriteLayerSize = 0;
+    public static int[] spriteAlbedoPage = new int[MAX_TEXTURES];
+    public static int[] spriteAlbedoLayer = new int[MAX_TEXTURES];
+    public static int[] spriteSpecularPage = new int[MAX_TEXTURES];
+    public static int[] spriteSpecularLayer = new int[MAX_TEXTURES];
+    public static int[] spriteNormalPage = new int[MAX_TEXTURES];
+    public static int[] spriteNormalLayer = new int[MAX_TEXTURES];
+    public static int[] spriteFlagPage = new int[MAX_TEXTURES];
+    public static int[] spriteFlagLayer = new int[MAX_TEXTURES];
+    public static int[] spriteTierSize = new int[MAX_TEXTURES];
     // Auxiliary texture provenance keyed by auxiliary GLID. This survives the legacy upload
     // path and lets the texture-array stitch preserve authored LabPBR channels.
     public static Set<Integer> packProvidedSpecularGLIDs = ConcurrentHashMap.newKeySet();
@@ -116,8 +129,55 @@ public class TextureTracker {
         Arrays.fill(spriteNormalSource, 0, count, SOURCE_GENERATED);
         Arrays.fill(spriteBaselineSpecularSource, 0, count, SOURCE_GENERATED);
         Arrays.fill(spriteBaselineNormalSource, 0, count, SOURCE_GENERATED);
+        resetSpriteTierLocations(count);
         packProvidedSpecularSpriteIds.clear();
         packProvidedNormalSpriteIds.clear();
+    }
+
+    public static void resetSpriteTierLocations(int spriteCount) {
+        int count = Math.min(spriteCount, MAX_TEXTURES);
+        Arrays.fill(spriteAlbedoPage, 0, count, 0);
+        Arrays.fill(spriteAlbedoLayer, 0, count, -1);
+        Arrays.fill(spriteSpecularPage, 0, count, 0);
+        Arrays.fill(spriteSpecularLayer, 0, count, -1);
+        Arrays.fill(spriteNormalPage, 0, count, 0);
+        Arrays.fill(spriteNormalLayer, 0, count, -1);
+        Arrays.fill(spriteFlagPage, 0, count, 0);
+        Arrays.fill(spriteFlagLayer, 0, count, -1);
+        Arrays.fill(spriteTierSize, 0, count, 0);
+    }
+
+    public static void setSpriteTierLocation(int spriteId, int page, int layer, int tierSize) {
+        if (spriteId < 0 || spriteId >= MAX_TEXTURES) {
+            return;
+        }
+        spriteAlbedoPage[spriteId] = page;
+        spriteAlbedoLayer[spriteId] = layer;
+        spriteSpecularPage[spriteId] = page;
+        spriteSpecularLayer[spriteId] = layer;
+        spriteNormalPage[spriteId] = page;
+        spriteNormalLayer[spriteId] = layer;
+        spriteFlagPage[spriteId] = page;
+        spriteFlagLayer[spriteId] = layer;
+        spriteTierSize[spriteId] = tierSize;
+    }
+
+    public static int tierPageForSpriteSize(int width, int height) {
+        int target = Math.max(1, Math.max(width, height));
+        for (int i = 0; i < VANILLA_TIER_SIZES.length; i++) {
+            if (target <= VANILLA_TIER_SIZES[i]) {
+                return VANILLA_TIER_FIRST_PAGE + i;
+            }
+        }
+        return VANILLA_TIER_FIRST_PAGE + VANILLA_TIER_SIZES.length - 1;
+    }
+
+    public static int tierSizeForPage(int page) {
+        int index = page - VANILLA_TIER_FIRST_PAGE;
+        if (index < 0 || index >= VANILLA_TIER_SIZES.length) {
+            return 0;
+        }
+        return VANILLA_TIER_SIZES[index];
     }
 
     public static void beginBlockAtlasReload() {
@@ -138,6 +198,7 @@ public class TextureTracker {
         customNormalGLIDs.clear();
         packProvidedSpecularSpriteIds.clear();
         packProvidedNormalSpriteIds.clear();
+        resetSpriteTierLocations(MAX_TEXTURES);
         vanillaBlockAtlasUploadBypassActive = false;
         lastVanillaBlockAtlasBypass = false;
         vanillaBlockAtlasBypassTargetId = -1;

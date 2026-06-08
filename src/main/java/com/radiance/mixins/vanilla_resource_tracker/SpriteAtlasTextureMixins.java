@@ -18,6 +18,7 @@ import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -552,6 +553,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 6: Finalize ----
         phaseStart = TextureReloadTimeline.start("nativeFinalize");
         TextureArrayBridge.nativeTextureFinalize();
+        TierUploadReport tierUploadReport = stageVanillaTieredMaterialPages(sorted, uploadCount);
+        TextureReloadTimeline.addSummary("tieredArrays", tierUploadReport.uploadedPages() > 0 ? 1 : 0);
+        TextureReloadTimeline.addSummary("tieredArrayPages", tierUploadReport.uploadedPages());
+        TextureReloadTimeline.addSummary("tieredArrayLayers", tierUploadReport.uploadedLayers());
+        TextureReloadTimeline.addSummary("tieredArrayBytes", tierUploadReport.bytesUploaded());
         if (sparseAux) {
             long sparseStart = TextureReloadTimeline.start("sparseAuxLayerUpdates");
             SparseAuxReport sparseAuxReport = stageSparseAuxLayers(sorted, uploadCount, spriteSize, bytesPerSprite);
@@ -618,6 +624,138 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             && atlasId != null
             && "minecraft".equals(atlasId.getNamespace())
             && "textures/atlas/blocks.png".equals(atlasId.getPath());
+    }
+
+    private static TierUploadReport stageVanillaTieredMaterialPages(List<Map.Entry<Identifier, Sprite>> sorted,
+                                                                    int uploadCount) {
+        if (uploadCount <= 0) {
+            return new TierUploadReport(0, 0, 0L);
+        }
+        final long maxChunkBytes = 128L * 1024L * 1024L;
+        int[] spritePage = new int[uploadCount];
+        int[] spriteLayer = new int[uploadCount];
+        int[] spriteTierSize = new int[uploadCount];
+        int[] pageLayerCounts = new int[ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX];
+        Arrays.fill(spriteLayer, -1);
+
+        for (int i = 0; i < uploadCount; i++) {
+            Sprite sprite = sorted.get(i).getValue();
+            SpriteContents contents = sprite.getContents();
+            int page = TextureTracker.tierPageForSpriteSize(contents.getWidth(), contents.getHeight());
+            int tierSize = TextureTracker.tierSizeForPage(page);
+            if (page <= 0 || page >= pageLayerCounts.length || tierSize <= 0) {
+                continue;
+            }
+            spritePage[i] = page;
+            spriteLayer[i] = pageLayerCounts[page]++;
+            spriteTierSize[i] = tierSize;
+            TextureTracker.setSpriteTierLocation(i, page, spriteLayer[i], tierSize);
+        }
+
+        long generation = TextureArrayBridge.getActiveTextureGeneration();
+        int uploadedPages = 0;
+        int uploadedLayers = 0;
+        long uploadedBytes = 0L;
+        for (int page = TextureTracker.VANILLA_TIER_FIRST_PAGE;
+             page < TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
+                 && page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX;
+             page++) {
+            int layerCapacity = pageLayerCounts[page];
+            if (layerCapacity <= 0) {
+                continue;
+            }
+            int tierSize = TextureTracker.tierSizeForPage(page);
+            long bytesPerLayerLong = (long) tierSize * tierSize * 4L;
+            if (bytesPerLayerLong <= 0 || bytesPerLayerLong > Integer.MAX_VALUE) {
+                LOGGER.warn("[TextureSystem] Skipping oversized vanilla texture tier page={} size={} bytesPerLayer={}",
+                    page, tierSize, bytesPerLayerLong);
+                continue;
+            }
+            int bytesPerLayer = Math.toIntExact(bytesPerLayerLong);
+            int maxChunkLayers = Math.max(1, (int) Math.min(layerCapacity, maxChunkBytes / bytesPerLayerLong));
+            boolean pageUploaded = true;
+            for (int startLayer = 0; startLayer < layerCapacity; startLayer += maxChunkLayers) {
+                int chunkLayers = Math.min(maxChunkLayers, layerCapacity - startLayer);
+                int chunkBytes = Math.toIntExact((long) chunkLayers * bytesPerLayerLong);
+                ByteBuffer albedoBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
+                ByteBuffer specBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
+                ByteBuffer normalBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
+                ByteBuffer flagBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
+                fillDefaultNormal(normalBuf, chunkLayers, tierSize);
+
+                for (int i = 0; i < uploadCount; i++) {
+                    if (spritePage[i] != page || spriteLayer[i] < startLayer
+                        || spriteLayer[i] >= startLayer + chunkLayers) {
+                        continue;
+                    }
+                    int localLayer = spriteLayer[i] - startLayer;
+                    long dstBase = (long) localLayer * bytesPerLayer;
+                    Sprite sprite = sorted.get(i).getValue();
+                    SpriteContents contents = sprite.getContents();
+                    NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
+                    if (img == null) {
+                        continue;
+                    }
+                    int w = contents.getWidth();
+                    int h = contents.getHeight();
+                    writeSpriteFramePixels(img, w, h, 0, tierSize, memAddress(albedoBuf) + dstBase);
+                    INativeImageExt auxExt = (INativeImageExt) (Object) img;
+                    NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
+                    if (specImg != null) {
+                        int specH = Math.min(specImg.getHeight(), Math.max(1, h));
+                        writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, tierSize,
+                            memAddress(specBuf) + dstBase);
+                    }
+                    NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+                    if (normalImg != null) {
+                        int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
+                        writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, tierSize,
+                            memAddress(normalBuf) + dstBase);
+                    }
+                    NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
+                    if (flagImg != null) {
+                        int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
+                        writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, tierSize,
+                            memAddress(flagBuf) + dstBase);
+                    }
+                }
+
+                boolean uploaded = false;
+                try {
+                    uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
+                        page, tierSize, startLayer, chunkLayers, layerCapacity,
+                        memAddress(albedoBuf), memAddress(specBuf), memAddress(normalBuf),
+                        memAddress(flagBuf), generation);
+                } catch (UnsatisfiedLinkError ignored) {
+                }
+                if (!uploaded) {
+                    pageUploaded = false;
+                    LOGGER.warn("[TextureSystem] Vanilla tier page upload failed: page={} size={} start={} layers={}/{}",
+                        page, tierSize, startLayer, chunkLayers, layerCapacity);
+                    break;
+                }
+                uploadedLayers += chunkLayers;
+                uploadedBytes += (long) chunkBytes * 4L;
+            }
+            if (pageUploaded) {
+                uploadedPages++;
+                LOGGER.info("[TextureSystem] Uploaded vanilla texture tier page={} size={} layers={}",
+                    page, tierSize, layerCapacity);
+            }
+        }
+        return new TierUploadReport(uploadedPages, uploadedLayers, uploadedBytes);
+    }
+
+    private static void fillDefaultNormal(ByteBuffer buffer, int layerCount, int spriteSize) {
+        long base = memAddress(buffer);
+        long pixelCount = (long) layerCount * spriteSize * spriteSize;
+        for (long px = 0; px < pixelCount; px++) {
+            long off = base + px * 4L;
+            memPutByte(off, (byte) 128);
+            memPutByte(off + 1, (byte) 128);
+            memPutByte(off + 2, (byte) 255);
+            memPutByte(off + 3, (byte) 255);
+        }
     }
 
     private static SparseAuxReport stageSparseAuxLayers(List<Map.Entry<Identifier, Sprite>> sorted,
@@ -818,6 +956,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                                    int normalUploaded,
                                    int flagUploaded,
                                    long bytesUploaded) {
+    }
+
+    private record TierUploadReport(int uploadedPages,
+                                    int uploadedLayers,
+                                    long bytesUploaded) {
     }
 
     private static void writeSpriteFramePixels(NativeImage img, int srcW, int srcH,

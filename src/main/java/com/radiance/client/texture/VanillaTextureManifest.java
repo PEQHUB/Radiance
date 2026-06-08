@@ -83,6 +83,8 @@ public final class VanillaTextureManifest {
             int imageHeight = image != null ? image.getHeight() : height;
             int atlasX = Math.round(sprite.getMinU() * atlasWidth);
             int atlasY = Math.round(sprite.getMinV() * atlasHeight);
+            int tierSize = TextureTracker.tierSizeForPage(
+                TextureTracker.tierPageForSpriteSize(width, height));
 
             if (width <= 0 || height <= 0) {
                 errors.add("sprite " + i + " has invalid size: " + mapEntry.getKey()
@@ -90,12 +92,12 @@ public final class VanillaTextureManifest {
             }
             if (width != height) {
                 warnings.add("sprite " + i + " is not square and will be resampled into "
-                    + "texture-array layer: " + mapEntry.getKey() + " " + width + "x" + height
-                    + " -> " + layerSize + "x" + layerSize);
-            } else if (width != layerSize || height != layerSize) {
-                warnings.add("sprite " + i + " will be resampled into fixed texture-array layer: "
+                    + "texture-array tier: " + mapEntry.getKey() + " " + width + "x" + height
+                    + " -> " + tierSize + "x" + tierSize);
+            } else if (width != tierSize || height != tierSize) {
+                warnings.add("sprite " + i + " will be resampled into texture-array tier: "
                     + mapEntry.getKey() + " " + width + "x" + height + " -> "
-                    + layerSize + "x" + layerSize);
+                    + tierSize + "x" + tierSize);
             }
             if (width > MAX_U16 || height > MAX_U16 || atlasX > MAX_U16 || atlasY > MAX_U16) {
                 errors.add("sprite " + i + " exceeds native u16 metadata: " + mapEntry.getKey());
