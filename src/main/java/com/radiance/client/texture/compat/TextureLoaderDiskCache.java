@@ -16,6 +16,11 @@ import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.MinecraftClient;
 
@@ -41,6 +46,13 @@ public final class TextureLoaderDiskCache {
     private static final AtomicLong BYTE_HITS = new AtomicLong();
     private static final AtomicLong BYTE_MISSES = new AtomicLong();
     private static final AtomicLong BYTE_FAILURES = new AtomicLong();
+    private static final AtomicLong ASYNC_WRITE_QUEUED = new AtomicLong();
+    private static final AtomicLong ASYNC_WRITE_STARTED = new AtomicLong();
+    private static final AtomicLong ASYNC_WRITE_COMPLETED = new AtomicLong();
+    private static final AtomicLong ASYNC_WRITE_REJECTED = new AtomicLong();
+    private static final AtomicLong ASYNC_WRITE_PENDING = new AtomicLong();
+    private static final AtomicInteger CACHE_WRITE_THREAD_IDS = new AtomicInteger();
+    private static final ThreadPoolExecutor CACHE_WRITE_EXECUTOR = createCacheWriteExecutor();
     private static volatile String lastKey = "";
     private static volatile String lastPath = "";
     private static volatile String lastFailure = "";
@@ -104,6 +116,14 @@ public final class TextureLoaderDiskCache {
             FAILURES.incrementAndGet();
             lastFailure = e.toString();
         }
+    }
+
+    public static void writeRootAsync(String key, JsonObject root) {
+        if (key == null || key.isBlank() || root == null) {
+            return;
+        }
+        JsonObject copy = root.deepCopy();
+        submitAsyncCacheWrite(() -> writeRoot(key, copy));
     }
 
     public static LayerPayload readLayerPayload(String rootKey, String layerKey, int bytesPerLayer) {
@@ -184,6 +204,15 @@ public final class TextureLoaderDiskCache {
         }
     }
 
+    public static void writeLayerPayloadAsync(String rootKey, String layerKey, LayerPayload payload) {
+        if (rootKey == null || rootKey.isBlank() || layerKey == null || layerKey.isBlank()
+            || payload == null || !payload.hasCompletePlanes()) {
+            return;
+        }
+        LayerPayload copy = payload.copy();
+        submitAsyncCacheWrite(() -> writeLayerPayload(rootKey, layerKey, copy));
+    }
+
     public static byte[] readBytePayload(String rootKey, String payloadKey, int expectedBytes) {
         BYTE_READS.incrementAndGet();
         lastByteKey = payloadKey == null ? "" : payloadKey;
@@ -248,6 +277,15 @@ public final class TextureLoaderDiskCache {
         }
     }
 
+    public static void writeBytePayloadAsync(String rootKey, String payloadKey, byte[] payload) {
+        if (rootKey == null || rootKey.isBlank() || payloadKey == null || payloadKey.isBlank()
+            || payload == null || payload.length <= 0) {
+            return;
+        }
+        byte[] copy = payload.clone();
+        submitAsyncCacheWrite(() -> writeBytePayload(rootKey, payloadKey, copy));
+    }
+
     public static JsonObject statusJson() {
         JsonObject json = new JsonObject();
         json.addProperty("schema", "texture_loader_cache_status_v1");
@@ -281,6 +319,15 @@ public final class TextureLoaderDiskCache {
         json.addProperty("lastByteKey", lastByteKey);
         json.addProperty("lastBytePath", lastBytePath);
         json.addProperty("lastByteFailure", lastByteFailure);
+        json.addProperty("asyncCacheWrites", true);
+        json.addProperty("asyncWriteThreads", CACHE_WRITE_EXECUTOR.getCorePoolSize());
+        json.addProperty("asyncWriteQueueCapacity", 4096);
+        json.addProperty("asyncWriteQueueDepth", CACHE_WRITE_EXECUTOR.getQueue().size());
+        json.addProperty("asyncWritesQueued", ASYNC_WRITE_QUEUED.get());
+        json.addProperty("asyncWritesStarted", ASYNC_WRITE_STARTED.get());
+        json.addProperty("asyncWritesCompleted", ASYNC_WRITE_COMPLETED.get());
+        json.addProperty("asyncWritesRejected", ASYNC_WRITE_REJECTED.get());
+        json.addProperty("asyncWritesPending", ASYNC_WRITE_PENDING.get());
         return json;
     }
 
@@ -342,6 +389,42 @@ public final class TextureLoaderDiskCache {
         }
     }
 
+    private static ThreadPoolExecutor createCacheWriteExecutor() {
+        int cores = Math.max(1, Runtime.getRuntime().availableProcessors());
+        int threads = Math.max(1, Math.min(4, cores / 2));
+        ThreadPoolExecutor executor = new ThreadPoolExecutor(threads, threads, 30L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(4096), runnable -> {
+                Thread thread = new Thread(runnable,
+                    "RadSER Texture Cache Writer " + CACHE_WRITE_THREAD_IDS.incrementAndGet());
+                thread.setDaemon(true);
+                return thread;
+            });
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
+
+    private static void submitAsyncCacheWrite(Runnable runnable) {
+        if (runnable == null) {
+            return;
+        }
+        ASYNC_WRITE_QUEUED.incrementAndGet();
+        ASYNC_WRITE_PENDING.incrementAndGet();
+        try {
+            CACHE_WRITE_EXECUTOR.execute(() -> {
+                ASYNC_WRITE_STARTED.incrementAndGet();
+                try {
+                    runnable.run();
+                } finally {
+                    ASYNC_WRITE_COMPLETED.incrementAndGet();
+                    ASYNC_WRITE_PENDING.decrementAndGet();
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            ASYNC_WRITE_REJECTED.incrementAndGet();
+            ASYNC_WRITE_PENDING.decrementAndGet();
+        }
+    }
+
     public record LayerPayload(byte[] albedo,
                                byte[] specular,
                                byte[] normal,
@@ -360,6 +443,18 @@ public final class TextureLoaderDiskCache {
                 && specular != null && specular.length == bytes
                 && normal != null && normal.length == bytes
                 && flag != null && flag.length == bytes;
+        }
+
+        LayerPayload copy() {
+            return new LayerPayload(
+                albedo == null ? null : albedo.clone(),
+                specular == null ? null : specular.clone(),
+                normal == null ? null : normal.clone(),
+                flag == null ? null : flag.clone(),
+                hasSpecular,
+                displacementEligible,
+                displacementBlocked,
+                heightRangePacked);
         }
     }
 }

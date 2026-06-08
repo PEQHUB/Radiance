@@ -668,7 +668,7 @@ public final class ResourceMaterialResidencyUploader {
             HeightInfo height = heightInfo(item.albedoPath(), albedo, normal, stats);
             LayerResult result = new LayerResult(true, false, hasSpecular,
                 height.eligible(), height.blocked(), height.rangePacked());
-            TextureLoaderDiskCache.writeLayerPayload(cacheKey, layerKey,
+            TextureLoaderDiskCache.writeLayerPayloadAsync(cacheKey, layerKey,
                 layerPayloadFromPointers(albedoPtr, specularPtr, normalPtr, flagPtr, bytesPerLayer, result));
             if (stats != null && cacheKey != null && !cacheKey.isBlank() && !layerKey.isBlank()) {
                 stats.layerPayloadCacheWrites++;

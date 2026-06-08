@@ -87,7 +87,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         boolean cacheHit = root != null;
         if (root == null) {
             root = buildRoot(resourceManager, generation);
-            TextureLoaderDiskCache.writeRoot(cacheKey, root.root());
+            TextureLoaderDiskCache.writeRootAsync(cacheKey, root.root());
         }
         if (root.dependencyCount() <= 0) {
             PUBLISHED_GENERATION.compareAndSet(PUBLISHED_GENERATION.get(), generation);

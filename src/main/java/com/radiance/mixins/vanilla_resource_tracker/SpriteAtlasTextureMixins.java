@@ -570,7 +570,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                         } else {
                             writeSpriteFramePixels(img, w, h, frame, spriteSize, frameDst);
                         }
-                        TextureLoaderDiskCache.writeBytePayload(animationCacheKey, frameKey,
+                        TextureLoaderDiskCache.writeBytePayloadAsync(animationCacheKey, frameKey,
                             copyPlane(frameDst, bytesPerSprite));
                         if (animationCacheKey != null && !animationCacheKey.isBlank() && !frameKey.isBlank()) {
                             animationCacheWrites++;
@@ -793,7 +793,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                             flagPtr);
                     }
                     int heightRangePacked = heightRangePacked(normalImg, img);
-                    TextureLoaderDiskCache.writeLayerPayload(cacheKey, layerKey,
+                    TextureLoaderDiskCache.writeLayerPayloadAsync(cacheKey, layerKey,
                         new TextureLoaderDiskCache.LayerPayload(
                             copyPlane(albedoPtr, bytesPerLayer),
                             copyPlane(specPtr, bytesPerLayer),
