@@ -329,11 +329,41 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.startsWith("resourcePacks:")) {
-                        return line.substring("resourcePacks:".length());
+                        return line.substring("resourcePacks:".length())
+                            + "|files=" + resourcePackFileInventory(client.runDirectory.toPath());
                     }
                 }
             }
             return "no_resource_pack_option";
+        } catch (Exception e) {
+            return "unknown";
+        }
+    }
+
+    private static String resourcePackFileInventory(java.nio.file.Path runDirectory) {
+        if (runDirectory == null) {
+            return "unknown";
+        }
+        java.nio.file.Path resourcePacks = runDirectory.resolve("resourcepacks");
+        if (!java.nio.file.Files.isDirectory(resourcePacks)) {
+            return "missing_resourcepacks_dir";
+        }
+        try (java.util.stream.Stream<java.nio.file.Path> stream = java.nio.file.Files.list(resourcePacks)) {
+            java.util.ArrayList<String> files = new java.util.ArrayList<>();
+            stream.filter(java.nio.file.Files::isRegularFile)
+                .forEach(path -> {
+                    try {
+                        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+                        long size = java.nio.file.Files.size(path);
+                        long mtime = java.nio.file.Files.getLastModifiedTime(path).toMillis();
+                        files.add(name + ":" + size + ":" + mtime);
+                    } catch (Exception ignored) {
+                        String name = path.getFileName() == null ? "" : path.getFileName().toString();
+                        files.add(name + ":unreadable");
+                    }
+                });
+            files.sort(String::compareTo);
+            return String.join(",", files);
         } catch (Exception e) {
             return "unknown";
         }
