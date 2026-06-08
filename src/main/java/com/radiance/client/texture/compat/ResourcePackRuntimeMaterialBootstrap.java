@@ -48,6 +48,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static final AtomicLong LAST_RESIDENCY_BATCH_SIZE = new AtomicLong(0L);
     private static final AtomicLong RESIDENCY_SCHEDULE_EVENTS = new AtomicLong(0L);
     private static final AtomicLong RESIDENCY_UPLOAD_EVENTS = new AtomicLong(0L);
+    private static final AtomicLong FIRST_FRAME_PLAN_REQUESTS = new AtomicLong(0L);
     private static final AtomicLong FIRST_FRAME_DRAIN_REQUESTS = new AtomicLong(0L);
     private static final ScheduledExecutorService RESIDENCY_SCHEDULER =
         Executors.newSingleThreadScheduledExecutor(runnable -> {
@@ -180,6 +181,23 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         scheduleResidencyUpload(generation, 50L);
     }
 
+    public static void onPlannedFirstFrameMaterialDemand(long generation) {
+        if (!Options.materialCompatEnabled || !Options.materialCompatCtmEnabled || generation <= 0) {
+            return;
+        }
+        if (generation != activeResidencyGeneration) {
+            return;
+        }
+        if (activeResidencyRoot == null || activeResidencySnapshot == null) {
+            return;
+        }
+        if (ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty()) {
+            return;
+        }
+        FIRST_FRAME_PLAN_REQUESTS.incrementAndGet();
+        scheduleResidencyUpload(generation, 0L);
+    }
+
     public static void requestFirstFrameVisibleResidency(long generation) {
         if (!Options.materialCompatEnabled || !Options.materialCompatCtmEnabled || generation <= 0) {
             return;
@@ -209,9 +227,11 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         json.addProperty("lastBatchSize", LAST_RESIDENCY_BATCH_SIZE.get());
         json.addProperty("scheduleEvents", RESIDENCY_SCHEDULE_EVENTS.get());
         json.addProperty("uploadEvents", RESIDENCY_UPLOAD_EVENTS.get());
+        json.addProperty("firstFramePlanRequests", FIRST_FRAME_PLAN_REQUESTS.get());
         json.addProperty("firstFrameDrainRequests", FIRST_FRAME_DRAIN_REQUESTS.get());
         json.addProperty("visibleDebounceMs", 150);
         json.addProperty("prewarmDebounceMs", 50);
+        json.addProperty("firstFramePlanDebounceMs", 0);
         json.addProperty("firstFrameDrainDebounceMs", 0);
         json.addProperty("coalescesPendingRequests", true);
         return json;
@@ -586,6 +606,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         activeResidencyCacheKey = cacheKey == null ? "" : cacheKey;
         LAST_RESIDENCY_VISIBLE_COUNT.set(0L);
         LAST_RESIDENCY_BATCH_SIZE.set(0L);
+        FIRST_FRAME_PLAN_REQUESTS.set(0L);
         FIRST_FRAME_DRAIN_REQUESTS.set(0L);
     }
 

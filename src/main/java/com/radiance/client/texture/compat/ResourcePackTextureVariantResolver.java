@@ -7,6 +7,7 @@ import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
+import com.radiance.client.texture.material.ResourceMaterialResidencyDemand;
 import com.radiance.client.vertex.PBRVertexFormatElements;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -3253,6 +3254,8 @@ public final class ResourcePackTextureVariantResolver {
                 if (ResourceMaterialRegistry.isPendingCompatMaterialId(resolved.spriteId())) {
                     rulePendingCompatVirtualOutputCount.incrementAndGet();
                     methodPendingCompatVirtualOutputs.incrementAndGet(method.ordinal());
+                    ResourceMaterialResidencyDemand.enqueuePlannedFirstFrame(
+                        ResourceMaterialRegistry.activeSnapshot().generation(), resolved.spriteId());
                 }
             }
         }

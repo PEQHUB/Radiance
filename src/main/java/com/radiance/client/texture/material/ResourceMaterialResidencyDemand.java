@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ResourceMaterialResidencyDemand {
     private static final Object GENERATION_LOCK = new Object();
     private static volatile long activeGeneration = 0L;
+    private static Set<Integer> plannedFirstFrameMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> prewarmMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> visibleMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> residentVisibleMaterials = ConcurrentHashMap.newKeySet();
@@ -24,6 +25,8 @@ public final class ResourceMaterialResidencyDemand {
     private static Set<Integer> failedMaterials = ConcurrentHashMap.newKeySet();
     private static final AtomicLong visibleRequestEvents = new AtomicLong();
     private static final AtomicLong visibleUniqueRequests = new AtomicLong();
+    private static final AtomicLong plannedFirstFrameRequestEvents = new AtomicLong();
+    private static final AtomicLong plannedFirstFrameUniqueRequests = new AtomicLong();
     private static final AtomicLong prewarmRequestEvents = new AtomicLong();
     private static final AtomicLong prewarmUniqueRequests = new AtomicLong();
     private static final AtomicLong visiblePriorityCandidates = new AtomicLong();
@@ -38,6 +41,7 @@ public final class ResourceMaterialResidencyDemand {
                 return;
             }
             activeGeneration = generation;
+            plannedFirstFrameMaterials = ConcurrentHashMap.newKeySet();
             prewarmMaterials = ConcurrentHashMap.newKeySet();
             visibleMaterials = ConcurrentHashMap.newKeySet();
             residentVisibleMaterials = ConcurrentHashMap.newKeySet();
@@ -45,10 +49,29 @@ public final class ResourceMaterialResidencyDemand {
             failedMaterials = ConcurrentHashMap.newKeySet();
             visibleRequestEvents.set(0L);
             visibleUniqueRequests.set(0L);
+            plannedFirstFrameRequestEvents.set(0L);
+            plannedFirstFrameUniqueRequests.set(0L);
             prewarmRequestEvents.set(0L);
             prewarmUniqueRequests.set(0L);
             visiblePriorityCandidates.set(0L);
             visibleResidentEvents.set(0L);
+        }
+    }
+
+    public static void enqueuePlannedFirstFrame(long generation, int materialId) {
+        if (generation <= 0L || materialId < 0) {
+            return;
+        }
+        ensureGeneration(generation);
+        if (generation != activeGeneration) {
+            return;
+        }
+        plannedFirstFrameRequestEvents.incrementAndGet();
+        if (plannedFirstFrameMaterials.add(materialId)) {
+            plannedFirstFrameUniqueRequests.incrementAndGet();
+            prewarmMaterials.add(materialId);
+            requestedMaterials.add(materialId);
+            ResourcePackRuntimeMaterialBootstrap.onPlannedFirstFrameMaterialDemand(generation);
         }
     }
 
@@ -112,6 +135,7 @@ public final class ResourceMaterialResidencyDemand {
         for (Integer materialId : materialIds) {
             if (materialId != null) {
                 requestedMaterials.remove(materialId);
+                plannedFirstFrameMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
                 failedMaterials.remove(materialId);
                 if (visibleMaterials.contains(materialId)
@@ -132,6 +156,7 @@ public final class ResourceMaterialResidencyDemand {
         for (Integer materialId : materialIds) {
             if (materialId != null && materialId >= 0) {
                 requestedMaterials.remove(materialId);
+                plannedFirstFrameMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
                 failedMaterials.add(materialId);
             }
@@ -153,6 +178,8 @@ public final class ResourceMaterialResidencyDemand {
         json.addProperty("generationMatches", generation == activeGeneration);
         json.addProperty("visibleRequestEvents", visibleRequestEvents.get());
         json.addProperty("visibleUniqueMaterialCount", visibleMaterials.size());
+        json.addProperty("plannedFirstFrameRequestEvents", plannedFirstFrameRequestEvents.get());
+        json.addProperty("plannedFirstFrameUniqueMaterialCount", plannedFirstFrameMaterials.size());
         json.addProperty("prewarmRequestEvents", prewarmRequestEvents.get());
         json.addProperty("prewarmUniqueMaterialCount", prewarmMaterials.size());
         json.addProperty("requestedUniqueMaterialCount", requestedMaterials.size());
