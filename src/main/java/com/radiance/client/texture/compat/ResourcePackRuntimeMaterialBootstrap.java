@@ -78,7 +78,14 @@ public final class ResourcePackRuntimeMaterialBootstrap {
 
         ResourceMaterialResidencyDemand.resetForGeneration(generation);
         long startedNanos = System.nanoTime();
-        RuntimeRoot root = buildRoot(resourceManager, generation);
+        String cacheKey = cacheKey(resourceManager);
+        JsonObject cachedRoot = TextureLoaderDiskCache.readRoot(cacheKey);
+        RuntimeRoot root = runtimeRootFromCache(cachedRoot, generation);
+        boolean cacheHit = root != null;
+        if (root == null) {
+            root = buildRoot(resourceManager, generation);
+            TextureLoaderDiskCache.writeRoot(cacheKey, root.root());
+        }
         if (root.dependencyCount() <= 0) {
             PUBLISHED_GENERATION.compareAndSet(PUBLISHED_GENERATION.get(), generation);
             JsonObject statusEvent = new JsonObject();
@@ -104,6 +111,8 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         statusEvent.addProperty("elapsedMs", ms);
         statusEvent.addProperty("materialTableUploaded", tableUploaded);
         statusEvent.addProperty("packStackHash", packStackHash(generation, root.dependencyCount()));
+        statusEvent.addProperty("cacheHit", cacheHit);
+        statusEvent.addProperty("cacheKey", cacheKey);
         statusEvent.addProperty("ctmDemandResidency", Options.ctmDemandResidency);
         statusEvent.addProperty("fullPreloadDiagnostic", Options.materialCompatFullPreloadDiagnostic);
         ResourceMaterialRuntimeStatus.write("bootstrapPublished", generation, statusEvent);
@@ -167,6 +176,10 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         json.addProperty("uploadEvents", RESIDENCY_UPLOAD_EVENTS.get());
         json.addProperty("debounceMs", 150);
         return json;
+    }
+
+    public static JsonObject cacheStatusJson() {
+        return TextureLoaderDiskCache.statusJson();
     }
 
     private static RuntimeRoot buildRoot(ResourceManager resourceManager, long generation) {
@@ -247,6 +260,49 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         root.add("activeCtmAtlasDependencies", activeCtm);
         root.add("materialUniverse", materialUniverse);
         return new RuntimeRoot(root, dependencies.size(), present, propertyCount);
+    }
+
+    private static RuntimeRoot runtimeRootFromCache(JsonObject cachedRoot, long generation) {
+        if (cachedRoot == null || !cachedRoot.has("activeCtmAtlasDependencies")
+            || !cachedRoot.get("activeCtmAtlasDependencies").isJsonObject()) {
+            return null;
+        }
+        JsonObject root = cachedRoot.deepCopy();
+        JsonObject activeCtm = root.getAsJsonObject("activeCtmAtlasDependencies");
+        int dependencyCount = intProperty(activeCtm, "uniqueTiles");
+        int presentDependencyCount = intProperty(activeCtm, "presentTiles");
+        int propertyCount = root.has("materialUniverse") && root.get("materialUniverse").isJsonObject()
+            ? intProperty(root.getAsJsonObject("materialUniverse"), "ctmPropertyFiles")
+            : 0;
+        String packStackHash = packStackHash(generation, dependencyCount);
+        root.addProperty("packStackHash", packStackHash);
+        if (root.has("materialUniverse") && root.get("materialUniverse").isJsonObject()) {
+            root.getAsJsonObject("materialUniverse").addProperty("packStackHash", packStackHash);
+        }
+        return new RuntimeRoot(root, dependencyCount, presentDependencyCount, propertyCount);
+    }
+
+    private static String cacheKey(ResourceManager resourceManager) {
+        StringBuilder key = new StringBuilder("ctm-v1|legacy=")
+            .append(Options.materialCompatLegacyMcPatcherEnabled)
+            .append("|namespaces=");
+        try {
+            java.util.ArrayList<String> namespaces = new java.util.ArrayList<>(resourceManager.getAllNamespaces());
+            namespaces.sort(String::compareTo);
+            key.append(String.join(",", namespaces));
+        } catch (Exception e) {
+            key.append("unknown");
+        }
+        key.append("|packs=");
+        try {
+            java.util.ArrayList<String> packs = new java.util.ArrayList<>();
+            resourceManager.streamResourcePacks().forEach(pack -> packs.add(String.valueOf(pack)));
+            packs.sort(String::compareTo);
+            key.append(String.join(",", packs));
+        } catch (Exception e) {
+            key.append("unknown");
+        }
+        return TextureLoaderDiskCache.keyFor(key.toString());
     }
 
     private static int collectRoot(ResourceManager resourceManager, String root,
