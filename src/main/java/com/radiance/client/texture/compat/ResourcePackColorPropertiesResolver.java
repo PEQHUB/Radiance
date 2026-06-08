@@ -15,7 +15,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Properties;
 import net.minecraft.world.biome.Biome;
-import net.minecraft.world.biome.ColorResolver;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
@@ -25,6 +24,7 @@ import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.BlockRenderView;
+import net.minecraft.world.WorldView;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -376,7 +376,7 @@ public final class ResourcePackColorPropertiesResolver {
             }
             PaletteImage palette = blockPalettes.get(normalized);
             if (palette != null && world != null && pos != null) {
-                return world.getColor(pos, palette.colorResolver()) & 0x00FFFFFF;
+                return palette.sample(world, pos, vanillaRgb) & 0x00FFFFFF;
             }
             return vanillaRgb & 0x00FFFFFF;
         }
@@ -423,8 +423,14 @@ public final class ResourcePackColorPropertiesResolver {
             return OptionalInt.of(rgb);
         }
 
-        ColorResolver colorResolver() {
-            return this::sample;
+        int sample(BlockRenderView world, BlockPos pos, int fallbackRgb) {
+            if (world instanceof WorldView worldView) {
+                try {
+                    return sample(worldView.getBiome(pos).value(), pos.getX(), pos.getZ());
+                } catch (Throwable ignored) {
+                }
+            }
+            return fallbackRgb & 0x00FFFFFF;
         }
 
         int sample(Biome biome, double x, double z) {
