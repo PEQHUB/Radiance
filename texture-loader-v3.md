@@ -80,8 +80,9 @@ logs.
   layer payloads, transformed vanilla tier frame-0 layer payloads, and explicit
   animation-mode frame byte payloads.
 - CTM prewarm/first-frame readiness now has a requested-material queue,
-  failed-material tracking, shorter prewarm scheduling, and bounded demand
-  upload passes. It is still not a fully blocking no-pop-in first-frame gate.
+  failed-material tracking, shorter prewarm scheduling, bounded demand upload
+  passes, and a bounded renderer gate while visible CTM material residency is
+  still collecting or actively progressing.
 - Texture animation payloads are skipped in the default frozen-animation mode.
   If animation updates are explicitly enabled, frame conversion is cached, but
   the diagnostic native animation ABI is still fixed-layer.
@@ -128,8 +129,9 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- A fully blocking first-frame CTM no-pop-in gate is still remaining
-  architecture work.
+- The first-frame CTM gate is bounded rather than absolute: it releases on
+  readiness, unrecoverable stalled fallback, or timeout to avoid wedging the
+  renderer behind a broken pack/resource state.
 - The payload cache key follows the active resource-pack selection plus
   resource-pack file size/mtime inventory.
 - Patrix 128x runtime completion must not be claimed until the validation matrix
