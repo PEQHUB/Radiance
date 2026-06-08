@@ -73,6 +73,10 @@ public class TextureTracker {
         vanillaBlockAtlasBypassSkippedSprites++;
     }
 
+    public static void recordVanillaBlockAtlasUploadBypass(long skippedSprites) {
+        vanillaBlockAtlasBypassSkippedSprites += Math.max(0L, skippedSprites);
+    }
+
     public static Map<Identifier, Integer> textureID2GLID = new ConcurrentHashMap<>();
     public static Map<Integer, Texture> GLID2Texture = new ConcurrentHashMap<>();
 

@@ -49,9 +49,11 @@ import static org.lwjgl.system.MemoryUtil.memPutByte;
 public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("SpriteAtlasTexture");
+    private static boolean lastBlockAtlasExtractionSucceeded = false;
 
     @Inject(method = "upload(Lnet/minecraft/client/texture/SpriteLoader$StitchResult;)V",
-        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/texture/Sprite;upload()V"))
+        at = @At(value = "INVOKE", target = "Lnet/minecraft/client/texture/Sprite;upload()V"),
+        cancellable = true)
     public void setImageTargetIDBeforeUpload(SpriteLoader.StitchResult stitchResult,
         CallbackInfo ci, @Local Sprite sprite) {
         int id = getGlId();
@@ -59,6 +61,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         SpriteAtlasTexture self = (SpriteAtlasTexture) (Object) this;
         if (shouldBypassVanillaBlockAtlas(self.getId())) {
             TextureTracker.beginVanillaBlockAtlasUploadBypass(id);
+            Map<Identifier, Sprite> regions = stitchResult.regions();
+            TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
+            extractSpritesForTextureArrays(stitchResult, ci);
+            TextureTracker.endVanillaBlockAtlasUploadBypass();
+            if (lastBlockAtlasExtractionSucceeded) {
+                ci.cancel();
+            }
         }
     }
 
@@ -78,13 +87,14 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
     }
 
     /**
-     * After all sprites are uploaded to the atlas, extract sprite data and send to C++.
+     * Extract sprite data before vanilla iterates the block-atlas sprite upload loop.
      * Minimal Java role: sort, build metadata, send raw pixels. C++ owns the rest.
      */
     @Inject(method = "upload(Lnet/minecraft/client/texture/SpriteLoader$StitchResult;)V",
         at = @At("RETURN"))
     public void extractSpritesForTextureArrays(SpriteLoader.StitchResult stitchResult,
         CallbackInfo ci) {
+        lastBlockAtlasExtractionSucceeded = false;
         // Only process the block atlas
         SpriteAtlasTexture self = (SpriteAtlasTexture) (Object) this;
         Identifier atlasId = self.getId();
@@ -656,6 +666,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.addSummary("animatedSprites", animatedCount);
         TextureReloadTimeline.addSummary("albedoUploadedSprites", uploaded);
         TextureReloadTimeline.finish();
+        lastBlockAtlasExtractionSucceeded = true;
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
     }
 
