@@ -139,10 +139,9 @@ public class Options {
     public static final String HDR_PEAK_NITS_KEY = "options.video.hdr_peak_nits";
     public static final String HDR_PAPER_WHITE_NITS_KEY = "options.video.hdr_paper_white_nits";
 
-    // Upscaler (Off / FSR3 / DLSS SR)
+    // Upscaler (Off / DLSS SR)
     public static final String UPSCALER_MODE_KEY = "options.video.upscaler_mode";
     public static final String UPSCALER_MODE_OFF = "options.video.upscaler_mode.off";
-    public static final String UPSCALER_MODE_FSR3 = "options.video.upscaler_mode.fsr3";
     public static final String UPSCALER_MODE_DLSS_SR = "options.video.upscaler_mode.dlss_sr";
 
     // Upscaler Quality (applies to DLSS, FSR, and future upscalers)
@@ -216,7 +215,6 @@ public class Options {
     public static boolean vsync = true;
     // Upscaler selection (menu-facing)
     // 0 = DLSS-RR (Ray Reconstruction)
-    // 1 = FSR3 (FidelityFX Super Resolution 3)
     // 2 = Off
     public static int upscalerMode = 0;
     public static int upscalerQuality = 2;  // 0=Performance, 1=Balanced, 2=Quality, 3=Native/DLAA, 4=Custom
@@ -483,6 +481,37 @@ public class Options {
         try {
             nativeSetOfflineAperture(computeApertureRadius(), false);
         } catch (UnsatisfiedLinkError ignored) {}
+    }
+
+    public static void setSensorPreset(int index, boolean write) {
+        applySensorPreset(index);
+        syncApertureToNative();
+        if (write) overwriteConfig();
+    }
+
+    public static void setFocalLengthMM(int value, boolean write) {
+        focalLengthMM = clamp(value, 14, 200);
+        syncApertureToNative();
+        if (write) overwriteConfig();
+    }
+
+    public static void setFStop(float value, boolean write) {
+        fStop = Math.max(1.4f, Math.min(22.0f, value));
+        syncApertureToNative();
+        if (write) overwriteConfig();
+    }
+
+    public static void setFocusMode(int mode, boolean write) {
+        focusMode = clamp(mode, 0, 2);
+        if (write) overwriteConfig();
+    }
+
+    public static void setOfflineFocalDistance(float dist, boolean write) {
+        offlineFocalDistance = Math.max(0.5f, Math.min(256.0f, dist));
+        try {
+            nativeSetOfflineFocalDistance(offlineFocalDistance, write);
+        } catch (UnsatisfiedLinkError ignored) {}
+        if (write) overwriteConfig();
     }
 
     public static boolean outputScale2x = false;
@@ -1052,14 +1081,13 @@ public class Options {
             dlssDEnabled = Boolean.parseBoolean(props.getProperty("dlssDEnabled", String.valueOf(dlssDEnabled)));
 
             // Migration / consistency:
-            // New upscalerMode: 0=DLSS-RR, 1=FSR3, 2=Off
+            // Current upscalerMode: 0=DLSS-RR, 2=Off. Old 1=FSR3 configs migrate to Off.
             // Old configs had dlssDEnabled as the primary flag.
             if (dlssDEnabled) {
                 upscalerMode = 0; // DLSS-RR
-            } else if (upscalerMode != 2) {
-                upscalerMode = 1; // FSR3
+            } else {
+                upscalerMode = 2; // Off
             }
-            // upscalerMode=2 (Off) is preserved from config
 
             setMinExposure(Integer.parseInt(props.getProperty("minExposureTenK", String.valueOf(minExposureTenK))), false);
             setMaxExposure(Integer.parseInt(props.getProperty("maxExposure", String.valueOf(maxExposure))), false);
@@ -1087,7 +1115,7 @@ public class Options {
             windowHeight = Integer.parseInt(props.getProperty("windowHeight", String.valueOf(windowHeight)));
 
             loggingEnabled = Boolean.parseBoolean(props.getProperty("loggingEnabled", String.valueOf(loggingEnabled)));
-            gpuDebugLabels = Boolean.parseBoolean(props.getProperty("gpuDebugLabels", String.valueOf(loggingEnabled)));
+            gpuDebugLabels = Boolean.parseBoolean(props.getProperty("gpuDebugLabels", String.valueOf(gpuDebugLabels)));
             nativeSetGpuDebugLabels(gpuDebugLabels, false);
             // Full file logging waits for renderer init, but Vulkan debug labels are safe to arm now.
 
@@ -3012,16 +3040,19 @@ public class Options {
         if (write) overwriteConfig();
     }
 
-    // Upscaler modes: 0=DLSS-RR, 1=FSR3, 2=Off
+    // Upscaler modes: 0=DLSS-RR, 2=Off. Accept old 1=FSR3 as Off.
     public static void setUpscalerMode(int mode, boolean write) {
         int clamped = Math.max(0, Math.min(2, mode));
+        if (clamped == 1) {
+            clamped = 2;
+        }
 
         if (clamped == 0) {
             try {
                 if (!Pipeline.isNativeModuleAvailable("render_pipeline.module.dlss.name")) {
                     RadianceClient.LOGGER.warn(
-                        "DLSS requested but DLSS module is not available; falling back to FSR3.");
-                    clamped = 1;
+                        "DLSS requested but DLSS module is not available; disabling upscaling.");
+                    clamped = 2;
                 }
             } catch (UnsatisfiedLinkError ignored) {
                 // Native not loaded yet; keep requested value.
@@ -3106,7 +3137,7 @@ public class Options {
     }
 
     public static void setDlssDEnabled(boolean enabled, boolean write) {
-        setUpscalerMode(enabled ? 0 : 1, write);
+        setUpscalerMode(enabled ? 0 : 2, write);
     }
 
     public static void setUpscalerPreset(int preset, boolean write) {

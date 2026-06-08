@@ -35,9 +35,9 @@ public class UpscalerPopulator implements ContentPopulator {
 
         SelectionDropdownWidget upscalerModeDropdown = new SelectionDropdownWidget(
             0, 0, 150, 20, "Upscaler",
-            new String[]{"DLSS-RR", "FSR3", "Off"},
-            Options.upscalerMode, value -> {
-                Options.setUpscalerMode(value, true);
+            new String[]{"DLSS-RR", "Off"},
+            Options.upscalerMode == 2 ? 1 : 0, value -> {
+                Options.setUpscalerMode(value == 0 ? 0 : 2, true);
                 screen.refreshContent();
             });
 
@@ -47,10 +47,10 @@ public class UpscalerPopulator implements ContentPopulator {
                 value -> Options.setDlssDEnabled(value, true));
 
             spatial.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions))
-                  .tooltip("DLSS-RR = NVIDIA ray reconstruction. FSR3 = AMD upscaler. DLSS-D denoises without upscaling.");
+                  .tooltip("DLSS-RR = NVIDIA ray reconstruction. DLSS-D denoises without upscaling.");
         } else {
             spatial.addTwoWidgets(upscalerModeDropdown, null)
-                  .tooltip("DLSS-RR = NVIDIA ray reconstruction. FSR3 = AMD upscaler.");
+                  .tooltip("DLSS-RR = NVIDIA ray reconstruction.");
         }
 
         if (Options.upscalerMode != 2) {

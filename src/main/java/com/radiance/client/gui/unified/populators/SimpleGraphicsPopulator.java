@@ -30,9 +30,9 @@ public class SimpleGraphicsPopulator implements ContentPopulator {
 
         SelectionDropdownWidget upscalerMode = new SelectionDropdownWidget(
             0, 0, 150, 20, "Upscaler",
-            new String[]{"DLSS-RR", "FSR3", "Off"},
-            Options.upscalerMode, value -> {
-                Options.setUpscalerMode(value, true);
+            new String[]{"DLSS-RR", "Off"},
+            Options.upscalerMode == 2 ? 1 : 0, value -> {
+                Options.setUpscalerMode(value == 0 ? 0 : 2, true);
                 screen.refreshContent();
             });
 

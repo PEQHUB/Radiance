@@ -34,6 +34,8 @@ public class TextureProxy {
     // Safely destroy a Vulkan texture — GC-defers image/sampler, frees ID for reuse
     public static native void destroyTexture(int id);
 
+    public static native void setTextureAlphaClass(int id, int alphaClass);
+
     public static void prepareImage(NativeImage.InternalFormat internalFormat, int id,
         int mipLevels, int width, int height) {
         switch (internalFormat) {

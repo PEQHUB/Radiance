@@ -6,6 +6,15 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      mcvr_repository:
+        description: 'MCVR repository to build with'
+        required: false
+        default: 'PEQHUB/MCVR'
+      mcvr_ref:
+        description: 'Optional MCVR ref to check out'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -36,7 +45,8 @@ jobs:
       - name: Checkout MCVR
         uses: actions/checkout@v4
         with:
-          repository: PEQHUB/MCVR
+          repository: ${{ github.event.inputs.mcvr_repository || vars.MCVR_REPOSITORY || 'PEQHUB/MCVR' }}
+          ref: ${{ github.event.inputs.mcvr_ref || vars.MCVR_REF || '' }}
           path: MCVR
           submodules: recursive
 
@@ -104,6 +114,10 @@ jobs:
           count=$(find src/main/native/include -name '*.h' | wc -l)
           echo "Generated $count JNI headers"
           [[ "$count" -gt 0 ]] || { echo "ERROR: No JNI headers generated"; exit 1; }
+          git diff --exit-code -- src/main/native/include || {
+            echo "ERROR: JNI headers changed during compileJava. Commit regenerated headers.";
+            exit 1;
+          }
 
       - name: Generate JNI headers (Windows)
         if: runner.os == 'Windows'
@@ -114,6 +128,8 @@ jobs:
           $headers = Get-ChildItem "src\main\native\include" -Filter *.h -Recurse
           Write-Host "Generated $($headers.Count) JNI headers"
           if ($headers.Count -eq 0) { throw "No JNI headers generated" }
+          git diff --exit-code -- src/main/native/include
+          if ($LASTEXITCODE -ne 0) { throw "JNI headers changed during compileJava. Commit regenerated headers." }
 
       # ── Build MCVR native library + shaders ────────────────────
       - name: Build MCVR (Linux)
