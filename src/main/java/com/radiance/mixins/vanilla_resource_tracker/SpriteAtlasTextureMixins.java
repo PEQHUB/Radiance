@@ -590,13 +590,61 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         if (uploadCount <= 0 || spriteSize <= 0 || bytesPerSprite <= 0) {
             return new SparseAuxReport(0, 0, 0, 0L);
         }
-        ByteBuffer specScratch = null;
-        ByteBuffer normalScratch = null;
-        ByteBuffer flagScratch = null;
+        final int UPDATE_SIZE = 24;
+        final int METADATA_SIZE = 12;
+        final int CHANNEL_SPECULAR = 1;
+        final int CHANNEL_NORMAL = 2;
+        final int CHANNEL_FLAG = 4;
+
         int specUploaded = 0;
         int normalUploaded = 0;
         int flagUploaded = 0;
-        long bytesUploaded = 0L;
+        int updateCount = 0;
+        int metadataCount = 0;
+        int layerPayloadCount = 0;
+        for (int i = 0; i < uploadCount; i++) {
+            Sprite sprite = sorted.get(i).getValue();
+            SpriteContents contents = sprite.getContents();
+            NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
+            if (img == null) continue;
+            INativeImageExt auxExt = (INativeImageExt) (Object) img;
+            boolean hasSpec = auxExt.neoVoxelRT$getSpecularNativeImage() != null;
+            boolean hasNormal = auxExt.neoVoxelRT$getNormalNativeImage() != null;
+            boolean hasFlag = auxExt.neoVoxelRT$getFlagNativeImage() != null;
+            if (hasSpec || hasNormal || hasFlag) {
+                updateCount++;
+                if (hasSpec) layerPayloadCount++;
+                if (hasNormal) {
+                    layerPayloadCount++;
+                    metadataCount++;
+                }
+                if (hasFlag) layerPayloadCount++;
+            }
+        }
+        if (updateCount == 0 || layerPayloadCount == 0) {
+            LOGGER.info("[TextureSystem] Sparse aux batch: updates=0 bytes=0 metadataUpdates=0");
+            return new SparseAuxReport(0, 0, 0, 0L);
+        }
+
+        long pixelBytesLong = (long) layerPayloadCount * bytesPerSprite;
+        long updateBytesLong = (long) updateCount * UPDATE_SIZE;
+        long metadataBytesLong = (long) metadataCount * METADATA_SIZE;
+        if (pixelBytesLong > Integer.MAX_VALUE || updateBytesLong > Integer.MAX_VALUE
+            || metadataBytesLong > Integer.MAX_VALUE) {
+            LOGGER.warn("[TextureSystem] Sparse aux batch too large: layers={} pixelBytes={} updates={}",
+                layerPayloadCount, pixelBytesLong, updateCount);
+            return new SparseAuxReport(0, 0, 0, 0L);
+        }
+
+        ByteBuffer updateBuf = ByteBuffer.allocateDirect((int) updateBytesLong)
+            .order(ByteOrder.nativeOrder());
+        ByteBuffer metadataBuf = ByteBuffer.allocateDirect(Math.max(1, (int) metadataBytesLong))
+            .order(ByteOrder.nativeOrder());
+        ByteBuffer pixelBuf = ByteBuffer.allocateDirect((int) pixelBytesLong)
+            .order(ByteOrder.nativeOrder());
+        int updateOffset = 0;
+        int metadataOffset = 0;
+        int pixelOffset = 0;
         long generation = TextureArrayBridge.getActiveTextureGeneration();
         for (int i = 0; i < uploadCount; i++) {
             Sprite sprite = sorted.get(i).getValue();
@@ -608,83 +656,96 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             int h = contents.getHeight();
 
             NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
+            NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+            NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
+            if (specImg == null && normalImg == null && flagImg == null) {
+                continue;
+            }
+
+            int updateBase = updateOffset;
+            updateBuf.putInt(updateBase, i);
+            int channelMask = 0;
+            int specOffset = -1;
+            int normalOffset = -1;
+            int flagOffset = -1;
+
             if (specImg != null) {
                 int specH = Math.min(specImg.getHeight(), Math.max(1, h));
                 TextureTracker.spriteSpecularCache.put(i,
                     copySpriteImage(specImg, specImg.getWidth(), specH, spriteSize));
                 TextureTracker.spriteBaselineSpecularCache.put(i,
                     copySpriteImage(specImg, specImg.getWidth(), specH, spriteSize));
-                if (specScratch == null) {
-                    specScratch = ByteBuffer.allocateDirect(bytesPerSprite).order(ByteOrder.nativeOrder());
-                }
-                writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, spriteSize, memAddress(specScratch));
-                try {
-                    if (TextureArrayBridge.nativeUpdateSpecularLayer(i, memAddress(specScratch), bytesPerSprite,
-                        generation)) {
-                        specUploaded++;
-                        bytesUploaded += bytesPerSprite;
-                    }
-                } catch (UnsatisfiedLinkError ignored) {
-                }
+                specOffset = pixelOffset;
+                writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, spriteSize,
+                    memAddress(pixelBuf) + pixelOffset);
+                pixelOffset += bytesPerSprite;
+                channelMask |= CHANNEL_SPECULAR;
+                specUploaded++;
             }
 
-            NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
             if (normalImg != null) {
                 int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
                 TextureTracker.spriteNormalCache.put(i,
                     copySpriteImage(normalImg, normalImg.getWidth(), normalH, spriteSize));
                 TextureTracker.spriteBaselineNormalCache.put(i,
                     copySpriteImage(normalImg, normalImg.getWidth(), normalH, spriteSize));
-                if (normalScratch == null) {
-                    normalScratch = ByteBuffer.allocateDirect(bytesPerSprite).order(ByteOrder.nativeOrder());
-                }
+                normalOffset = pixelOffset;
                 writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, spriteSize,
-                    memAddress(normalScratch));
-                boolean uploaded = false;
-                try {
-                    uploaded = TextureArrayBridge.nativeUpdateNormalLayer(i, memAddress(normalScratch),
-                        bytesPerSprite, generation);
-                } catch (UnsatisfiedLinkError ignored) {
+                    memAddress(pixelBuf) + pixelOffset);
+                pixelOffset += bytesPerSprite;
+                channelMask |= CHANNEL_NORMAL;
+                normalUploaded++;
+                int flags = TextureTracker.SPRITE_FLAG_HAS_NORMAL
+                    | TextureTracker.encodeSpriteSourceFlags(
+                        TextureTracker.spriteSpecularSource[i], TextureTracker.spriteNormalSource[i]);
+                if (specImg != null) {
+                    flags |= TextureTracker.SPRITE_FLAG_HAS_SPECULAR;
                 }
-                if (uploaded) {
-                    normalUploaded++;
-                    bytesUploaded += bytesPerSprite;
-                    int flags = TextureTracker.SPRITE_FLAG_HAS_NORMAL
-                        | TextureTracker.encodeSpriteSourceFlags(
-                            TextureTracker.spriteSpecularSource[i], TextureTracker.spriteNormalSource[i]);
-                    int heightRange = heightRangePacked(normalImg, img);
-                    if (heightRange >= 0) {
-                        flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
-                    }
-                    try {
-                        TextureArrayBridge.nativeUpdateSpriteHeightMetadata(i, flags, heightRange, generation);
-                    } catch (UnsatisfiedLinkError ignored) {
-                    }
+                int heightRange = heightRangePacked(normalImg, img);
+                if (heightRange >= 0) {
+                    flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
                 }
+                metadataBuf.putInt(metadataOffset, i);
+                metadataBuf.putInt(metadataOffset + 4, flags);
+                metadataBuf.putInt(metadataOffset + 8, heightRange);
+                metadataOffset += METADATA_SIZE;
             }
 
-            NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
             if (flagImg != null) {
                 int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
                 TextureTracker.spriteFlagCache.put(i,
                     copySpriteImage(flagImg, flagImg.getWidth(), flagH, spriteSize));
-                if (flagScratch == null) {
-                    flagScratch = ByteBuffer.allocateDirect(bytesPerSprite).order(ByteOrder.nativeOrder());
-                }
-                writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, spriteSize, memAddress(flagScratch));
-                try {
-                    if (TextureArrayBridge.nativeUpdateFlagLayer(i, memAddress(flagScratch), bytesPerSprite,
-                        generation)) {
-                        flagUploaded++;
-                        bytesUploaded += bytesPerSprite;
-                    }
-                } catch (UnsatisfiedLinkError ignored) {
-                }
+                flagOffset = pixelOffset;
+                writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, spriteSize,
+                    memAddress(pixelBuf) + pixelOffset);
+                pixelOffset += bytesPerSprite;
+                channelMask |= CHANNEL_FLAG;
+                flagUploaded++;
             }
+
+            updateBuf.putInt(updateBase + 4, channelMask);
+            updateBuf.putInt(updateBase + 8, specOffset);
+            updateBuf.putInt(updateBase + 12, normalOffset);
+            updateBuf.putInt(updateBase + 16, flagOffset);
+            updateBuf.putInt(updateBase + 20, 0);
+            updateOffset += UPDATE_SIZE;
         }
-        LOGGER.info("[TextureSystem] Sparse aux staged: {} specular, {} normal, {} flag layers ({} KB)",
-            specUploaded, normalUploaded, flagUploaded, bytesUploaded / 1024L);
-        return new SparseAuxReport(specUploaded, normalUploaded, flagUploaded, bytesUploaded);
+        boolean uploaded = false;
+        try {
+            uploaded = TextureArrayBridge.nativeReceiveSparseAuxBatch(
+                memAddress(updateBuf), updateCount, memAddress(pixelBuf), pixelOffset,
+                metadataCount > 0 ? memAddress(metadataBuf) : 0L, metadataCount, generation);
+        } catch (UnsatisfiedLinkError ignored) {
+        }
+        if (!uploaded) {
+            LOGGER.warn("[TextureSystem] Sparse aux batch upload failed: updates={} bytes={} metadataUpdates={}",
+                updateCount, pixelOffset, metadataCount);
+            return new SparseAuxReport(0, 0, 0, 0L);
+        }
+        LOGGER.info("[TextureSystem] Sparse aux batch: updates={} bytes={} metadataUpdates={} "
+                + "specular={} normal={} flag={}",
+            updateCount, pixelOffset, metadataCount, specUploaded, normalUploaded, flagUploaded);
+        return new SparseAuxReport(specUploaded, normalUploaded, flagUploaded, pixelOffset);
     }
 
     private static int heightRangePacked(NativeImage normal, NativeImage albedo) {

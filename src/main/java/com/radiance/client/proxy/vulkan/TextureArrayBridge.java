@@ -222,6 +222,8 @@ public final class TextureArrayBridge {
         long generation);
     public static native boolean nativeUpdateSpriteHeightMetadata(int spriteId, int flags,
         int heightRangePacked, long generation);
+    public static native boolean nativeReceiveSparseAuxBatch(long updatePtr, int updateCount,
+        long pixelPtr, int pixelBytes, long metadataPtr, int metadataCount, long generation);
     public static native boolean nativeReceiveTextureRules(long dataPtr, int count, long generation);
     public static native boolean nativeReceiveMaterialTable(long dataPtr, int count, long generation);
     public static native boolean nativeReceiveMaterialTexturePage(int page, int layerSize,
