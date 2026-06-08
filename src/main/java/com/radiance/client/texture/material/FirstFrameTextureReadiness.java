@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
 import net.minecraft.client.MinecraftClient;
 
 /**
@@ -90,6 +91,13 @@ public final class FirstFrameTextureReadiness {
             && (nativePagePoolBusy || pendingMipPageCount > 0 || unreadyAllocatedPageCount > 0);
         boolean materialProgressPending = visibleFallbackMaterialCount > 0
             && (residencyWorkPending || nativePageProgressPending);
+        boolean firstFrameDrainRequested = worldPresent
+            && hasCompatResidency
+            && visibleFallbackMaterialCount > 0
+            && requestedUniqueMaterialCount > 0;
+        if (firstFrameDrainRequested) {
+            ResourcePackRuntimeMaterialBootstrap.requestFirstFrameVisibleResidency(generation);
+        }
         boolean materialReady = !collectingMaterialRegistry
             && (!hasCompatResidency
             || (!collectingVisibleDemand && !materialProgressPending));
@@ -124,6 +132,7 @@ public final class FirstFrameTextureReadiness {
         json.addProperty("residencyWorkPending", residencyWorkPending);
         json.addProperty("nativePageProgressPending", nativePageProgressPending);
         json.addProperty("materialProgressPending", materialProgressPending);
+        json.addProperty("firstFrameDrainRequested", firstFrameDrainRequested);
         json.addProperty("materialReady", materialReady);
         json.addProperty("timedOut", timedOut);
         json.addProperty("ready", ready);
