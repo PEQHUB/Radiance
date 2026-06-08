@@ -1,11 +1,13 @@
 package com.radiance.client.texture.compat;
 
+import com.google.gson.JsonObject;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -14,6 +16,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.world.biome.Biome;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.MinecraftClient;
@@ -32,6 +37,7 @@ import org.slf4j.LoggerFactory;
 public final class ResourcePackColorPropertiesResolver {
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
     private static volatile Cache cache = Cache.empty();
+    private static final ColorStats STATS = new ColorStats();
 
     private ResourcePackColorPropertiesResolver() {
     }
@@ -56,6 +62,10 @@ public final class ResourcePackColorPropertiesResolver {
         return build(resourceManager, legacyMcPatcher);
     }
 
+    public static JsonObject colorDiagnosticsJson() {
+        return STATS.toJson();
+    }
+
     private static ResourceManager currentResourceManager() {
         try {
             MinecraftClient client = MinecraftClient.getInstance();
@@ -73,6 +83,7 @@ public final class ResourcePackColorPropertiesResolver {
         }
         ColorIndex next = build(resourceManager, Options.materialCompatLegacyMcPatcherEnabled);
         cache = new Cache(resourceManager, generation, next);
+        STATS.reset(generation, next);
         if (next.fixedBlockTintCountForTest() > 0 || next.variablePaletteCountForTest() > 0) {
             LOGGER.info("[MaterialCompat] Color resolver compiled {} fixed block tints from {} flat palettes and {} fixed colormaps; {} biome palettes pending",
                 next.fixedBlockTintCountForTest(), next.flatPaletteCountForTest(),
@@ -362,6 +373,7 @@ public final class ResourcePackColorPropertiesResolver {
         public int resolveBlockColor(String blockId, int vanillaRgb) {
             Integer rgb = blockColors.get(normalizeBlockToken(blockId));
             if (rgb != null) {
+                STATS.fixedTintHits.incrementAndGet();
                 return rgb & 0x00FFFFFF;
             }
             return vanillaRgb & 0x00FFFFFF;
@@ -372,11 +384,25 @@ public final class ResourcePackColorPropertiesResolver {
             String normalized = normalizeBlockToken(blockId);
             Integer rgb = blockColors.get(normalized);
             if (rgb != null) {
+                STATS.fixedTintHits.incrementAndGet();
                 return rgb & 0x00FFFFFF;
             }
             PaletteImage palette = blockPalettes.get(normalized);
             if (palette != null && world != null && pos != null) {
-                return palette.sample(world, pos, vanillaRgb) & 0x00FFFFFF;
+                if (!(world instanceof WorldView worldView)) {
+                    STATS.paletteFallbacks.incrementAndGet();
+                    return vanillaRgb & 0x00FFFFFF;
+                }
+                try {
+                    STATS.variablePaletteSamples.incrementAndGet();
+                    return palette.sample(worldView, pos) & 0x00FFFFFF;
+                } catch (Throwable t) {
+                    STATS.recordPaletteFailure(normalized, t);
+                    return vanillaRgb & 0x00FFFFFF;
+                }
+            }
+            if (palette != null) {
+                STATS.paletteFallbacks.incrementAndGet();
             }
             return vanillaRgb & 0x00FFFFFF;
         }
@@ -423,14 +449,8 @@ public final class ResourcePackColorPropertiesResolver {
             return OptionalInt.of(rgb);
         }
 
-        int sample(BlockRenderView world, BlockPos pos, int fallbackRgb) {
-            if (world instanceof WorldView worldView) {
-                try {
-                    return sample(worldView.getBiome(pos).value(), pos.getX(), pos.getZ());
-                } catch (Throwable ignored) {
-                }
-            }
-            return fallbackRgb & 0x00FFFFFF;
+        int sample(WorldView world, BlockPos pos) {
+            return sample(world.getBiome(pos).value(), pos.getX(), pos.getZ());
         }
 
         int sample(Biome biome, double x, double z) {
@@ -462,6 +482,60 @@ public final class ResourcePackColorPropertiesResolver {
     private record Cache(ResourceManager resourceManager, long textureGeneration, ColorIndex index) {
         static Cache empty() {
             return new Cache(null, -1L, ColorIndex.empty());
+        }
+    }
+
+    private static final class ColorStats {
+        private final AtomicLong resetCount = new AtomicLong();
+        private final AtomicLong textureGeneration = new AtomicLong(-1L);
+        private final AtomicLong compiledFixedTintEntries = new AtomicLong();
+        private final AtomicLong compiledFlatPaletteCount = new AtomicLong();
+        private final AtomicLong compiledVariablePaletteCount = new AtomicLong();
+        private final AtomicLong compiledFixedBlockColormapCount = new AtomicLong();
+        private final AtomicLong fixedTintHits = new AtomicLong();
+        private final AtomicLong variablePaletteSamples = new AtomicLong();
+        private final AtomicLong paletteFallbacks = new AtomicLong();
+        private final AtomicLong paletteFailures = new AtomicLong();
+        private final Set<String> loggedPaletteFailures =
+            Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+        void reset(long generation, ColorIndex index) {
+            resetCount.incrementAndGet();
+            textureGeneration.set(generation);
+            compiledFixedTintEntries.set(index.fixedBlockTintCountForTest());
+            compiledFlatPaletteCount.set(index.flatPaletteCountForTest());
+            compiledVariablePaletteCount.set(index.variablePaletteCountForTest());
+            compiledFixedBlockColormapCount.set(index.fixedBlockColormapCountForTest());
+            fixedTintHits.set(0L);
+            variablePaletteSamples.set(0L);
+            paletteFallbacks.set(0L);
+            paletteFailures.set(0L);
+            loggedPaletteFailures.clear();
+        }
+
+        void recordPaletteFailure(String blockId, Throwable t) {
+            paletteFailures.incrementAndGet();
+            paletteFallbacks.incrementAndGet();
+            if (loggedPaletteFailures.add(blockId)) {
+                LOGGER.warn("[MaterialCompat] Palette tint fallback for {} after {}: {}", blockId,
+                    t.getClass().getSimpleName(), t.getMessage());
+            }
+        }
+
+        JsonObject toJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("textureGeneration", textureGeneration.get());
+            json.addProperty("resetCount", resetCount.get());
+            json.addProperty("fixedTintEntries", compiledFixedTintEntries.get());
+            json.addProperty("flatPaletteRules", compiledFlatPaletteCount.get());
+            json.addProperty("variablePaletteRules", compiledVariablePaletteCount.get());
+            json.addProperty("fixedBlockColormapRules", compiledFixedBlockColormapCount.get());
+            json.addProperty("fixedTintHits", fixedTintHits.get());
+            json.addProperty("variablePaletteSamples", variablePaletteSamples.get());
+            json.addProperty("paletteFallbacks", paletteFallbacks.get());
+            json.addProperty("paletteFailures", paletteFailures.get());
+            json.addProperty("uniqueLoggedPaletteFailures", loggedPaletteFailures.size());
+            return json;
         }
     }
 }
