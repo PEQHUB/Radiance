@@ -90,6 +90,10 @@ public final class ResourceMaterialResidencyDemand {
         return generation == activeGeneration && residentVisibleMaterials.contains(materialId);
     }
 
+    public static int residentVisibleMaterialCount(long generation) {
+        return generation == activeGeneration ? residentVisibleMaterials.size() : 0;
+    }
+
     public static JsonObject summaryJson(long generation) {
         JsonObject json = new JsonObject();
         json.addProperty("generation", activeGeneration);
@@ -101,6 +105,7 @@ public final class ResourceMaterialResidencyDemand {
         json.addProperty("visibleResidentMaterialCount", residentVisibleMaterials.size());
         json.addProperty("visibleFallbackMaterialCount",
             Math.max(0, visibleMaterials.size() - residentVisibleMaterials.size()));
+        json.add("scheduler", ResourcePackRuntimeMaterialBootstrap.schedulerStatusJson(generation));
         return json;
     }
 

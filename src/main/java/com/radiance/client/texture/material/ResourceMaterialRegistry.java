@@ -10,7 +10,9 @@ import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -255,6 +257,37 @@ public final class ResourceMaterialRegistry {
         try {
             return TextureArrayBridge.nativeReceiveMaterialTable(
                 org.lwjgl.system.MemoryUtil.memAddress(buffer), count, snapshot.generation());
+        } catch (UnsatisfiedLinkError e) {
+            return false;
+        }
+    }
+
+    public static boolean uploadMaterialTableEntriesToNative(Collection<Integer> materialIds) {
+        Snapshot snapshot = ACTIVE.get();
+        if (snapshot.records().isEmpty() || materialIds == null || materialIds.isEmpty()) {
+            return false;
+        }
+        LinkedHashSet<Integer> uniqueIds = new LinkedHashSet<>();
+        for (Integer materialId : materialIds) {
+            if (materialId == null || materialId < 0 || materialId >= snapshot.records().size()) {
+                continue;
+            }
+            uniqueIds.add(materialId);
+        }
+        if (uniqueIds.isEmpty()) {
+            return false;
+        }
+        ByteBuffer buffer = ByteBuffer.allocateDirect(uniqueIds.size() * MATERIAL_ENTRY_SIZE)
+            .order(ByteOrder.nativeOrder());
+        int index = 0;
+        Map<Integer, ResidencyHandle> residency = ACTIVE_RESIDENCY.get();
+        for (Integer materialId : uniqueIds) {
+            MaterialRecord record = snapshot.recordByMaterialId(materialId);
+            writeMaterialEntry(buffer, index++, record, residency.get(materialId));
+        }
+        try {
+            return TextureArrayBridge.nativeUpdateMaterialTableSparse(
+                org.lwjgl.system.MemoryUtil.memAddress(buffer), uniqueIds.size(), snapshot.generation());
         } catch (UnsatisfiedLinkError e) {
             return false;
         }

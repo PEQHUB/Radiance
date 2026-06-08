@@ -19,6 +19,9 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import net.minecraft.resource.Resource;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.util.Identifier;
@@ -40,7 +43,17 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static final AtomicLong PUBLISHED_GENERATION = new AtomicLong(-1L);
     private static final AtomicLong RESIDENCY_STARTED_GENERATION = new AtomicLong(-1L);
     private static final AtomicBoolean RESIDENCY_RUNNING = new AtomicBoolean(false);
+    private static final AtomicBoolean RESIDENCY_SCHEDULED = new AtomicBoolean(false);
     private static final AtomicLong LAST_RESIDENCY_VISIBLE_COUNT = new AtomicLong(0L);
+    private static final AtomicLong LAST_RESIDENCY_BATCH_SIZE = new AtomicLong(0L);
+    private static final AtomicLong RESIDENCY_SCHEDULE_EVENTS = new AtomicLong(0L);
+    private static final AtomicLong RESIDENCY_UPLOAD_EVENTS = new AtomicLong(0L);
+    private static final ScheduledExecutorService RESIDENCY_SCHEDULER =
+        Executors.newSingleThreadScheduledExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "RadSER Material Residency Scheduler");
+            thread.setDaemon(true);
+            return thread;
+        });
     private static volatile long activeResidencyGeneration = -1L;
     private static volatile JsonObject activeResidencyRoot = null;
     private static volatile ResourceMaterialRegistry.Snapshot activeResidencySnapshot = null;
@@ -136,7 +149,24 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             && visible.size() <= LAST_RESIDENCY_VISIBLE_COUNT.get()) {
             return;
         }
-        startResidencyUpload(root, snapshot, generation);
+        scheduleResidencyUpload(generation, 150L);
+    }
+
+    public static JsonObject schedulerStatusJson(long generation) {
+        JsonObject json = new JsonObject();
+        json.addProperty("generation", activeResidencyGeneration);
+        json.addProperty("requestedGeneration", generation);
+        json.addProperty("generationMatches", generation == activeResidencyGeneration);
+        json.addProperty("pendingQueueSize",
+            Math.max(0, ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size()
+                - ResourceMaterialResidencyDemand.residentVisibleMaterialCount(generation)));
+        json.addProperty("uploadInFlight", RESIDENCY_RUNNING.get());
+        json.addProperty("uploadScheduled", RESIDENCY_SCHEDULED.get());
+        json.addProperty("lastBatchSize", LAST_RESIDENCY_BATCH_SIZE.get());
+        json.addProperty("scheduleEvents", RESIDENCY_SCHEDULE_EVENTS.get());
+        json.addProperty("uploadEvents", RESIDENCY_UPLOAD_EVENTS.get());
+        json.addProperty("debounceMs", 150);
+        return json;
     }
 
     private static RuntimeRoot buildRoot(ResourceManager resourceManager, long generation) {
@@ -321,15 +351,38 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         return false;
     }
 
-    private static void startResidencyUpload(JsonObject root, ResourceMaterialRegistry.Snapshot snapshot,
+    private static void scheduleResidencyUpload(long generation, long delayMs) {
+        if (generation != activeResidencyGeneration || shouldDeferResidency(generation)) {
+            return;
+        }
+        if (!RESIDENCY_SCHEDULED.compareAndSet(false, true)) {
+            return;
+        }
+        RESIDENCY_SCHEDULE_EVENTS.incrementAndGet();
+        RESIDENCY_SCHEDULER.schedule(() -> {
+            RESIDENCY_SCHEDULED.set(false);
+            JsonObject root = activeResidencyRoot;
+            ResourceMaterialRegistry.Snapshot snapshot = activeResidencySnapshot;
+            if (root == null || snapshot == null || generation != activeResidencyGeneration) {
+                return;
+            }
+            if (!startResidencyUpload(root, snapshot, generation)
+                && !shouldDeferResidency(generation)) {
+                scheduleResidencyUpload(generation, delayMs);
+            }
+        }, Math.max(0L, delayMs), TimeUnit.MILLISECONDS);
+    }
+
+    private static boolean startResidencyUpload(JsonObject root, ResourceMaterialRegistry.Snapshot snapshot,
         long generation) {
         if (shouldDeferResidency(generation)) {
-            return;
+            return false;
         }
         if (!RESIDENCY_RUNNING.compareAndSet(false, true)) {
-            return;
+            return false;
         }
         RESIDENCY_STARTED_GENERATION.set(generation);
+        RESIDENCY_UPLOAD_EVENTS.incrementAndGet();
         Thread thread = new Thread(() -> {
             long startedNanos = System.nanoTime();
             try {
@@ -338,6 +391,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                         Options.ctmDemandResidency && !Options.materialCompatFullPreloadDiagnostic);
                 boolean tableUploaded = boolProperty(upload, "materialTableUploadedFinal");
                 int uploadedMaterials = intProperty(upload, "uploadedMaterials");
+                LAST_RESIDENCY_BATCH_SIZE.set(uploadedMaterials);
                 JsonObject statusEvent = new JsonObject();
                 statusEvent.add("upload", upload.deepCopy());
                 statusEvent.addProperty("materialTableUploaded", tableUploaded);
@@ -360,10 +414,16 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                     generation, t.toString());
             } finally {
                 RESIDENCY_RUNNING.set(false);
+                if (generation == activeResidencyGeneration
+                    && ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size()
+                    > LAST_RESIDENCY_VISIBLE_COUNT.get()) {
+                    scheduleResidencyUpload(generation, 150L);
+                }
             }
         }, "RadSER Material Residency Upload");
         thread.setDaemon(true);
         thread.start();
+        return true;
     }
 
     private static void rememberResidencyInput(JsonObject root,
@@ -372,6 +432,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         activeResidencyRoot = root == null ? null : root.deepCopy();
         activeResidencySnapshot = snapshot;
         LAST_RESIDENCY_VISIBLE_COUNT.set(0L);
+        LAST_RESIDENCY_BATCH_SIZE.set(0L);
     }
 
     private static boolean shouldDeferResidency(long generation) {

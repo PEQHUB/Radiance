@@ -251,12 +251,13 @@ public final class ResourceMaterialResidencyUploader {
                     long tableStartedNanos = System.nanoTime();
                     ResourceMaterialRegistry.ResidencyMergeStats mergeStats =
                         ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
-                    boolean materialTableUploaded = !Options.materialTableDirtyUpdates
-                        && ResourceMaterialRegistry.uploadActiveTableToNative();
+                    boolean materialTableUploaded = Options.materialTableDirtyUpdates
+                        ? ResourceMaterialRegistry.uploadMaterialTableEntriesToNative(pageHandles.keySet())
+                        : ResourceMaterialRegistry.uploadActiveTableToNative();
                     pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
                     pageReport.add("residentHandleMerge", mergeStats.toJson());
                     pageReport.addProperty("materialTableUploaded", materialTableUploaded);
-                    pageReport.addProperty("materialTableDeferred", Options.materialTableDirtyUpdates);
+                    pageReport.addProperty("materialTableSparseUpdate", Options.materialTableDirtyUpdates);
                     pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
                     writePageStatus(generation, "residencyPageUploaded", page, layer, uploadedPages,
                         handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired, pageStats);
@@ -282,7 +283,7 @@ public final class ResourceMaterialResidencyUploader {
         ResourceMaterialRegistry.ResidencyMergeStats finalMergeStats =
             ResourceMaterialRegistry.mergeResidentMaterialHandles(handles);
         boolean finalMaterialTableUploaded = false;
-        if (!handles.isEmpty() && Options.materialTableDirtyUpdates && generationMatches(generation)) {
+        if (!handles.isEmpty() && !Options.materialTableDirtyUpdates && generationMatches(generation)) {
             long tableStartedNanos = System.nanoTime();
             finalMaterialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
             totalStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
@@ -292,7 +293,7 @@ public final class ResourceMaterialResidencyUploader {
         json.add("residentHandleMerge", finalMergeStats.toJson());
         json.addProperty("materialTableUploadedFinal", finalMaterialTableUploaded);
         json.addProperty("materialTableFullUploadPolicy",
-            Options.materialTableDirtyUpdates ? "final_after_visible_batch" : "legacy_after_each_page");
+            Options.materialTableDirtyUpdates ? "sparse_entries_after_each_uploaded_page" : "legacy_full_uploads");
         json.addProperty("skippedMissingAlbedo", skippedMissingAlbedo);
         json.addProperty("failedImages", failedImages);
         json.addProperty("nativePageFailures", nativePageFailures);

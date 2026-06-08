@@ -226,6 +226,7 @@ public final class TextureArrayBridge {
         long pixelPtr, int pixelBytes, long metadataPtr, int metadataCount, long generation);
     public static native boolean nativeReceiveTextureRules(long dataPtr, int count, long generation);
     public static native boolean nativeReceiveMaterialTable(long dataPtr, int count, long generation);
+    public static native boolean nativeUpdateMaterialTableSparse(long dataPtr, int count, long generation);
     public static native boolean nativeReceiveMaterialTexturePage(int page, int layerSize,
         int layerCount, long albedoDataPtr, long specularDataPtr, long normalDataPtr,
         long flagDataPtr, long generation);
