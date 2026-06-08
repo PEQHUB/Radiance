@@ -45,6 +45,9 @@ logs.
   coalesced and rescheduled instead of draining the entire queue in one pass.
 - Failed CTM residency attempts are tracked separately and removed from the
   requested queue so broken assets or native rejections do not spin forever.
+- Texture animation payload scan/build is skipped by default while texture-array
+  animation updates are disabled. The native path receives an empty animation
+  payload instead of building data that would be discarded.
 - DebugBridge accepts validation commands for:
   - `materialPagePoolStatus`
   - `materialTableStatus`
@@ -72,12 +75,13 @@ logs.
 
 - The cache now stores runtime CTM dependency roots, transformed CTM residency
   layer payloads, and transformed vanilla tier frame-0 layer payloads. Animated
-  frame payloads are not yet cached.
+  frame payloads are not cached when animation updates are explicitly enabled.
 - CTM prewarm/first-frame readiness now has a requested-material queue,
   failed-material tracking, shorter prewarm scheduling, and bounded demand
   upload passes. It is still not a fully blocking no-pop-in first-frame gate.
-- Texture animation payloads still use the legacy page-0/fixed-layer update
-  path. Static frame-0 materials use tier pages.
+- Texture animation payloads are skipped in the default frozen-animation mode.
+  If animation updates are explicitly enabled, that diagnostic path still uses
+  legacy fixed-layer animation payloads.
 
 ## Validation Commands
 
@@ -121,8 +125,9 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- Animated frame transformed-payload disk caching and a fully blocking
-  first-frame CTM no-pop-in gate are still remaining architecture work.
+- Animated frame transformed-payload disk caching for explicit animation-update
+  mode and a fully blocking first-frame CTM no-pop-in gate are still remaining
+  architecture work.
 - The payload cache key follows the active resource-pack selection. If a pack is
   edited in place without changing that selection, clear
   `<minecraft>/radiance/cache/texture-loader-v3/` before judging the result.

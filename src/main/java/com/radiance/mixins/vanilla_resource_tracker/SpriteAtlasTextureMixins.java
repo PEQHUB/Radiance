@@ -479,6 +479,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 5: Build animation frame data ----
         // Format: [spriteId(u16), frameIndex(u16), pixels(w*h*4)] repeated
         // Only for sprites with frameCount > 1
+        if (!TextureTracker.textureArrayAnimationUpdatesEnabled) {
+            TextureReloadTimeline.addSummary("animationUploadSkipped", "updatesDisabled");
+            TextureReloadTimeline.addSummary("animationBytes", 0);
+            phaseStart = TextureReloadTimeline.start("nativeAnimationUpload");
+            TextureArrayBridge.nativeReceiveAnimationFrames(0, 0);
+            TextureReloadTimeline.end("nativeAnimationUpload", phaseStart);
+        } else {
         phaseStart = TextureReloadTimeline.start("animationScan");
         long animDataSizeLong = 0L;
         for (int i = 0; i < count; i++) {
@@ -554,6 +561,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             phaseStart = TextureReloadTimeline.start("nativeAnimationUpload");
             TextureArrayBridge.nativeReceiveAnimationFrames(0, 0);
             TextureReloadTimeline.end("nativeAnimationUpload", phaseStart);
+        }
         }
 
         // ---- Step 6: Finalize ----
