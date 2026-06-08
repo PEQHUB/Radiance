@@ -361,7 +361,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             if (si >= count) continue;
             // Skip blocks with pack-authored specular — CPU bake would overwrite metal indices
             if (com.radiance.client.texture.TextureTracker.spriteSpecularSource[si]
-                    == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED) continue;
+                    == com.radiance.client.texture.TextureTracker.SOURCE_PACK_AUTHORED
+                || com.radiance.client.texture.TextureTracker.spriteSpecularSource[si]
+                    == com.radiance.client.texture.TextureTracker.SOURCE_USER_CUSTOM) continue;
 
             Sprite sp = sorted.get(si).getValue();
             NativeImage albedo = ((ISpriteContentsExt) sp.getContents()).neoVoxelRT$getImage();

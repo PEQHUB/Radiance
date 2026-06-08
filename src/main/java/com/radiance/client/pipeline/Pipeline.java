@@ -386,7 +386,7 @@ public class Pipeline {
     public static void assembleDefault() {
         clear();
 
-        // 0=DLSS-RR, 1=FSR3, 2=Off
+        // 0=DLSS-RR, 2=Off
         boolean useDlss = (Options.upscalerMode == 0) && isNativeModuleAvailable("render_pipeline.module.dlss.name");
         boolean useCloud = Options.volCloudQuality > 0
             && isNativeModuleAvailable("render_pipeline.module.cloud.name");
@@ -505,72 +505,7 @@ public class Pipeline {
                 postRenderModule.getInputImageConfig("first_hit_depth"));
         }
 
-        if (!useDlss && Options.upscalerMode != 2 && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
-            // FSR3 path (with or without NRD). Format mismatches auto-adapt via connect().
-            boolean useNrd = isNativeModuleAvailable("render_pipeline.module.nrd.name");
-            Module fsr3Module = addModule("render_pipeline.module.fsr3_upscaler.name");
-
-            if (useNrd) {
-                Module nrdModule = addModule("render_pipeline.module.nrd.name");
-
-                connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_indirect_light"),
-                    nrdModule.getInputImageConfig("diffuse_radiance"));
-                connect(rayTracingModule.getOutputImageConfig("first_hit_specular"),
-                    nrdModule.getInputImageConfig("specular_radiance"));
-                connect(rayTracingModule.getOutputImageConfig("first_hit_diffuse_direct_light"),
-                    nrdModule.getInputImageConfig("direct_radiance"));
-                connect(rayTracingModule.getOutputImageConfig("diffuse_albedo_metallic"),
-                    nrdModule.getInputImageConfig("diffuse_albedo"));
-                connect(rayTracingModule.getOutputImageConfig("specular_albedo"),
-                    nrdModule.getInputImageConfig("specular_albedo"));
-                connect(rayTracingModule.getOutputImageConfig("normal_roughness"),
-                    nrdModule.getInputImageConfig("normal_roughness"));
-                connect(rayTracingModule.getOutputImageConfig("motion_vector"),
-                    nrdModule.getInputImageConfig("motion_vector"));
-                connect(rayTracingModule.getOutputImageConfig("linear_depth"),
-                    nrdModule.getInputImageConfig("linear_depth"));
-                connect(rayTracingModule.getOutputImageConfig("first_hit_clear"),
-                    nrdModule.getInputImageConfig("first_hit_clear"));
-                connect(rayTracingModule.getOutputImageConfig("first_hit_base_emission"),
-                    nrdModule.getInputImageConfig("first_hit_base_emission"));
-                connect(rayTracingModule.getOutputImageConfig("direct_light_depth"),
-                    nrdModule.getInputImageConfig("diffuseHitDepthImage"));
-                connect(rayTracingModule.getOutputImageConfig("specular_hit_depth"),
-                    nrdModule.getInputImageConfig("specularHitDepthImage"));
-
-                if (useCloud) {
-                    connect(nrdModule.getOutputImageConfig("denoised_radiance"),
-                        cloudModule.getInputImageConfig("radiance"));
-                    connect(cloudModule.getOutputImageConfig("cloud_radiance"),
-                        fsr3Module.getInputImageConfig("color"));
-                } else {
-                    connect(nrdModule.getOutputImageConfig("denoised_radiance"),
-                        fsr3Module.getInputImageConfig("color"));
-                }
-            } else {
-                if (useCloud) {
-                    connect(rayTracingModule.getOutputImageConfig("radiance"),
-                        cloudModule.getInputImageConfig("radiance"));
-                    connect(cloudModule.getOutputImageConfig("cloud_radiance"),
-                        fsr3Module.getInputImageConfig("color"));
-                } else {
-                    connect(rayTracingModule.getOutputImageConfig("radiance"),
-                        fsr3Module.getInputImageConfig("color"));
-                }
-            }
-
-            connect(rayTracingModule.getOutputImageConfig("linear_depth"),
-                fsr3Module.getInputImageConfig("depth"));
-            connect(rayTracingModule.getOutputImageConfig("motion_vector"),
-                fsr3Module.getInputImageConfig("motion_vector"));
-            connect(rayTracingModule.getOutputImageConfig("first_hit_depth"),
-                fsr3Module.getInputImageConfig("first_hit_depth"));
-
-            connect(fsr3Module.getOutputImageConfig("upscaled_radiance"),
-                toneMappingModule.getInputImageConfig("denoised_radiance"));
-            connect(fsr3Module.getOutputImageConfig("upscaled_first_hit_depth"),
-                postRenderModule.getInputImageConfig("first_hit_depth"));
-        } else if (!useDlss) {
+        if (!useDlss) {
             // No upscaler: RT → Cloud (if available) → tone mapping
             if (useCloud) {
                 connect(rayTracingModule.getOutputImageConfig("radiance"),
@@ -595,8 +530,6 @@ public class Pipeline {
         String cloudStr = useCloud ? " -> Clouds" : "";
         if (useDlss) {
             RadianceClient.LOGGER.info("[Pipeline] RT{} -> DLSS-RR -> tone mapping -> post", cloudStr);
-        } else if (Options.upscalerMode != 2 && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name")) {
-            RadianceClient.LOGGER.info("[Pipeline] RT{} -> FSR3 -> tone mapping -> post", cloudStr);
         } else {
             RadianceClient.LOGGER.info("[Pipeline] RT{} -> tone mapping -> post (no upscaler)", cloudStr);
         }
@@ -776,7 +709,7 @@ public class Pipeline {
         }
 
         boolean dlssAvailable = Options.dlssDEnabled && isNativeModuleAvailable("render_pipeline.module.dlss.name");
-        boolean fsr3Available = !dlssAvailable && isNativeModuleAvailable("render_pipeline.module.fsr3_upscaler.name");
+        boolean fsr3Available = false;
         boolean cloudAvailable = Options.volCloudQuality > 0
             && isNativeModuleAvailable("render_pipeline.module.cloud.name");
         boolean savedPipelineHasDlss = false;

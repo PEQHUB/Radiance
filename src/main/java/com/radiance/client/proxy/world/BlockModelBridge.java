@@ -108,8 +108,6 @@ public class BlockModelBridge {
         }
 
         long startTime = System.nanoTime();
-        Random random = Random.create(42);
-
         // Build reverse lookup from sorted sprite list (populated during atlas load)
         spriteIdLookup.clear();
         for (int i = 0; i < sortedSpriteIds.size(); i++) {
@@ -131,9 +129,9 @@ public class BlockModelBridge {
             BakedModel model = mc.getBakedModelManager().getBlockModels().getModel(state);
             if (model == null) continue;
             for (Direction dir : DIRECTIONS) {
-                totalQuads += model.getQuads(state, dir, random).size();
+                totalQuads += getDeterministicQuads(model, state, dir).size();
             }
-            totalQuads += model.getQuads(state, null, random).size(); // unculled
+            totalQuads += getDeterministicQuads(model, state, null).size(); // unculled
         }
 
         // Allocate buffers
@@ -221,7 +219,7 @@ public class BlockModelBridge {
                     boolean loggedGrass = false;
                     for (int d = 0; d < 7; d++) {
                         Direction dir = d < 6 ? DIRECTIONS[d] : null;
-                        List<BakedQuad> quads = model.getQuads(state, dir, random);
+                        List<BakedQuad> quads = getDeterministicQuads(model, state, dir);
                         entryBuf.put(entryPos + 16 + d, (byte) quads.size());
                         totalQuadCount += quads.size();
 
@@ -307,6 +305,11 @@ public class BlockModelBridge {
         double elapsed = (System.nanoTime() - startTime) / 1e6;
         LOGGER.info("Block model table uploaded: {} states, {} quads, {:.1f}ms",
             entryCount, quadCount, elapsed);
+    }
+
+    private static List<BakedQuad> getDeterministicQuads(BakedModel model, BlockState state,
+        Direction dir) {
+        return model.getQuads(state, dir, Random.create(42));
     }
 
     private static void serializeQuad(ByteBuffer buf, int offset, BakedQuad quad,

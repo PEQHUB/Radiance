@@ -23,8 +23,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
             0, 0, 150, 20,
             "Sensor Size", Options.SENSOR_PRESET_NAMES, Options.sensorPreset,
             value -> {
-                Options.applySensorPreset(value);
-                Options.syncApertureToNative();
+                Options.setSensorPreset(value, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 screen.refreshContent();
             });
@@ -35,8 +34,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
             14, 200, Options.focalLengthMM, 50,
             v -> getGenericValueText(Text.literal("Focal Length"), Text.literal(v + " mm")),
             v -> {
-                Options.focalLengthMM = v;
-                Options.syncApertureToNative();
+                Options.setFocalLengthMM(v, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             }))
             .tooltip("Lens focal length in mm. Shorter = wider FOV. Longer = telephoto compression.");
@@ -48,8 +46,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.literal("F-Stop"),
                 Text.literal("f/" + String.format("%.1f", v / 10.0))),
             v -> {
-                Options.fStop = v / 10.0f;
-                Options.syncApertureToNative();
+                Options.setFStop(v / 10.0f, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             }))
             .tooltip("Aperture size. Lower f-stop = shallower depth of field and more bokeh.");
@@ -59,7 +56,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
             0, 0, 150, 20,
             "Focus Mode", Options.FOCUS_MODE_NAMES, Math.min(Options.focusMode, 2),
             value -> {
-                Options.focusMode = value;
+                Options.setFocusMode(value, true);
                 if (Options.focusMode == 1) {
                     MinecraftClient.getInstance().setScreen(null);
                 }
@@ -74,8 +71,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
                 1, 256, Math.round(Options.offlineFocalDistance), 10,
                 v -> getGenericValueText(Text.literal("Focus Distance"), Text.literal(v + " blocks")),
                 v -> {
-                    Options.offlineFocalDistance = (float) v;
-                    Options.nativeSetOfflineFocalDistance((float) v, true);
+                    Options.setOfflineFocalDistance((float) v, true);
                     if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 }));
         }
