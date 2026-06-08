@@ -817,6 +817,14 @@ public class Options {
     public static boolean materialCompatLegacyMcPatcherEnabled = true;
     public static boolean materialCompatPhysicalEmissiveEnabled = true;
     public static int materialCompatCtmAtlasAdmissionLimit = 0;
+    public static boolean textureStreamingV2 = true;
+    public static boolean textureTieredArrays = true;
+    public static boolean vanillaBlockAtlasBypass = true;
+    public static boolean sparseAuxUpload = true;
+    public static boolean ctmDemandResidency = true;
+    public static boolean materialTableDirtyUpdates = true;
+    public static boolean eagerSpriteImageCache = false;
+    public static boolean materialCompatFullPreloadDiagnostic = false;
 
     public static void setAutoPBREnabled(boolean enabled, boolean write) {
         com.radiance.client.debug.CrashContext.recordChange("autoPBREnabled=" + enabled);
@@ -1193,6 +1201,14 @@ public class Options {
             materialCompatLegacyMcPatcherEnabled = Boolean.parseBoolean(props.getProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled)));
             materialCompatPhysicalEmissiveEnabled = Boolean.parseBoolean(props.getProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled)));
             materialCompatCtmAtlasAdmissionLimit = Math.max(0, Integer.parseInt(props.getProperty("materialCompatCtmAtlasAdmissionLimit", String.valueOf(materialCompatCtmAtlasAdmissionLimit))));
+            textureStreamingV2 = Boolean.parseBoolean(props.getProperty("textureStreamingV2", String.valueOf(textureStreamingV2)));
+            textureTieredArrays = Boolean.parseBoolean(props.getProperty("textureTieredArrays", String.valueOf(textureTieredArrays)));
+            vanillaBlockAtlasBypass = Boolean.parseBoolean(props.getProperty("vanillaBlockAtlasBypass", String.valueOf(vanillaBlockAtlasBypass)));
+            sparseAuxUpload = Boolean.parseBoolean(props.getProperty("sparseAuxUpload", String.valueOf(sparseAuxUpload)));
+            ctmDemandResidency = Boolean.parseBoolean(props.getProperty("ctmDemandResidency", String.valueOf(ctmDemandResidency)));
+            materialTableDirtyUpdates = Boolean.parseBoolean(props.getProperty("materialTableDirtyUpdates", String.valueOf(materialTableDirtyUpdates)));
+            eagerSpriteImageCache = Boolean.parseBoolean(props.getProperty("eagerSpriteImageCache", String.valueOf(eagerSpriteImageCache)));
+            materialCompatFullPreloadDiagnostic = Boolean.parseBoolean(props.getProperty("materialCompatFullPreloadDiagnostic", String.valueOf(materialCompatFullPreloadDiagnostic)));
             if (loadedOptionsVersion < 24 && legacyMaterialCompatAllDisabled(props)) {
                 enableMaterialCompatDefaults();
             }
@@ -1561,6 +1577,14 @@ public class Options {
         props.setProperty("materialCompatLegacyMcPatcherEnabled", String.valueOf(materialCompatLegacyMcPatcherEnabled));
         props.setProperty("materialCompatPhysicalEmissiveEnabled", String.valueOf(materialCompatPhysicalEmissiveEnabled));
         props.setProperty("materialCompatCtmAtlasAdmissionLimit", String.valueOf(materialCompatCtmAtlasAdmissionLimit));
+        props.setProperty("textureStreamingV2", String.valueOf(textureStreamingV2));
+        props.setProperty("textureTieredArrays", String.valueOf(textureTieredArrays));
+        props.setProperty("vanillaBlockAtlasBypass", String.valueOf(vanillaBlockAtlasBypass));
+        props.setProperty("sparseAuxUpload", String.valueOf(sparseAuxUpload));
+        props.setProperty("ctmDemandResidency", String.valueOf(ctmDemandResidency));
+        props.setProperty("materialTableDirtyUpdates", String.valueOf(materialTableDirtyUpdates));
+        props.setProperty("eagerSpriteImageCache", String.valueOf(eagerSpriteImageCache));
+        props.setProperty("materialCompatFullPreloadDiagnostic", String.valueOf(materialCompatFullPreloadDiagnostic));
         props.setProperty("outputScale2x", String.valueOf(outputScale2x));
         props.setProperty("reflexEnabled", String.valueOf(reflexEnabled));
         props.setProperty("reflexBoost", String.valueOf(reflexBoost));

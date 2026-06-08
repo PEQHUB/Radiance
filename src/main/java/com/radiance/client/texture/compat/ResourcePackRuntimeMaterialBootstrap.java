@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.resource.Resource;
@@ -38,6 +40,11 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static final int DEPENDENCY_LIMIT = 65536;
     private static final AtomicLong PUBLISHED_GENERATION = new AtomicLong(-1L);
     private static final AtomicLong RESIDENCY_STARTED_GENERATION = new AtomicLong(-1L);
+    private static final AtomicBoolean RESIDENCY_RUNNING = new AtomicBoolean(false);
+    private static final AtomicLong LAST_RESIDENCY_VISIBLE_COUNT = new AtomicLong(0L);
+    private static volatile long activeResidencyGeneration = -1L;
+    private static volatile JsonObject activeResidencyRoot = null;
+    private static volatile ResourceMaterialRegistry.Snapshot activeResidencySnapshot = null;
 
     private ResourcePackRuntimeMaterialBootstrap() {
     }
@@ -85,14 +92,52 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         statusEvent.addProperty("elapsedMs", ms);
         statusEvent.addProperty("materialTableUploaded", tableUploaded);
         statusEvent.addProperty("packStackHash", packStackHash(generation, root.dependencyCount()));
+        statusEvent.addProperty("ctmDemandResidency", Options.ctmDemandResidency);
+        statusEvent.addProperty("fullPreloadDiagnostic", Options.materialCompatFullPreloadDiagnostic);
         ResourceMaterialRuntimeStatus.write("bootstrapPublished", generation, statusEvent);
         LOGGER.info("[MaterialCompat] Runtime material bootstrap published {} CTM materials from {} property files "
                 + "for generation {} in {} ms (tableUploaded={})",
             root.dependencyCount(), root.propertyCount(), generation, String.format(Locale.ROOT, "%.2f", ms),
             tableUploaded);
-        startResidencyUpload(root.root(), snapshot, generation);
+        rememberResidencyInput(root.root(), snapshot, generation);
+        if (shouldDeferResidency(generation)) {
+            JsonObject deferEvent = new JsonObject();
+            deferEvent.addProperty("dependencyCount", root.dependencyCount());
+            deferEvent.addProperty("presentDependencyCount", root.presentDependencyCount());
+            deferEvent.addProperty("visibleUniqueMaterialCount", 0);
+            deferEvent.addProperty("fullPreloadStarted", false);
+            deferEvent.addProperty("reason", "waiting_for_visible_material_demand");
+            ResourceMaterialRuntimeStatus.write("residencyDeferred", generation, deferEvent);
+            LOGGER.info("[MaterialCompat] CTM residency deferred for generation {}: no visible material demand",
+                generation);
+        } else {
+            startResidencyUpload(root.root(), snapshot, generation);
+        }
         return new BootstrapResult(true, true, generation, root.dependencyCount(),
             root.presentDependencyCount(), root.propertyCount(), "published", ms, tableUploaded);
+    }
+
+    public static void onVisibleMaterialDemand(long generation) {
+        if (!Options.materialCompatEnabled || !Options.materialCompatCtmEnabled || generation <= 0) {
+            return;
+        }
+        if (generation != activeResidencyGeneration) {
+            return;
+        }
+        JsonObject root = activeResidencyRoot;
+        ResourceMaterialRegistry.Snapshot snapshot = activeResidencySnapshot;
+        if (root == null || snapshot == null) {
+            return;
+        }
+        Set<Integer> visible = ResourceMaterialResidencyDemand.visibleMaterialIds(generation);
+        if (visible.isEmpty()) {
+            return;
+        }
+        if (Options.ctmDemandResidency && !Options.materialCompatFullPreloadDiagnostic
+            && visible.size() <= LAST_RESIDENCY_VISIBLE_COUNT.get()) {
+            return;
+        }
+        startResidencyUpload(root, snapshot, generation);
     }
 
     private static RuntimeRoot buildRoot(ResourceManager resourceManager, long generation) {
@@ -279,32 +324,34 @@ public final class ResourcePackRuntimeMaterialBootstrap {
 
     private static void startResidencyUpload(JsonObject root, ResourceMaterialRegistry.Snapshot snapshot,
         long generation) {
-        long previous = RESIDENCY_STARTED_GENERATION.get();
-        while (previous < generation) {
-            if (RESIDENCY_STARTED_GENERATION.compareAndSet(previous, generation)) {
-                break;
-            }
-            previous = RESIDENCY_STARTED_GENERATION.get();
-        }
-        if (previous >= generation) {
+        if (shouldDeferResidency(generation)) {
             return;
         }
+        if (!RESIDENCY_RUNNING.compareAndSet(false, true)) {
+            return;
+        }
+        RESIDENCY_STARTED_GENERATION.set(generation);
         Thread thread = new Thread(() -> {
             long startedNanos = System.nanoTime();
             try {
                 JsonObject upload =
-                    ResourceMaterialResidencyUploader.uploadFromCompatReport(root, snapshot, true);
-                boolean tableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                    ResourceMaterialResidencyUploader.uploadFromCompatReport(root, snapshot, true,
+                        Options.ctmDemandResidency && !Options.materialCompatFullPreloadDiagnostic);
+                boolean tableUploaded = boolProperty(upload, "materialTableUploadedFinal");
                 int uploadedMaterials = intProperty(upload, "uploadedMaterials");
                 JsonObject statusEvent = new JsonObject();
                 statusEvent.add("upload", upload.deepCopy());
                 statusEvent.addProperty("materialTableUploaded", tableUploaded);
+                statusEvent.addProperty("fullPreloadStarted",
+                    !Options.ctmDemandResidency || Options.materialCompatFullPreloadDiagnostic);
                 statusEvent.addProperty("totalMs", millis(startedNanos));
                 ResourceMaterialRuntimeStatus.write("residencyComplete", generation, statusEvent);
                 LOGGER.info("[MaterialCompat] Runtime material residency complete for generation {}: "
                         + "{} materials resident, tableUploaded={}, totalMs={}",
                     generation, uploadedMaterials, tableUploaded,
                     String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
+                LAST_RESIDENCY_VISIBLE_COUNT.set(
+                    ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size());
                 scheduleChunkRefresh();
             } catch (Throwable t) {
                 JsonObject statusEvent = new JsonObject();
@@ -312,10 +359,26 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                 ResourceMaterialRuntimeStatus.write("residencyFailed", generation, statusEvent);
                 LOGGER.warn("[MaterialCompat] Runtime material residency failed for generation {}: {}",
                     generation, t.toString());
+            } finally {
+                RESIDENCY_RUNNING.set(false);
             }
         }, "RadSER Material Residency Upload");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    private static void rememberResidencyInput(JsonObject root,
+        ResourceMaterialRegistry.Snapshot snapshot, long generation) {
+        activeResidencyGeneration = generation;
+        activeResidencyRoot = root == null ? null : root.deepCopy();
+        activeResidencySnapshot = snapshot;
+        LAST_RESIDENCY_VISIBLE_COUNT.set(0L);
+    }
+
+    private static boolean shouldDeferResidency(long generation) {
+        return Options.ctmDemandResidency
+            && !Options.materialCompatFullPreloadDiagnostic
+            && ResourceMaterialResidencyDemand.visibleMaterialIds(generation).isEmpty();
     }
 
     private static void scheduleChunkRefresh() {

@@ -8,6 +8,7 @@ import static org.lwjgl.system.MemoryUtil.memSet;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
@@ -51,11 +52,18 @@ public final class ResourceMaterialResidencyUploader {
 
     public static JsonObject uploadFromCompatReport(JsonObject root,
         ResourceMaterialRegistry.Snapshot snapshot, boolean enabled) {
+        return uploadFromCompatReport(root, snapshot, enabled, false);
+    }
+
+    public static JsonObject uploadFromCompatReport(JsonObject root,
+        ResourceMaterialRegistry.Snapshot snapshot, boolean enabled, boolean visibleOnly) {
         JsonObject json = new JsonObject();
         json.addProperty("requested", enabled);
         json.addProperty("backend", "renderer_owned_resolution_tiered_pages");
         json.addProperty("firstCompatPage", FIRST_COMPAT_PAGE);
         json.addProperty("pageBudget", PAGE_BUDGET);
+        json.addProperty("visibleOnly", visibleOnly);
+        json.addProperty("fullPreloadStarted", enabled && !visibleOnly);
         if (!enabled) {
             json.addProperty("attempted", false);
             json.addProperty("reason", "native_upload_not_requested");
@@ -80,7 +88,15 @@ public final class ResourceMaterialResidencyUploader {
             return json;
         }
 
-        List<UploadItem> items = collectUploadItems(root);
+        long generation = snapshot.generation();
+        List<UploadItem> items = collectUploadItems(root, generation, visibleOnly);
+        if (visibleOnly && items.isEmpty()) {
+            json.addProperty("attempted", false);
+            json.addProperty("reason", "no_visible_material_demand");
+            json.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
+            ResourceMaterialRuntimeStatus.write("residencySkippedNoVisibleDemand", generation, json);
+            return json;
+        }
         int bytesPerLayer = layerSize * layerSize * 4;
         int pageCapacity = pageCapacity(bytesPerLayer);
         int materialCapacity = pageCapacity * PAGE_BUDGET;
@@ -109,10 +125,9 @@ public final class ResourceMaterialResidencyUploader {
         int nativePageFailures = 0;
         int displacementEligible = 0;
         int displacementBlocked = 0;
-        long generation = snapshot.generation();
         LOGGER.info("[MaterialCompat] Material page upload starting: {} candidate materials, layerSize={}, "
-                + "pageCapacity={}, pageBudget={}, decodeThreads={}, generation={}",
-            items.size(), layerSize, pageCapacity, PAGE_BUDGET, layerDecodeThreads, generation);
+                + "pageCapacity={}, pageBudget={}, decodeThreads={}, generation={}, visibleOnly={}",
+            items.size(), layerSize, pageCapacity, PAGE_BUDGET, layerDecodeThreads, generation, visibleOnly);
         JsonObject startEvent = new JsonObject();
         startEvent.addProperty("candidateMaterialCount", items.size());
         startEvent.addProperty("layerSize", layerSize);
@@ -124,6 +139,8 @@ public final class ResourceMaterialResidencyUploader {
         startEvent.addProperty("percentOfPageBudgetRequired",
             PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
         startEvent.addProperty("materialCapacity", materialCapacity);
+        startEvent.addProperty("visibleOnly", visibleOnly);
+        startEvent.addProperty("fullPreloadStarted", !visibleOnly);
         startEvent.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
         ResourceMaterialRuntimeStatus.write("residencyStarted", generation, startEvent);
 
@@ -134,6 +151,12 @@ public final class ResourceMaterialResidencyUploader {
             for (int page = FIRST_COMPAT_PAGE;
                  page < ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX && nextItem < items.size();
                  page++) {
+                if (!generationMatches(generation)) {
+                    json.addProperty("cancelled", true);
+                    json.addProperty("cancelReason", "stale_generation_before_page");
+                    ResourceMaterialRuntimeStatus.write("residencyCancelled", generation, json);
+                    break;
+                }
                 int visiblePendingCandidates = promoteVisibleItems(items, nextItem, generation);
                 long pageStartedNanos = System.nanoTime();
                 UploadStats pageStats = new UploadStats();
@@ -227,9 +250,11 @@ public final class ResourceMaterialResidencyUploader {
                     ResourceMaterialResidencyDemand.recordResident(generation, pageHandles.keySet());
                     long tableStartedNanos = System.nanoTime();
                     ResourceMaterialRegistry.mergeResidentMaterialHandles(pageHandles);
-                    boolean materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                    boolean materialTableUploaded = !Options.materialTableDirtyUpdates
+                        && ResourceMaterialRegistry.uploadActiveTableToNative();
                     pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
                     pageReport.addProperty("materialTableUploaded", materialTableUploaded);
+                    pageReport.addProperty("materialTableDeferred", Options.materialTableDirtyUpdates);
                     pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
                     writePageStatus(generation, "residencyPageUploaded", page, layer, uploadedPages,
                         handles.size(), items.size(), nextItem, materialTableUploaded, pagesRequired, pageStats);
@@ -253,8 +278,17 @@ public final class ResourceMaterialResidencyUploader {
         }
 
         ResourceMaterialRegistry.registerResidentMaterialHandles(handles);
+        boolean finalMaterialTableUploaded = false;
+        if (!handles.isEmpty() && Options.materialTableDirtyUpdates && generationMatches(generation)) {
+            long tableStartedNanos = System.nanoTime();
+            finalMaterialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+            totalStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
+        }
         json.addProperty("uploadedPages", uploadedPages);
         json.addProperty("uploadedMaterials", handles.size());
+        json.addProperty("materialTableUploadedFinal", finalMaterialTableUploaded);
+        json.addProperty("materialTableFullUploadPolicy",
+            Options.materialTableDirtyUpdates ? "final_after_visible_batch" : "legacy_after_each_page");
         json.addProperty("skippedMissingAlbedo", skippedMissingAlbedo);
         json.addProperty("failedImages", failedImages);
         json.addProperty("nativePageFailures", nativePageFailures);
@@ -350,8 +384,11 @@ public final class ResourceMaterialResidencyUploader {
         ResourceMaterialRuntimeStatus.write(status, generation, event);
     }
 
-    private static List<UploadItem> collectUploadItems(JsonObject root) {
+    private static List<UploadItem> collectUploadItems(JsonObject root, long generation, boolean visibleOnly) {
         JsonArray dependencies = array(object(root, "activeCtmAtlasDependencies"), "dependencies");
+        Set<Integer> visibleMaterialIds = visibleOnly
+            ? ResourceMaterialResidencyDemand.visibleMaterialIds(generation)
+            : Set.of();
         ArrayList<UploadItem> items = new ArrayList<>();
         for (JsonElement element : dependencies) {
             if (!element.isJsonObject()) {
@@ -364,6 +401,10 @@ public final class ResourceMaterialResidencyUploader {
             String path = stringProperty(dependency, "path");
             int materialId = ResourceMaterialRegistry.materialIdForCompatCtmAssetPathExact(path);
             if (materialId < 0) {
+                continue;
+            }
+            if (visibleOnly && (!visibleMaterialIds.contains(materialId)
+                || ResourceMaterialResidencyDemand.isVisibleResident(generation, materialId))) {
                 continue;
             }
             items.add(new UploadItem(
@@ -401,6 +442,11 @@ public final class ResourceMaterialResidencyUploader {
         }
         ResourceMaterialResidencyDemand.recordPriorityCandidates(generation, visiblePending);
         return visiblePending;
+    }
+
+    private static boolean generationMatches(long generation) {
+        JsonObject summary = ResourceMaterialResidencyDemand.summaryJson(generation);
+        return summary.has("generationMatches") && summary.get("generationMatches").getAsBoolean();
     }
 
     private static LayerResult writeLayer(ResourceManager resourceManager, UploadItem item,

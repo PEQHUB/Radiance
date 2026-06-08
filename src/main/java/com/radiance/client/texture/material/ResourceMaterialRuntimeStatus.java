@@ -47,12 +47,31 @@ public final class ResourceMaterialRuntimeStatus {
         writeJson(root);
     }
 
+    public static String latestJson() {
+        try {
+            Path path = latestPath();
+            if (Files.exists(path)) {
+                return Files.readString(path, StandardCharsets.UTF_8);
+            }
+        } catch (Throwable ignored) {
+        }
+        JsonObject root = new JsonObject();
+        root.addProperty("schema", "radser_material_runtime_status_v1");
+        root.addProperty("status", "unavailable");
+        root.add("materialRegistry", ResourceMaterialRegistry.activeSummaryJson());
+        return GSON.toJson(root);
+    }
+
+    public static Path latestPath() {
+        return logsDirectory().resolve(FILE_NAME);
+    }
+
     private static void writeJson(JsonObject root) {
         synchronized (WRITE_LOCK) {
             try {
                 Path logs = logsDirectory();
                 Files.createDirectories(logs);
-                Path target = logs.resolve(FILE_NAME);
+                Path target = latestPath();
                 Path tmp = logs.resolve(FILE_NAME + ".tmp");
                 Files.writeString(tmp, GSON.toJson(root), StandardCharsets.UTF_8);
                 try {

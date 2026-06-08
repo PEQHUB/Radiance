@@ -1,6 +1,7 @@
 package com.radiance.client.texture.material;
 
 import com.google.gson.JsonObject;
+import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,6 +53,7 @@ public final class ResourceMaterialResidencyDemand {
         visibleRequestEvents.incrementAndGet();
         if (visibleMaterials.add(materialId)) {
             visibleUniqueRequests.incrementAndGet();
+            ResourcePackRuntimeMaterialBootstrap.onVisibleMaterialDemand(generation);
         }
     }
 
@@ -82,6 +84,10 @@ public final class ResourceMaterialResidencyDemand {
         if (added > 0) {
             visibleResidentEvents.addAndGet(added);
         }
+    }
+
+    public static boolean isVisibleResident(long generation, int materialId) {
+        return generation == activeGeneration && residentVisibleMaterials.contains(materialId);
     }
 
     public static JsonObject summaryJson(long generation) {

@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.client.MinecraftClient;
@@ -64,8 +65,16 @@ public class ChunkProxy {
     private static final int numImportantChunkRebuildThreads = 2;
     private static final int maxChunkTasksPerFrame = 64;
     private static final int maxImportantTasksPerFrame = 1;
+    private static final long importantChunkWaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(4);
     private static final double importantDistanceSq = 768.0;
     private static final AtomicLong rebuildGeneration = new AtomicLong();
+    private static final AtomicLong totalImportantWaitCalls = new AtomicLong();
+    private static final AtomicLong totalImportantWaitNanos = new AtomicLong();
+    private static final AtomicLong maxImportantWaitNanos = new AtomicLong();
+    private static volatile long lastImportantWaitNanos = 0;
+    private static volatile int lastImportantWaitStarted = 0;
+    private static volatile int lastImportantWaitCompleted = 0;
+    private static volatile int lastImportantWaitDeferred = 0;
     private static final ExecutorService importantChunkRebuildExecutor =
         Executors.newFixedThreadPool(numImportantChunkRebuildThreads, r -> {
             Thread thread = new Thread(r);
@@ -201,20 +210,80 @@ public class ChunkProxy {
     }
 
     public static void waitImportantChunkRebuild() {
+        waitImportantChunkRebuild(importantChunkWaitBudgetNanos);
+    }
+
+    public static void waitImportantChunkRebuild(long budgetNanos) {
         if (rebuildTasks.isEmpty()) {
+            lastImportantWaitNanos = 0;
+            lastImportantWaitStarted = 0;
+            lastImportantWaitCompleted = 0;
+            lastImportantWaitDeferred = 0;
             return;
         }
 
-        for (Future<?> rebuildTask : rebuildTasks) {
+        long started = System.nanoTime();
+        long deadline = started + Math.max(0, budgetNanos);
+        int startedTasks = rebuildTasks.size();
+        int completedTasks = 0;
+        ArrayList<Future<?>> deferredTasks = new ArrayList<>();
+
+        for (int i = 0; i < rebuildTasks.size(); i++) {
+            Future<?> rebuildTask = rebuildTasks.get(i);
+            if (rebuildTask == null) {
+                continue;
+            }
             try {
-                rebuildTask.get();
+                if (rebuildTask.isDone()) {
+                    rebuildTask.get();
+                    completedTasks++;
+                    continue;
+                }
+                long remaining = deadline - System.nanoTime();
+                if (remaining <= 0) {
+                    deferredTasks.add(rebuildTask);
+                    continue;
+                }
+                rebuildTask.get(remaining, TimeUnit.NANOSECONDS);
+                completedTasks++;
             } catch (CancellationException ignored) {
+                completedTasks++;
+            } catch (TimeoutException ignored) {
+                deferredTasks.add(rebuildTask);
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
         }
 
         rebuildTasks.clear();
+        rebuildTasks.addAll(deferredTasks);
+
+        long elapsed = System.nanoTime() - started;
+        lastImportantWaitNanos = elapsed;
+        lastImportantWaitStarted = startedTasks;
+        lastImportantWaitCompleted = completedTasks;
+        lastImportantWaitDeferred = deferredTasks.size();
+        totalImportantWaitCalls.incrementAndGet();
+        totalImportantWaitNanos.addAndGet(elapsed);
+        maxImportantWaitNanos.accumulateAndGet(elapsed, Math::max);
+    }
+
+    public static String importantChunkWaitStatusJson() {
+        long calls = totalImportantWaitCalls.get();
+        long totalNanos = totalImportantWaitNanos.get();
+        long averageNanos = calls == 0 ? 0 : totalNanos / calls;
+        return "{"
+            + "\"schema\":\"radser_chunk_rebuild_wait_status_v1\","
+            + "\"budgetMs\":" + (importantChunkWaitBudgetNanos / 1_000_000.0) + ","
+            + "\"pendingImportantTasks\":" + rebuildTasks.size() + ","
+            + "\"lastStarted\":" + lastImportantWaitStarted + ","
+            + "\"lastCompleted\":" + lastImportantWaitCompleted + ","
+            + "\"lastDeferred\":" + lastImportantWaitDeferred + ","
+            + "\"lastWaitMs\":" + (lastImportantWaitNanos / 1_000_000.0) + ","
+            + "\"averageWaitMs\":" + (averageNanos / 1_000_000.0) + ","
+            + "\"maxWaitMs\":" + (maxImportantWaitNanos.get() / 1_000_000.0) + ","
+            + "\"calls\":" + calls
+            + "}";
     }
 
     private static void rebuildSingle(ChunkBuilder.BuiltChunk builtChunk, boolean important,

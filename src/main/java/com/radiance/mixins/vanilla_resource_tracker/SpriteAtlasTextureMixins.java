@@ -139,11 +139,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
 
         int count = sorted.size();
+        int uploadCount = Math.min(count, renderableSpriteCapacity);
+        int overflowSprites = Math.max(0, count - uploadCount);
         long bytesPerSpriteLong = (long) spriteSize * spriteSize * 4L; // RGBA8
-        long totalSpriteBytes = bytesPerSpriteLong * count;
+        long totalSpriteBytes = bytesPerSpriteLong * uploadCount;
         if (bytesPerSpriteLong > Integer.MAX_VALUE || totalSpriteBytes > Integer.MAX_VALUE) {
             LOGGER.error("[TextureSystem] Texture upload too large: sprites={} layerSize={} bytesPerSprite={} totalBytes={}",
-                count, spriteSize, bytesPerSpriteLong, totalSpriteBytes);
+                uploadCount, spriteSize, bytesPerSpriteLong, totalSpriteBytes);
             TextureReloadTimeline.addSummary("aborted", "textureUploadTooLarge");
             TextureReloadTimeline.addSummary("spriteCount", count);
             TextureReloadTimeline.addSummary("spriteLayerSize", spriteSize);
@@ -156,14 +158,17 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         int totalBytes = Math.toIntExact(totalSpriteBytes);
         TextureTracker.currentSpriteLayerSize = spriteSize;
         TextureReloadTimeline.addSummary("spriteCount", count);
+        TextureReloadTimeline.addSummary("uploadedSpriteCount", uploadCount);
         TextureReloadTimeline.addSummary("renderableSpriteCapacity", renderableSpriteCapacity);
+        TextureReloadTimeline.addSummary("overflowSprites", overflowSprites);
+        TextureReloadTimeline.addSummary("overflowPolicy", "fallback");
         TextureReloadTimeline.addSummary("spriteLayerSize", spriteSize);
         TextureReloadTimeline.addSummary("bytesPerSprite", bytesPerSprite);
         TextureReloadTimeline.addSummary("totalSpriteBytes", totalBytes);
 
-        TextureTracker.resetSpriteAuxSources(count);
+        TextureTracker.resetSpriteAuxSources(uploadCount);
         phaseStart = TextureReloadTimeline.start("spriteSourceScan");
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < uploadCount; i++) {
             Sprite sprite = sorted.get(i).getValue();
             NativeImage img = ((ISpriteContentsExt) sprite.getContents()).neoVoxelRT$getImage();
             if (img == null) continue;
@@ -192,11 +197,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         boolean[] emissiveOverlay = new boolean[count];
         java.util.Arrays.fill(overlayOf, (short) -1);
         Map<Identifier, Integer> spriteIndexById = new HashMap<>();
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < uploadCount; i++) {
             spriteIndexById.put(sorted.get(i).getKey(), i);
         }
         Set<Identifier> basesWithVanillaOverlay = new HashSet<>();
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < uploadCount; i++) {
             Identifier spriteId = sorted.get(i).getKey();
             String name = spriteId.toString();
             if (!name.endsWith("_overlay")) {
@@ -241,10 +246,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 3: Build metadata table (SpriteMetadata = 16 bytes, packed) ----
         phaseStart = TextureReloadTimeline.start("metadataBuild");
         int META_SIZE = 16;
-        ByteBuffer metaBuf = ByteBuffer.allocateDirect(count * META_SIZE)
+        ByteBuffer metaBuf = ByteBuffer.allocateDirect(uploadCount * META_SIZE)
             .order(ByteOrder.nativeOrder());
 
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < uploadCount; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
             NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
@@ -292,9 +297,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.end("metadataBuild", phaseStart);
 
         phaseStart = TextureReloadTimeline.start("nativeSpriteTableUpload");
-        TextureArrayBridge.nativeReceiveSpriteTable(memAddress(metaBuf), count, atlasW, atlasH);
+        TextureArrayBridge.nativeReceiveSpriteTable(memAddress(metaBuf), uploadCount, atlasW, atlasH);
         TextureReloadTimeline.end("nativeSpriteTableUpload", phaseStart);
-        LOGGER.info("[TextureSystem] Sent sprite table: {} entries", count);
+        LOGGER.info("[TextureSystem] Sent sprite table: {} entries ({} overflow fallback)",
+            uploadCount, overflowSprites);
 
         // ---- Step 4: Build pixel bulk buffer (frame 0 for each sprite, RGBA8) ----
         // NativeImage stores RGBA bytes natively (STB format). We can raw-copy.
@@ -306,7 +312,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         int uploaded = 0;
         int animatedCount = 0;
         phaseStart = TextureReloadTimeline.start("albedoCopy");
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < uploadCount; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
             NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
@@ -315,7 +321,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             int h = contents.getHeight();
 
             if (img != null) {
-                TextureTracker.spriteAlbedoCache.put(i, copySpriteImage(img, w, h, spriteSize));
+                if (Options.eagerSpriteImageCache) {
+                    TextureTracker.spriteAlbedoCache.put(i, copySpriteImage(img, w, h, spriteSize));
+                }
                 long dstBase = memAddress(pixelBuf) + (long) i * bytesPerSprite;
                 writeSpriteFramePixels(img, w, h, 0, spriteSize, dstBase);
                 uploaded++;
@@ -334,6 +342,22 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         LOGGER.info("[TextureSystem] Sent {} sprite pixels ({} KB), {} animated",
             uploaded, totalBytes / 1024, animatedCount);
 
+        int specCount = 0, normalCount = 0, flagCount = 0;
+        boolean sparseAux = Options.textureStreamingV2 && Options.sparseAuxUpload;
+        TextureReloadTimeline.addSummary("sparseAuxUpload", String.valueOf(sparseAux));
+        if (sparseAux) {
+            TextureReloadTimeline.mark("auxBufferAlloc");
+            TextureReloadTimeline.mark("defaultNormalFill");
+            TextureReloadTimeline.mark("auxCopy");
+            phaseStart = TextureReloadTimeline.start("nativeAuxUpload");
+            TextureArrayBridge.nativeReceiveSpriteAuxPixels(0, 0, 0, 0);
+            TextureReloadTimeline.end("nativeAuxUpload", phaseStart);
+            TextureReloadTimeline.addSummary("fullAuxUploadBytesAvoided", (long) totalBytes * 3L);
+            TextureReloadTimeline.addSummary("defaultNormalFillPixelsAvoided",
+                (long) uploadCount * spriteSize * spriteSize);
+            LOGGER.info("[TextureSystem] Deferred aux sidecars to sparse native layer updates; avoided {} KB",
+                ((long) totalBytes * 3L) / 1024L);
+        } else {
         // ---- Step 4B: Build specular + normal + flag pixel buffers for texture arrays ----
         phaseStart = TextureReloadTimeline.start("auxBufferAlloc");
         ByteBuffer specPixelBuf = ByteBuffer.allocateDirect(totalBytes)
@@ -348,7 +372,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         phaseStart = TextureReloadTimeline.start("defaultNormalFill");
         {
             long normBase = memAddress(normalPixelBuf);
-            long pixelCount = (long) count * spriteSize * spriteSize;
+            long pixelCount = (long) uploadCount * spriteSize * spriteSize;
             for (long px = 0; px < pixelCount; px++) {
                 long off = normBase + px * 4L;
                 memPutByte(off,     (byte) 128); // R: normal X = 0.5
@@ -360,9 +384,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.end("defaultNormalFill", phaseStart);
         // Specular default is all zeros (roughness=1.0, F0=0.02) — already zeroed by allocateDirect
 
-        int specCount = 0, normalCount = 0, flagCount = 0;
         phaseStart = TextureReloadTimeline.start("auxCopy");
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < uploadCount; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
             NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
@@ -419,6 +442,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.end("nativeAuxUpload", phaseStart);
         LOGGER.info("[TextureSystem] Sent aux pixels: {} specular, {} normal, {} flags ({} KB each)",
             specCount, normalCount, flagCount, totalBytes / 1024);
+        }
 
         // ---- Step 5: Build animation frame data ----
         // Format: [spriteId(u16), frameIndex(u16), pixels(w*h*4)] repeated
@@ -454,7 +478,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 .order(ByteOrder.nativeOrder());
             int animOffset = 0;
 
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < uploadCount; i++) {
                 Sprite sprite = sorted.get(i).getValue();
                 SpriteContents contents = sprite.getContents();
                 NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
@@ -503,6 +527,18 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 6: Finalize ----
         phaseStart = TextureReloadTimeline.start("nativeFinalize");
         TextureArrayBridge.nativeTextureFinalize();
+        if (sparseAux) {
+            long sparseStart = TextureReloadTimeline.start("sparseAuxLayerUpdates");
+            SparseAuxReport sparseAuxReport = stageSparseAuxLayers(sorted, uploadCount, spriteSize, bytesPerSprite);
+            TextureReloadTimeline.end("sparseAuxLayerUpdates", sparseStart);
+            TextureReloadTimeline.addSummary("sparseSpecularLayerUpdates", sparseAuxReport.specularUploaded());
+            TextureReloadTimeline.addSummary("sparseNormalLayerUpdates", sparseAuxReport.normalUploaded());
+            TextureReloadTimeline.addSummary("sparseFlagLayerUpdates", sparseAuxReport.flagUploaded());
+            TextureReloadTimeline.addSummary("sparseAuxLayerBytes", sparseAuxReport.bytesUploaded());
+            specCount = sparseAuxReport.specularUploaded();
+            normalCount = sparseAuxReport.normalUploaded();
+            flagCount = sparseAuxReport.flagUploaded();
+        }
         TextureArrayBridge.publishTextureGeneration();
         TextureReloadTimeline.end("nativeFinalize", phaseStart);
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -547,6 +583,145 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.addSummary("albedoUploadedSprites", uploaded);
         TextureReloadTimeline.finish();
         LOGGER.info("[TextureSystem] Finalized. {} sprites ({} animated)", count, animatedCount);
+    }
+
+    private static SparseAuxReport stageSparseAuxLayers(List<Map.Entry<Identifier, Sprite>> sorted,
+                                                        int uploadCount, int spriteSize, int bytesPerSprite) {
+        if (uploadCount <= 0 || spriteSize <= 0 || bytesPerSprite <= 0) {
+            return new SparseAuxReport(0, 0, 0, 0L);
+        }
+        ByteBuffer specScratch = null;
+        ByteBuffer normalScratch = null;
+        ByteBuffer flagScratch = null;
+        int specUploaded = 0;
+        int normalUploaded = 0;
+        int flagUploaded = 0;
+        long bytesUploaded = 0L;
+        long generation = TextureArrayBridge.getActiveTextureGeneration();
+        for (int i = 0; i < uploadCount; i++) {
+            Sprite sprite = sorted.get(i).getValue();
+            SpriteContents contents = sprite.getContents();
+            NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
+            if (img == null) continue;
+
+            INativeImageExt auxExt = (INativeImageExt) (Object) img;
+            int h = contents.getHeight();
+
+            NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
+            if (specImg != null) {
+                int specH = Math.min(specImg.getHeight(), Math.max(1, h));
+                TextureTracker.spriteSpecularCache.put(i,
+                    copySpriteImage(specImg, specImg.getWidth(), specH, spriteSize));
+                TextureTracker.spriteBaselineSpecularCache.put(i,
+                    copySpriteImage(specImg, specImg.getWidth(), specH, spriteSize));
+                if (specScratch == null) {
+                    specScratch = ByteBuffer.allocateDirect(bytesPerSprite).order(ByteOrder.nativeOrder());
+                }
+                writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, spriteSize, memAddress(specScratch));
+                try {
+                    if (TextureArrayBridge.nativeUpdateSpecularLayer(i, memAddress(specScratch), bytesPerSprite,
+                        generation)) {
+                        specUploaded++;
+                        bytesUploaded += bytesPerSprite;
+                    }
+                } catch (UnsatisfiedLinkError ignored) {
+                }
+            }
+
+            NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+            if (normalImg != null) {
+                int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
+                TextureTracker.spriteNormalCache.put(i,
+                    copySpriteImage(normalImg, normalImg.getWidth(), normalH, spriteSize));
+                TextureTracker.spriteBaselineNormalCache.put(i,
+                    copySpriteImage(normalImg, normalImg.getWidth(), normalH, spriteSize));
+                if (normalScratch == null) {
+                    normalScratch = ByteBuffer.allocateDirect(bytesPerSprite).order(ByteOrder.nativeOrder());
+                }
+                writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, spriteSize,
+                    memAddress(normalScratch));
+                boolean uploaded = false;
+                try {
+                    uploaded = TextureArrayBridge.nativeUpdateNormalLayer(i, memAddress(normalScratch),
+                        bytesPerSprite, generation);
+                } catch (UnsatisfiedLinkError ignored) {
+                }
+                if (uploaded) {
+                    normalUploaded++;
+                    bytesUploaded += bytesPerSprite;
+                    int flags = TextureTracker.SPRITE_FLAG_HAS_NORMAL
+                        | TextureTracker.encodeSpriteSourceFlags(
+                            TextureTracker.spriteSpecularSource[i], TextureTracker.spriteNormalSource[i]);
+                    int heightRange = heightRangePacked(normalImg, img);
+                    if (heightRange >= 0) {
+                        flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
+                    }
+                    try {
+                        TextureArrayBridge.nativeUpdateSpriteHeightMetadata(i, flags, heightRange, generation);
+                    } catch (UnsatisfiedLinkError ignored) {
+                    }
+                }
+            }
+
+            NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
+            if (flagImg != null) {
+                int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
+                TextureTracker.spriteFlagCache.put(i,
+                    copySpriteImage(flagImg, flagImg.getWidth(), flagH, spriteSize));
+                if (flagScratch == null) {
+                    flagScratch = ByteBuffer.allocateDirect(bytesPerSprite).order(ByteOrder.nativeOrder());
+                }
+                writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, spriteSize, memAddress(flagScratch));
+                try {
+                    if (TextureArrayBridge.nativeUpdateFlagLayer(i, memAddress(flagScratch), bytesPerSprite,
+                        generation)) {
+                        flagUploaded++;
+                        bytesUploaded += bytesPerSprite;
+                    }
+                } catch (UnsatisfiedLinkError ignored) {
+                }
+            }
+        }
+        LOGGER.info("[TextureSystem] Sparse aux staged: {} specular, {} normal, {} flag layers ({} KB)",
+            specUploaded, normalUploaded, flagUploaded, bytesUploaded / 1024L);
+        return new SparseAuxReport(specUploaded, normalUploaded, flagUploaded, bytesUploaded);
+    }
+
+    private static int heightRangePacked(NativeImage normal, NativeImage albedo) {
+        if (normal == null || normal.getWidth() <= 0 || normal.getHeight() <= 0) {
+            return -1;
+        }
+        int min = 255;
+        int max = 0;
+        boolean foundOpaquePixel = false;
+        int stepX = Math.max(1, normal.getWidth() / 64);
+        int stepY = Math.max(1, normal.getHeight() / 64);
+        for (int y = 0; y < normal.getHeight(); y += stepY) {
+            for (int x = 0; x < normal.getWidth(); x += stepX) {
+                if (albedo != null
+                    && (((sampleScaledArgb(albedo, x, y, normal.getWidth(), normal.getHeight()) >>> 24) & 0xFF)
+                    == 0)) {
+                    continue;
+                }
+                int alpha = (normal.getColorArgb(x, y) >>> 24) & 0xFF;
+                min = Math.min(min, alpha);
+                max = Math.max(max, alpha);
+                foundOpaquePixel = true;
+            }
+        }
+        return foundOpaquePixel && max > min ? min | (max << 8) : -1;
+    }
+
+    private static int sampleScaledArgb(NativeImage image, int x, int y, int sourceW, int sourceH) {
+        int ix = Math.max(0, Math.min(image.getWidth() - 1, x * image.getWidth() / Math.max(1, sourceW)));
+        int iy = Math.max(0, Math.min(image.getHeight() - 1, y * image.getHeight() / Math.max(1, sourceH)));
+        return image.getColorArgb(ix, iy);
+    }
+
+    private record SparseAuxReport(int specularUploaded,
+                                   int normalUploaded,
+                                   int flagUploaded,
+                                   long bytesUploaded) {
     }
 
     private static void writeSpriteFramePixels(NativeImage img, int srcW, int srcH,
