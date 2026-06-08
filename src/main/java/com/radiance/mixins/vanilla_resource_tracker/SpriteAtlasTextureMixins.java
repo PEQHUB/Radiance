@@ -157,8 +157,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureArrayBridge.incrementTextureGeneration();
         TextureArrayBridge.setSortedSpriteIds(sortedIds);
         TextureReloadTimeline.end("generationPublish", phaseStart);
-        int spriteSize = manifest.fixedLayerSize();
-        if (spriteSize <= 0) {
+        int tierReferenceSize = manifest.fixedLayerSize();
+        boolean primaryTierUpload = true;
+        int spriteSize = primaryTierUpload ? 1 : tierReferenceSize;
+        if (tierReferenceSize <= 0 || spriteSize <= 0) {
             TextureReloadTimeline.addSummary("aborted", "invalidSpriteSize");
             TextureReloadTimeline.finish();
             return;
@@ -182,13 +184,15 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
         int bytesPerSprite = Math.toIntExact(bytesPerSpriteLong);
         int totalBytes = Math.toIntExact(totalSpriteBytes);
-        TextureTracker.currentSpriteLayerSize = spriteSize;
+        TextureTracker.currentSpriteLayerSize = tierReferenceSize;
         TextureReloadTimeline.addSummary("spriteCount", count);
         TextureReloadTimeline.addSummary("uploadedSpriteCount", uploadCount);
         TextureReloadTimeline.addSummary("renderableSpriteCapacity", renderableSpriteCapacity);
         TextureReloadTimeline.addSummary("overflowSprites", overflowSprites);
         TextureReloadTimeline.addSummary("overflowPolicy", "fallback");
         TextureReloadTimeline.addSummary("spriteLayerSize", spriteSize);
+        TextureReloadTimeline.addSummary("primaryTierUpload", primaryTierUpload ? 1 : 0);
+        TextureReloadTimeline.addSummary("tierReferenceLayerSize", tierReferenceSize);
         TextureReloadTimeline.addSummary("bytesPerSprite", bytesPerSprite);
         TextureReloadTimeline.addSummary("totalSpriteBytes", totalBytes);
 
@@ -369,7 +373,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             uploaded, totalBytes / 1024, animatedCount);
 
         int specCount = 0, normalCount = 0, flagCount = 0;
-        boolean sparseAux = Options.textureStreamingV2 && Options.sparseAuxUpload;
+        boolean sparseAux = !primaryTierUpload && Options.textureStreamingV2 && Options.sparseAuxUpload;
         TextureReloadTimeline.addSummary("sparseAuxUpload", String.valueOf(sparseAux));
         if (sparseAux) {
             TextureReloadTimeline.mark("auxBufferAlloc");

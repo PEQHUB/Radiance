@@ -20,6 +20,14 @@ logs.
   - `[TextureSystem] Updated material page N startLayer=L layers=C`
 - The atlas finalize path no longer performs an immediate duplicate full
   material table upload when runtime material bootstrap already uploaded it.
+- Vanilla block sprites are routed through reserved material texture pages for
+  size tiers 16, 32, 64, 128, 256, 512, and 1024. Page 0 remains a 1x1 fallback
+  array set instead of a full fixed 128x128 upload.
+- The fixed page-0 bootstrap upload is intentionally tiny in primary-tier mode;
+  the material table points vanilla sprite materials at their tier page/layer.
+- Runtime CTM dependency roots are cached under
+  `<minecraft>/radiance/cache/texture-loader-v3/` with stable resource-pack
+  selection keys and DebugBridge status counters.
 - DebugBridge accepts validation commands for:
   - `materialPagePoolStatus`
   - `materialTableStatus`
@@ -32,21 +40,21 @@ logs.
 - `materialPagePools`: true in native compatibility mode.
 - `sparseMaterialTableUpdates`: true when `Options.materialTableDirtyUpdates`
   is enabled.
-- `sparseAuxBatchUpload`: true in the existing fixed-array compatibility path.
+- `sparseAuxBatchUpload`: true for the legacy fixed-array compatibility path.
+- `tieredArrays`: true. Native status reports `material_page_size_tiers`.
+- `vanillaMaterialPageTiers`: true.
+- `diskCacheEnabled`: true for runtime CTM dependency roots.
 - CTM residency uses renderer-owned material pages and sparse material-table
   updates after a successful page upload.
 
 ## Not Yet Complete
 
-- `tieredArrays`: false. The current native status still reports
-  `single_fixed_layer_array`, so 16x16, 32x32, and 64x64 sprites can still be
-  expanded to the fixed layer size.
-- `diskCacheEnabled`: false. DebugBridge reports this explicitly through
-  `textureCacheStatus`.
-- Full vanilla block atlas GL-upload bypass is not proven complete in this
-  checkout. Runtime logs must still be used to verify the block-atlas gap.
+- The cache currently stores the runtime CTM dependency root. It does not yet
+  store full transformed tier binary payloads for albedo/aux/animation.
 - CTM prewarm/first-frame readiness is still a compatibility scheduler path,
   not a fully budgeted no-pop-in residency system.
+- Texture animation payloads still use the legacy page-0/fixed-layer update
+  path. Static frame-0 materials use tier pages.
 
 ## Validation Commands
 
@@ -71,13 +79,22 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
   `Updated material page 1` with increasing `startLayer`.
 - Residency batches should not trigger a full material-table upload immediately
   after bootstrap when bootstrap already uploaded the active table.
+- `textureReloadTimeline` should show `primaryTierUpload=1`,
+  `spriteLayerSize=1`, `tieredArrayPages > 0`, and no fixed 128x128 page-0
+  bulk upload.
+- `materialPagePoolStatus` should report six or more vanilla tier pages
+  allocated for the current Patrix stack, with `layersUsed=1810`.
+- `textureCacheStatus` should report `diskCacheEnabled=true`; after the second
+  matching boot it should show cache hits.
 - If native rejects an invalid upload, Java should log a failed page upload and
   continue with fallback material state rather than hard-crashing the JVM.
 
 ## Known Limits
 
-- This pass fixes the known memory-corruption crash class and improves
-  diagnostics, but it does not complete all texture-loader-v3 architecture
-  goals from the long-form request.
+- This pass fixes the known memory-corruption crash class, removes the old
+  full-size page-0 fixed upload from primary-tier mode, and improves
+  diagnostics.
+- Full transformed-payload disk caching and first-frame CTM no-pop-in prewarm
+  are still the remaining architecture work.
 - Patrix 128x runtime completion must not be claimed until the validation matrix
   has been run in-game and the DebugBridge/status/log evidence supports it.
