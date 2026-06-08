@@ -450,8 +450,8 @@ public final class ResourceMaterialResidencyUploader {
 
     private static List<UploadItem> collectUploadItems(JsonObject root, long generation, boolean visibleOnly) {
         JsonArray dependencies = array(object(root, "activeCtmAtlasDependencies"), "dependencies");
-        Set<Integer> visibleMaterialIds = visibleOnly
-            ? ResourceMaterialResidencyDemand.visibleMaterialIds(generation)
+        Set<Integer> requestedMaterialIds = visibleOnly
+            ? ResourceMaterialResidencyDemand.residencyMaterialIds(generation)
             : Set.of();
         ArrayList<UploadItem> items = new ArrayList<>();
         for (JsonElement element : dependencies) {
@@ -467,7 +467,7 @@ public final class ResourceMaterialResidencyUploader {
             if (materialId < 0) {
                 continue;
             }
-            if (visibleOnly && (!visibleMaterialIds.contains(materialId)
+            if (visibleOnly && (!requestedMaterialIds.contains(materialId)
                 || ResourceMaterialResidencyDemand.isVisibleResident(generation, materialId))) {
                 continue;
             }
@@ -488,15 +488,15 @@ public final class ResourceMaterialResidencyUploader {
         if (items == null || startIndex < 0 || startIndex >= items.size()) {
             return 0;
         }
-        Set<Integer> visibleMaterialIds = ResourceMaterialResidencyDemand.visibleMaterialIds(generation);
-        if (visibleMaterialIds.isEmpty()) {
+        Set<Integer> requestedMaterialIds = ResourceMaterialResidencyDemand.residencyMaterialIds(generation);
+        if (requestedMaterialIds.isEmpty()) {
             return 0;
         }
         int writeIndex = startIndex;
         int visiblePending = 0;
         for (int scanIndex = startIndex; scanIndex < items.size(); scanIndex++) {
             UploadItem item = items.get(scanIndex);
-            if (item != null && visibleMaterialIds.contains(item.materialId())) {
+            if (item != null && requestedMaterialIds.contains(item.materialId())) {
                 if (scanIndex != writeIndex) {
                     Collections.swap(items, scanIndex, writeIndex);
                 }

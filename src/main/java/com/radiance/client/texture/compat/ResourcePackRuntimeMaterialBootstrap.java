@@ -126,6 +126,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             deferEvent.addProperty("dependencyCount", root.dependencyCount());
             deferEvent.addProperty("presentDependencyCount", root.presentDependencyCount());
             deferEvent.addProperty("visibleUniqueMaterialCount", 0);
+            deferEvent.addProperty("prewarmUniqueMaterialCount", 0);
             deferEvent.addProperty("fullPreloadStarted", false);
             deferEvent.addProperty("reason", "waiting_for_visible_material_demand");
             ResourceMaterialRuntimeStatus.write("residencyDeferred", generation, deferEvent);
@@ -161,14 +162,29 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         scheduleResidencyUpload(generation, 150L);
     }
 
+    public static void onPrewarmMaterialDemand(long generation) {
+        if (!Options.materialCompatEnabled || !Options.materialCompatCtmEnabled || generation <= 0) {
+            return;
+        }
+        if (generation != activeResidencyGeneration) {
+            return;
+        }
+        if (activeResidencyRoot == null || activeResidencySnapshot == null) {
+            return;
+        }
+        if (ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty()) {
+            return;
+        }
+        scheduleResidencyUpload(generation, 50L);
+    }
+
     public static JsonObject schedulerStatusJson(long generation) {
         JsonObject json = new JsonObject();
         json.addProperty("generation", activeResidencyGeneration);
         json.addProperty("requestedGeneration", generation);
         json.addProperty("generationMatches", generation == activeResidencyGeneration);
         json.addProperty("pendingQueueSize",
-            Math.max(0, ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size()
-                - ResourceMaterialResidencyDemand.residentVisibleMaterialCount(generation)));
+            ResourceMaterialResidencyDemand.residencyMaterialIds(generation).size());
         json.addProperty("uploadInFlight", RESIDENCY_RUNNING.get());
         json.addProperty("uploadScheduled", RESIDENCY_SCHEDULED.get());
         json.addProperty("lastBatchSize", LAST_RESIDENCY_BATCH_SIZE.get());
@@ -511,7 +527,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static boolean shouldDeferResidency(long generation) {
         return Options.ctmDemandResidency
             && !Options.materialCompatFullPreloadDiagnostic
-            && ResourceMaterialResidencyDemand.visibleMaterialIds(generation).isEmpty();
+            && ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty();
     }
 
     private static void recordResidencyDescriptorOnlyUpdate(long generation) {

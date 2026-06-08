@@ -28,6 +28,10 @@ logs.
 - Runtime CTM dependency roots are cached under
   `<minecraft>/radiance/cache/texture-loader-v3/` with stable resource-pack
   selection keys and DebugBridge status counters.
+- CTM residency now tracks a requested-material queue distinct from
+  visible-only fallback accounting. First contact with a pending compat material
+  schedules a short-debounce prewarm pass, and completed uploads retire
+  requested materials from the pending queue.
 - DebugBridge accepts validation commands for:
   - `materialPagePoolStatus`
   - `materialTableStatus`
@@ -46,12 +50,16 @@ logs.
 - `diskCacheEnabled`: true for runtime CTM dependency roots.
 - CTM residency uses renderer-owned material pages and sparse material-table
   updates after a successful page upload.
+- CTM demand residency starts from the requested-material queue, so initial
+  visible material contact can trigger upload work before the longer visible
+  demand delay expires.
 
 ## Not Yet Complete
 
 - The cache currently stores the runtime CTM dependency root. It does not yet
   store full transformed tier binary payloads for albedo/aux/animation.
-- CTM prewarm/first-frame readiness is still a compatibility scheduler path,
+- CTM prewarm/first-frame readiness now has a requested-material queue and
+  shorter prewarm scheduling, but it is still a compatibility scheduler path,
   not a fully budgeted no-pop-in residency system.
 - Texture animation payloads still use the legacy page-0/fixed-layer update
   path. Static frame-0 materials use tier pages.
@@ -86,6 +94,9 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
   allocated for the current Patrix stack, with `layersUsed=1810`.
 - `textureCacheStatus` should report `diskCacheEnabled=true`; after the second
   matching boot it should show cache hits.
+- `firstFrameReadiness` should expose nonzero prewarm/requested counters when
+  pending CTM materials are touched before residency completes, then drain the
+  requested queue as uploads are marked resident.
 - If native rejects an invalid upload, Java should log a failed page upload and
   continue with fallback material state rather than hard-crashing the JVM.
 
@@ -94,7 +105,7 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- Full transformed-payload disk caching and first-frame CTM no-pop-in prewarm
-  are still the remaining architecture work.
+- Full transformed-payload disk caching and fully budgeted first-frame CTM
+  no-pop-in residency are still the remaining architecture work.
 - Patrix 128x runtime completion must not be claimed until the validation matrix
   has been run in-game and the DebugBridge/status/log evidence supports it.

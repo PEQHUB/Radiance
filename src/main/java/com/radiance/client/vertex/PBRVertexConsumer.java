@@ -722,8 +722,9 @@ public class PBRVertexConsumer implements VertexConsumer {
         if (!ResourceMaterialRegistry.isPendingCompatMaterialId(materialId)) {
             return;
         }
-        ResourceMaterialResidencyDemand.enqueueVisible(
-            ResourceMaterialRegistry.activeSnapshot().generation(), materialId);
+        long generation = ResourceMaterialRegistry.activeSnapshot().generation();
+        ResourceMaterialResidencyDemand.enqueuePrewarm(generation, materialId);
+        ResourceMaterialResidencyDemand.enqueueVisible(generation, materialId);
     }
 
     public static float localSpriteUvForTest(float atlasUv, float min, float max) {

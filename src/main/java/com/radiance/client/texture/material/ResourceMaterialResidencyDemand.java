@@ -17,10 +17,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class ResourceMaterialResidencyDemand {
     private static final Object GENERATION_LOCK = new Object();
     private static volatile long activeGeneration = 0L;
+    private static Set<Integer> prewarmMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> visibleMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> residentVisibleMaterials = ConcurrentHashMap.newKeySet();
+    private static Set<Integer> requestedMaterials = ConcurrentHashMap.newKeySet();
     private static final AtomicLong visibleRequestEvents = new AtomicLong();
     private static final AtomicLong visibleUniqueRequests = new AtomicLong();
+    private static final AtomicLong prewarmRequestEvents = new AtomicLong();
+    private static final AtomicLong prewarmUniqueRequests = new AtomicLong();
     private static final AtomicLong visiblePriorityCandidates = new AtomicLong();
     private static final AtomicLong visibleResidentEvents = new AtomicLong();
 
@@ -33,12 +37,32 @@ public final class ResourceMaterialResidencyDemand {
                 return;
             }
             activeGeneration = generation;
+            prewarmMaterials = ConcurrentHashMap.newKeySet();
             visibleMaterials = ConcurrentHashMap.newKeySet();
             residentVisibleMaterials = ConcurrentHashMap.newKeySet();
+            requestedMaterials = ConcurrentHashMap.newKeySet();
             visibleRequestEvents.set(0L);
             visibleUniqueRequests.set(0L);
+            prewarmRequestEvents.set(0L);
+            prewarmUniqueRequests.set(0L);
             visiblePriorityCandidates.set(0L);
             visibleResidentEvents.set(0L);
+        }
+    }
+
+    public static void enqueuePrewarm(long generation, int materialId) {
+        if (generation <= 0L || materialId < 0) {
+            return;
+        }
+        ensureGeneration(generation);
+        if (generation != activeGeneration) {
+            return;
+        }
+        prewarmRequestEvents.incrementAndGet();
+        if (prewarmMaterials.add(materialId)) {
+            prewarmUniqueRequests.incrementAndGet();
+            requestedMaterials.add(materialId);
+            ResourcePackRuntimeMaterialBootstrap.onPrewarmMaterialDemand(generation);
         }
     }
 
@@ -53,6 +77,7 @@ public final class ResourceMaterialResidencyDemand {
         visibleRequestEvents.incrementAndGet();
         if (visibleMaterials.add(materialId)) {
             visibleUniqueRequests.incrementAndGet();
+            requestedMaterials.add(materialId);
             ResourcePackRuntimeMaterialBootstrap.onVisibleMaterialDemand(generation);
         }
     }
@@ -62,6 +87,13 @@ public final class ResourceMaterialResidencyDemand {
             return Set.of();
         }
         return Set.copyOf(visibleMaterials);
+    }
+
+    public static Set<Integer> residencyMaterialIds(long generation) {
+        if (generation != activeGeneration || requestedMaterials.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(requestedMaterials);
     }
 
     public static void recordPriorityCandidates(long generation, int count) {
@@ -76,9 +108,13 @@ public final class ResourceMaterialResidencyDemand {
         }
         int added = 0;
         for (Integer materialId : materialIds) {
-            if (materialId != null && visibleMaterials.contains(materialId)
-                && residentVisibleMaterials.add(materialId)) {
-                added++;
+            if (materialId != null) {
+                requestedMaterials.remove(materialId);
+                prewarmMaterials.remove(materialId);
+                if (visibleMaterials.contains(materialId)
+                    && residentVisibleMaterials.add(materialId)) {
+                    added++;
+                }
             }
         }
         if (added > 0) {
@@ -101,6 +137,9 @@ public final class ResourceMaterialResidencyDemand {
         json.addProperty("generationMatches", generation == activeGeneration);
         json.addProperty("visibleRequestEvents", visibleRequestEvents.get());
         json.addProperty("visibleUniqueMaterialCount", visibleMaterials.size());
+        json.addProperty("prewarmRequestEvents", prewarmRequestEvents.get());
+        json.addProperty("prewarmUniqueMaterialCount", prewarmMaterials.size());
+        json.addProperty("requestedUniqueMaterialCount", requestedMaterials.size());
         json.addProperty("visiblePriorityCandidateEvents", visiblePriorityCandidates.get());
         json.addProperty("visibleResidentMaterialCount", residentVisibleMaterials.size());
         json.addProperty("visibleFallbackMaterialCount",
