@@ -47,6 +47,8 @@ public final class ResourceMaterialResidencyUploader {
     private static final int TARGET_PAGE_CAPACITY = 512;
     private static final int DEFAULT_LAYER_DECODE_THREADS = 4;
     private static final int MAX_LAYER_DECODE_THREADS = 8;
+    private static final int DEFAULT_DEMAND_BATCH_MATERIALS = 128;
+    private static final int DEFAULT_DEMAND_BATCH_MIB = 32;
     private static final long MAX_PAGE_BYTES = 128L * 1024L * 1024L;
     private static final Object PAGE_ALLOCATOR_LOCK = new Object();
     private static long pageAllocatorGeneration = -1L;
@@ -110,6 +112,11 @@ public final class ResourceMaterialResidencyUploader {
             return json;
         }
         int bytesPerLayer = layerSize * layerSize * 4;
+        int queuedMaterialCount = items.size();
+        int budgetedMaterialCount = demandBatchLimit(queuedMaterialCount, bytesPerLayer, visibleOnly);
+        if (budgetedMaterialCount < items.size()) {
+            items = new ArrayList<>(items.subList(0, budgetedMaterialCount));
+        }
         int pageCapacity = pageCapacity(bytesPerLayer);
         int materialCapacity = pageCapacity * PAGE_BUDGET;
         int pagesRequired = pagesRequired(items.size(), pageCapacity);
@@ -124,7 +131,11 @@ public final class ResourceMaterialResidencyUploader {
         json.addProperty("percentOfPageBudgetRequired",
             PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
         json.addProperty("materialCapacity", materialCapacity);
+        json.addProperty("queuedMaterialCount", queuedMaterialCount);
         json.addProperty("candidateMaterialCount", items.size());
+        json.addProperty("deferredQueuedMaterialCount", Math.max(0, queuedMaterialCount - items.size()));
+        json.addProperty("demandBatchLimitMaterials", demandBatchLimitMaterials());
+        json.addProperty("demandBatchLimitMiB", demandBatchLimitMiB());
 
         long uploadStartedNanos = System.nanoTime();
         UploadStats totalStats = new UploadStats();
@@ -151,6 +162,10 @@ public final class ResourceMaterialResidencyUploader {
         startEvent.addProperty("percentOfPageBudgetRequired",
             PAGE_BUDGET <= 0 ? 0.0 : (100.0 * pagesRequired) / PAGE_BUDGET);
         startEvent.addProperty("materialCapacity", materialCapacity);
+        startEvent.addProperty("queuedMaterialCount", queuedMaterialCount);
+        startEvent.addProperty("deferredQueuedMaterialCount", Math.max(0, queuedMaterialCount - items.size()));
+        startEvent.addProperty("demandBatchLimitMaterials", demandBatchLimitMaterials());
+        startEvent.addProperty("demandBatchLimitMiB", demandBatchLimitMiB());
         startEvent.addProperty("visibleOnly", visibleOnly);
         startEvent.addProperty("fullPreloadStarted", !visibleOnly);
         startEvent.add("visibleResidency", ResourceMaterialResidencyDemand.summaryJson(generation));
@@ -238,6 +253,8 @@ public final class ResourceMaterialResidencyUploader {
                         } else {
                             failedImages++;
                         }
+                        ResourceMaterialResidencyDemand.recordFailed(generation,
+                            java.util.List.of(uploadResult.materialId()));
                         continue;
                     }
                     if (result.displacementEligible()) {
@@ -300,6 +317,7 @@ public final class ResourceMaterialResidencyUploader {
                         page, layer, pageHandles.size(), handles.size());
                 } else {
                     nativePageFailures++;
+                    ResourceMaterialResidencyDemand.recordFailed(generation, pageHandles.keySet());
                     pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
                     writePageStatus(generation, "residencyPageFailed", page, layer, uploadedPages,
                         handles.size(), items.size(), nextItem, false, pagesRequired, pageStats);
@@ -433,6 +451,37 @@ public final class ResourceMaterialResidencyUploader {
         }
         int cpuLimit = Math.max(1, Runtime.getRuntime().availableProcessors());
         return Math.max(1, Math.min(Math.min(MAX_LAYER_DECODE_THREADS, cpuLimit), requested));
+    }
+
+    private static int demandBatchLimit(int queuedMaterialCount, int bytesPerLayer, boolean visibleOnly) {
+        if (!visibleOnly || queuedMaterialCount <= 0) {
+            return queuedMaterialCount;
+        }
+        int byCount = Math.max(1, Math.min(queuedMaterialCount, demandBatchLimitMaterials()));
+        long bytesPerMaterial = Math.max(1L, (long) bytesPerLayer * 4L);
+        long byteBudget = Math.max(1L, demandBatchLimitMiB()) * 1024L * 1024L;
+        int byBytes = (int) Math.max(1L, byteBudget / bytesPerMaterial);
+        return Math.max(1, Math.min(byCount, byBytes));
+    }
+
+    private static int demandBatchLimitMaterials() {
+        return positiveIntProperty("radser.ctmResidencyBatchMaterials", DEFAULT_DEMAND_BATCH_MATERIALS);
+    }
+
+    private static int demandBatchLimitMiB() {
+        return positiveIntProperty("radser.ctmResidencyBatchMiB", DEFAULT_DEMAND_BATCH_MIB);
+    }
+
+    private static int positiveIntProperty(String name, int fallback) {
+        String property = System.getProperty(name, "");
+        if (!property.isBlank()) {
+            try {
+                return Math.max(1, Integer.parseInt(property.trim()));
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     private static void writePageStatus(long generation, String status, int page, int layerCount,

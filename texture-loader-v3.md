@@ -39,6 +39,12 @@ logs.
   visible-only fallback accounting. First contact with a pending compat material
   schedules a short-debounce prewarm pass, and completed uploads retire
   requested materials from the pending queue.
+- Demand residency passes are bounded by material count and byte budget
+  (`radser.ctmResidencyBatchMaterials`, default 128, and
+  `radser.ctmResidencyBatchMiB`, default 32). Remaining requested materials are
+  coalesced and rescheduled instead of draining the entire queue in one pass.
+- Failed CTM residency attempts are tracked separately and removed from the
+  requested queue so broken assets or native rejections do not spin forever.
 - DebugBridge accepts validation commands for:
   - `materialPagePoolStatus`
   - `materialTableStatus`
@@ -67,9 +73,9 @@ logs.
 - The cache now stores runtime CTM dependency roots, transformed CTM residency
   layer payloads, and transformed vanilla tier frame-0 layer payloads. Animated
   frame payloads are not yet cached.
-- CTM prewarm/first-frame readiness now has a requested-material queue and
-  shorter prewarm scheduling, but it is still a compatibility scheduler path,
-  not a fully budgeted no-pop-in residency system.
+- CTM prewarm/first-frame readiness now has a requested-material queue,
+  failed-material tracking, shorter prewarm scheduling, and bounded demand
+  upload passes. It is still not a fully blocking no-pop-in first-frame gate.
 - Texture animation payloads still use the legacy page-0/fixed-layer update
   path. Static frame-0 materials use tier pages.
 
@@ -105,7 +111,8 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
   matching boot it should show root cache hits and layer payload cache hits.
 - `firstFrameReadiness` should expose nonzero prewarm/requested counters when
   pending CTM materials are touched before residency completes, then drain the
-  requested queue as uploads are marked resident.
+  requested queue as uploads are marked resident or failed. Scheduler status
+  should report prewarm/visible debounce and coalesced pending requests.
 - If native rejects an invalid upload, Java should log a failed page upload and
   continue with fallback material state rather than hard-crashing the JVM.
 
@@ -114,8 +121,8 @@ powershell.exe -File C:\RadSER\bridge.ps1 -json '{"cmd":"resourcePackComprehensi
 - This pass fixes the known memory-corruption crash class, removes the old
   full-size page-0 fixed upload from primary-tier mode, and improves
   diagnostics.
-- Animated frame transformed-payload disk caching and fully budgeted first-frame
-  CTM no-pop-in residency are still remaining architecture work.
+- Animated frame transformed-payload disk caching and a fully blocking
+  first-frame CTM no-pop-in gate are still remaining architecture work.
 - The payload cache key follows the active resource-pack selection. If a pack is
   edited in place without changing that selection, clear
   `<minecraft>/radiance/cache/texture-loader-v3/` before judging the result.

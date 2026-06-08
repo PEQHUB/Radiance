@@ -21,6 +21,7 @@ public final class ResourceMaterialResidencyDemand {
     private static Set<Integer> visibleMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> residentVisibleMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> requestedMaterials = ConcurrentHashMap.newKeySet();
+    private static Set<Integer> failedMaterials = ConcurrentHashMap.newKeySet();
     private static final AtomicLong visibleRequestEvents = new AtomicLong();
     private static final AtomicLong visibleUniqueRequests = new AtomicLong();
     private static final AtomicLong prewarmRequestEvents = new AtomicLong();
@@ -41,6 +42,7 @@ public final class ResourceMaterialResidencyDemand {
             visibleMaterials = ConcurrentHashMap.newKeySet();
             residentVisibleMaterials = ConcurrentHashMap.newKeySet();
             requestedMaterials = ConcurrentHashMap.newKeySet();
+            failedMaterials = ConcurrentHashMap.newKeySet();
             visibleRequestEvents.set(0L);
             visibleUniqueRequests.set(0L);
             prewarmRequestEvents.set(0L);
@@ -111,6 +113,7 @@ public final class ResourceMaterialResidencyDemand {
             if (materialId != null) {
                 requestedMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
+                failedMaterials.remove(materialId);
                 if (visibleMaterials.contains(materialId)
                     && residentVisibleMaterials.add(materialId)) {
                     added++;
@@ -119,6 +122,19 @@ public final class ResourceMaterialResidencyDemand {
         }
         if (added > 0) {
             visibleResidentEvents.addAndGet(added);
+        }
+    }
+
+    public static void recordFailed(long generation, Collection<Integer> materialIds) {
+        if (generation != activeGeneration || materialIds == null || materialIds.isEmpty()) {
+            return;
+        }
+        for (Integer materialId : materialIds) {
+            if (materialId != null && materialId >= 0) {
+                requestedMaterials.remove(materialId);
+                prewarmMaterials.remove(materialId);
+                failedMaterials.add(materialId);
+            }
         }
     }
 
@@ -140,6 +156,7 @@ public final class ResourceMaterialResidencyDemand {
         json.addProperty("prewarmRequestEvents", prewarmRequestEvents.get());
         json.addProperty("prewarmUniqueMaterialCount", prewarmMaterials.size());
         json.addProperty("requestedUniqueMaterialCount", requestedMaterials.size());
+        json.addProperty("failedUniqueMaterialCount", failedMaterials.size());
         json.addProperty("visiblePriorityCandidateEvents", visiblePriorityCandidates.get());
         json.addProperty("visibleResidentMaterialCount", residentVisibleMaterials.size());
         json.addProperty("visibleFallbackMaterialCount",

@@ -191,7 +191,9 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         json.addProperty("lastBatchSize", LAST_RESIDENCY_BATCH_SIZE.get());
         json.addProperty("scheduleEvents", RESIDENCY_SCHEDULE_EVENTS.get());
         json.addProperty("uploadEvents", RESIDENCY_UPLOAD_EVENTS.get());
-        json.addProperty("debounceMs", 150);
+        json.addProperty("visibleDebounceMs", 150);
+        json.addProperty("prewarmDebounceMs", 50);
+        json.addProperty("coalescesPendingRequests", true);
         return json;
     }
 
@@ -541,10 +543,13 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                     generation, t.toString());
             } finally {
                 RESIDENCY_RUNNING.set(false);
-                if (generation == activeResidencyGeneration
-                    && ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size()
-                    > LAST_RESIDENCY_VISIBLE_COUNT.get()) {
-                    scheduleResidencyUpload(generation, 150L);
+                if (generation == activeResidencyGeneration) {
+                    if (!ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty()) {
+                        scheduleResidencyUpload(generation, 50L);
+                    } else if (ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size()
+                        > LAST_RESIDENCY_VISIBLE_COUNT.get()) {
+                        scheduleResidencyUpload(generation, 150L);
+                    }
                 }
             }
         }, "RadSER Material Residency Upload");
