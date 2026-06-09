@@ -256,6 +256,10 @@ public class Options {
     public static int displacementFadeDistance = 64;    // 8-256 blocks
     public static int displacementSteps = 32;
     public static int displacementRefinement = 4;
+    public static int tessMaxLevel = 16;
+    public static int tessNearDist = 32;
+    public static int tessMidDist = 96;
+    public static int tessFarDist = 192;
     // Legacy runtime aliases. Keep in sync for old callers/configs.
     public static boolean pomEnabled = false;
     public static int pomHeightScalePercent = displacementDepthCapPercent;

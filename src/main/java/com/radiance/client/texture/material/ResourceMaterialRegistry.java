@@ -29,7 +29,7 @@ import com.radiance.client.texture.v4.TexturePageHandle;
  * exposing array layers as the long-term content identity.</p>
  */
 public final class ResourceMaterialRegistry {
-    public static final int MATERIAL_ENTRY_SIZE = 112;
+    public static final int MATERIAL_ENTRY_SIZE = 80;
     public static final int MATERIAL_MAX_ENTRIES = 65536;
     public static final int MATERIAL_FLAG_VALID = 1 << 0;
     public static final int MATERIAL_FLAG_VANILLA_SPRITE = 1 << 1;
@@ -468,36 +468,28 @@ public final class ResourceMaterialRegistry {
         buffer.putInt(off + 4, baseSprite);
         buffer.putInt(off + 8, fallback);
         buffer.putInt(off + 12, flags);
-        // albedo: namespace, tier, page, layer
-        buffer.putInt(off + 16, extractNamespace(albedoPage));
-        buffer.putInt(off + 20, extractTierIndex(albedoPage));
-        buffer.putInt(off + 24, extractPageIndex(albedoPage));
-        buffer.putInt(off + 28, albedoLayer);
-        // specular: namespace, tier, page, layer
-        buffer.putInt(off + 32, extractNamespace(specPage));
-        buffer.putInt(off + 36, extractTierIndex(specPage));
-        buffer.putInt(off + 40, extractPageIndex(specPage));
-        buffer.putInt(off + 44, specLayer);
-        // normal: namespace, tier, page, layer
-        buffer.putInt(off + 48, extractNamespace(normalPage));
-        buffer.putInt(off + 52, extractTierIndex(normalPage));
-        buffer.putInt(off + 56, extractPageIndex(normalPage));
-        buffer.putInt(off + 60, normalLayer);
-        // flag: namespace, tier, page, layer
-        buffer.putInt(off + 64, extractNamespace(flagPage));
-        buffer.putInt(off + 68, extractTierIndex(flagPage));
-        buffer.putInt(off + 72, extractPageIndex(flagPage));
-        buffer.putInt(off + 76, flagLayer);
-        // overlay, residency, generation
-        buffer.putInt(off + 80, -1); // overlayMaterialId
-        buffer.putInt(off + 84, residencyState(handle));
-        buffer.putInt(off + 88, (int) (activeGeneration() & 0xFFFFFFFFL));
-        buffer.putInt(off + 92, (int) (activeGeneration() >>> 32));
+        // albedo: page, layer
+        buffer.putInt(off + 16, albedoPage);
+        buffer.putInt(off + 20, albedoLayer);
+        // specular: page, layer
+        buffer.putInt(off + 24, specPage);
+        buffer.putInt(off + 28, specLayer);
+        // normal: page, layer
+        buffer.putInt(off + 32, normalPage);
+        buffer.putInt(off + 36, normalLayer);
+        // flag: page, layer
+        buffer.putInt(off + 40, flagPage);
+        buffer.putInt(off + 44, flagLayer);
+        // overlay, displacement
+        buffer.putInt(off + 48, -1); // overlayMaterialId
+        buffer.putInt(off + 52, 0);  // displacementPolicy
+        buffer.putFloat(off + 56, 0.0f); // displacementScale
+        buffer.putInt(off + 60, heightRangePacked);
         // UV transform
-        buffer.putFloat(off + 96, 1.0f);
-        buffer.putFloat(off + 100, 1.0f);
-        buffer.putFloat(off + 104, 0.0f);
-        buffer.putFloat(off + 108, 0.0f);
+        buffer.putFloat(off + 64, 1.0f); // uvScaleU
+        buffer.putFloat(off + 68, 1.0f); // uvScaleV
+        buffer.putFloat(off + 72, 0.0f); // uvOffsetU
+        buffer.putFloat(off + 76, 0.0f); // uvOffsetV
     }
 
     
@@ -520,7 +512,7 @@ public final class ResourceMaterialRegistry {
 
     private static int residencyState(ResidencyHandle handle) {
         if (handle == null) return 0;
-        return handle.gpuResident() ? 3 : 0; // 3 = GPU_RESIDENT
+        return 0; // residencyState not used in current 80-byte ABI
     }
 
     private static long activeGeneration() {
