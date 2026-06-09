@@ -39,6 +39,11 @@ public final class TextureLoaderV4Options {
         return Boolean.getBoolean("radser.textureLoader.allowLegacyFixedLayer");
     }
 
+    /** Whether to fail closed (no legacy fallback) when v4 fails (default: true). */
+    public static boolean failClosed() {
+        return !Boolean.getBoolean("radser.textureLoader.allowLegacyFallback");
+    }
+
     /** Whether disk cache is enabled (default: true). */
     public static boolean diskCacheEnabled() {
         return !Boolean.getBoolean("radser.textureLoader.disableDiskCache");

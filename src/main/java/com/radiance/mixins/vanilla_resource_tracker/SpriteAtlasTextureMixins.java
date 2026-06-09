@@ -83,9 +83,17 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     TextureLoadScheduler.start(graph);
                     TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
                     LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={}", generation, regions.size());
+                    // V4 succeeded — skip legacy extraction
+                    ci.cancel();
+                    return;
                 } catch (Throwable t) {
                     TextureLoadGeneration.cancelActive();
-                    LOGGER.error("[TextureLoaderV4] Block atlas v4 extraction failed; falling back to legacy", t);
+                    LOGGER.error("[TextureLoaderV4] Block atlas v4 extraction failed", t);
+                    if (TextureLoaderV4Options.failClosed()) {
+                        ci.cancel();
+                        return;
+                    }
+                    // Explicit fallback to legacy
                 }
             }
 
