@@ -8,6 +8,13 @@ import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.AuxiliaryTextures;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
+import com.radiance.client.texture.v4.TextureLoadGeneration;
+import com.radiance.client.texture.v4.TextureManifestV4;
+import com.radiance.client.texture.v4.TextureLoadGraph;
+import com.radiance.client.texture.v4.TextureLoadScheduler;
+import com.radiance.client.texture.v4.TextureLoaderV4Options;
+import com.radiance.client.texture.v4.NativeUploadGuards;
+import com.radiance.client.proxy.vulkan.TextureArrayBridgeV4;
 import com.radiance.client.texture.compat.ResourcePackCompatDiagnostics;
 import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
@@ -63,6 +70,25 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             TextureTracker.beginVanillaBlockAtlasUploadBypass(id);
             Map<Identifier, Sprite> regions = stitchResult.regions();
             TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
+
+            if (TextureLoaderV4Options.enabled()) {
+                // V4 path: generation-scoped, tiered upload
+                long generation = TextureLoadGeneration.begin();
+                try {
+                    TextureManifestV4 manifest = TextureManifestV4.fromBlockAtlas(
+                        generation, self.getId(), sortedEntries(regions),
+                        stitchResult.width(), stitchResult.height());
+                    TextureLoadGraph graph = TextureLoadGraph.build(
+                        MinecraftClient.getInstance().getResourceManager(), manifest, generation);
+                    TextureLoadScheduler.start(graph);
+                    TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
+                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={}", generation, regions.size());
+                } catch (Throwable t) {
+                    TextureLoadGeneration.cancelActive();
+                    LOGGER.error("[TextureLoaderV4] Block atlas v4 extraction failed; falling back to legacy", t);
+                }
+            }
+
             extractSpritesForTextureArrays(stitchResult, ci);
             TextureTracker.endVanillaBlockAtlasUploadBypass();
             if (lastBlockAtlasExtractionSucceeded) {
@@ -1092,7 +1118,14 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                                     long cachedBytes) {
     }
 
-    private static void writeSpriteFramePixels(NativeImage img, int srcW, int srcH,
+    
+    private static List<Map.Entry<Identifier, Sprite>> sortedEntries(Map<Identifier, Sprite> regions) {
+        if (regions == null) return List.of();
+        List<Map.Entry<Identifier, Sprite>> sorted = new ArrayList<>(regions.entrySet());
+        sorted.sort(Comparator.comparing(e -> e.getKey().toString()));
+        return sorted;
+    }
+private static void writeSpriteFramePixels(NativeImage img, int srcW, int srcH,
                                                int frameIndex, int dstSize, long dstPtr) {
         if (img == null || dstSize <= 0 || dstPtr == 0L) return;
         int frameY = Math.max(0, frameIndex) * Math.max(1, srcH);

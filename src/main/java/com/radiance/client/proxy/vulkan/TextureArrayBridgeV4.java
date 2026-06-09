@@ -1,0 +1,60 @@
+package com.radiance.client.proxy.vulkan;
+
+/**
+ * V4 texture loader JNI bridge.
+ *
+ * Replaces the old fixed-layer TextureArrayBridge methods with
+ * generation-scoped, tiered, async upload APIs.
+ *
+ * ABI version 4: no fixed-layer bulk sprite upload, no timeout readiness,
+ * no vkDeviceWaitIdle during normal load.
+ */
+public final class TextureArrayBridgeV4 {
+
+    private TextureArrayBridgeV4() {}
+
+    /** ABI version — must match native side build_info::kTextureLoaderAbiVersion. */
+    public static final int ABI_VERSION = 4;
+
+    /** Cache schema version — must match native side build_info::kCacheSchemaVersion. */
+    public static final int CACHE_SCHEMA_VERSION = 4;
+
+    // ---- V4 lifecycle ----
+
+    /** Begin a v4 texture load generation. Native allocates page pools. */
+    public static native boolean nativeBeginTextureLoaderV4(long generation, long manifestPtr, int manifestBytes);
+
+    /** Upload a tiered texture page chunk. */
+    public static native boolean nativeUploadTexturePageV4(long generation, long uploadPtr, int uploadBytes);
+
+    /** Commit a v4 generation. Native finalizes page pools and publishes. */
+    public static native boolean nativeCommitTextureLoaderV4(long generation);
+
+    /** Cancel a v4 generation. Native discards all pending uploads. */
+    public static native boolean nativeCancelTextureLoaderV4(long generation, int reasonCode);
+
+    // ---- Sparse registry updates ----
+
+    /** Sparse material table update — only changed entries. */
+    public static native boolean nativeUpdateMaterialTableSparseV4(long generation, long entriesPtr, int entryCount);
+
+    /** Sparse sprite registry update — only changed entries. */
+    public static native boolean nativeUpdateSpriteRegistrySparseV4(long generation, long entriesPtr, int entryCount);
+
+    // ---- Status JSON (for DebugBridge validation) ----
+
+    /** Full texture loader v4 status. */
+    public static native String nativeTextureLoaderV4StatusJson();
+
+    /** Per-tier status. */
+    public static native String nativeTextureTierStatusJsonV4();
+
+    /** GPU upload queue status. */
+    public static native String nativeGpuUploadQueueStatusJsonV4();
+
+    /** Material page pool status. */
+    public static native String nativeMaterialPagePoolStatusJsonV4();
+
+    /** First-frame native readiness for a generation. */
+    public static native String nativeFirstFrameNativeReadinessJsonV4(long generation);
+}

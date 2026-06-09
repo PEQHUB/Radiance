@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.util.Identifier;
+import com.radiance.client.texture.v4.TexturePageHandle;
 
 /**
  * Java-side material-id registry.
@@ -28,7 +29,7 @@ import net.minecraft.util.Identifier;
  * exposing array layers as the long-term content identity.</p>
  */
 public final class ResourceMaterialRegistry {
-    public static final int MATERIAL_ENTRY_SIZE = 80;
+    public static final int MATERIAL_ENTRY_SIZE = 112;
     public static final int MATERIAL_MAX_ENTRIES = 65536;
     public static final int MATERIAL_FLAG_VALID = 1 << 0;
     public static final int MATERIAL_FLAG_VANILLA_SPRITE = 1 << 1;
@@ -467,25 +468,65 @@ public final class ResourceMaterialRegistry {
         buffer.putInt(off + 4, baseSprite);
         buffer.putInt(off + 8, fallback);
         buffer.putInt(off + 12, flags);
-        buffer.putInt(off + 16, albedoPage);
-        buffer.putInt(off + 20, albedoLayer);
-        buffer.putInt(off + 24, specPage);
-        buffer.putInt(off + 28, specLayer);
-        buffer.putInt(off + 32, normalPage);
-        buffer.putInt(off + 36, normalLayer);
-        buffer.putInt(off + 40, flagPage);
-        buffer.putInt(off + 44, flagLayer);
-        buffer.putInt(off + 48, -1);
-        buffer.putInt(off + 52, displacementPolicy(flags));
-        buffer.putFloat(off + 56, (flags & MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE) != 0 ? 1.0f : 0.0f);
-        buffer.putInt(off + 60, heightRangePacked);
-        buffer.putFloat(off + 64, 1.0f);
-        buffer.putFloat(off + 68, 1.0f);
-        buffer.putFloat(off + 72, 0.0f);
-        buffer.putFloat(off + 76, 0.0f);
+        // albedo: namespace, tier, page, layer
+        buffer.putInt(off + 16, extractNamespace(albedoPage));
+        buffer.putInt(off + 20, extractTierIndex(albedoPage));
+        buffer.putInt(off + 24, extractPageIndex(albedoPage));
+        buffer.putInt(off + 28, albedoLayer);
+        // specular: namespace, tier, page, layer
+        buffer.putInt(off + 32, extractNamespace(specPage));
+        buffer.putInt(off + 36, extractTierIndex(specPage));
+        buffer.putInt(off + 40, extractPageIndex(specPage));
+        buffer.putInt(off + 44, specLayer);
+        // normal: namespace, tier, page, layer
+        buffer.putInt(off + 48, extractNamespace(normalPage));
+        buffer.putInt(off + 52, extractTierIndex(normalPage));
+        buffer.putInt(off + 56, extractPageIndex(normalPage));
+        buffer.putInt(off + 60, normalLayer);
+        // flag: namespace, tier, page, layer
+        buffer.putInt(off + 64, extractNamespace(flagPage));
+        buffer.putInt(off + 68, extractTierIndex(flagPage));
+        buffer.putInt(off + 72, extractPageIndex(flagPage));
+        buffer.putInt(off + 76, flagLayer);
+        // overlay, residency, generation
+        buffer.putInt(off + 80, -1); // overlayMaterialId
+        buffer.putInt(off + 84, residencyState(handle));
+        buffer.putInt(off + 88, (int) (activeGeneration() & 0xFFFFFFFFL));
+        buffer.putInt(off + 92, (int) (activeGeneration() >>> 32));
+        // UV transform
+        buffer.putFloat(off + 96, 1.0f);
+        buffer.putFloat(off + 100, 1.0f);
+        buffer.putFloat(off + 104, 0.0f);
+        buffer.putFloat(off + 108, 0.0f);
     }
 
-    private static int vanillaTierPage(int spriteId, int[] pages) {
+    
+    private static int extractNamespace(int page) {
+        return (page & MATERIAL_PAGE_NAMESPACE_MASK) == MATERIAL_PAGE_NAMESPACE_VANILLA_TIER
+            ? TexturePageHandle.NS_VANILLA : TexturePageHandle.NS_CTM;
+    }
+
+    private static int extractTierIndex(int page) {
+        if ((page & MATERIAL_PAGE_NAMESPACE_MASK) == MATERIAL_PAGE_NAMESPACE_VANILLA_TIER) {
+            int tierPage = page & MATERIAL_PAGE_INDEX_MASK;
+            return Math.max(0, Math.min(6, tierPage - TextureTracker.VANILLA_TIER_FIRST_PAGE));
+        }
+        return 0; // CTM tier index from handle
+    }
+
+    private static int extractPageIndex(int page) {
+        return page & MATERIAL_PAGE_INDEX_MASK;
+    }
+
+    private static int residencyState(ResidencyHandle handle) {
+        if (handle == null) return 0;
+        return handle.gpuResident() ? 3 : 0; // 3 = GPU_RESIDENT
+    }
+
+    private static long activeGeneration() {
+        return com.radiance.client.proxy.vulkan.TextureArrayBridge.getActiveTextureGeneration();
+    }
+private static int vanillaTierPage(int spriteId, int[] pages) {
         if (spriteId < 0 || spriteId >= pages.length) {
             return 0;
         }
