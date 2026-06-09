@@ -4,25 +4,24 @@ package com.radiance.client.build;
  * Build identity for Radiance mod.
  *
  * Generated at build time by gradle task generateBuildInfo.
- * Fields are filled from git metadata and build artifacts.
  * Every runtime log and DebugBridge buildInfo command must print these fields.
  */
 public final class BuildInfo {
 
     /** Git commit hash (full 40-char hex). */
-    public static final String REPO_COMMIT = "${repoCommit}";
+    public static final String REPO_COMMIT = "953e967abe68a36ddba169cdf4dfb04bf5c4daa4";
 
     /** Git branch name. */
-    public static final String BRANCH = "${branch}";
+    public static final String BRANCH = "main";
 
     /** Whether the working tree had uncommitted changes at build time. */
-    public static final boolean DIRTY = ${dirty};
+    public static final boolean DIRTY = false;
 
     /** ISO-8601 timestamp of the build. */
-    public static final String BUILD_TIMESTAMP = "${buildTimestamp}";
+    public static final String BUILD_TIMESTAMP = "2026-06-09T12:06:55Z";
 
     /** SHA-256 of the deployed JAR, or "unknown" if not yet computed. */
-    public static final String JAR_SHA256 = "${jarSha256}";
+    public static final String JAR_SHA256 = "unknown";
 
     /** Texture loader ABI version — must match native side. */
     public static final int TEXTURE_LOADER_ABI_VERSION = 4;

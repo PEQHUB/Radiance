@@ -3,7 +3,7 @@ package com.radiance.client.texture.v4;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.minecraft.client.resource.ResourceManager;
+import net.minecraft.resource.ResourceManager;
 
 /**
  * Dependency graph for a texture load generation.
