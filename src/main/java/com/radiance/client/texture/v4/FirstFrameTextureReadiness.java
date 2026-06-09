@@ -55,12 +55,15 @@ public final class FirstFrameTextureReadiness {
         int unreadyPages = intProp(nativeJson, "nativeUnreadyAllocatedPageCount", 0);
         int pendingTableUpdates = intProp(nativeJson, "pendingVisibleMaterialTableUpdates", 0);
 
+        boolean nativeIdle = boolProp(nativeJson, "generationIdle", false);
+
         boolean ready = worldPresent
             && generation > 0L
             && visibleKnown
             && visibleFallbacks == 0
             && failedVisible == 0
             && pendingVisibleBytes == 0L
+            && nativeIdle
             && pendingMipPages == 0
             && unreadyPages == 0
             && pendingTableUpdates == 0;
@@ -71,9 +74,11 @@ public final class FirstFrameTextureReadiness {
         json.addProperty("generation", generation);
         json.addProperty("ready", ready);
         json.addProperty("timedOut", false);
+        json.addProperty("readinessBackend", "v4");
+        json.addProperty("legacyFallbackUsed", false);
         json.addProperty("reason", ready ? "texture_material_ready"
             : reason(worldPresent, generation, visibleKnown, visibleFallbacks,
-                     failedVisible, pendingVisibleBytes, pendingMipPages,
+                     failedVisible, pendingVisibleBytes, nativeIdle, pendingMipPages,
                      unreadyPages, pendingTableUpdates));
         json.addProperty("visibleMaterialSetKnown", visibleKnown);
         json.addProperty("visibleFallbackMaterialCount", visibleFallbacks);
@@ -90,13 +95,15 @@ public final class FirstFrameTextureReadiness {
 
     private static String reason(boolean worldPresent, long generation, boolean visibleKnown,
                                   int visibleFallbacks, int failedVisible, long pendingVisibleBytes,
-                                  int pendingMipPages, int unreadyPages, int pendingTableUpdates) {
+                                  boolean nativeIdle, int pendingMipPages, int unreadyPages,
+                                  int pendingTableUpdates) {
         if (!worldPresent) return "waiting_for_world";
         if (generation <= 0L) return "waiting_for_texture_generation";
         if (!visibleKnown) return "waiting_for_visible_material_plan";
         if (failedVisible > 0) return "failed_visible_materials";
         if (visibleFallbacks > 0) return "waiting_for_visible_material_residency";
         if (pendingVisibleBytes > 0L) return "waiting_for_visible_gpu_uploads";
+        if (!nativeIdle) return "waiting_for_native_generation_idle";
         if (pendingMipPages > 0) return "waiting_for_visible_mips";
         if (unreadyPages > 0) return "waiting_for_native_page_ready";
         if (pendingTableUpdates > 0) return "waiting_for_material_table";
@@ -125,6 +132,12 @@ public final class FirstFrameTextureReadiness {
     private static long longProp(JsonObject obj, String key, long fallback) {
         try {
             return obj != null && obj.has(key) ? obj.get(key).getAsLong() : fallback;
+        } catch (Throwable ignored) { return fallback; }
+    }
+
+    private static boolean boolProp(JsonObject obj, String key, boolean fallback) {
+        try {
+            return obj != null && obj.has(key) ? obj.get(key).getAsBoolean() : fallback;
         } catch (Throwable ignored) { return fallback; }
     }
 }

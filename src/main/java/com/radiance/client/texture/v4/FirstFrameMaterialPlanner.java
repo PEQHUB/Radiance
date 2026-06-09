@@ -19,6 +19,8 @@ public final class FirstFrameMaterialPlanner {
 
     private static volatile boolean planned = false;
     private static volatile long plannedGeneration = 0L;
+    private static volatile boolean emptyPlanAllowed = false;
+    private static volatile String emptyPlanReason = "none";
     private static final Set<Integer> VISIBLE_MATERIALS = ConcurrentHashMap.newKeySet();
 
     private FirstFrameMaterialPlanner() {}
@@ -33,12 +35,18 @@ public final class FirstFrameMaterialPlanner {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.world == null) return;
 
-        // Collect visible material IDs from the material registry
-        // In the full implementation, this walks loaded chunks and
-        // collects all material IDs that will be rendered.
-        // For now, we mark the plan as known with whatever the
-        // residency system already tracks.
+        int visibleChunkCount = mc.worldRenderer != null ? (int) mc.worldRenderer.getChunkCount() : 0;
+
         Set<Integer> visible = Collections.unmodifiableSet(VISIBLE_MATERIALS);
+
+        if (visibleChunkCount > 0 && visible.isEmpty()) {
+            emptyPlanAllowed = false;
+            emptyPlanReason = "visible_material_plan_empty_error";
+        } else {
+            emptyPlanAllowed = true;
+            emptyPlanReason = "none";
+        }
+
         TextureResidencySnapshot.publishVisiblePlan(generation, visible);
 
         planned = true;
@@ -54,10 +62,15 @@ public final class FirstFrameMaterialPlanner {
     public static void reset(long generation) {
         planned = false;
         plannedGeneration = 0L;
+        emptyPlanAllowed = false;
+        emptyPlanReason = "none";
         VISIBLE_MATERIALS.clear();
         TextureResidencySnapshot.resetForGeneration(generation);
     }
 
     public static boolean isPlanned() { return planned; }
     public static long plannedGeneration() { return plannedGeneration; }
+    public static boolean isEmptyPlanAllowed() { return emptyPlanAllowed; }
+    public static String emptyPlanReason() { return emptyPlanReason; }
+    public static int visibleMaterialCount() { return VISIBLE_MATERIALS.size(); }
 }
