@@ -1,7 +1,5 @@
 package com.radiance.client.texture.v4;
 
-import com.radiance.client.option.Options;
-
 /**
  * Feature flag and options for Texture Loader v4.
  *
@@ -17,9 +15,7 @@ public final class TextureLoaderV4Options {
 
     /** True if texture_loader_v4 is the active upload mode. */
     public static boolean enabled() {
-        // V4 is enabled when vanilla block atlas bypass is active
-        // and the v4 native bridge is available
-        return Options.vanillaBlockAtlasBypass && nativeV4Available();
+        return true;
     }
 
     /** Check if the v4 native bridge is loaded. */
@@ -34,14 +30,9 @@ public final class TextureLoaderV4Options {
         }
     }
 
-    /** Whether legacy fixed-layer upload is allowed (default: false). */
-    public static boolean allowLegacyFixedLayer() {
-        return Boolean.getBoolean("radser.textureLoader.allowLegacyFixedLayer");
-    }
-
     /** Whether to fail closed (no legacy fallback) when v4 fails (default: true). */
     public static boolean failClosed() {
-        return !Boolean.getBoolean("radser.textureLoader.allowLegacyFallback");
+        return true;
     }
 
     /** Whether disk cache is enabled (default: true). */

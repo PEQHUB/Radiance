@@ -5,6 +5,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.radiance.client.autopbr.AutoPbrTextureCatalog;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.proxy.vulkan.TextureArrayBridgeV4;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import java.nio.ByteBuffer;
@@ -276,8 +277,8 @@ public final class ResourceMaterialRegistry {
         try {
             NativeUploadGuards.assertDirectCapacity(buffer, (long) count * MATERIAL_ENTRY_SIZE,
                 "uploadActiveTableToNative");
-            return TextureArrayBridge.nativeReceiveMaterialTable(
-                org.lwjgl.system.MemoryUtil.memAddress(buffer), count, snapshot.generation());
+            return TextureArrayBridgeV4.nativeUpdateMaterialTableSparseV4(
+                snapshot.generation(), org.lwjgl.system.MemoryUtil.memAddress(buffer), count);
         } catch (UnsatisfiedLinkError e) {
             return false;
         }
@@ -309,8 +310,8 @@ public final class ResourceMaterialRegistry {
         try {
             NativeUploadGuards.assertDirectCapacity(buffer, (long) uniqueIds.size() * MATERIAL_ENTRY_SIZE,
                 "uploadMaterialTableEntriesToNative");
-            return TextureArrayBridge.nativeUpdateMaterialTableSparse(
-                org.lwjgl.system.MemoryUtil.memAddress(buffer), uniqueIds.size(), snapshot.generation());
+            return TextureArrayBridgeV4.nativeUpdateMaterialTableSparseV4(
+                snapshot.generation(), org.lwjgl.system.MemoryUtil.memAddress(buffer), uniqueIds.size());
         } catch (UnsatisfiedLinkError e) {
             return false;
         }

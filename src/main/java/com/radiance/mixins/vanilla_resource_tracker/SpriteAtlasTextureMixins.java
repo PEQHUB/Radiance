@@ -94,7 +94,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                         throw new IllegalStateException("nativeBeginTextureLoaderV4 rejected generation " + generation);
                     }
                     TierUploadReport tierUploadReport =
-                        stageVanillaTieredMaterialPages(sorted, regions.size(), generation, true);
+                        stageVanillaTieredMaterialPages(sorted, regions.size(), generation);
                     if (tierUploadReport.uploadedPages() <= 0 && !regions.isEmpty()) {
                         throw new IllegalStateException("v4 tier staging produced no uploaded pages");
                     }
@@ -121,27 +121,16 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 } catch (Throwable t) {
                     TextureLoadGeneration.cancelActive();
                     LOGGER.error("[TextureLoaderV4] Block atlas v4 extraction failed", t);
-                    if (TextureLoaderV4Options.failClosed()) {
-                        LOGGER.error("[TextureLoaderV4] v4 failed closed; legacy fixed block extractor disabled");
-                        TextureTracker.endVanillaBlockAtlasUploadBypass();
-                        ci.cancel();
-                        return;
-                    }
-                    if (!TextureLoaderV4Options.allowLegacyFixedLayer()) {
-                        LOGGER.error("[TextureLoaderV4] legacy fixed layer rejected in v4 acceptance");
-                        TextureTracker.endVanillaBlockAtlasUploadBypass();
-                        ci.cancel();
-                        return;
-                    }
-                    LOGGER.warn("[TextureLoaderV4] v4 failed; explicit legacy fixed-layer fallback allowed");
+                    LOGGER.error("[TextureLoaderV4] v4 failed closed; legacy fixed block extractor disabled");
+                    TextureTracker.endVanillaBlockAtlasUploadBypass();
+                    ci.cancel();
+                    return;
                 }
             }
 
-            extractSpritesForTextureArrays(stitchResult, ci);
+            LOGGER.error("[TextureLoaderV4] Block atlas v4 unavailable or empty; legacy fixed block extractor disabled");
             TextureTracker.endVanillaBlockAtlasUploadBypass();
-            if (lastBlockAtlasExtractionSucceeded) {
-                ci.cancel();
-            }
+            ci.cancel();
         }
     }
 
@@ -173,6 +162,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         SpriteAtlasTexture self = (SpriteAtlasTexture) (Object) this;
         Identifier atlasId = self.getId();
         if (!atlasId.getPath().contains("blocks")) {
+            return;
+        }
+        if (TextureLoaderV4Options.enabled()) {
+            LOGGER.warn("[TextureLoaderV4] Ignoring legacy RETURN texture extraction for block atlas");
             return;
         }
 
@@ -680,7 +673,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         phaseStart = TextureReloadTimeline.start("nativeFinalize");
         TextureArrayBridge.nativeTextureFinalize();
         TierUploadReport tierUploadReport = stageVanillaTieredMaterialPages(sorted, uploadCount,
-            TextureArrayBridge.getActiveTextureGeneration(), false);
+            TextureArrayBridge.getActiveTextureGeneration());
         TextureReloadTimeline.addSummary("tieredArrays", tierUploadReport.uploadedPages() > 0 ? 1 : 0);
         TextureReloadTimeline.addSummary("tieredArrayPages", tierUploadReport.uploadedPages());
         TextureReloadTimeline.addSummary("tieredArrayLayers", tierUploadReport.uploadedLayers());
@@ -752,16 +745,14 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
     }
 
     private static boolean shouldBypassVanillaBlockAtlas(Identifier atlasId) {
-        return Options.vanillaBlockAtlasBypass
-            && atlasId != null
+        return atlasId != null
             && "minecraft".equals(atlasId.getNamespace())
             && "textures/atlas/blocks.png".equals(atlasId.getPath());
     }
 
     private static TierUploadReport stageVanillaTieredMaterialPages(List<Map.Entry<Identifier, Sprite>> sorted,
                                                                     int uploadCount,
-                                                                    long generation,
-                                                                    boolean v4Upload) {
+                                                                    long generation) {
         if (uploadCount <= 0) {
             return new TierUploadReport(0, 0, 0L, 0, 0, 0, 0L);
         }
@@ -846,33 +837,16 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
                     NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
                     String sidecarHash = sidecarPresenceHash(specImg, normalImg, flagImg);
-                    TextureCacheKey v4Key = v4Upload
-                        ? vanillaTierPayloadKeyV4(sorted.get(i).getKey(), contents, tierSize, cacheKey, sidecarHash)
-                        : null;
-                    if (v4Upload) {
-                        byte[] cachedV4 = TextureCacheV4.read(v4Key);
-                        if (writeCachedLayerPayloadV4(cachedV4, bytesPerLayer,
-                            albedoPtr, specPtr, normalPtr, flagPtr)) {
-                            cacheHits++;
-                            cachedBytes += (long) bytesPerLayer * 4L;
-                            continue;
-                        }
-                        cacheMisses++;
-                    } else {
-                        String layerKey = vanillaTierPayloadKey(sorted.get(i).getKey(), contents, tierSize);
-                        TextureLoaderDiskCache.LayerPayload cached =
-                            TextureLoaderDiskCache.readLayerPayload(cacheKey, layerKey, bytesPerLayer);
-                        if (cached != null) {
-                            writeCachedPlane(cached.albedo(), albedoPtr);
-                            writeCachedPlane(cached.specular(), specPtr);
-                            writeCachedPlane(cached.normal(), normalPtr);
-                            writeCachedPlane(cached.flag(), flagPtr);
-                            cacheHits++;
-                            cachedBytes += (long) bytesPerLayer * 4L;
-                            continue;
-                        }
-                        cacheMisses++;
+                    TextureCacheKey v4Key =
+                        vanillaTierPayloadKeyV4(sorted.get(i).getKey(), contents, tierSize, cacheKey, sidecarHash);
+                    byte[] cachedV4 = TextureCacheV4.read(v4Key);
+                    if (writeCachedLayerPayloadV4(cachedV4, bytesPerLayer,
+                        albedoPtr, specPtr, normalPtr, flagPtr)) {
+                        cacheHits++;
+                        cachedBytes += (long) bytesPerLayer * 4L;
+                        continue;
                     }
+                    cacheMisses++;
                     writeSpriteFramePixels(img, w, h, 0, tierSize, albedoPtr);
                     if (specImg != null) {
                         int specH = Math.min(specImg.getHeight(), Math.max(1, h));
@@ -890,44 +864,16 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                             flagPtr);
                     }
                     int heightRangePacked = heightRangePacked(normalImg, img);
-                    if (v4Upload) {
-                        TextureCacheV4.write(v4Key, copyLayerPayloadV4(albedoPtr, specPtr, normalPtr,
-                            flagPtr, bytesPerLayer));
-                        cacheWrites++;
-                    } else {
-                        String layerKey = vanillaTierPayloadKey(sorted.get(i).getKey(), contents, tierSize);
-                        TextureLoaderDiskCache.writeLayerPayloadAsync(cacheKey, layerKey,
-                            new TextureLoaderDiskCache.LayerPayload(
-                                copyPlane(albedoPtr, bytesPerLayer),
-                                copyPlane(specPtr, bytesPerLayer),
-                                copyPlane(normalPtr, bytesPerLayer),
-                                copyPlane(flagPtr, bytesPerLayer),
-                                specImg != null,
-                                heightRangePacked >= 0,
-                                false,
-                                heightRangePacked));
-                        if (cacheKey != null && !cacheKey.isBlank() && !layerKey.isBlank()) {
-                            cacheWrites++;
-                        }
-                    }
+                    TextureCacheV4.write(v4Key, copyLayerPayloadV4(albedoPtr, specPtr, normalPtr,
+                        flagPtr, bytesPerLayer));
+                    cacheWrites++;
                 }
 
                 boolean uploaded = false;
                 try {
-                    if (v4Upload) {
-                        uploaded = TextureLoadScheduler.uploadTierPage(generation,
-                            page - TextureTracker.VANILLA_TIER_FIRST_PAGE, page, startLayer, chunkLayers,
-                            layerCapacity, tierSize, albedoBuf, specBuf, normalBuf, flagBuf, true);
-                    } else {
-                        NativeUploadGuards.assertDirectCapacity(albedoBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/albedo");
-                        NativeUploadGuards.assertDirectCapacity(specBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/spec");
-                        NativeUploadGuards.assertDirectCapacity(normalBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/normal");
-                        NativeUploadGuards.assertDirectCapacity(flagBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/flag");
-                        uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
-                            page, tierSize, startLayer, chunkLayers, layerCapacity,
-                            memAddress(albedoBuf), memAddress(specBuf), memAddress(normalBuf),
-                            memAddress(flagBuf), generation);
-                    }
+                    uploaded = TextureLoadScheduler.uploadTierPage(generation,
+                        page - TextureTracker.VANILLA_TIER_FIRST_PAGE, page, startLayer, chunkLayers,
+                        layerCapacity, tierSize, albedoBuf, specBuf, normalBuf, flagBuf, true);
                 } catch (UnsatisfiedLinkError ignored) {
                 }
                 if (!uploaded) {
@@ -937,7 +883,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     break;
                 }
                 uploadedLayers += chunkLayers;
-                uploadedBytes += v4Upload ? (long) chunkBytes * 4L : (long) chunkBytes * 4L;
+                uploadedBytes += (long) chunkBytes * 4L;
             }
             if (pageUploaded) {
                 uploadedPages++;
@@ -947,16 +893,6 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
         return new TierUploadReport(uploadedPages, uploadedLayers, uploadedBytes,
             cacheHits, cacheMisses, cacheWrites, cachedBytes);
-    }
-
-    private static String vanillaTierPayloadKey(Identifier spriteId, SpriteContents contents, int tierSize) {
-        if (spriteId == null || contents == null || tierSize <= 0) {
-            return "";
-        }
-        return TextureLoaderDiskCache.keyFor("vanilla-tier-v1|sprite=" + spriteId
-            + "|w=" + contents.getWidth()
-            + "|h=" + contents.getHeight()
-            + "|tier=" + tierSize);
     }
 
     private static TextureCacheKey vanillaTierPayloadKeyV4(Identifier spriteId, SpriteContents contents,
@@ -1049,12 +985,6 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             memByteBuffer(ptr, bytes).get(data);
         }
         return data;
-    }
-
-    private static void writeCachedPlane(byte[] data, long dstPtr) {
-        if (data != null && data.length > 0 && dstPtr != 0L) {
-            memByteBuffer(dstPtr, data.length).put(data);
-        }
     }
 
     private static SparseAuxReport stageSparseAuxLayers(List<Map.Entry<Identifier, Sprite>> sorted,

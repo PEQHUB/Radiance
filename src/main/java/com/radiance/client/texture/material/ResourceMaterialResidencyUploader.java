@@ -10,7 +10,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.radiance.client.option.Options;
-import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.proxy.vulkan.TextureArrayBridgeV4;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.TextureLoaderDiskCache;
@@ -302,9 +302,27 @@ public final class ResourceMaterialResidencyUploader {
                     assertDirectCapacity(specular, nativeBytes, "material specular native upload");
                     assertDirectCapacity(normal, nativeBytes, "material normal native upload");
                     assertDirectCapacity(flag, nativeBytes, "material flag native upload");
-                    uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
-                        page, layerSize, allocation.startLayer(), layer, allocation.layerCapacity(),
-                        albedoPtr, specularPtr, normalPtr, flagPtr, generation);
+                    uploaded = TextureArrayBridgeV4.nativeUploadTexturePageV4(
+                        generation,
+                        2, // NAMESPACE_CTM
+                        tierIndexForLayerSize(layerSize),
+                        page,
+                        allocation.startLayer(),
+                        layer,
+                        allocation.layerCapacity(),
+                        layerSize,
+                        layerSize,
+                        TextureArrayBridgeV4.VK_FORMAT_R8G8B8A8_UNORM,
+                        albedoPtr,
+                        specularPtr,
+                        normalPtr,
+                        flagPtr,
+                        bytesPerLayer,
+                        TextureArrayBridgeV4.CHANNEL_ALBEDO
+                            | TextureArrayBridgeV4.CHANNEL_SPECULAR
+                            | TextureArrayBridgeV4.CHANNEL_NORMAL
+                            | TextureArrayBridgeV4.CHANNEL_FLAG,
+                        visibleOnly);
                 } catch (UnsatisfiedLinkError e) {
                     uploaded = false;
                 }
@@ -411,6 +429,16 @@ public final class ResourceMaterialResidencyUploader {
             }
             return allocation;
         }
+    }
+
+    private static int tierIndexForLayerSize(int layerSize) {
+        if (layerSize <= 16) return 0;
+        if (layerSize <= 32) return 1;
+        if (layerSize <= 64) return 2;
+        if (layerSize <= 128) return 3;
+        if (layerSize <= 256) return 4;
+        if (layerSize <= 512) return 5;
+        return 6;
     }
 
     private static ExecutorService newLayerExecutor(int threads) {
