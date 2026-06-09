@@ -19,13 +19,40 @@ public final class TextureArrayBridgeV4 {
     /** Cache schema version — must match native side build_info::kCacheSchemaVersion. */
     public static final int CACHE_SCHEMA_VERSION = 4;
 
+    /** Channel mask: albedo plane present. */
+    public static final int CHANNEL_ALBEDO   = 1 << 0;
+    /** Channel mask: specular plane present. */
+    public static final int CHANNEL_SPECULAR = 1 << 1;
+    /** Channel mask: normal plane present. */
+    public static final int CHANNEL_NORMAL   = 1 << 2;
+    /** Channel mask: flag/emissive plane present. */
+    public static final int CHANNEL_FLAG     = 1 << 3;
+
     // ---- V4 lifecycle ----
 
     /** Begin a v4 texture load generation. Native allocates page pools. */
     public static native boolean nativeBeginTextureLoaderV4(long generation, long manifestPtr, int manifestBytes);
 
-    /** Upload a tiered texture page chunk. */
-    public static native boolean nativeUploadTexturePageV4(long generation, long uploadPtr, int uploadBytes);
+    /**
+     * Upload a tiered texture page with explicit per-field arguments.
+     * Albedo is mandatory; specular/normal/flag may be absent (pass 0).
+     */
+    public static native boolean nativeUploadTexturePageV4(
+        long generation,
+        int namespaceId,
+        int tier,
+        int page,
+        int startLayer,
+        int layerCount,
+        int width,
+        int height,
+        int channelMask,
+        long albedoPtr,
+        long specularPtr,
+        long normalPtr,
+        long flagPtr,
+        long bytesPerLayer,
+        boolean visible);
 
     /** Commit a v4 generation. Native finalizes page pools and publishes. */
     public static native boolean nativeCommitTextureLoaderV4(long generation);
