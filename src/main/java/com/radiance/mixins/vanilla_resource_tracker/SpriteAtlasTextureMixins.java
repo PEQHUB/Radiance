@@ -365,6 +365,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.end("metadataBuild", phaseStart);
 
         phaseStart = TextureReloadTimeline.start("nativeSpriteTableUpload");
+        NativeUploadGuards.assertDirectCapacity(metaBuf, (long) uploadCount * 16, "nativeReceiveSpriteTable");
         TextureArrayBridge.nativeReceiveSpriteTable(memAddress(metaBuf), uploadCount, atlasW, atlasH);
         TextureReloadTimeline.end("nativeSpriteTableUpload", phaseStart);
         LOGGER.info("[TextureSystem] Sent sprite table: {} entries ({} overflow fallback)",
@@ -405,6 +406,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.end("albedoCopy", phaseStart);
 
         phaseStart = TextureReloadTimeline.start("nativeAlbedoUpload");
+        NativeUploadGuards.assertDirectCapacity(pixelBuf, totalBytes, "nativeReceiveSpritePixels");
         TextureArrayBridge.nativeReceiveSpritePixels(memAddress(pixelBuf), totalBytes);
         TextureReloadTimeline.end("nativeAlbedoUpload", phaseStart);
         LOGGER.info("[TextureSystem] Sent {} sprite pixels ({} KB), {} animated",
@@ -505,6 +507,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         TextureReloadTimeline.addSummary("flagSprites", flagCount);
 
         phaseStart = TextureReloadTimeline.start("nativeAuxUpload");
+        NativeUploadGuards.assertDirectCapacity(specPixelBuf, totalBytes, "nativeReceiveSpriteAuxPixels/spec");
+        NativeUploadGuards.assertDirectCapacity(normalPixelBuf, totalBytes, "nativeReceiveSpriteAuxPixels/normal");
+        NativeUploadGuards.assertDirectCapacity(flagPixelBuf, totalBytes, "nativeReceiveSpriteAuxPixels/flag");
         TextureArrayBridge.nativeReceiveSpriteAuxPixels(
             memAddress(specPixelBuf), memAddress(normalPixelBuf), memAddress(flagPixelBuf), totalBytes);
         TextureReloadTimeline.end("nativeAuxUpload", phaseStart);
@@ -611,6 +616,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
             TextureReloadTimeline.end("animationBufferBuild", phaseStart);
             phaseStart = TextureReloadTimeline.start("nativeAnimationUpload");
+            NativeUploadGuards.assertDirectCapacity(animBuf, animOffset, "nativeReceiveAnimationFrames");
             TextureArrayBridge.nativeReceiveAnimationFrames(memAddress(animBuf), animOffset);
             TextureReloadTimeline.end("nativeAnimationUpload", phaseStart);
             LOGGER.info("[TextureSystem] Sent {} bytes of animation data", animOffset);
@@ -836,6 +842,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
 
                 boolean uploaded = false;
                 try {
+                    NativeUploadGuards.assertDirectCapacity(albedoBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/albedo");
+                    NativeUploadGuards.assertDirectCapacity(specBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/spec");
+                    NativeUploadGuards.assertDirectCapacity(normalBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/normal");
+                    NativeUploadGuards.assertDirectCapacity(flagBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/flag");
                     uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
                         page, tierSize, startLayer, chunkLayers, layerCapacity,
                         memAddress(albedoBuf), memAddress(specBuf), memAddress(normalBuf),
@@ -1056,6 +1066,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         }
         boolean uploaded = false;
         try {
+            NativeUploadGuards.assertDirectCapacity(updateBuf, updateOffset, "nativeReceiveSparseAuxBatch/updates");
+            NativeUploadGuards.assertDirectCapacity(pixelBuf, pixelOffset, "nativeReceiveSparseAuxBatch/pixels");
             uploaded = TextureArrayBridge.nativeReceiveSparseAuxBatch(
                 memAddress(updateBuf), updateCount, memAddress(pixelBuf), pixelOffset,
                 metadataCount > 0 ? memAddress(metadataBuf) : 0L, metadataCount, generation);

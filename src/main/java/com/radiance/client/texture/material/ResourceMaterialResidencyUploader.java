@@ -14,6 +14,7 @@ import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.compat.ResourcePackCompatCtmTiles;
 import com.radiance.client.texture.compat.TextureLoaderDiskCache;
+import com.radiance.client.texture.v4.NativeUploadGuards;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.INativeImageExt;
 import java.io.IOException;
 import java.io.InputStream;
@@ -891,18 +892,11 @@ public final class ResourceMaterialResidencyUploader {
     }
 
     private static void assertDirectCapacity(ByteBuffer buffer, long requiredBytes, String label) {
-        if (buffer == null || requiredBytes < 0 || requiredBytes > buffer.capacity()) {
-            throw new IllegalStateException(label + " requires " + requiredBytes
-                + " bytes but capacity is " + (buffer == null ? 0 : buffer.capacity()));
-        }
+        NativeUploadGuards.assertDirectCapacity(buffer, requiredBytes, label);
     }
 
     private static void assertRange(ByteBuffer buffer, long offset, long bytes, String label) {
-        long end = offset + bytes;
-        if (buffer == null || offset < 0 || bytes < 0 || end < offset || end > buffer.capacity()) {
-            throw new IllegalStateException(label + " out of bounds offset=" + offset
-                + " bytes=" + bytes + " capacity=" + (buffer == null ? 0 : buffer.capacity()));
-        }
+        NativeUploadGuards.assertRange(buffer, offset, bytes, label);
     }
 
     private static int pageCapacity(int bytesPerLayer) {

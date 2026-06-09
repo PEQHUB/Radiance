@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.util.Identifier;
+import com.radiance.client.texture.v4.NativeUploadGuards;
 import com.radiance.client.texture.v4.TexturePageHandle;
 
 /**
@@ -273,6 +274,8 @@ public final class ResourceMaterialRegistry {
             writeMaterialEntry(buffer, i, snapshot.records().get(i), handle);
         }
         try {
+            NativeUploadGuards.assertDirectCapacity(buffer, (long) count * MATERIAL_ENTRY_SIZE,
+                "uploadActiveTableToNative");
             return TextureArrayBridge.nativeReceiveMaterialTable(
                 org.lwjgl.system.MemoryUtil.memAddress(buffer), count, snapshot.generation());
         } catch (UnsatisfiedLinkError e) {
@@ -304,6 +307,8 @@ public final class ResourceMaterialRegistry {
             writeMaterialEntry(buffer, index++, record, residency.get(materialId));
         }
         try {
+            NativeUploadGuards.assertDirectCapacity(buffer, (long) uniqueIds.size() * MATERIAL_ENTRY_SIZE,
+                "uploadMaterialTableEntriesToNative");
             return TextureArrayBridge.nativeUpdateMaterialTableSparse(
                 org.lwjgl.system.MemoryUtil.memAddress(buffer), uniqueIds.size(), snapshot.generation());
         } catch (UnsatisfiedLinkError e) {
