@@ -58,12 +58,31 @@ public final class TextureLoadScheduler {
             return schedule.future;
         }
 
-        // Schedule the actual upload work on a worker thread
-        Thread worker = new Thread(() -> executeUpload(schedule), "TextureLoadV4-" + generation);
-        worker.setDaemon(true);
-        worker.start();
-
         return schedule.future;
+    }
+
+    public static boolean commitGeneration(long generation) {
+        for (ActiveSchedule schedule : ACTIVE_SCHEDULES) {
+            if (schedule.generation == generation && !schedule.done.get()) {
+                try {
+                    boolean committed = TextureArrayBridgeV4.nativeCommitTextureLoaderV4(generation);
+                    if (committed) {
+                        TierUploadStats stats = consumeTierStats();
+                        if (stats != null) {
+                            stats.logSummary(generation);
+                        }
+                        schedule.complete();
+                        return true;
+                    }
+                    schedule.fail("nativeCommitTextureLoaderV4 returned false");
+                    return false;
+                } catch (Throwable t) {
+                    schedule.fail("nativeCommitTextureLoaderV4 threw: " + t.getMessage());
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -75,6 +94,7 @@ public final class TextureLoadScheduler {
      * @param pageHint   page hint (-1 for native allocation)
      * @param startLayerHint start layer hint (-1 for native allocation)
      * @param layerCount number of layers in this upload
+     * @param layerCapacity total layers in the Java-planned tier page
      * @param tierSize   pixel dimension of the tier (16, 32, 64, ...)
      * @param albedo     direct ByteBuffer with albedo RGBA8 pixel data
      * @param specular   direct ByteBuffer with specular data (or null)
@@ -84,7 +104,7 @@ public final class TextureLoadScheduler {
      * @return true if the upload was accepted by native
      */
     public static boolean uploadTierPage(long generation, int tierIndex, int pageHint,
-                                          int startLayerHint, int layerCount, int tierSize,
+                                          int startLayerHint, int layerCount, int layerCapacity, int tierSize,
                                           ByteBuffer albedo, ByteBuffer specular,
                                           ByteBuffer normal, ByteBuffer flag,
                                           boolean visible) {
@@ -136,6 +156,7 @@ public final class TextureLoadScheduler {
                 pageHint,
                 startLayerHint,
                 layerCount,
+                layerCapacity,
                 tierSize,
                 tierSize,
                 TextureArrayBridgeV4.VK_FORMAT_R8G8B8A8_UNORM,
@@ -147,10 +168,11 @@ public final class TextureLoadScheduler {
                 channelMask,
                 visible);
 
-            // Track stats
-            TierUploadStats stats = currentTierStats;
-            if (stats != null) {
-                stats.addLayers(tierIndex, layerCount, bytesPerLayer * layerCount);
+            if (ok) {
+                TierUploadStats stats = currentTierStats;
+                if (stats != null) {
+                    stats.addLayers(tierIndex, layerCount, bytesPerLayer * layerCount);
+                }
             }
 
             return ok;

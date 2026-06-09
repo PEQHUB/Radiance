@@ -78,6 +78,12 @@ public final class TextureArrayBridge {
             spriteIdLookup.size(), renderableSpriteCapacity);
     }
 
+    public static void publishV4SpriteIds(List<Identifier> spriteIds, long generation) {
+        activeTextureGeneration = Math.max(1L, generation);
+        setSortedSpriteIds(spriteIds);
+        publishTextureGeneration();
+    }
+
     private static void refreshMissingSpriteFallback(Map<Identifier, Integer> lookup) {
         missingSpriteFallbackId = -1;
         missingSpriteFallbackSprite = null;

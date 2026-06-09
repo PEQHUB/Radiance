@@ -21,14 +21,20 @@ public record TextureCacheKey(
     String resourcePath,
     String packIdentity,
     int transformVersion,
-    String loaderOptionsHash
+    String loaderOptionsHash,
+    String sidecarPresenceHash,
+    String mipPolicy,
+    String formatPolicy
 ) {
     /** Build the string key used for file lookup. */
     public String toKeyString() {
         return minecraftVersion + "|" + radianceCommit + "|" + mcvrCommit
             + "|abi" + textureLoaderAbiVersion + "|cs" + cacheSchemaVersion
             + "|" + packStackHash + "|" + resourcePath + "|" + packIdentity
-            + "|tv" + transformVersion + "|" + loaderOptionsHash;
+            + "|tv" + transformVersion + "|" + loaderOptionsHash
+            + "|sidecars=" + sidecarPresenceHash
+            + "|mip=" + mipPolicy
+            + "|fmt=" + formatPolicy;
     }
 
     @Override

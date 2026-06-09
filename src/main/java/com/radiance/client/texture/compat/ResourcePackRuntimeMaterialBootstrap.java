@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
+import com.radiance.client.texture.cache.TextureCacheV4;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.client.texture.material.ResourceMaterialResidencyDemand;
 import com.radiance.client.texture.material.ResourceMaterialResidencyUploader;
@@ -238,7 +239,13 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     }
 
     public static JsonObject cacheStatusJson() {
-        return TextureLoaderDiskCache.statusJson();
+        JsonObject json = TextureLoaderDiskCache.statusJson();
+        JsonObject v4 = TextureCacheV4.statusJson();
+        json.add("v4", v4);
+        for (var entry : v4.entrySet()) {
+            json.add(entry.getKey(), entry.getValue());
+        }
+        return json;
     }
 
     private static RuntimeRoot buildRoot(ResourceManager resourceManager, long generation) {

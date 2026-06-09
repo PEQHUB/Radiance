@@ -47,6 +47,7 @@ public final class TextureArrayBridgeV4 {
         int page,
         int startLayer,
         int layerCount,
+        int layerCapacity,
         int width,
         int height,
         int vkFormat,

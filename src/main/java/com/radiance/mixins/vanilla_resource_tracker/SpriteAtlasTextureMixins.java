@@ -2,12 +2,15 @@ package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.autopbr.AutoPbrRuntime;
+import com.radiance.client.build.BuildInfo;
 import com.radiance.client.debug.TextureReloadTimeline;
 import com.radiance.client.option.Options;
 import com.radiance.client.proxy.vulkan.TextureArrayBridge;
 import com.radiance.client.texture.AuxiliaryTextures;
 import com.radiance.client.texture.TextureTracker;
 import com.radiance.client.texture.VanillaTextureManifest;
+import com.radiance.client.texture.cache.TextureCacheKey;
+import com.radiance.client.texture.cache.TextureCacheV4;
 import com.radiance.client.texture.v4.TextureLoadGeneration;
 import com.radiance.client.texture.v4.TextureManifestV4;
 import com.radiance.client.texture.v4.TextureLoadGraph;
@@ -71,18 +74,46 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             Map<Identifier, Sprite> regions = stitchResult.regions();
             TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
 
-            if (TextureLoaderV4Options.enabled()) {
+            if (TextureLoaderV4Options.enabled() && regions != null && !regions.isEmpty()) {
                 // V4 path: generation-scoped, tiered upload
                 long generation = TextureLoadGeneration.begin();
                 try {
+                    List<Map.Entry<Identifier, Sprite>> sorted = sortedEntries(regions);
+                    List<Identifier> sortedIds = new ArrayList<>(sorted.size());
+                    for (Map.Entry<Identifier, Sprite> entry : sorted) {
+                        sortedIds.add(entry.getKey());
+                    }
+                    TextureArrayBridge.publishV4SpriteIds(sortedIds, generation);
                     TextureManifestV4 manifest = TextureManifestV4.fromBlockAtlas(
-                        generation, self.getId(), sortedEntries(regions),
+                        generation, self.getId(), sorted,
                         stitchResult.width(), stitchResult.height());
                     TextureLoadGraph graph = TextureLoadGraph.build(
                         MinecraftClient.getInstance().getResourceManager(), manifest, generation);
-                    TextureLoadScheduler.start(graph);
+                    var schedule = TextureLoadScheduler.start(graph);
+                    if (schedule.isDone() && !Boolean.TRUE.equals(schedule.getNow(Boolean.FALSE))) {
+                        throw new IllegalStateException("nativeBeginTextureLoaderV4 rejected generation " + generation);
+                    }
+                    TierUploadReport tierUploadReport =
+                        stageVanillaTieredMaterialPages(sorted, regions.size(), generation, true);
+                    if (tierUploadReport.uploadedPages() <= 0 && !regions.isEmpty()) {
+                        throw new IllegalStateException("v4 tier staging produced no uploaded pages");
+                    }
+                    if (!TextureLoadScheduler.commitGeneration(generation)) {
+                        throw new IllegalStateException("nativeCommitTextureLoaderV4 rejected generation " + generation);
+                    }
+                    MinecraftClient mc = MinecraftClient.getInstance();
+                    ResourcePackRuntimeMaterialBootstrap.BootstrapResult runtimeMaterialBootstrap =
+                        ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(
+                            mc == null ? null : mc.getResourceManager(), generation);
+                    boolean materialTableUploaded = runtimeMaterialBootstrap.tableUploaded();
+                    if (!materialTableUploaded) {
+                        materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                    }
                     TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
-                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={}", generation, regions.size());
+                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={} pages={} layers={} bytes={} cacheHits={} cacheMisses={} cacheWrites={} materialTableUploaded={} bootstrap={}",
+                        generation, regions.size(), tierUploadReport.uploadedPages(), tierUploadReport.uploadedLayers(),
+                        tierUploadReport.bytesUploaded(), tierUploadReport.cacheHits(), tierUploadReport.cacheMisses(),
+                        tierUploadReport.cacheWrites(), materialTableUploaded, runtimeMaterialBootstrap.toJson());
                     // V4 succeeded — skip legacy extraction
                     TextureTracker.endVanillaBlockAtlasUploadBypass();
                     ci.cancel();
@@ -648,7 +679,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         // ---- Step 6: Finalize ----
         phaseStart = TextureReloadTimeline.start("nativeFinalize");
         TextureArrayBridge.nativeTextureFinalize();
-        TierUploadReport tierUploadReport = stageVanillaTieredMaterialPages(sorted, uploadCount);
+        TierUploadReport tierUploadReport = stageVanillaTieredMaterialPages(sorted, uploadCount,
+            TextureArrayBridge.getActiveTextureGeneration(), false);
         TextureReloadTimeline.addSummary("tieredArrays", tierUploadReport.uploadedPages() > 0 ? 1 : 0);
         TextureReloadTimeline.addSummary("tieredArrayPages", tierUploadReport.uploadedPages());
         TextureReloadTimeline.addSummary("tieredArrayLayers", tierUploadReport.uploadedLayers());
@@ -727,7 +759,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
     }
 
     private static TierUploadReport stageVanillaTieredMaterialPages(List<Map.Entry<Identifier, Sprite>> sorted,
-                                                                    int uploadCount) {
+                                                                    int uploadCount,
+                                                                    long generation,
+                                                                    boolean v4Upload) {
         if (uploadCount <= 0) {
             return new TierUploadReport(0, 0, 0L, 0, 0, 0, 0L);
         }
@@ -754,7 +788,6 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             TextureTracker.setSpriteTierLocation(i, page, spriteLayer[i], tierSize);
         }
 
-        long generation = TextureArrayBridge.getActiveTextureGeneration();
         int uploadedPages = 0;
         int uploadedLayers = 0;
         long uploadedBytes = 0L;
@@ -808,65 +841,93 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     long specPtr = memAddress(specBuf) + dstBase;
                     long normalPtr = memAddress(normalBuf) + dstBase;
                     long flagPtr = memAddress(flagBuf) + dstBase;
-                    String layerKey = vanillaTierPayloadKey(sorted.get(i).getKey(), contents, tierSize);
-                    TextureLoaderDiskCache.LayerPayload cached =
-                        TextureLoaderDiskCache.readLayerPayload(cacheKey, layerKey, bytesPerLayer);
-                    if (cached != null) {
-                        writeCachedPlane(cached.albedo(), albedoPtr);
-                        writeCachedPlane(cached.specular(), specPtr);
-                        writeCachedPlane(cached.normal(), normalPtr);
-                        writeCachedPlane(cached.flag(), flagPtr);
-                        cacheHits++;
-                        cachedBytes += (long) bytesPerLayer * 4L;
-                        continue;
-                    }
-                    cacheMisses++;
-                    writeSpriteFramePixels(img, w, h, 0, tierSize, albedoPtr);
                     INativeImageExt auxExt = (INativeImageExt) (Object) img;
                     NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
+                    NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+                    NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
+                    String sidecarHash = sidecarPresenceHash(specImg, normalImg, flagImg);
+                    TextureCacheKey v4Key = v4Upload
+                        ? vanillaTierPayloadKeyV4(sorted.get(i).getKey(), contents, tierSize, cacheKey, sidecarHash)
+                        : null;
+                    if (v4Upload) {
+                        byte[] cachedV4 = TextureCacheV4.read(v4Key);
+                        if (writeCachedLayerPayloadV4(cachedV4, bytesPerLayer,
+                            albedoPtr, specPtr, normalPtr, flagPtr)) {
+                            cacheHits++;
+                            cachedBytes += (long) bytesPerLayer * 4L;
+                            continue;
+                        }
+                        cacheMisses++;
+                    } else {
+                        String layerKey = vanillaTierPayloadKey(sorted.get(i).getKey(), contents, tierSize);
+                        TextureLoaderDiskCache.LayerPayload cached =
+                            TextureLoaderDiskCache.readLayerPayload(cacheKey, layerKey, bytesPerLayer);
+                        if (cached != null) {
+                            writeCachedPlane(cached.albedo(), albedoPtr);
+                            writeCachedPlane(cached.specular(), specPtr);
+                            writeCachedPlane(cached.normal(), normalPtr);
+                            writeCachedPlane(cached.flag(), flagPtr);
+                            cacheHits++;
+                            cachedBytes += (long) bytesPerLayer * 4L;
+                            continue;
+                        }
+                        cacheMisses++;
+                    }
+                    writeSpriteFramePixels(img, w, h, 0, tierSize, albedoPtr);
                     if (specImg != null) {
                         int specH = Math.min(specImg.getHeight(), Math.max(1, h));
                         writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, tierSize,
                             specPtr);
                     }
-                    NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
                     if (normalImg != null) {
                         int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
                         writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, tierSize,
                             normalPtr);
                     }
-                    NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
                     if (flagImg != null) {
                         int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
                         writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, tierSize,
                             flagPtr);
                     }
                     int heightRangePacked = heightRangePacked(normalImg, img);
-                    TextureLoaderDiskCache.writeLayerPayloadAsync(cacheKey, layerKey,
-                        new TextureLoaderDiskCache.LayerPayload(
-                            copyPlane(albedoPtr, bytesPerLayer),
-                            copyPlane(specPtr, bytesPerLayer),
-                            copyPlane(normalPtr, bytesPerLayer),
-                            copyPlane(flagPtr, bytesPerLayer),
-                            specImg != null,
-                            heightRangePacked >= 0,
-                            false,
-                            heightRangePacked));
-                    if (cacheKey != null && !cacheKey.isBlank() && !layerKey.isBlank()) {
+                    if (v4Upload) {
+                        TextureCacheV4.write(v4Key, copyLayerPayloadV4(albedoPtr, specPtr, normalPtr,
+                            flagPtr, bytesPerLayer));
                         cacheWrites++;
+                    } else {
+                        String layerKey = vanillaTierPayloadKey(sorted.get(i).getKey(), contents, tierSize);
+                        TextureLoaderDiskCache.writeLayerPayloadAsync(cacheKey, layerKey,
+                            new TextureLoaderDiskCache.LayerPayload(
+                                copyPlane(albedoPtr, bytesPerLayer),
+                                copyPlane(specPtr, bytesPerLayer),
+                                copyPlane(normalPtr, bytesPerLayer),
+                                copyPlane(flagPtr, bytesPerLayer),
+                                specImg != null,
+                                heightRangePacked >= 0,
+                                false,
+                                heightRangePacked));
+                        if (cacheKey != null && !cacheKey.isBlank() && !layerKey.isBlank()) {
+                            cacheWrites++;
+                        }
                     }
                 }
 
                 boolean uploaded = false;
                 try {
-                    NativeUploadGuards.assertDirectCapacity(albedoBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/albedo");
-                    NativeUploadGuards.assertDirectCapacity(specBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/spec");
-                    NativeUploadGuards.assertDirectCapacity(normalBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/normal");
-                    NativeUploadGuards.assertDirectCapacity(flagBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/flag");
-                    uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
-                        page, tierSize, startLayer, chunkLayers, layerCapacity,
-                        memAddress(albedoBuf), memAddress(specBuf), memAddress(normalBuf),
-                        memAddress(flagBuf), generation);
+                    if (v4Upload) {
+                        uploaded = TextureLoadScheduler.uploadTierPage(generation,
+                            page - TextureTracker.VANILLA_TIER_FIRST_PAGE, page, startLayer, chunkLayers,
+                            layerCapacity, tierSize, albedoBuf, specBuf, normalBuf, flagBuf, true);
+                    } else {
+                        NativeUploadGuards.assertDirectCapacity(albedoBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/albedo");
+                        NativeUploadGuards.assertDirectCapacity(specBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/spec");
+                        NativeUploadGuards.assertDirectCapacity(normalBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/normal");
+                        NativeUploadGuards.assertDirectCapacity(flagBuf, chunkBytes, "nativeReceiveMaterialTextureLayers/flag");
+                        uploaded = TextureArrayBridge.nativeReceiveMaterialTextureLayers(
+                            page, tierSize, startLayer, chunkLayers, layerCapacity,
+                            memAddress(albedoBuf), memAddress(specBuf), memAddress(normalBuf),
+                            memAddress(flagBuf), generation);
+                    }
                 } catch (UnsatisfiedLinkError ignored) {
                 }
                 if (!uploaded) {
@@ -876,7 +937,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     break;
                 }
                 uploadedLayers += chunkLayers;
-                uploadedBytes += (long) chunkBytes * 4L;
+                uploadedBytes += v4Upload ? (long) chunkBytes * 4L : (long) chunkBytes * 4L;
             }
             if (pageUploaded) {
                 uploadedPages++;
@@ -896,6 +957,66 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             + "|w=" + contents.getWidth()
             + "|h=" + contents.getHeight()
             + "|tier=" + tierSize);
+    }
+
+    private static TextureCacheKey vanillaTierPayloadKeyV4(Identifier spriteId, SpriteContents contents,
+                                                           int tierSize, String packStackHash,
+                                                           String sidecarPresenceHash) {
+        String resourcePath = spriteId == null ? "unknown" : spriteId.toString();
+        String packIdentity = contents == null
+            ? "unknown"
+            : contents.getWidth() + "x" + contents.getHeight();
+        return new TextureCacheKey(
+            "1.21.4",
+            BuildInfo.REPO_COMMIT,
+            "native-abi-" + TextureArrayBridgeV4.ABI_VERSION,
+            BuildInfo.TEXTURE_LOADER_ABI_VERSION,
+            BuildInfo.CACHE_SCHEMA_VERSION,
+            packStackHash == null || packStackHash.isBlank() ? "unknown-pack-stack" : packStackHash,
+            resourcePath,
+            packIdentity,
+            4,
+            "vanilla-tiered-pages",
+            sidecarPresenceHash == null || sidecarPresenceHash.isBlank() ? "none" : sidecarPresenceHash,
+            "mip0-nearest-clamp",
+            "rgba8-unorm-four-plane");
+    }
+
+    private static String sidecarPresenceHash(NativeImage specImg, NativeImage normalImg, NativeImage flagImg) {
+        return (specImg == null ? "s0" : "s1")
+            + (normalImg == null ? "n0" : "n1")
+            + (flagImg == null ? "f0" : "f1");
+    }
+
+    private static byte[] copyLayerPayloadV4(long albedoPtr, long specPtr, long normalPtr,
+                                             long flagPtr, int bytesPerLayer) {
+        int planeBytes = Math.max(0, bytesPerLayer);
+        byte[] payload = new byte[Math.multiplyExact(planeBytes, 4)];
+        copyPlaneInto(payload, 0, albedoPtr, planeBytes);
+        copyPlaneInto(payload, planeBytes, specPtr, planeBytes);
+        copyPlaneInto(payload, planeBytes * 2, normalPtr, planeBytes);
+        copyPlaneInto(payload, planeBytes * 3, flagPtr, planeBytes);
+        return payload;
+    }
+
+    private static boolean writeCachedLayerPayloadV4(byte[] payload, int bytesPerLayer,
+                                                     long albedoPtr, long specPtr,
+                                                     long normalPtr, long flagPtr) {
+        if (payload == null || bytesPerLayer <= 0 || payload.length != bytesPerLayer * 4) {
+            return false;
+        }
+        memByteBuffer(albedoPtr, bytesPerLayer).put(payload, 0, bytesPerLayer);
+        memByteBuffer(specPtr, bytesPerLayer).put(payload, bytesPerLayer, bytesPerLayer);
+        memByteBuffer(normalPtr, bytesPerLayer).put(payload, bytesPerLayer * 2, bytesPerLayer);
+        memByteBuffer(flagPtr, bytesPerLayer).put(payload, bytesPerLayer * 3, bytesPerLayer);
+        return true;
+    }
+
+    private static void copyPlaneInto(byte[] dst, int dstOffset, long srcPtr, int bytes) {
+        if (dst == null || srcPtr == 0L || bytes <= 0 || dstOffset < 0 || dstOffset + bytes > dst.length) {
+            return;
+        }
+        memByteBuffer(srcPtr, bytes).get(dst, dstOffset, bytes);
     }
 
     private static String animationFramePayloadKey(Identifier spriteId, SpriteContents contents,
