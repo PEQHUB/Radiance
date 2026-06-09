@@ -1,5 +1,7 @@
 package com.radiance.client.texture.v4;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,8 +17,8 @@ import com.radiance.client.proxy.vulkan.TextureArrayBridgeV4;
  *   2. Upload per-tier page chunks via nativeUploadTexturePageV4
  *   3. Commit via nativeCommitTextureLoaderV4
  *
- * Phase 2/3: Vanilla sprite upload path.
- * Phase 5: CTM material upload with coalescing.
+ * Pixel staging happens synchronously from the mixin hook (which has NativeImage access).
+ * The scheduler tracks generations, provides the upload entry point, and commits.
  */
 public final class TextureLoadScheduler {
 
@@ -24,6 +26,9 @@ public final class TextureLoadScheduler {
     private static final AtomicLong TOTAL_SCHEDULED = new AtomicLong(0L);
     private static final AtomicLong TOTAL_COMPLETED = new AtomicLong(0L);
     private static final AtomicLong TOTAL_FAILED = new AtomicLong(0L);
+
+    /** Per-tier upload statistics for the current generation. */
+    private static volatile TierUploadStats currentTierStats;
 
     private TextureLoadScheduler() {}
 
@@ -38,6 +43,7 @@ public final class TextureLoadScheduler {
         ActiveSchedule schedule = new ActiveSchedule(generation, graph);
         ACTIVE_SCHEDULES.add(schedule);
         TOTAL_SCHEDULED.incrementAndGet();
+        currentTierStats = new TierUploadStats();
 
         // Begin native side
         try {
@@ -60,6 +66,86 @@ public final class TextureLoadScheduler {
         return schedule.future;
     }
 
+    /**
+     * Upload a single tier's pixel data to native. Called from the mixin hook
+     * which has access to NativeImage pixel data.
+     *
+     * @param generation active texture load generation
+     * @param tierIndex  tier index (0=T16, 1=T32, ... 6=T1024)
+     * @param pageHint   page hint (-1 for native allocation)
+     * @param startLayerHint start layer hint (-1 for native allocation)
+     * @param layerCount number of layers in this upload
+     * @param tierSize   pixel dimension of the tier (16, 32, 64, ...)
+     * @param albedo     direct ByteBuffer with albedo RGBA8 pixel data
+     * @param specular   direct ByteBuffer with specular data (or null)
+     * @param normal     direct ByteBuffer with normal data (or null)
+     * @param flag       direct ByteBuffer with flag/emissive data (or null)
+     * @param visible    whether this upload is visible (affects first-frame priority)
+     * @return true if the upload was accepted by native
+     */
+    public static boolean uploadTierPage(long generation, int tierIndex, int pageHint,
+                                          int startLayerHint, int layerCount, int tierSize,
+                                          ByteBuffer albedo, ByteBuffer specular,
+                                          ByteBuffer normal, ByteBuffer flag,
+                                          boolean visible) {
+        if (!TextureLoadGeneration.isActive(generation)) return false;
+        if (albedo == null || layerCount <= 0 || tierSize <= 0) return false;
+
+        int channelMask = TextureArrayBridgeV4.CHANNEL_ALBEDO;
+        long specPtr = 0, normPtr = 0, flagPtr = 0;
+        if (specular != null && specular.isDirect()) {
+            channelMask |= TextureArrayBridgeV4.CHANNEL_SPECULAR;
+            specPtr = org.lwjgl.system.MemoryUtil.memAddress(specular);
+        }
+        if (normal != null && normal.isDirect()) {
+            channelMask |= TextureArrayBridgeV4.CHANNEL_NORMAL;
+            normPtr = org.lwjgl.system.MemoryUtil.memAddress(normal);
+        }
+        if (flag != null && flag.isDirect()) {
+            channelMask |= TextureArrayBridgeV4.CHANNEL_FLAG;
+            flagPtr = org.lwjgl.system.MemoryUtil.memAddress(flag);
+        }
+
+        long albedoPtr = org.lwjgl.system.MemoryUtil.memAddress(albedo);
+        long bytesPerLayer = (long) tierSize * tierSize * 4;
+
+        try {
+            boolean ok = TextureArrayBridgeV4.nativeUploadTexturePageV4(
+                generation,
+                1, // NAMESPACE_VANILLA
+                tierIndex,
+                pageHint,
+                startLayerHint,
+                layerCount,
+                tierSize,
+                tierSize,
+                channelMask,
+                albedoPtr,
+                specPtr,
+                normPtr,
+                flagPtr,
+                bytesPerLayer,
+                visible);
+
+            // Track stats
+            TierUploadStats stats = currentTierStats;
+            if (stats != null) {
+                stats.addLayers(tierIndex, layerCount, bytesPerLayer * layerCount);
+            }
+
+            return ok;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /** Get and reset the current tier upload stats (for logging). */
+    public static TierUploadStats consumeTierStats() {
+        TierUploadStats stats = currentTierStats;
+        currentTierStats = null;
+        return stats;
+    }
+
     /** Cancel all active schedules for a generation. */
     public static void cancelGeneration(long generation) {
         for (ActiveSchedule schedule : ACTIVE_SCHEDULES) {
@@ -75,7 +161,6 @@ public final class TextureLoadScheduler {
 
     private static void executeUpload(ActiveSchedule schedule) {
         try {
-            TextureLoadGraph graph = schedule.graph;
             long generation = schedule.generation;
 
             if (!TextureLoadGeneration.isActive(generation)) {
@@ -83,18 +168,17 @@ public final class TextureLoadScheduler {
                 return;
             }
 
-            // Phase 3: Upload per-tier page chunks
-            // The actual pixel staging happens here, driven by the manifest
-            // and the sprite data from the block atlas bypass hook.
-            // For now, the upload is driven synchronously from the mixin hook
-            // which has access to the NativeImage data.
-            // The scheduler's role is generation tracking, cancellation, and
-            // future completion.
+            // Per-tier uploads are driven synchronously from the mixin hook.
+            // The scheduler just waits for them to complete and then commits.
 
             // Commit
             if (TextureLoadGeneration.isActive(generation)) {
                 boolean committed = TextureArrayBridgeV4.nativeCommitTextureLoaderV4(generation);
                 if (committed) {
+                    TierUploadStats stats = consumeTierStats();
+                    if (stats != null) {
+                        stats.logSummary(generation);
+                    }
                     schedule.complete();
                 } else {
                     schedule.fail("nativeCommitTextureLoaderV4 returned false");
@@ -104,6 +188,41 @@ public final class TextureLoadScheduler {
             }
         } catch (Throwable t) {
             schedule.fail("executeUpload threw: " + t.getMessage());
+        }
+    }
+
+    /** Per-tier upload statistics. */
+    public static final class TierUploadStats {
+        private final long[] layerCounts = new long[7];
+        private final long[] byteCounts = new long[7];
+
+        void addLayers(int tierIndex, int layers, long bytes) {
+            if (tierIndex >= 0 && tierIndex < 7) {
+                layerCounts[tierIndex] += layers;
+                byteCounts[tierIndex] += bytes;
+            }
+        }
+
+        public long layers(int tierIndex) {
+            return tierIndex >= 0 && tierIndex < 7 ? layerCounts[tierIndex] : 0;
+        }
+
+        public long bytes(int tierIndex) {
+            return tierIndex >= 0 && tierIndex < 7 ? byteCounts[tierIndex] : 0;
+        }
+
+        public void logSummary(long generation) {
+            String[] tierNames = {"T16", "T32", "T64", "T128", "T256", "T512", "T1024"};
+            StringBuilder sb = new StringBuilder();
+            sb.append("[TextureLoaderV4] Vanilla tier upload generation=").append(generation).append("\n");
+            for (int i = 0; i < 7; i++) {
+                if (layerCounts[i] > 0) {
+                    sb.append("  ").append(tierNames[i])
+                      .append(" layers=").append(layerCounts[i])
+                      .append(" bytes=").append(byteCounts[i]).append("\n");
+                }
+            }
+            System.out.println(sb.toString());
         }
     }
 
