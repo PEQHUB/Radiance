@@ -54,6 +54,7 @@ import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.Blo
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.CompactCtmQuadrants;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.RepeatTextureBasis;
 import com.radiance.client.texture.compat.ResourcePackTextureVariantResolver.ResolvedBlockSprite;
+import com.radiance.client.texture.v4.FirstFrameMaterialPlanner;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import com.radiance.client.texture.material.ResourceMaterialResidencyDemand;
 import java.nio.ByteOrder;
@@ -723,6 +724,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             return;
         }
         long generation = ResourceMaterialRegistry.activeSnapshot().generation();
+        FirstFrameMaterialPlanner.addVisibleMaterial(materialId);
         ResourceMaterialResidencyDemand.enqueuePrewarm(generation, materialId);
         ResourceMaterialResidencyDemand.enqueueVisible(generation, materialId);
     }

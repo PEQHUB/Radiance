@@ -42,11 +42,17 @@ public final class FirstFrameTextureReadiness {
     /** Full status JSON with explicit world-present flag. */
     public static JsonObject statusJson(boolean worldPresent) {
         long generation = TextureLoadGeneration.active();
+        if (worldPresent && generation > 0L) {
+            FirstFrameMaterialPlanner.plan(generation);
+        }
         TextureResidencySnapshot residency = TextureResidencySnapshot.current(generation);
 
         JsonObject nativeJson = nativeReadiness(generation);
 
         boolean visibleKnown = residency.visibleMaterialSetKnown();
+        boolean emptyPlanAllowed = FirstFrameMaterialPlanner.isEmptyPlanAllowed();
+        String emptyPlanReason = FirstFrameMaterialPlanner.emptyPlanReason();
+        int visibleMaterialCount = residency.visibleMaterialCount();
         int visibleFallbacks = residency.visibleFallbackMaterialCount();
         int failedVisible = residency.failedVisibleMaterialCount();
         long pendingVisibleBytes = longProp(nativeJson, "pendingVisibleUploadBytes",
@@ -60,6 +66,7 @@ public final class FirstFrameTextureReadiness {
         boolean ready = worldPresent
             && generation > 0L
             && visibleKnown
+            && (visibleMaterialCount > 0 || emptyPlanAllowed)
             && visibleFallbacks == 0
             && failedVisible == 0
             && pendingVisibleBytes == 0L
@@ -81,6 +88,9 @@ public final class FirstFrameTextureReadiness {
                      failedVisible, pendingVisibleBytes, nativeIdle, pendingMipPages,
                      unreadyPages, pendingTableUpdates));
         json.addProperty("visibleMaterialSetKnown", visibleKnown);
+        json.addProperty("visibleMaterialCount", visibleMaterialCount);
+        json.addProperty("emptyPlanAllowed", emptyPlanAllowed);
+        json.addProperty("emptyPlanReason", emptyPlanReason);
         json.addProperty("visibleFallbackMaterialCount", visibleFallbacks);
         json.addProperty("failedVisibleMaterialCount", failedVisible);
         json.addProperty("pendingVisibleUploadBytes", pendingVisibleBytes);
@@ -100,6 +110,10 @@ public final class FirstFrameTextureReadiness {
         if (!worldPresent) return "waiting_for_world";
         if (generation <= 0L) return "waiting_for_texture_generation";
         if (!visibleKnown) return "waiting_for_visible_material_plan";
+        TextureResidencySnapshot residency = TextureResidencySnapshot.current(generation);
+        if (residency.visibleMaterialCount() == 0 && !FirstFrameMaterialPlanner.isEmptyPlanAllowed()) {
+            return FirstFrameMaterialPlanner.emptyPlanReason();
+        }
         if (failedVisible > 0) return "failed_visible_materials";
         if (visibleFallbacks > 0) return "waiting_for_visible_material_residency";
         if (pendingVisibleBytes > 0L) return "waiting_for_visible_gpu_uploads";

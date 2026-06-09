@@ -28,6 +28,9 @@ public final class TextureArrayBridgeV4 {
     /** Channel mask: flag/emissive plane present. */
     public static final int CHANNEL_FLAG     = 1 << 3;
 
+    /** Vulkan VK_FORMAT_R8G8B8A8_UNORM. */
+    public static final int VK_FORMAT_R8G8B8A8_UNORM = 37;
+
     // ---- V4 lifecycle ----
 
     /** Begin a v4 texture load generation. Native allocates page pools. */
@@ -46,12 +49,13 @@ public final class TextureArrayBridgeV4 {
         int layerCount,
         int width,
         int height,
-        int channelMask,
+        int vkFormat,
         long albedoPtr,
         long specularPtr,
         long normalPtr,
         long flagPtr,
         long bytesPerLayer,
+        int channelMask,
         boolean visible);
 
     /** Commit a v4 generation. Native finalizes page pools and publishes. */

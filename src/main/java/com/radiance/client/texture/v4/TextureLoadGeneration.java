@@ -19,6 +19,7 @@ public final class TextureLoadGeneration {
     /** Begin a new texture load generation. Returns the new generation number. */
     public static long begin() {
         long next = ACTIVE.incrementAndGet();
+        FirstFrameMaterialPlanner.reset(next);
         return next;
     }
 

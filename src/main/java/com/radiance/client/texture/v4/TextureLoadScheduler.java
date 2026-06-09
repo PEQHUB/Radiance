@@ -90,6 +90,7 @@ public final class TextureLoadScheduler {
                                           boolean visible) {
         if (!TextureLoadGeneration.isActive(generation)) return false;
         if (albedo == null || layerCount <= 0 || tierSize <= 0) return false;
+        if (!albedo.isDirect()) return false;
 
         int channelMask = TextureArrayBridgeV4.CHANNEL_ALBEDO;
         long specPtr = 0, normPtr = 0, flagPtr = 0;
@@ -108,6 +109,24 @@ public final class TextureLoadScheduler {
 
         long albedoPtr = org.lwjgl.system.MemoryUtil.memAddress(albedo);
         long bytesPerLayer = (long) tierSize * tierSize * 4;
+        if (bytesPerLayer <= 0L || layerCount > Long.MAX_VALUE / bytesPerLayer) {
+            return false;
+        }
+        long totalBytes = bytesPerLayer * layerCount;
+        try {
+            NativeUploadGuards.assertDirectCapacity(albedo, totalBytes, "nativeUploadTexturePageV4/albedo");
+            if (specular != null) {
+                NativeUploadGuards.assertDirectCapacity(specular, totalBytes, "nativeUploadTexturePageV4/specular");
+            }
+            if (normal != null) {
+                NativeUploadGuards.assertDirectCapacity(normal, totalBytes, "nativeUploadTexturePageV4/normal");
+            }
+            if (flag != null) {
+                NativeUploadGuards.assertDirectCapacity(flag, totalBytes, "nativeUploadTexturePageV4/flag");
+            }
+        } catch (IllegalArgumentException guardFailure) {
+            return false;
+        }
 
         try {
             boolean ok = TextureArrayBridgeV4.nativeUploadTexturePageV4(
@@ -119,12 +138,13 @@ public final class TextureLoadScheduler {
                 layerCount,
                 tierSize,
                 tierSize,
-                channelMask,
+                TextureArrayBridgeV4.VK_FORMAT_R8G8B8A8_UNORM,
                 albedoPtr,
                 specPtr,
                 normPtr,
                 flagPtr,
                 bytesPerLayer,
+                channelMask,
                 visible);
 
             // Track stats
