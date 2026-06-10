@@ -201,6 +201,9 @@ public final class BuildInfo {
 }
 
 compileJava.dependsOn generateBuildInfo
+afterEvaluate {
+    tasks.findByName('sourcesJar')?.dependsOn(generateBuildInfo)
+}
 
 processResources {
     inputs.property "version", project.version
