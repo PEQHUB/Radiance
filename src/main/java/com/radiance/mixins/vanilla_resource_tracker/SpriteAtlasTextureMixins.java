@@ -807,11 +807,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             for (int startLayer = 0; startLayer < layerCapacity; startLayer += maxChunkLayers) {
                 int chunkLayers = Math.min(maxChunkLayers, layerCapacity - startLayer);
                 int chunkBytes = Math.toIntExact((long) chunkLayers * bytesPerLayerLong);
+                // Albedo-only bring-up: native rejects aux planes until they are wired end-to-end
                 ByteBuffer albedoBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
-                ByteBuffer specBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
-                ByteBuffer normalBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
-                ByteBuffer flagBuf = ByteBuffer.allocateDirect(chunkBytes).order(ByteOrder.nativeOrder());
-                fillDefaultNormal(normalBuf, chunkLayers, tierSize);
 
                 for (int i = 0; i < uploadCount; i++) {
                     if (spritePage[i] != page || spriteLayer[i] < startLayer
@@ -829,51 +826,14 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     int w = contents.getWidth();
                     int h = contents.getHeight();
                     long albedoPtr = memAddress(albedoBuf) + dstBase;
-                    long specPtr = memAddress(specBuf) + dstBase;
-                    long normalPtr = memAddress(normalBuf) + dstBase;
-                    long flagPtr = memAddress(flagBuf) + dstBase;
-                    INativeImageExt auxExt = (INativeImageExt) (Object) img;
-                    NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
-                    NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
-                    NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
-                    String sidecarHash = sidecarPresenceHash(specImg, normalImg, flagImg);
-                    TextureCacheKey v4Key =
-                        vanillaTierPayloadKeyV4(sorted.get(i).getKey(), contents, tierSize, cacheKey, sidecarHash);
-                    byte[] cachedV4 = TextureCacheV4.read(v4Key);
-                    if (writeCachedLayerPayloadV4(cachedV4, bytesPerLayer,
-                        albedoPtr, specPtr, normalPtr, flagPtr)) {
-                        cacheHits++;
-                        cachedBytes += (long) bytesPerLayer * 4L;
-                        continue;
-                    }
-                    cacheMisses++;
                     writeSpriteFramePixels(img, w, h, 0, tierSize, albedoPtr);
-                    if (specImg != null) {
-                        int specH = Math.min(specImg.getHeight(), Math.max(1, h));
-                        writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, tierSize,
-                            specPtr);
-                    }
-                    if (normalImg != null) {
-                        int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
-                        writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, tierSize,
-                            normalPtr);
-                    }
-                    if (flagImg != null) {
-                        int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
-                        writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, tierSize,
-                            flagPtr);
-                    }
-                    int heightRangePacked = heightRangePacked(normalImg, img);
-                    TextureCacheV4.write(v4Key, copyLayerPayloadV4(albedoPtr, specPtr, normalPtr,
-                        flagPtr, bytesPerLayer));
-                    cacheWrites++;
                 }
 
                 boolean uploaded = false;
                 try {
                     uploaded = TextureLoadScheduler.uploadTierPage(generation,
                         page - TextureTracker.VANILLA_TIER_FIRST_PAGE, page, startLayer, chunkLayers,
-                        layerCapacity, tierSize, albedoBuf, specBuf, normalBuf, flagBuf, true);
+                        layerCapacity, tierSize, albedoBuf, null, null, null, true);
                 } catch (UnsatisfiedLinkError ignored) {
                 }
                 if (!uploaded) {
@@ -883,7 +843,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     break;
                 }
                 uploadedLayers += chunkLayers;
-                uploadedBytes += (long) chunkBytes * 4L;
+                uploadedBytes += (long) chunkBytes;
             }
             if (pageUploaded) {
                 uploadedPages++;
