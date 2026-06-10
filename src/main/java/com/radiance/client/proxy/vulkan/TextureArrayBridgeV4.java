@@ -89,4 +89,7 @@ public final class TextureArrayBridgeV4 {
 
     /** First-frame native readiness for a generation. */
     public static native String nativeFirstFrameNativeReadinessJsonV4(long generation);
+
+    /** Native page layer capacity for a given tier index (0=T16..6=T1024). */
+    public static native int nativePageLayerCapacityForTier(int tier);
 }

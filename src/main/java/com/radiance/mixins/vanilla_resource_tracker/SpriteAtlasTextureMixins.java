@@ -802,7 +802,10 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 continue;
             }
             int bytesPerLayer = Math.toIntExact(bytesPerLayerLong);
-            int maxChunkLayers = Math.max(1, (int) Math.min(layerCapacity, maxChunkBytes / bytesPerLayerLong));
+            int tierIndex = page - TextureTracker.VANILLA_TIER_FIRST_PAGE;
+            int nativePageCapacity = TextureArrayBridgeV4.nativePageLayerCapacityForTier(tierIndex);
+            int maxChunkLayers = Math.max(1, (int) Math.min(Math.min(layerCapacity, maxChunkBytes / bytesPerLayerLong),
+                nativePageCapacity > 0 ? nativePageCapacity : layerCapacity));
             boolean pageUploaded = true;
             for (int startLayer = 0; startLayer < layerCapacity; startLayer += maxChunkLayers) {
                 int chunkLayers = Math.min(maxChunkLayers, layerCapacity - startLayer);
