@@ -40,14 +40,14 @@ public class CloudPopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable("options.video.environment.cloud_alpha"),
                     Text.literal(v + "%")),
                 v -> Options.setCloudAlphaPercent(dim, v, true)));
-        basic.tooltip("Brightness adjusts the vanilla fallback cloud layer. Alpha adjusts layer opacity.");
+        basic.tooltip("Cloud Brightness scales the legacy/fallback cloud layer brightness for the current dimension. Cloud Alpha controls opacity of the legacy/fallback cloud layer for the current dimension.");
 
         basic.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             -64, 64, Options.cloudHeightOffset[dim], 0,
             v -> getGenericValueText(Text.translatable("options.video.environment.cloud_height_offset"),
                 Text.literal(v + "")),
             v -> Options.setCloudHeightOffset(dim, v, true)));
-        basic.tooltip("Height Offset shifts the vanilla fallback cloud layer in blocks.");
+        basic.tooltip("Moves the legacy/fallback cloud layer up or down in blocks.");
     }
 
     @Override

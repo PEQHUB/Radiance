@@ -44,6 +44,7 @@ public class UiSettingsPopulator implements ContentPopulator {
                     : "radiance.settings.welcome_message.off"));
             })
             .width(150).build());
+        section.tooltip("Re-enables or disables the in-chat Radiance welcome message shown when entering a world.");
 
         // Reset to Defaults button
         section.addButton(ButtonWidget.builder(
@@ -53,6 +54,7 @@ public class UiSettingsPopulator implements ContentPopulator {
                 screen.refreshContent();
             })
             .width(150).build());
+        section.tooltip("Restores all Radiance settings to their defaults and refreshes the current menu.");
     }
 
     @Override

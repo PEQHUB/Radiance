@@ -11,6 +11,7 @@ public class ParticlesEmissionPopulator implements ContentPopulator {
     @Override
     public void populate(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
         SettingsSection section = panel.addSection("Particles").setLinear();
+        section.tooltip("Emission brightness multiplier for this particle\u2019s emitted light. Temperature is the blackbody color temperature. Material selects the spectral/material emission preset. Wavelength is a spectral override. Purity controls spectral purity.");
 
         for (int i = 0; i < EmissionWidgetFactory.PARTICLE_DEFS.length; i++) {
             EmissionWidgetFactory.ParticleDef def = EmissionWidgetFactory.PARTICLE_DEFS[i];

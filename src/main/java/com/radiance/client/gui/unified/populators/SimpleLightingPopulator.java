@@ -25,7 +25,7 @@ public class SimpleLightingPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         exposure.addToggle(manualExposure.createWidget(gameOptions))
-              .tooltip("Override auto-exposure with a fixed brightness value.");
+              .tooltip("Overrides auto-exposure with a fixed EV100 value for consistent brightness.");
 
         if (Options.manualExposureEnabled) {
             int sliderValue = Options.manualExposureEV100Tenths + 40;
@@ -40,7 +40,7 @@ public class SimpleLightingPopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable(Options.EXPOSURE_COMPENSATION_KEY),
                     Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
                 v -> Options.setExposureCompensation(v - 30, true)))
-                  .tooltip("Brightness offset applied on top of auto-exposure.");
+                  .tooltip("Manual EV offset applied on top of auto-exposure.");
         }
     }
 

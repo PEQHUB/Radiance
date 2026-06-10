@@ -22,6 +22,7 @@ public class PostProcessingPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         section.addTwoWidgets(sharpenerDropdown, null);
+        section.tooltip("Selects post-process sharpening filter. None disables sharpening; CAS and RCAS sharpen the final image.");
 
         if (Options.sharpenerMode != 0) {
             section.addSlider(new ResettableSliderWidget(
@@ -31,6 +32,7 @@ public class PostProcessingPopulator implements ContentPopulator {
                     Text.translatable(Options.CAS_SHARPNESS_KEY),
                     Text.literal(v + "%")),
                 v -> Options.setCasSharpnessPercent(v, true)));
+            section.tooltip("Sharpening intensity for CAS/RCAS. Higher values add clarity but can create halos or shimmer.");
         }
     }
 

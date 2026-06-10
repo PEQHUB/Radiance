@@ -24,6 +24,7 @@ public class SimpleEnvironmentPopulator implements ContentPopulator {
                 0, 300, Options.skyBrightnessPercent[dim], Options.PERCENT_DEFAULT,
                 v -> getGenericValueText(Text.translatable("options.video.environment.sky_brightness"), Text.literal(v + "%")),
                 v -> Options.setSkyBrightnessPercent(dim, v, true)));
+        section.tooltip("Sun Intensity scales direct sun light. Sky Brightness scales sky brightness for the current dimension.");
 
         // Cloud brightness + alpha
         section.addTwoSliders(
@@ -35,12 +36,14 @@ public class SimpleEnvironmentPopulator implements ContentPopulator {
                 0, 300, Options.cloudAlphaPercent[dim], Options.PERCENT_DEFAULT,
                 v -> getGenericValueText(Text.translatable("options.video.environment.cloud_alpha"), Text.literal(v + "%")),
                 v -> Options.setCloudAlphaPercent(dim, v, true)));
+        section.tooltip("Cloud Brightness scales the legacy cloud layer brightness. Cloud Alpha controls the legacy cloud layer opacity.");
 
         // Water fog strength
         section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 300, Options.waterFogStrengthPercent[dim], Options.PERCENT_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.water_fog_strength"), Text.literal(v + "%")),
             v -> Options.setWaterFogStrengthPercent(dim, v, true)));
+        section.tooltip("Controls how strongly water fog attenuates visibility through water.");
     }
 
     @Override

@@ -36,7 +36,7 @@ public class OfflinePopulator implements ContentPopulator {
         preset.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.offlineDenoisedKey),
             presetDropdown))
-            .tooltip("Raw Fast = RR on, no denoise. Raw Accurate = RR off. Denoised = epoch-based DLSS-RR convergence.");
+            .tooltip("Raw Fast keeps RR enabled without final denoise. Raw Accurate disables RR. Denoised uses epoch-based DLSS-RR convergence.");
 
         SettingsSection accum = panel.addSection("Accumulation");
         accum.addSlider(new ResettableSliderWidget(
@@ -48,7 +48,7 @@ public class OfflinePopulator implements ContentPopulator {
                 Options.nativeSetOfflineBounces(v, true);
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             }))
-            .tooltip("Maximum ray bounces during accumulation. Higher = more accurate global illumination.");
+            .tooltip("Maximum ray bounces during offline accumulation. Higher values improve global illumination accuracy at higher cost.");
 
         if (Options.offlineDenoised == 2) {
             accum.addSlider(new ResettableSliderWidget(
@@ -60,7 +60,7 @@ public class OfflinePopulator implements ContentPopulator {
                     Options.nativeSetDlssEpochLength(v, true);
                     if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 }))
-                .tooltip("Frames per epoch before Welford statistics snapshot. Longer = smoother but slower convergence.");
+                .tooltip("Number of frames per denoised accumulation epoch before statistics are snapped. Longer is smoother but slower to converge.");
         }
 
         SettingsSection quality = panel.addSection("Shader Quality");
@@ -74,7 +74,7 @@ public class OfflinePopulator implements ContentPopulator {
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         quality.addToggle(beerLaw.createWidget(MinecraftClient.getInstance().options))
-            .tooltip("Accurate volumetric shadow attenuation through translucent materials.");
+            .tooltip("Uses Beer\u2019s law attenuation for translucent or absorbing shadow paths.");
 
         SimpleOption<Boolean> physSun = SimpleOption.ofBoolean(
             "Physical Sun Disk",
@@ -85,7 +85,7 @@ public class OfflinePopulator implements ContentPopulator {
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         quality.addToggle(physSun.createWidget(MinecraftClient.getInstance().options))
-            .tooltip("Renders the sun as a physical disk instead of a directional light. Affects soft shadows.");
+            .tooltip("Renders the sun as a disk instead of only a directional light. Affects soft shadows and sun appearance.");
 
         SimpleOption<Boolean> noClamp = SimpleOption.ofBoolean(
             "Disable Emission Clamp",
@@ -96,6 +96,7 @@ public class OfflinePopulator implements ContentPopulator {
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         quality.addToggle(noClamp.createWidget(MinecraftClient.getInstance().options));
+        quality.tooltip("Removes the emission clamp during offline rendering. Preserves very bright emitters but can increase fireflies/noise.");
 
         SimpleOption<Boolean> noHand = SimpleOption.ofBoolean(
             "Disable Hand Ambient",
@@ -106,6 +107,7 @@ public class OfflinePopulator implements ContentPopulator {
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         quality.addToggle(noHand.createWidget(MinecraftClient.getInstance().options));
+        quality.tooltip("Removes the extra hand/first-person ambient contribution during offline accumulation.");
 
         if (Options.offlineDenoised != 1) {
             SimpleOption<Boolean> disableRR = SimpleOption.ofBoolean(
@@ -117,6 +119,7 @@ public class OfflinePopulator implements ContentPopulator {
                     if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 });
             quality.addToggle(disableRR.createWidget(MinecraftClient.getInstance().options));
+        quality.tooltip("Disables Russian roulette path termination. More stable for reference captures, but more expensive.");
         }
 
         SimpleOption<Boolean> disableClamp = SimpleOption.ofBoolean(
@@ -128,6 +131,7 @@ public class OfflinePopulator implements ContentPopulator {
                 if (Options.offlineState == 2) Options.nativeResetAccumulation();
             });
         quality.addToggle(disableClamp.createWidget(MinecraftClient.getInstance().options));
+        quality.tooltip("Disables throughput clamping. Preserves extreme light paths but can increase noise and fireflies.");
 
         SettingsSection gtControls = panel.addSection("Ground Truth & Controls");
 
@@ -150,14 +154,17 @@ public class OfflinePopulator implements ContentPopulator {
         gtControls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.offlineGroundTruthKey),
             groundTruth.createWidget(MinecraftClient.getInstance().options)));
+        gtControls.tooltip("Applies the high-accuracy offline preset for reference rendering and accumulation validation.");
 
         gtControls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.offlineModeKey),
             "Offline Mode"));
+        gtControls.tooltip("Toggles offline/free-camera rendering mode. Use this before locking the camera for accumulation.");
 
         gtControls.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.lockCameraKey),
             "Lock Camera"));
+        gtControls.tooltip("Locks the camera and starts accumulation; press again to unlock and reset accumulation.");
     }
 
     @Override

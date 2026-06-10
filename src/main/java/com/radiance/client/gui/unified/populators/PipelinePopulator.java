@@ -11,6 +11,7 @@ public class PipelinePopulator implements ContentPopulator {
         SettingsSection section = panel.addSection(Options.CATEGORY_PIPELINE);
         section.addLauncher(Options.PIPELINE_SETUP_KEY,
             new RenderPipelineScreen(screen), screen);
+        section.tooltip("Opens the render pipeline graph editor for module connections and module attributes.");
     }
 
     @Override

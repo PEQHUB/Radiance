@@ -37,7 +37,7 @@ public class SimpleGraphicsPopulator implements ContentPopulator {
             });
 
         section.addTwoWidgets(rayBounces.createWidget(gameOptions), upscalerMode)
-              .tooltip("Ray Bounces = max light reflections. Upscaler reconstructs full-res image from lower-res render.");
+              .tooltip("Ray Bounces is the maximum ray-traced light reflections per pixel. Higher values improve GI but cost more. Upscaler reconstructs the full-resolution image from a lower-resolution render.");
 
         // Quality preset (when upscaler active)
         if (Options.upscalerMode != 2) {
@@ -49,13 +49,14 @@ public class SimpleGraphicsPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
             section.addTwoWidgets(quality, null)
-                  .tooltip("Controls render resolution. Performance = fastest, Quality = best image.");
+                  .tooltip("Quality controls render resolution preset. Performance = fastest, Quality = best image. Custom exposes a manual resolution percentage.");
 
             if (Options.upscalerQuality == 4) {
                 section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                     1, 100, Options.upscalerResOverride, 67,
                     v -> getGenericValueText(Text.translatable(Options.UPSCALER_RES_OVERRIDE_KEY), Text.literal(v + "%")),
                     v -> Options.setUpscalerResOverride(v, true)));
+                section.tooltip("Manual render-resolution scale used when Quality is Custom. Lower values are faster; higher values are sharper.");
             }
         }
     }

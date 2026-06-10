@@ -26,7 +26,7 @@ public class FpvPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         section.addToggle(fpvEnabled.createWidget(gameOptions))
-              .tooltip("Show your player body in first-person view.");
+              .tooltip("Shows your player body in first-person view.");
 
         if (Options.fpvEnabled) {
             // Forward + Vertical offset (paired)
@@ -39,14 +39,14 @@ public class FpvPopulator implements ContentPopulator {
                     -30, 30, Options.fpvOffsetVertical, 0,
                     v -> getGenericValueText(Text.translatable(Options.FPV_OFFSET_VERTICAL_KEY), Text.literal(v + " cm")),
                     v -> Options.setFpvOffsetVertical(v, true)))
-                  .tooltip("Forward = body+head distance from camera (negative = closer). Vertical = up/down.");
+                  .tooltip("Forward Offset moves the body/head forward or backward relative to the camera. Negative values move it closer. Vertical Offset moves the first-person body alignment up or down relative to the camera.");
 
             // Lateral offset (solo)
             section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                 -20, 20, Options.fpvOffsetLateral, 0,
                 v -> getGenericValueText(Text.translatable(Options.FPV_OFFSET_LATERAL_KEY), Text.literal(v + " cm")),
                 v -> Options.setFpvOffsetLateral(v, true)))
-                  .tooltip("Left/right offset from body center.");
+                  .tooltip("Moves the first-person body alignment left or right from center.");
         }
     }
 

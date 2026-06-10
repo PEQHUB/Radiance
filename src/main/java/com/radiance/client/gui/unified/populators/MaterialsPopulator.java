@@ -25,7 +25,7 @@ public class MaterialsPopulator implements ContentPopulator {
             "options.video.materials.autoPBR", Options.autoPBREnabled,
             value -> Options.setAutoPBREnabled(value, true));
         section.addTwoWidgets(autoPBR.createWidget(gameOptions), null);
-        section.tooltip("Material Lab is texture-primary. Blocks are discovery context, not material categories.");
+        section.tooltip("Enables automatic PBR material inference for editable textures. Use Material Lab for per-texture review and overrides.");
 
         SettingsSection displacement = panel.addSection(Text.literal("Geometry Displacement"));
         SimpleOption<Boolean> displacementEnabled = SimpleOption.ofBoolean(
@@ -44,7 +44,7 @@ public class MaterialsPopulator implements ContentPopulator {
         }).dimensions(0, 0, 150, 20).build();
         quality.active = Options.displacementEnabled;
         displacement.addTwoWidgets(displacementEnabled.createWidget(gameOptions), quality)
-            .tooltip("Direct LabPBR normal-alpha height maps displace cube faces. Quality controls the smooth shader trace budget.");
+            .tooltip("Enables cube-face height-field displacement from LabPBR normal-alpha or generated height data. Quality controls the displacement tracing budget. Higher quality is smoother and more expensive.");
 
         ResettableSliderWidget depthCap = new ResettableSliderWidget(0, 0, 150, 20,
             1, 50, Options.displacementDepthCapPercent, 5,
@@ -57,10 +57,11 @@ public class MaterialsPopulator implements ContentPopulator {
         depthCap.active = Options.displacementEnabled;
         fadeDistance.active = Options.displacementEnabled;
         displacement.addTwoSliders(depthCap, fadeDistance)
-            .tooltip("Depth Cap limits every material. Fade Distance removes the effect at range to protect performance.");
+            .tooltip("Depth Cap limits maximum material displacement depth in blocks. Fade Distance fades displacement out with distance to protect performance and reduce aliasing.");
 
         section.addLauncher("options.video.materials_settings",
             new MaterialsSettingsScreen(screen), screen);
+        section.tooltip("Opens the full texture/material editor for per-sprite material overrides.");
     }
 
     private static Text qualityText() {

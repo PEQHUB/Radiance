@@ -18,6 +18,7 @@ public class FireworksPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.literal("Spark Intensity"),
                 Text.literal(v + " nits")),
             v -> Options.setFireworkSparkEmission(v, true)));
+        emission.tooltip("Brightness of firework sparks in nits.");
 
         // Flash emission in nits (0-10000)
         emission.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
@@ -25,6 +26,7 @@ public class FireworksPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.literal("Flash Intensity"),
                 Text.literal(v + " nits")),
             v -> Options.setFireworkFlashEmission(v, true)));
+        emission.tooltip("Brightness of firework explosion flashes in nits.");
 
         // Per-dye-color: Temperature + Wavelength + Purity (same as emissive blocks)
         for (int i = 0; i < Options.FIREWORK_COLOR_COUNT; i++) {

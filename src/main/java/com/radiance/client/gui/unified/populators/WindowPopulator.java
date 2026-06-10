@@ -36,6 +36,7 @@ public class WindowPopulator implements ContentPopulator {
             v -> applyWindowSize(-1, v));
 
         section.addTwoSliders(widthSlider, heightSlider);
+        section.tooltip("Width sets the window width in pixels when not fullscreen. Height sets the window height in pixels when not fullscreen.");
 
         // Fullscreen toggle + Center Window button
         SimpleOption<Boolean> fullscreen = SimpleOption.ofBoolean("options.fullscreen",
@@ -45,6 +46,7 @@ public class WindowPopulator implements ContentPopulator {
             centerWindow();
         }).width(150).build();
         section.addTwoWidgets(fullscreen.createWidget(gameOptions), centerBtn);
+        section.tooltip("Fullscreen toggles fullscreen mode using Minecraft's current window. Center Window moves the window to the center of the primary monitor and saves the position.");
     }
 
     private static void centerWindow() {

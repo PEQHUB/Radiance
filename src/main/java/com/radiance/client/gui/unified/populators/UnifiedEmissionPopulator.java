@@ -78,6 +78,7 @@ public class UnifiedEmissionPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         header.addTwoWidgets(categoryDropdown, null);
+        header.tooltip("Selects which emissive block, particle, or firework group is shown for editing.");
 
         if (selectedCategory < BLOCK_CATEGORIES.length) {
             populateBlockCategory(panel, BLOCK_CATEGORIES[selectedCategory], CATEGORY_NAMES[selectedCategory]);

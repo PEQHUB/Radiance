@@ -50,7 +50,7 @@ public class ShaderPackPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
             selection.addTwoWidgets(dropdown, null)
-                .tooltip("Built-in packs are listed first. External Radiance shader packs are read from Minecraft shaderpacks.");
+                .tooltip("Built-in packs are listed first. External Radiance shader packs are read from the Minecraft shaderpacks folder.");
             Pipeline.ShaderPackChoice active = packs.get(selected);
             selection.addInfo(tr("options.video.shader_pack.selected_path"), active.relativePath());
         }
@@ -58,9 +58,12 @@ public class ShaderPackPopulator implements ContentPopulator {
         selection.addButton(ButtonWidget.builder(Text.translatable("options.video.shader_pack.settings"),
             button -> MinecraftClient.getInstance().setScreen(new ShaderPackSettingsScreen(screen)))
             .width(150).build());
+        selection.tooltip("Opens all editable attributes exposed by the active shader pack.");
         selection.addButton(ButtonWidget.builder(Text.translatable("options.video.shader_pack.reload"),
             button -> screen.refreshContent()).width(150).build());
+        selection.tooltip("Reloads the shader-pack list and refreshes shader-pack status.");
         selection.addInfo(tr("options.video.shader_pack.runtime_status"), runtimeStatus(activePath));
+        selection.tooltip("Shows whether the active shader pack is running through the pack executor, partial adapter, or fallback path.");
     }
 
     private static int selectedIndex(List<Pipeline.ShaderPackChoice> packs, String activePath) {

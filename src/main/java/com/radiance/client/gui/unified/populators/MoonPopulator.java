@@ -20,11 +20,13 @@ public class MoonPopulator implements ContentPopulator {
             0, 300, Options.moonSizePercent[dim], Options.PERCENT_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.moon_size"), Text.literal(v + "%")),
             v -> Options.setMoonSizePercent(dim, v, true)));
+        section.tooltip("Scales the apparent moon disk size for the current dimension.");
 
         section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 300, Options.moonIntensityPercent[dim], Options.PERCENT_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.moon_intensity"), Text.literal(v + "%")),
             v -> Options.setMoonIntensityPercent(dim, v, true)));
+        section.tooltip("Scales moon light intensity for the current dimension.");
 
         if (dim == Options.DIM_OVERWORLD) {
             SettingsSection orbit = panel.addSection("options.video.environment.moon.orbit_category");
@@ -36,17 +38,20 @@ public class MoonPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
             orbit.addToggle(moonFollowSun.createWidget(MinecraftClient.getInstance().options));
+            orbit.tooltip("Makes the moon orbit follow the sun path automatically. Disable this to edit moon orbit separately.");
 
             if (!Options.moonFollowSun) {
                 orbit.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                     0, 90, Options.moonInclinationDeg, Options.MOON_INCLINATION_DEFAULT,
                     v -> getGenericValueText(Text.translatable(Options.MOON_INCLINATION_KEY), Text.literal(v + "\u00B0")),
                     v -> Options.setMoonInclinationDeg(v, true)));
+                orbit.tooltip("Sets the physical moon orbit tilt in degrees when Moon Follow Sun is disabled.");
 
                 orbit.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                     -180, 180, Options.moonAzimuthOffsetDeg, Options.MOON_AZIMUTH_OFFSET_DEFAULT,
                     v -> getGenericValueText(Text.translatable(Options.MOON_AZIMUTH_OFFSET_KEY), Text.literal(v + "\u00B0")),
                     v -> Options.setMoonAzimuthOffsetDeg(v, true)));
+            orbit.tooltip("Rotates the physical moon path around the world when Moon Follow Sun is disabled.");
             }
         }
     }

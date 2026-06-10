@@ -22,12 +22,14 @@ public class SimplePostProcessingPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         section.addTwoWidgets(sharpener, null);
+        section.tooltip("Selects post-process sharpening filter. None disables sharpening; CAS and RCAS sharpen the final image.");
 
         if (Options.sharpenerMode != 0) {
             section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                 0, 100, Options.casSharpnessPercent, 50,
                 v -> getGenericValueText(Text.translatable(Options.CAS_SHARPNESS_KEY), Text.literal(v + "%")),
                 v -> Options.setCasSharpnessPercent(v, true)));
+            section.tooltip("Sharpening intensity for CAS/RCAS. Higher values add clarity but can create halos or shimmer.");
         }
 
         // Saturation
@@ -35,7 +37,7 @@ public class SimplePostProcessingPopulator implements ContentPopulator {
             0, 200, Options.saturationPercent, Options.SATURATION_DEFAULT_PERCENT,
             v -> getGenericValueText(Text.translatable(Options.SATURATION_KEY), Text.literal(v + "%")),
             v -> Options.setSaturation(v, true)))
-              .tooltip("Color saturation. 100% = natural, 0% = grayscale, 200% = vivid.");
+              .tooltip("Post-tonemap global color saturation. Higher values make colors more vivid.");
     }
 
     @Override

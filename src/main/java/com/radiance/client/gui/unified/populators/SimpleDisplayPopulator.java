@@ -38,13 +38,14 @@ public class SimpleDisplayPopulator implements ContentPopulator {
             });
 
         section.addTwoWidgets(vsync.createWidget(gameOptions), maxFps.createWidget(gameOptions))
-              .tooltip("VSync syncs to display refresh rate. FPS Limit caps frame rate.");
+              .tooltip("VSync synchronizes presentation to display refresh. Can reduce tearing but may increase latency. FPS Limit caps rendered framerate.");
 
         // Fullscreen
         SimpleOption<Boolean> fullscreen = SimpleOption.ofBoolean("options.fullscreen",
             mc.getWindow().isFullscreen(),
             value -> mc.getWindow().toggleFullscreen());
         section.addToggle(fullscreen.createWidget(gameOptions));
+        section.tooltip("Toggles fullscreen mode using Minecraft's current window.");
     }
 
     @Override

@@ -26,7 +26,7 @@ public class ExposurePopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         section.addToggle(manualExposure.createWidget(MinecraftClient.getInstance().options));
-        section.tooltip("Overrides auto-exposure with a fixed EV value for consistent brightness.");
+        section.tooltip("Overrides auto-exposure with a fixed EV100 value for consistent brightness.");
 
         if (Options.manualExposureEnabled) {
             int sliderValue = Options.manualExposureEV100Tenths + EV100_SLIDER_OFFSET;
@@ -36,7 +36,7 @@ public class ExposurePopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable(Options.MANUAL_EXPOSURE_KEY),
                     Text.literal(String.format("EV %.1f", (v - EV100_SLIDER_OFFSET) / 10.0))),
                 v -> Options.setManualExposureEV100Tenths(v - EV100_SLIDER_OFFSET, true)));
-            section.tooltip("EV 0 = sunny daylight. Negative = darker. Positive = brighter.");
+            section.tooltip("Fixed manual EV100 exposure. Around EV15 corresponds to bright daylight; lower values brighten darker scenes.");
             return;
         }
 
@@ -55,7 +55,7 @@ public class ExposurePopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable(Options.DARK_ADAPT_SPEED_KEY),
                     Text.literal(String.format("%.1fs", v / 10.0))),
                 v -> Options.setDarkAdaptSpeedTenths(v, true)));
-        adapt.tooltip("How quickly exposure adapts. Bright adapt = entering sunlight. Dark adapt = entering caves.");
+        adapt.tooltip("Bright Adapt Speed controls how quickly exposure adapts when entering bright light. Dark Adapt Speed controls how quickly exposure adapts when entering darkness.");
 
         // Row 2: Scene Cut | Center Weight
         adapt.addTwoSliders(
@@ -69,7 +69,7 @@ public class ExposurePopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable(Options.CENTER_WEIGHT_STRENGTH_KEY),
                     Text.literal(v + "%")),
                 v -> Options.setCenterWeightPercent(v, true)));
-        adapt.tooltip("Scene Cut: EV jump for instant snap. Center Weight: how much center of screen influences metering.");
+        adapt.tooltip("Scene Cut EV jump threshold for instant exposure snap instead of gradual adaptation. Center Weight controls how much the center of the screen influences exposure metering.");
 
         // Row 3: Highlight Weight | Compensation
         adapt.addTwoSliders(
@@ -83,7 +83,7 @@ public class ExposurePopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable(Options.EXPOSURE_COMPENSATION_KEY),
                     Text.literal(String.format("%+.1f EV", (v - 30) / 10.0))),
                 v -> Options.setExposureCompensation(v - 30, true)));
-        adapt.tooltip("Highlight Weight: bright pixels influence metering more (reduces highlight blowout). Compensation: manual EV offset.");
+        adapt.tooltip("Highlight Weight controls how strongly bright pixels influence metering. Higher values reduce highlight blowout. Compensation is a manual EV offset applied on top of auto-exposure.");
 
         // Row 4: Middle Grey
         adapt.addSlider(new ResettableSliderWidget(0, 0, 150, 20,

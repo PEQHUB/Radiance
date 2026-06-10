@@ -28,6 +28,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
                 screen.refreshContent();
             });
         camera.addTwoWidgets(sensorDropdown, null);
+        camera.tooltip("Selects the sensor format used for physical camera and depth-of-field calculations.");
 
         camera.addSlider(new ResettableSliderWidget(
             0, 0, 150, 20,
@@ -74,6 +75,7 @@ public class PhysicalCameraPopulator implements ContentPopulator {
                     Options.setOfflineFocalDistance((float) v, true);
                     if (Options.offlineState == 2) Options.nativeResetAccumulation();
                 }));
+            focus.tooltip("Manual focus distance in blocks. Used when Focus Mode is MF.");
         }
     }
 

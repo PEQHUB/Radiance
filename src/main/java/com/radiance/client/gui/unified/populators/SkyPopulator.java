@@ -20,6 +20,7 @@ public class SkyPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable("options.video.environment.sky_brightness"),
                 Text.literal(v + "%")),
             v -> Options.setSkyBrightnessPercent(dim, v, true)));
+        section.tooltip("Scales sky brightness for the currently edited dimension. Higher values make the sky contribute more visible light.");
 
         section.addTwoSliders(
             new ResettableSliderWidget(
@@ -34,6 +35,7 @@ public class SkyPopulator implements ContentPopulator {
                 v -> getGenericValueText(Text.translatable("options.video.environment.wet_surface"),
                     Text.literal(v + "%")),
                 v -> Options.setWetSurfaceStrengthPercent(v, true)));
+        section.tooltip("Rain Blend controls how strongly rainy weather blends into the sky and environment lighting. Wet Surface controls rain-driven wet-surface response. Higher values make exposed surfaces appear wetter and glossier.");
     }
 
     @Override

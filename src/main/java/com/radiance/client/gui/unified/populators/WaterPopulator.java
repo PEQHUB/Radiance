@@ -22,21 +22,25 @@ public class WaterPopulator implements ContentPopulator {
             0, 100, Options.waterTintR[dim], Options.WATER_TINT_R_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.water_tint_r"), Text.literal(v + "%")),
             v -> Options.setWaterTintRPercent(dim, v, true)));
+        section.tooltip("Controls the red component of the water tint for the current dimension.");
 
         section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.waterTintG[dim], Options.WATER_TINT_G_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.water_tint_g"), Text.literal(v + "%")),
             v -> Options.setWaterTintGPercent(dim, v, true)));
+        section.tooltip("Controls the green component of the water tint for the current dimension.");
 
         section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 100, Options.waterTintB[dim], Options.WATER_TINT_B_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.water_tint_b"), Text.literal(v + "%")),
             v -> Options.setWaterTintBPercent(dim, v, true)));
+        section.tooltip("Controls the blue component of the water tint for the current dimension.");
 
         section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 300, Options.waterFogStrengthPercent[dim], Options.PERCENT_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.water_fog_strength"), Text.literal(v + "%")),
             v -> Options.setWaterFogStrengthPercent(dim, v, true)));
+        section.tooltip("Controls how strongly water fog attenuates visibility through water.");
     }
 
     @Override

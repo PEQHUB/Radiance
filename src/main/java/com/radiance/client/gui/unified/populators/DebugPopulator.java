@@ -54,6 +54,7 @@ public class DebugPopulator implements ContentPopulator {
         MinecraftClient mc = MinecraftClient.getInstance();
 
         SettingsSection runtime = panel.addSection("Runtime Status").setLinear();
+        runtime.tooltip("Read-only runtime state from Minecraft and Radiance. No setting is changed here.");
         runtime.addInfo("World", mc.world == null ? "None" : mc.world.getRegistryKey().getValue().toString());
         runtime.addInfo("Player", mc.player == null ? "None" : mc.player.getBlockPos().toShortString());
         runtime.addInfo("Integrated Server", String.valueOf(DebugRuntimeDiagnostics.hasIntegratedServer(mc)));
@@ -78,6 +79,7 @@ public class DebugPopulator implements ContentPopulator {
         renderer.addInfo("Sprite Count", String.valueOf(TextureArrayBridge.sortedSpriteIds.size()));
 
         SettingsSection options = panel.addSection("Debug Options").setLinear();
+        options.tooltip("Read-only summary of current debug toggles and renderer feature state.");
         options.addInfo("Java Logging", String.valueOf(Options.loggingEnabled));
         options.addInfo("GPU Debug Labels", String.valueOf(Options.gpuDebugLabels));
         options.addInfo("GPU Profiler Toggle", String.valueOf(DebugRuntimeSampler.isGpuProfilerEnabled()));
@@ -86,6 +88,7 @@ public class DebugPopulator implements ContentPopulator {
         options.addInfo("Frame Generation", frameGenLabel());
 
         SettingsSection paths = panel.addSection("Diagnostic Paths").setLinear();
+        paths.tooltip("Read-only file paths for generated debug artifacts. Use copy actions in Resources to copy paths.");
         paths.addInfo("Runtime Snapshot", DebugRuntimeDiagnostics.latestRuntimeSnapshotPath().toString());
         paths.addInfo("Target Inspect", DebugInspectReporter.latestReportPath().toString());
         paths.addInfo("Debug Bundle", DebugRuntimeDiagnostics.latestBundlePath().toString());
@@ -99,17 +102,17 @@ public class DebugPopulator implements ContentPopulator {
         MinecraftClient mc = MinecraftClient.getInstance();
         SettingsSection capture = panel.addSection("Capture").setLinear();
         capture.addButton(button("Capture Current Target", () -> DebugInspectReporter.captureCurrentTarget(mc)))
-            .tooltip("Writes radiance/logs/debug_inspect_latest.txt for the current crosshair target.");
+            .tooltip("Writes a debug inspect report for the current crosshair target.");
         capture.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.debugInspectKey),
             "Log Debug Inspect"));
         capture.addButton(button("Write Runtime Snapshot", () -> runFileAction(mc,
             () -> DebugRuntimeDiagnostics.writeRuntimeSnapshot(mc), "Runtime snapshot saved")))
-            .tooltip("Writes renderer, world, option, and path state to radiance/logs.");
+            .tooltip("Writes renderer, world, options, and path state to the Radiance logs folder.");
         capture.addButton(button("Write Debug Bundle", () -> DebugRuntimeSampler.writeDebugBundleAsync(mc)))
-            .tooltip("Builds a zip with current diagnostics and key logs in the background.");
+            .tooltip("Builds a diagnostic bundle with current logs and runtime snapshots.");
         capture.addButton(button("Write Nsight Context", () -> DebugRuntimeSampler.writeNsightCaptureContextAsync(mc)))
-            .tooltip("Closes this menu, then asks DebugBridge to write an Nsight capture manifest under C:\\RadSER\\results\\nsight.");
+            .tooltip("Closes the menu and asks DebugBridge to write an Nsight capture manifest.");
 
         SettingsSection logging = panel.addSection("Logging").setLinear();
         var gameOptions = mc.options;
@@ -117,12 +120,12 @@ public class DebugPopulator implements ContentPopulator {
             "Java / Native File Logging", Options.loggingEnabled,
             value -> Options.setLoggingEnabled(value, true));
         logging.addToggle(javaLogging.createWidget(gameOptions))
-            .tooltip("Enables Radiance Java/native diagnostic logs.");
+            .tooltip("Enables Radiance Java and native diagnostic logging.");
         SimpleOption<Boolean> gpuLabels = SimpleOption.ofBoolean(
             "GPU Debug Labels", Options.gpuDebugLabels,
             value -> Options.setGpuDebugLabels(value, true));
         logging.addToggle(gpuLabels.createWidget(gameOptions))
-            .tooltip("Adds GPU debug labels for external profilers.");
+            .tooltip("Adds GPU debug labels for external profilers and graphics debuggers.");
     }
 
     private void populateGpuProfiling(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
@@ -137,6 +140,7 @@ public class DebugPopulator implements ContentPopulator {
         profiler.addInfo("Last RT Sweep", lastRtSweep == null ? "None" : lastRtSweep.toString());
         Path lastRtFloorSweep = DebugRuntimeSampler.lastRtMainTraceFloorSweepPath();
         profiler.addInfo("Last RT Floor Sweep", lastRtFloorSweep == null ? "None" : lastRtFloorSweep.toString());
+        profiler.tooltip("Toggles native GPU timestamp profiling. Use only while collecting diagnostic samples.");
         profiler.addButton(button(
             DebugRuntimeSampler.isGpuProfilerEnabled() ? "Disable GPU Profiler" : "Enable GPU Profiler",
             () -> {
@@ -151,21 +155,22 @@ public class DebugPopulator implements ContentPopulator {
             button("Capture 120 Samples", () -> {
                 DebugRuntimeSampler.startGpuProfileCapture(120, mc);
                 screen.refreshContent();
-            })).tooltip("Samples native GPU timestamp results without blocking the menu.");
+            })).tooltip("Captures 30 GPU timing samples without blocking the menu.");
         profiler.addButton(button("Run RT MainTrace Sweep", () -> {
             DebugRuntimeSampler.startRtMainTraceSweep(mc);
             screen.refreshContent();
-        })).tooltip("Closes this menu, temporarily sweeps RT shader options, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
+        })).tooltip("Temporarily sweeps RT shader options, restores them, and writes results under the RT sweep output folder.");
         profiler.addButton(button("Run SHARC Probe", () -> {
             DebugRuntimeSampler.startSharcProbe(mc);
             screen.refreshContent();
-        })).tooltip("Closes this menu, enables SHARC temporarily, captures staged SHARC feature truth/GPU timings, restores settings, and writes C:\\RadSER\\results\\sharc_probes.");
+        })).tooltip("Temporarily enables SHARC diagnostics, captures feature truth and GPU timings, restores settings, and writes probe results.");
         profiler.addButton(button("Run RT MainTrace Floor Sweep", () -> {
             DebugRuntimeSampler.startRtMainTraceFloorSweep(mc);
             screen.refreshContent();
-        })).tooltip("Closes this menu, toggles transient RT.MainTrace floor diagnostics, restores them, and writes C:\\RadSER\\results\\rt_sweeps.");
+        })).tooltip("Temporarily toggles RT MainTrace floor diagnostics, restores settings, and writes sweep results.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
+        snapshots.tooltip("Writes Vulkan memory allocator, overlay, and DLSS-G diagnostics to snapshot files.");
         snapshots.addTwoWidgets(
             button("Write VMA Snapshot", () -> runFileAction(mc,
                 DebugRuntimeDiagnostics::writeVmaSnapshot, "VMA snapshot saved")),
@@ -180,6 +185,7 @@ public class DebugPopulator implements ContentPopulator {
         String diag = DebugRuntimeDiagnostics.safeNative(RendererProxy::nativeGetDlssgLatencyDiag);
 
         SettingsSection state = panel.addSection("DLSS-G State").setLinear();
+        state.tooltip("Read-only DLSS-G feature state, queue mode, completion slot, and support status.");
         state.addInfo("Frame Generation", frameGenLabel());
         state.addInfo("Supported", field(diag, "dlssgSupported"));
         state.addInfo("Feature Loaded", field(diag, "featureLoaded"));
@@ -190,6 +196,7 @@ public class DebugPopulator implements ContentPopulator {
         state.addInfo("Valid Completion Slots", field(diag, "validSlots"));
 
         SettingsSection waits = panel.addSection("Completion Waits").setLinear();
+        waits.tooltip("Read-only wait/capture statistics for DLSS-G completion synchronization.");
         waits.addInfo("Captures", field(diag, "completionCaptures"));
         waits.addInfo("Capture Failures", field(diag, "completionFailures"));
         waits.addInfo("Null Fence / Zero Value", field(diag, "completionNullFence") + " / "
@@ -204,6 +211,7 @@ public class DebugPopulator implements ContentPopulator {
         waits.addInfo("Pending Serial Age", field(diag, "pendingSerialAge"));
 
         SettingsSection tags = panel.addSection("Tagged Inputs").setLinear();
+        tags.tooltip("Read-only resource-tag diagnostics for depth, motion vectors, and HUD-less color.");
         tags.addInfo("Tag Count", field(diag, "lastTagCount"));
         tags.addInfo("Depth", field(diag, "depthTagged") + " / "
             + field(diag, "depthSize") + " / fmt " + field(diag, "depthFormat"));
@@ -213,6 +221,7 @@ public class DebugPopulator implements ContentPopulator {
             + field(diag, "hudlessSize") + " / fmt " + field(diag, "hudlessFormat"));
 
         SettingsSection raw = panel.addSection("Raw Diagnostics").setLinear();
+        raw.tooltip("Compact raw native DLSS-G diagnostic string for bug reports.");
         raw.addInfo("Native", compact(diag, 180));
 
         SettingsSection actions = panel.addSection("Capture Actions").setLinear();
@@ -229,20 +238,22 @@ public class DebugPopulator implements ContentPopulator {
             button("GPU 120 Samples", () -> {
                 DebugRuntimeSampler.startGpuProfileCapture(120, mc);
                 screen.refreshContent();
-            })).tooltip("Correlates DLSS-G waits with native GPU timestamp samples.");
+            })).tooltip("Captures GPU timing samples to correlate with DLSS-G waits.");
     }
 
     private void populateResources(ContentPanelWidget panel) {
         MinecraftClient mc = MinecraftClient.getInstance();
         SettingsSection textures = panel.addSection("Texture Resources").setLinear();
+        textures.tooltip("Read-only Java/native texture loader state and generated texture artifact status.");
         textures.addInfo("Java Texture Generation", String.valueOf(TextureArrayBridge.getActiveTextureGeneration()));
         textures.addInfo("Java Sprite Count", String.valueOf(TextureArrayBridge.sortedSpriteIds.size()));
         textures.addInfo("Texture CSV Exists", String.valueOf(Files.exists(DebugRuntimeDiagnostics.TEXTURE_FULL_CSV)));
         textures.addButton(button("Write Texture Reload Snapshot", () -> runFileAction(mc,
             DebugRuntimeDiagnostics::writeTextureReloadSnapshot, "Texture reload snapshot saved")))
-            .tooltip("Also asks native to dump C:\\RadSER\\texture_system_full.csv.");
+            .tooltip("Writes texture reload diagnostics and asks native to dump the full texture-system CSV.");
 
         SettingsSection paths = panel.addSection("Copy Paths").setLinear();
+        paths.tooltip("Copies diagnostic file paths to the clipboard for easy access.");
         paths.addTwoWidgets(
             button("Copy Inspect Path", () -> DebugRuntimeDiagnostics.copyPathToClipboard(
                 mc, DebugInspectReporter.latestReportPath())),
@@ -258,19 +269,21 @@ public class DebugPopulator implements ContentPopulator {
     private void populatePowerActions(ContentPanelWidget panel) {
         MinecraftClient mc = MinecraftClient.getInstance();
         SettingsSection renderer = panel.addSection("Renderer Actions").setLinear();
+        renderer.tooltip("Reset Accumulation clears temporal/offline accumulation history without rebuilding chunks. Rebuild Chunks reloads Minecraft chunk meshes and requests native BLAS rebuild.");
         renderer.addTwoWidgets(
             button("Reset Accumulation", () -> DebugRuntimeDiagnostics.resetAccumulation(mc)),
             button("Rebuild Chunks", () -> DebugRuntimeDiagnostics.rebuildChunks(mc)))
-            .tooltip("Rebuild Chunks reloads Minecraft chunk meshes and requests native BLAS rebuild.");
+            .tooltip("Reloads Minecraft chunk meshes and requests native BLAS rebuild.");
 
         SettingsSection world = panel.addSection("World Actions").setLinear();
+        world.tooltip("Clear Weather clears weather in the integrated single-player server. Set Noon sets world time to noon. Disabled when not available.");
         boolean server = DebugRuntimeDiagnostics.hasIntegratedServer(mc);
         ButtonWidget clearWeather = button("Clear Weather", () -> DebugRuntimeDiagnostics.clearWeather(mc));
         clearWeather.active = server;
         ButtonWidget noon = button("Set Noon", () -> DebugRuntimeDiagnostics.setNoon(mc));
         noon.active = server;
         world.addTwoWidgets(clearWeather, noon)
-            .tooltip("Available only in an integrated single-player server.");
+            .tooltip("Clear Weather clears weather in the integrated single-player server. Set Noon sets world time to noon. Disabled when not available.");
     }
 
     @Override

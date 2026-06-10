@@ -19,11 +19,13 @@ public class SunPopulator implements ContentPopulator {
             0, 300, Options.sunSizePercent[dim], Options.PERCENT_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.sun_size"), Text.literal(v + "%")),
             v -> Options.setSunSizePercent(dim, v, true)));
+        section.tooltip("Scales the apparent sun disk size for the current dimension. Larger values produce broader solar highlights and softer-looking sun disks.");
 
         section.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
             0, 300, Options.sunIntensityPercent[dim], Options.PERCENT_DEFAULT,
             v -> getGenericValueText(Text.translatable("options.video.environment.sun_intensity"), Text.literal(v + "%")),
             v -> Options.setSunIntensityPercent(dim, v, true)));
+        section.tooltip("Scales direct sun light intensity for the current dimension.");
 
         // Orbit controls — Overworld only
         if (dim == Options.DIM_OVERWORLD) {
@@ -37,6 +39,7 @@ public class SunPopulator implements ContentPopulator {
                     screen.refreshContent();
                 });
             orbit.addTwoWidgets(sunPathMode, null);
+            orbit.tooltip("Selects how the sun orbit is computed. Legacy follows Minecraft\u2019s default path; Physical uses configurable inclination and azimuth.");
 
             if (Options.sunPathMode == 1) {
                 orbit.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
@@ -48,6 +51,7 @@ public class SunPopulator implements ContentPopulator {
                     -180, 180, Options.sunAzimuthOffsetDeg, Options.SUN_AZIMUTH_OFFSET_DEFAULT,
                     v -> getGenericValueText(Text.translatable(Options.SUN_AZIMUTH_OFFSET_KEY), Text.literal(v + "\u00B0")),
                     v -> Options.setSunAzimuthOffsetDeg(v, true)));
+            orbit.tooltip("Rotates the physical sun path around the world in degrees.");
             }
         }
     }

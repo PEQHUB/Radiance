@@ -39,7 +39,7 @@ public class PerformancePopulator implements ContentPopulator {
                     .width(150).build();
                 reflexLocked.active = false;
                 pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexLocked)
-                      .tooltip("Locked by the upscaling page while generated frames are active.");
+                      .tooltip("Reflex is locked while frame generation is active because generated frames require stable pacing.");
             } else {
                 SimpleOption<Boolean> reflexEnabled = SimpleOption.ofBoolean(
                     Options.REFLEX_ENABLED_KEY, Options.reflexEnabled,
@@ -48,9 +48,11 @@ public class PerformancePopulator implements ContentPopulator {
                         screen.refreshContent();
                     });
                 pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), reflexEnabled.createWidget(gameOptions));
+                pacing.tooltip("VSync synchronizes presentation to display refresh. Can reduce tearing but may increase latency. Reflex enables NVIDIA Reflex low-latency pacing when supported.");
             }
         } else {
             pacing.addTwoWidgets(vsyncToggle.createWidget(gameOptions), null);
+            pacing.tooltip("VSync synchronizes presentation to display refresh. Can reduce tearing but may increase latency.");
         }
 
         pacing.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
@@ -58,6 +60,7 @@ public class PerformancePopulator implements ContentPopulator {
             v -> getGenericValueText(Text.translatable(Options.MAX_FPS_KEY),
                 Text.literal(v == 0 ? "Unlimited" : v + " fps")),
             v -> Options.setMaxFps(v, true)));
+        pacing.tooltip("FPS Limit caps rendered framerate. Use 0 for unlimited.");
 
         ButtonWidget vrrButton = ButtonWidget.builder(
             Text.literal("Auto VRR Cap"),
@@ -70,6 +73,7 @@ public class PerformancePopulator implements ContentPopulator {
                 }
             }).width(150).build();
         pacing.addButton(vrrButton);
+        pacing.tooltip("Auto VRR Cap sets an FPS cap slightly below refresh rate for VRR displays.");
 
         SettingsSection renderDist = panel.addSection("Render Distance");
 
@@ -84,7 +88,7 @@ public class PerformancePopulator implements ContentPopulator {
             value -> Options.setChunkCullDistance(value, true));
 
         renderDist.addTwoWidgets(chunkCullDistance.createWidget(gameOptions), null)
-            .tooltip("Cull Distance controls maximum ray-traced chunk visibility.");
+            .tooltip("Maximum ray-traced chunk visibility distance. Lower values reduce TLAS/chunk workload.");
 
         SettingsSection terrain = panel.addSection("Chunk Building");
 
@@ -107,6 +111,7 @@ public class PerformancePopulator implements ContentPopulator {
             value -> Options.setChunkBuildingTotalBatches(value, true));
 
         terrain.addTwoWidgets(chunkBatchSize.createWidget(gameOptions), chunkTotalBatches.createWidget(gameOptions));
+        terrain.tooltip("Chunk Batch Size is the number of chunks processed per BLAS build batch. Higher values build faster but can cause spikes. Chunk Total Batches is the maximum concurrent chunk build batches. Higher values increase throughput but can increase CPU/GPU pressure.");
     }
 
     @Override

@@ -31,6 +31,7 @@ public class UpscalerPopulator implements ContentPopulator {
                 Text.translatable("options.video.dlss_missing_warning"),
                 btn -> screen.showOverlay(new DlssMissingScreen(screen)))
                 .width(150).build());
+            spatial.tooltip("Opens DLSS runtime installation instructions. DLSS-RR and DLSS-G need the required NVIDIA runtime files.");
         }
 
         SelectionDropdownWidget upscalerModeDropdown = new SelectionDropdownWidget(
@@ -47,10 +48,10 @@ public class UpscalerPopulator implements ContentPopulator {
                 value -> Options.setDlssDEnabled(value, true));
 
             spatial.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions))
-                  .tooltip("DLSS-RR = NVIDIA ray reconstruction. DLSS-D denoises without upscaling.");
+                  .tooltip("Upscaler selects reconstruction backend. DLSS-RR uses NVIDIA ray reconstruction; Off disables reconstruction. DLSS-D Enabled enables DLSS denoising without spatial upscaling when DLSS-RR mode is active.");
         } else {
             spatial.addTwoWidgets(upscalerModeDropdown, null)
-                  .tooltip("DLSS-RR = NVIDIA ray reconstruction.");
+                  .tooltip("Upscaler selects reconstruction backend. DLSS-RR uses NVIDIA ray reconstruction; Off disables reconstruction.");
         }
 
         if (Options.upscalerMode != 2) {
@@ -68,10 +69,10 @@ public class UpscalerPopulator implements ContentPopulator {
                     new String[]{"Model D", "Model E"},
                     Options.upscalerPreset == 5 ? 1 : 0, value -> Options.setUpscalerPreset(value == 1 ? 5 : 4, true));
                 spatial.addTwoWidgets(qualityDropdown, presetDropdown)
-                       .tooltip("Quality controls render resolution. RR Model selects the ray reconstruction network.");
+                       .tooltip("Quality controls render resolution preset. Custom exposes a manual resolution percentage. RR Model selects the DLSS Ray Reconstruction model preset.");
             } else {
                 spatial.addTwoWidgets(qualityDropdown, null)
-                       .tooltip("Quality controls render resolution.");
+                       .tooltip("Quality controls render resolution preset. Custom exposes a manual resolution percentage.");
             }
 
             if (Options.upscalerQuality == 4) {
@@ -101,12 +102,12 @@ public class UpscalerPopulator implements ContentPopulator {
                     multiNames, Options.frameGenMultiplier - 1,
                     value -> Options.setFrameGenMultiplier(value + 1, true));
                 frameRate.addTwoWidgets(fgModeDropdown, fgMultiDropdown)
-                         .tooltip("Generates interpolated frames between real renders. Requires Reflex for stable pacing.");
+                         .tooltip("Frame Generation generates interpolated frames between real renders. Requires supported hardware and stable pacing. FG Multiplier is the number of output frames per real rendered frame. Higher multipliers need stronger hardware support.");
             } else {
                 frameRate.addTwoWidgets(fgModeDropdown, null)
                          .tooltip(Options.frameGenMode == 2
                              ? "Auto dynamically varies frame generation multiplier based on scene load."
-                             : "Generates interpolated frames between real renders. Requires Reflex for stable pacing.");
+                             : "Frame Generation generates interpolated frames between real renders. Requires supported hardware and stable pacing.");
             }
             frameRate.addInfo("Reflex Dependency",
                 Options.isReflexSupported() ? "Supported; Frame Pacing controls the Reflex toggle." : "Unsupported on this system.");
@@ -132,13 +133,14 @@ public class UpscalerPopulator implements ContentPopulator {
             value -> Options.setOutputScale2x(value, true));
 
         output.addTwoWidgets(sharpenerDropdown, ssaa4x.createWidget(gameOptions))
-              .tooltip("Output scale / SSAA changes final output resolution. CAS and RCAS sharpen the reconstructed image.");
+              .tooltip("Sharpener selects output sharpening filter. CAS/RCAS sharpen the reconstructed image; None disables sharpening. Output Scale 2x renders final output at 2x display resolution for supersampled screenshots or sharper output.");
 
         if (Options.sharpenerMode != 0) {
             output.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                 0, 100, Options.casSharpnessPercent, 50,
                 v -> getGenericValueText(Text.translatable(Options.CAS_SHARPNESS_KEY), Text.literal(v + "%")),
                 v -> Options.setCasSharpnessPercent(v, true)));
+            output.tooltip("CAS/RCAS Sharpness sharpening intensity for the selected output filter. Too high can create halos or shimmer.");
         }
     }
 

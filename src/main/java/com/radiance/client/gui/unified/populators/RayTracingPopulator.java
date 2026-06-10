@@ -24,14 +24,14 @@ public class RayTracingPopulator implements ContentPopulator {
             v -> Options.setRayBounces(v, true));
         rayBounces.settingKey = Options.RAY_BOUNCES_KEY;
         section.addSlider(rayBounces)
-              .tooltip("Maximum ray-traced light reflections per pixel.");
+              .tooltip("Maximum ray-traced light reflections per pixel. Higher values improve GI but cost more.");
 
         SimpleOption<Boolean> simplifiedIndirect = SimpleOption.ofBoolean(
             Options.SIMPLIFIED_INDIRECT_KEY, Options.simplifiedIndirect,
             value -> Options.setSimplifiedIndirect(value, true));
 
         section.addToggle(simplifiedIndirect.createWidget(gameOptions))
-              .tooltip("Simplified Indirect uses Lambertian instead of Disney BRDF for bounced light.");
+              .tooltip("Uses Lambertian-style simplified indirect lighting instead of the full Disney BRDF for bounced light.");
 
         SimpleOption<Boolean> multiScatterGGX = SimpleOption.ofBoolean(
             Options.MULTI_SCATTER_GGX_KEY, Options.multiScatterGGX,
@@ -43,7 +43,7 @@ public class RayTracingPopulator implements ContentPopulator {
             Options.diffuseModel == Options.DIFFUSE_MODEL_VMF ? 1 : 0,
             value -> Options.setDiffuseModel(value == 1 ? Options.DIFFUSE_MODEL_VMF : Options.DIFFUSE_MODEL_EON, true));
         section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), diffuseModel)
-              .tooltip("Multi-Scatter GGX adds energy-conserving multiple bounces in microfacet BRDF. Diffuse selects the rough diffuse model.");
+              .tooltip("Multi-Scatter GGX adds energy-conserving multiple scattering in the GGX microfacet BRDF. Diffuse selects the rough diffuse model. EON is the default; VMF is experimental.");
 
         // SER (Shader Execution Reordering)
         SimpleOption<Boolean> serEnabled = SimpleOption.ofBoolean(
@@ -58,10 +58,10 @@ public class RayTracingPopulator implements ContentPopulator {
                 "options.video.ser_hints", Options.serHintsEnabled,
                 value -> Options.setSERHintsEnabled(value, true));
             section.addTwoWidgets(serEnabled.createWidget(gameOptions), serHints.createWidget(gameOptions))
-                  .tooltip("SER reorders shader invocations for better GPU occupancy. Hints guide the reorder heuristic.");
+                  .tooltip("Shader Execution Reordering reorders shader invocations for better GPU occupancy on supported hardware. Hints adds explicit coherence hints to guide SER reordering.");
         } else {
             section.addToggle(serEnabled.createWidget(gameOptions))
-                  .tooltip("SER reorders shader invocations for better GPU occupancy.");
+                  .tooltip("Shader Execution Reordering reorders shader invocations for better GPU occupancy on supported hardware.");
         }
 
     }

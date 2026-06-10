@@ -24,12 +24,14 @@ public class FreecamPopulator implements ContentPopulator {
             Options.freecamEnabled,
             value -> Options.freecamEnabled = value);
         freecam.addToggle(freecamToggle.createWidget(MinecraftClient.getInstance().options));
+        freecam.tooltip("Uses the free camera during offline mode instead of staying attached to the player camera.");
 
         SimpleOption<Boolean> showPlayerToggle = SimpleOption.ofBoolean(
             "Show Player",
             Options.freecamShowPlayer,
             value -> Options.freecamShowPlayer = value);
         freecam.addToggle(showPlayerToggle.createWidget(MinecraftClient.getInstance().options));
+        freecam.tooltip("Shows the player model while using freecam. Disable for clean captures.");
 
         int speedInt = Math.round(Options.freecamSpeed * 10.0f);
         freecam.addSlider(new ResettableSliderWidget(
@@ -38,6 +40,7 @@ public class FreecamPopulator implements ContentPopulator {
             v -> getGenericValueText(Text.literal("Movement Speed"),
                 Text.literal(String.format("%.1fx", v / 10.0))),
             v -> Options.freecamSpeed = v / 10.0f));
+        freecam.tooltip("Freecam movement speed multiplier. Higher values move the camera faster.");
     }
 
     @Override
