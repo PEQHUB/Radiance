@@ -155,6 +155,9 @@ public final class ResourceMaterialResidencyUploader {
         int skippedMissingAlbedo = 0;
         int failedImages = 0;
         int nativePageFailures = 0;
+        int nativePageFailedMaterials = 0;
+        int materialTableUploadFailures = 0;
+        int materialTableUploadSuccesses = 0;
         int displacementEligible = 0;
         int displacementBlocked = 0;
         LOGGER.info("[MaterialCompat] Material page upload starting: {} candidate materials, layerSize={}, "
@@ -265,11 +268,13 @@ public final class ResourceMaterialResidencyUploader {
                     if (!result.uploaded()) {
                         if (result.missingAlbedo()) {
                             skippedMissingAlbedo++;
+                            ResourceMaterialResidencyDemand.recordPermanentFailed(generation,
+                                java.util.List.of(uploadResult.materialId()));
                         } else {
                             failedImages++;
+                            ResourceMaterialResidencyDemand.recordRetryableFailed(generation,
+                                java.util.List.of(uploadResult.materialId()));
                         }
-                        ResourceMaterialResidencyDemand.recordFailed(generation,
-                            java.util.List.of(uploadResult.materialId()));
                         continue;
                     }
                     if (result.displacementEligible()) {
@@ -338,6 +343,11 @@ public final class ResourceMaterialResidencyUploader {
                     boolean materialTableUploaded = Options.materialTableDirtyUpdates
                         ? ResourceMaterialRegistry.uploadMaterialTableEntriesToNative(pageHandles.keySet())
                         : ResourceMaterialRegistry.uploadActiveTableToNative();
+                    if (materialTableUploaded) {
+                        materialTableUploadSuccesses++;
+                    } else {
+                        materialTableUploadFailures++;
+                    }
                     pageStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
                     pageReport.add("residentHandleMerge", mergeStats.toJson());
                     pageReport.addProperty("materialTableUploaded", materialTableUploaded);
@@ -350,7 +360,9 @@ public final class ResourceMaterialResidencyUploader {
                         page, layer, pageHandles.size(), handles.size());
                 } else {
                     nativePageFailures++;
-                    ResourceMaterialResidencyDemand.recordFailed(generation, pageHandles.keySet());
+                    nativePageFailedMaterials += pageHandles.size();
+                    rewindAllocation(generation, allocation);
+                    ResourceMaterialResidencyDemand.recordRetryableFailed(generation, pageHandles.keySet());
                     pageStats.pageTotalNanos += elapsedNanos(pageStartedNanos);
                     writePageStatus(generation, "residencyPageFailed", page, layer, uploadedPages,
                         handles.size(), items.size(), nextItem, false, pagesRequired, pageStats);
@@ -371,17 +383,31 @@ public final class ResourceMaterialResidencyUploader {
         if (!handles.isEmpty() && !Options.materialTableDirtyUpdates && generationMatches(generation)) {
             long tableStartedNanos = System.nanoTime();
             finalMaterialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+            if (finalMaterialTableUploaded) {
+                materialTableUploadSuccesses++;
+            } else {
+                materialTableUploadFailures++;
+            }
             totalStats.materialTableReuploadNanos += elapsedNanos(tableStartedNanos);
         }
+        boolean semanticResidencyUploaded = !handles.isEmpty()
+            && nativePageFailures == 0
+            && materialTableUploadFailures == 0
+            && generationMatches(generation);
         json.addProperty("uploadedPages", uploadedPages);
         json.addProperty("uploadedMaterials", handles.size());
+        json.addProperty("residentCompatMaterials", handles.size());
+        json.addProperty("semanticResidencyUploaded", semanticResidencyUploaded);
         json.add("residentHandleMerge", finalMergeStats.toJson());
         json.addProperty("materialTableUploadedFinal", finalMaterialTableUploaded);
+        json.addProperty("materialTableUploadSuccesses", materialTableUploadSuccesses);
+        json.addProperty("materialTableUploadFailures", materialTableUploadFailures);
         json.addProperty("materialTableFullUploadPolicy",
             Options.materialTableDirtyUpdates ? "sparse_entries_after_each_uploaded_page" : "legacy_full_uploads");
         json.addProperty("skippedMissingAlbedo", skippedMissingAlbedo);
         json.addProperty("failedImages", failedImages);
         json.addProperty("nativePageFailures", nativePageFailures);
+        json.addProperty("nativePageFailedMaterials", nativePageFailedMaterials);
         json.addProperty("displacementEligibleMaterials", displacementEligible);
         json.addProperty("displacementBlockedMaterials", displacementBlocked);
         json.addProperty("deferredCandidateMaterials", Math.max(0, items.size() - nextItem));
@@ -428,6 +454,27 @@ public final class ResourceMaterialResidencyUploader {
                 nextAllocatorLayer = 0;
             }
             return allocation;
+        }
+    }
+
+    private static void rewindAllocation(long generation, PageAllocation allocation) {
+        if (allocation == null || allocation.layerCount() <= 0) {
+            return;
+        }
+        synchronized (PAGE_ALLOCATOR_LOCK) {
+            if (pageAllocatorGeneration != generation) {
+                return;
+            }
+            int expectedPage = allocation.startLayer() + allocation.layerCount() >= allocation.layerCapacity()
+                ? allocation.page() + 1
+                : allocation.page();
+            int expectedLayer = allocation.startLayer() + allocation.layerCount() >= allocation.layerCapacity()
+                ? 0
+                : allocation.startLayer() + allocation.layerCount();
+            if (nextAllocatorPage == expectedPage && nextAllocatorLayer == expectedLayer) {
+                nextAllocatorPage = allocation.page();
+                nextAllocatorLayer = allocation.startLayer();
+            }
         }
     }
 

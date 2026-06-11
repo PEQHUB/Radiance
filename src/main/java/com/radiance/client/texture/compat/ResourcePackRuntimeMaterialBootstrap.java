@@ -596,21 +596,30 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                         cacheKey);
                 boolean tableUploaded = boolProperty(upload, "materialTableUploadedFinal");
                 int uploadedMaterials = intProperty(upload, "uploadedMaterials");
+                boolean semanticResidencyUploaded = boolProperty(upload, "semanticResidencyUploaded");
+                int nativePageFailures = intProperty(upload, "nativePageFailures");
                 LAST_RESIDENCY_BATCH_SIZE.set(uploadedMaterials);
                 JsonObject statusEvent = new JsonObject();
                 statusEvent.add("upload", upload.deepCopy());
                 statusEvent.addProperty("materialTableUploaded", tableUploaded);
+                statusEvent.addProperty("semanticResidencyUploaded", semanticResidencyUploaded);
+                statusEvent.addProperty("uploadedMaterials", uploadedMaterials);
+                statusEvent.addProperty("residentCompatMaterials",
+                    intProperty(upload, "residentCompatMaterials"));
+                statusEvent.addProperty("nativePageFailures", nativePageFailures);
+                statusEvent.addProperty("nativePageFailedMaterials",
+                    intProperty(upload, "nativePageFailedMaterials"));
                 statusEvent.addProperty("fullPreloadStarted",
                     !Options.ctmDemandResidency || Options.materialCompatFullPreloadDiagnostic);
                 statusEvent.addProperty("totalMs", millis(startedNanos));
                 ResourceMaterialRuntimeStatus.write("residencyComplete", generation, statusEvent);
                 LOGGER.info("[MaterialCompat] Runtime material residency complete for generation {}: "
-                        + "{} materials resident, tableUploaded={}, totalMs={}",
-                    generation, uploadedMaterials, tableUploaded,
+                        + "{} materials resident, semanticUploaded={}, tableUploaded={}, nativePageFailures={}, totalMs={}",
+                    generation, uploadedMaterials, semanticResidencyUploaded, tableUploaded, nativePageFailures,
                     String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
                 LAST_RESIDENCY_VISIBLE_COUNT.set(
                     ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size());
-                recordResidencyDescriptorOnlyUpdate(generation);
+                recordResidencyDescriptorOnlyUpdate(generation, upload);
             } catch (Throwable t) {
                 JsonObject statusEvent = new JsonObject();
                 statusEvent.addProperty("error", t.toString());
@@ -652,8 +661,33 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             && ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty();
     }
 
-    private static void recordResidencyDescriptorOnlyUpdate(long generation) {
+    private static void recordResidencyDescriptorOnlyUpdate(long generation, JsonObject upload) {
+        boolean semanticResidencyUploaded = boolProperty(upload, "semanticResidencyUploaded");
+        int uploadedMaterials = intProperty(upload, "uploadedMaterials");
+        int nativePageFailures = intProperty(upload, "nativePageFailures");
+        int nativePageFailedMaterials = intProperty(upload, "nativePageFailedMaterials");
+        int materialTableUploadFailures = intProperty(upload, "materialTableUploadFailures");
         JsonObject statusEvent = new JsonObject();
+        statusEvent.addProperty("semanticResidencyUploaded", semanticResidencyUploaded);
+        statusEvent.addProperty("uploadedMaterials", uploadedMaterials);
+        statusEvent.addProperty("residentCompatMaterials", intProperty(upload, "residentCompatMaterials"));
+        statusEvent.addProperty("nativePageFailures", nativePageFailures);
+        statusEvent.addProperty("nativePageFailedMaterials", nativePageFailedMaterials);
+        statusEvent.addProperty("materialTableUploadFailures", materialTableUploadFailures);
+        if (!semanticResidencyUploaded) {
+            statusEvent.addProperty("geometryAffectingMaterialChange", true);
+            statusEvent.addProperty("chunkRefreshScheduled", false);
+            statusEvent.addProperty("reason", uploadedMaterials <= 0
+                ? "no_native_material_pages_uploaded"
+                : "native_material_page_or_table_failure");
+            ResourceMaterialRuntimeStatus.write("residencyDescriptorOnlyUpdateBlocked", generation, statusEvent);
+            LOGGER.warn("[MaterialCompat] Residency descriptor-only success blocked for generation {}: "
+                    + "uploadedMaterials={}, nativePageFailures={}, nativePageFailedMaterials={}, "
+                    + "materialTableUploadFailures={}",
+                generation, uploadedMaterials, nativePageFailures, nativePageFailedMaterials,
+                materialTableUploadFailures);
+            return;
+        }
         statusEvent.addProperty("geometryAffectingMaterialChange", false);
         statusEvent.addProperty("chunkRefreshScheduled", false);
         statusEvent.addProperty("reason", "resident_handles_update_stable_material_ids");

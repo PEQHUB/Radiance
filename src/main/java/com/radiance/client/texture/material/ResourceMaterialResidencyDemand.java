@@ -22,7 +22,8 @@ public final class ResourceMaterialResidencyDemand {
     private static Set<Integer> visibleMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> residentVisibleMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> requestedMaterials = ConcurrentHashMap.newKeySet();
-    private static Set<Integer> failedMaterials = ConcurrentHashMap.newKeySet();
+    private static Set<Integer> retryableFailedMaterials = ConcurrentHashMap.newKeySet();
+    private static Set<Integer> permanentFailedMaterials = ConcurrentHashMap.newKeySet();
     private static final AtomicLong visibleRequestEvents = new AtomicLong();
     private static final AtomicLong visibleUniqueRequests = new AtomicLong();
     private static final AtomicLong plannedFirstFrameRequestEvents = new AtomicLong();
@@ -46,7 +47,8 @@ public final class ResourceMaterialResidencyDemand {
             visibleMaterials = ConcurrentHashMap.newKeySet();
             residentVisibleMaterials = ConcurrentHashMap.newKeySet();
             requestedMaterials = ConcurrentHashMap.newKeySet();
-            failedMaterials = ConcurrentHashMap.newKeySet();
+            retryableFailedMaterials = ConcurrentHashMap.newKeySet();
+            permanentFailedMaterials = ConcurrentHashMap.newKeySet();
             visibleRequestEvents.set(0L);
             visibleUniqueRequests.set(0L);
             plannedFirstFrameRequestEvents.set(0L);
@@ -137,7 +139,8 @@ public final class ResourceMaterialResidencyDemand {
                 requestedMaterials.remove(materialId);
                 plannedFirstFrameMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
-                failedMaterials.remove(materialId);
+                retryableFailedMaterials.remove(materialId);
+                permanentFailedMaterials.remove(materialId);
                 if (visibleMaterials.contains(materialId)
                     && residentVisibleMaterials.add(materialId)) {
                     added++;
@@ -150,6 +153,10 @@ public final class ResourceMaterialResidencyDemand {
     }
 
     public static void recordFailed(long generation, Collection<Integer> materialIds) {
+        recordPermanentFailed(generation, materialIds);
+    }
+
+    public static void recordPermanentFailed(long generation, Collection<Integer> materialIds) {
         if (generation != activeGeneration || materialIds == null || materialIds.isEmpty()) {
             return;
         }
@@ -158,7 +165,20 @@ public final class ResourceMaterialResidencyDemand {
                 requestedMaterials.remove(materialId);
                 plannedFirstFrameMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
-                failedMaterials.add(materialId);
+                retryableFailedMaterials.remove(materialId);
+                permanentFailedMaterials.add(materialId);
+            }
+        }
+    }
+
+    public static void recordRetryableFailed(long generation, Collection<Integer> materialIds) {
+        if (generation != activeGeneration || materialIds == null || materialIds.isEmpty()) {
+            return;
+        }
+        for (Integer materialId : materialIds) {
+            if (materialId != null && materialId >= 0 && !permanentFailedMaterials.contains(materialId)) {
+                requestedMaterials.add(materialId);
+                retryableFailedMaterials.add(materialId);
             }
         }
     }
@@ -183,13 +203,33 @@ public final class ResourceMaterialResidencyDemand {
         json.addProperty("prewarmRequestEvents", prewarmRequestEvents.get());
         json.addProperty("prewarmUniqueMaterialCount", prewarmMaterials.size());
         json.addProperty("requestedUniqueMaterialCount", requestedMaterials.size());
-        json.addProperty("failedUniqueMaterialCount", failedMaterials.size());
+        json.addProperty("failedUniqueMaterialCount",
+            retryableFailedMaterials.size() + permanentFailedMaterials.size());
+        json.addProperty("retryableFailedUniqueMaterialCount", retryableFailedMaterials.size());
+        json.addProperty("permanentFailedUniqueMaterialCount", permanentFailedMaterials.size());
+        json.addProperty("retryableFailedVisibleMaterialCount",
+            intersectionSize(retryableFailedMaterials, visibleMaterials));
+        json.addProperty("permanentFailedVisibleMaterialCount",
+            intersectionSize(permanentFailedMaterials, visibleMaterials));
         json.addProperty("visiblePriorityCandidateEvents", visiblePriorityCandidates.get());
         json.addProperty("visibleResidentMaterialCount", residentVisibleMaterials.size());
         json.addProperty("visibleFallbackMaterialCount",
             Math.max(0, visibleMaterials.size() - residentVisibleMaterials.size()));
         json.add("scheduler", ResourcePackRuntimeMaterialBootstrap.schedulerStatusJson(generation));
         return json;
+    }
+
+    private static int intersectionSize(Set<Integer> left, Set<Integer> right) {
+        if (left.isEmpty() || right.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (Integer value : left) {
+            if (right.contains(value)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static void ensureGeneration(long generation) {
