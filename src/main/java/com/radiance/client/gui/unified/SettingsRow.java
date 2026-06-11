@@ -4,6 +4,7 @@ import java.util.List;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.widget.ClickableWidget;
+import net.minecraft.text.Text;
 
 /**
  * Abstract base for a single row within a SettingsSection.
@@ -25,7 +26,7 @@ public abstract class SettingsRow {
     protected boolean visible = true;
 
     /** Tooltip text shown when hovering the "?" icon. Null = no icon. */
-    String tooltip;
+    Text tooltip;
 
     /** The child that consumed the last mouseClicked — drags/releases route here. */
     private Element clickedChild;

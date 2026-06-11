@@ -48,7 +48,9 @@ public class UpscalerPopulator implements ContentPopulator {
                 value -> Options.setDlssDEnabled(value, true));
 
             spatial.addTwoWidgets(upscalerModeDropdown, dlssDToggle.createWidget(gameOptions))
-                  .tooltip("Upscaler selects reconstruction backend. DLSS-RR uses NVIDIA ray reconstruction; Off disables reconstruction. DLSS-D Enabled enables DLSS denoising without spatial upscaling when DLSS-RR mode is active.");
+                  .tooltipEach(
+                      "Upscaler: selects reconstruction backend. DLSS-RR uses NVIDIA Ray Reconstruction; Off disables reconstruction.",
+                      "DLSS-D Enabled: enables DLSS denoising without spatial upscaling when DLSS-RR mode is active.");
         } else {
             spatial.addTwoWidgets(upscalerModeDropdown, null)
                   .tooltip("Upscaler selects reconstruction backend. DLSS-RR uses NVIDIA ray reconstruction; Off disables reconstruction.");
@@ -69,7 +71,9 @@ public class UpscalerPopulator implements ContentPopulator {
                     new String[]{"Model D", "Model E"},
                     Options.upscalerPreset == 5 ? 1 : 0, value -> Options.setUpscalerPreset(value == 1 ? 5 : 4, true));
                 spatial.addTwoWidgets(qualityDropdown, presetDropdown)
-                       .tooltip("Quality controls render resolution preset. Custom exposes a manual resolution percentage. RR Model selects the DLSS Ray Reconstruction model preset.");
+                       .tooltipEach(
+                           "Quality: controls render resolution preset. Custom exposes a manual resolution percentage.",
+                           "DLSS-RR Model: selects the Ray Reconstruction model preset.");
             } else {
                 spatial.addTwoWidgets(qualityDropdown, null)
                        .tooltip("Quality controls render resolution preset. Custom exposes a manual resolution percentage.");
@@ -102,7 +106,9 @@ public class UpscalerPopulator implements ContentPopulator {
                     multiNames, Options.frameGenMultiplier - 1,
                     value -> Options.setFrameGenMultiplier(value + 1, true));
                 frameRate.addTwoWidgets(fgModeDropdown, fgMultiDropdown)
-                         .tooltip("Frame Generation generates interpolated frames between real renders. Requires supported hardware and stable pacing. FG Multiplier is the number of output frames per real rendered frame. Higher multipliers need stronger hardware support.");
+                         .tooltipEach(
+                             "Frame Generation: generates interpolated frames between real renders. Requires Reflex for stable pacing.",
+                             "FG Multiplier: output frames per real rendered frame. Higher values need stronger hardware support.");
             } else {
                 frameRate.addTwoWidgets(fgModeDropdown, null)
                          .tooltip(Options.frameGenMode == 2
@@ -133,7 +139,9 @@ public class UpscalerPopulator implements ContentPopulator {
             value -> Options.setOutputScale2x(value, true));
 
         output.addTwoWidgets(sharpenerDropdown, ssaa4x.createWidget(gameOptions))
-              .tooltip("Sharpener selects output sharpening filter. CAS/RCAS sharpen the reconstructed image; None disables sharpening. Output Scale 2x renders final output at 2x display resolution for supersampled screenshots or sharper output.");
+              .tooltipEach(
+                  Text.literal("Sharpener: selects output sharpening filter. CAS/RCAS sharpen the reconstructed image; None disables sharpening."),
+                  Text.translatable("options.video.output_scale_2x.tooltip"));
 
         if (Options.sharpenerMode != 0) {
             output.addSlider(new ResettableSliderWidget(0, 0, 150, 20,

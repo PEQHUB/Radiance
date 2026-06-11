@@ -5,7 +5,6 @@ import static net.minecraft.client.option.GameOptions.getGenericValueText;
 import com.mojang.serialization.Codec;
 import com.radiance.client.gui.unified.*;
 import com.radiance.v2.config.ConfigUIMetadata;
-import com.radiance.v2.config.ConfigUIMetadata.ControlType;
 import com.radiance.v2.config.ConfigUIMetadata.OptionMeta;
 import com.radiance.v2.config.GeneratedConfig;
 import net.minecraft.client.MinecraftClient;
@@ -56,23 +55,27 @@ public class SchemaPopulator implements ContentPopulator {
 
         // Build widgets in pairs for two-column layout where possible
         List<ClickableWidget> pending = new ArrayList<>();
+        List<OptionMeta> pendingMeta = new ArrayList<>();
 
         for (OptionMeta meta : options) {
             ClickableWidget widget = createWidget(meta, gameOptions, screen);
             if (widget == null) continue;
 
             pending.add(widget);
+            pendingMeta.add(meta);
 
             if (pending.size() == 2) {
                 section.addTwoWidgets(pending.get(0), pending.get(1))
-                    .tooltip(pending.size() > 0 ? options.get(options.indexOf(meta) - 1).doc() : "");
+                    .tooltipEach(pendingMeta.get(0).doc(), pendingMeta.get(1).doc());
                 pending.clear();
+                pendingMeta.clear();
             }
         }
 
         // Flush remaining single widget
         if (pending.size() == 1) {
-            section.addToggle(pending.get(0)); // addToggle works for any single widget
+            section.addToggle(pending.get(0)) // addToggle works for any single widget
+                .tooltip(pendingMeta.get(0).doc());
         }
     }
 
@@ -183,7 +186,23 @@ public class SchemaPopulator implements ContentPopulator {
         return ConfigUIMetadata.ALL.stream()
             .filter(m -> m.category().equals(targetCategory))
             .filter(m -> !m.experimental())
-            .map(m -> new UnifiedSearchOverlay.SearchEntry(m.doc(), category, nodeId, false))
+            .map(m -> new UnifiedSearchOverlay.SearchEntry(searchLabel(m), category, nodeId, false))
             .collect(Collectors.toList());
+    }
+
+    private static String searchLabel(OptionMeta meta) {
+        String key = meta.key();
+        if (key == null || key.isBlank()) return meta.doc();
+        int dot = key.lastIndexOf('.');
+        String leaf = dot >= 0 ? key.substring(dot + 1) : key;
+        String[] words = leaf.split("[_\\-]+");
+        StringBuilder label = new StringBuilder();
+        for (String word : words) {
+            if (word.isBlank()) continue;
+            if (label.length() > 0) label.append(' ');
+            label.append(Character.toUpperCase(word.charAt(0)));
+            if (word.length() > 1) label.append(word.substring(1));
+        }
+        return label.length() > 0 ? label.toString() : key;
     }
 }

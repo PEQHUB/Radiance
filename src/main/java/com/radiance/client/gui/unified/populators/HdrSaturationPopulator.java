@@ -139,7 +139,9 @@ public class HdrSaturationPopulator implements ContentPopulator {
             Options.diffuseModel == Options.DIFFUSE_MODEL_VMF ? 1 : 0,
             value -> Options.setDiffuseModel(value == 1 ? Options.DIFFUSE_MODEL_VMF : Options.DIFFUSE_MODEL_EON, true));
         color.addTwoWidgets(msGGX.createWidget(gameOptions), diffuseModel)
-              .tooltip("Multi-Scatter GGX enables energy-conserving multiple scattering in the GGX microfacet BRDF. Diffuse selects the rough diffuse BRDF model. EON is the default; VMF is experimental.");
+              .tooltipEach(
+                  "Multi-Scatter GGX: preserves rough-surface energy in the GGX BRDF. More accurate, with a small cost.",
+                  "Diffuse: selects the rough diffuse BRDF. EON is the default; VMF is experimental.");
 
         // HDR Output (conditional)
         if (Options.isHdrSupported()) {
@@ -173,7 +175,9 @@ public class HdrSaturationPopulator implements ContentPopulator {
                         screen.refreshContent();
                     });
                 hdr.addTwoWidgets(hdrOutputMode, hdrTmMode)
-                      .tooltip("HDR Format selects HDR output encoding. HDR10 is DLSS-FG compatible; scRGB is linear FP16 and may improve driver compatibility but can break DLSS-FG.");
+                      .tooltipEach(
+                          "HDR10 uses BT.2020/PQ and supports DLSS-FG. scRGB uses linear FP16; use it only for driver compatibility issues.",
+                          "HDR Tonemapper maps scene luminance for HDR output. PsychoVisual is the default; ITU EETF is standards-oriented.");
 
                 hdr.addTwoSliders(
                     new ResettableSliderWidget(0, 0, 150, 20,
@@ -184,7 +188,9 @@ public class HdrSaturationPopulator implements ContentPopulator {
                         1, 500, Options.hdrPaperWhiteNits, 203,
                         v -> getGenericValueText(Text.translatable(Options.HDR_PAPER_WHITE_NITS_KEY), Text.literal(v + " nits")),
                         v -> Options.setHdrPaperWhiteNits(v, true)))
-                      .tooltip("Peak Nits is the display maximum brightness target in nits. Match this to your display peak brightness. Paper White is the reference white level for UI and diffuse white in HDR output.");
+                      .tooltipEach(
+                          "Peak Nits: display maximum brightness target. Match this to your display peak brightness.",
+                          "Paper White: reference white for UI and diffuse white in HDR output.");
 
                 hdr.addSlider(new ResettableSliderWidget(0, 0, 150, 20,
                     5, 30, Options.hdrUiBrightnessNits / 10, 10,

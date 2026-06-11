@@ -102,17 +102,17 @@ public class DebugPopulator implements ContentPopulator {
         MinecraftClient mc = MinecraftClient.getInstance();
         SettingsSection capture = panel.addSection("Capture").setLinear();
         capture.addButton(button("Capture Current Target", () -> DebugInspectReporter.captureCurrentTarget(mc)))
-            .tooltip("Writes a debug inspect report for the current crosshair target.");
+            .tooltip("Writes a debug inspect report for the current crosshair target.\nOutput: latest target inspect report.");
         capture.addRow(new KeyBindRow(
             new KeyBindButton(0, 0, KeyInputHandler.debugInspectKey),
             "Log Debug Inspect"));
         capture.addButton(button("Write Runtime Snapshot", () -> runFileAction(mc,
             () -> DebugRuntimeDiagnostics.writeRuntimeSnapshot(mc), "Runtime snapshot saved")))
-            .tooltip("Writes renderer, world, options, and path state to the Radiance logs folder.");
+            .tooltip("Writes renderer, world, options, and path state.\nOutput: Radiance logs folder.");
         capture.addButton(button("Write Debug Bundle", () -> DebugRuntimeSampler.writeDebugBundleAsync(mc)))
-            .tooltip("Builds a diagnostic bundle with current logs and runtime snapshots.");
+            .tooltip("Builds a diagnostic bundle with current logs and runtime snapshots.\nOutput: latest debug bundle path.");
         capture.addButton(button("Write Nsight Context", () -> DebugRuntimeSampler.writeNsightCaptureContextAsync(mc)))
-            .tooltip("Closes the menu and asks DebugBridge to write an Nsight capture manifest.");
+            .tooltip("Closes the menu and asks DebugBridge to write an Nsight capture manifest.\nOutput: latest Nsight context path.");
 
         SettingsSection logging = panel.addSection("Logging").setLinear();
         var gameOptions = mc.options;
@@ -155,19 +155,21 @@ public class DebugPopulator implements ContentPopulator {
             button("Capture 120 Samples", () -> {
                 DebugRuntimeSampler.startGpuProfileCapture(120, mc);
                 screen.refreshContent();
-            })).tooltip("Captures 30 GPU timing samples without blocking the menu.");
+            })).tooltipEach(
+                "Captures 30 GPU timing samples without blocking the menu.",
+                "Captures 120 GPU timing samples for steadier profiling.");
         profiler.addButton(button("Run RT MainTrace Sweep", () -> {
             DebugRuntimeSampler.startRtMainTraceSweep(mc);
             screen.refreshContent();
-        })).tooltip("Temporarily sweeps RT shader options, restores them, and writes results under the RT sweep output folder.");
+        })).tooltip("Temporarily sweeps RT shader options and restores them.\nOutput: RT sweep folder.");
         profiler.addButton(button("Run SHARC Probe", () -> {
             DebugRuntimeSampler.startSharcProbe(mc);
             screen.refreshContent();
-        })).tooltip("Temporarily enables SHARC diagnostics, captures feature truth and GPU timings, restores settings, and writes probe results.");
+        })).tooltip("Temporarily enables SHARC diagnostics, then restores settings.\nOutput: SHARC probe results.");
         profiler.addButton(button("Run RT MainTrace Floor Sweep", () -> {
             DebugRuntimeSampler.startRtMainTraceFloorSweep(mc);
             screen.refreshContent();
-        })).tooltip("Temporarily toggles RT MainTrace floor diagnostics, restores settings, and writes sweep results.");
+        })).tooltip("Temporarily toggles RT MainTrace floor diagnostics, then restores settings.\nOutput: floor sweep results.");
 
         SettingsSection snapshots = panel.addSection("Snapshots").setLinear();
         snapshots.tooltip("Writes Vulkan memory allocator, overlay, and DLSS-G diagnostics to snapshot files.");
@@ -175,9 +177,13 @@ public class DebugPopulator implements ContentPopulator {
             button("Write VMA Snapshot", () -> runFileAction(mc,
                 DebugRuntimeDiagnostics::writeVmaSnapshot, "VMA snapshot saved")),
             button("Write Overlay Snapshot", () -> runFileAction(mc,
-                DebugRuntimeDiagnostics::writeOverlaySnapshot, "Overlay snapshot saved")));
+                DebugRuntimeDiagnostics::writeOverlaySnapshot, "Overlay snapshot saved")))
+            .tooltipEach(
+                "Writes Vulkan memory allocator diagnostics.\nOutput: VMA snapshot file.",
+                "Writes renderer overlay diagnostics.\nOutput: overlay snapshot file.");
         snapshots.addButton(button("Write DLSS-G Snapshot", () -> runFileAction(mc,
-            DebugRuntimeDiagnostics::writeDlssgLatencySnapshot, "DLSS-G snapshot saved")));
+            DebugRuntimeDiagnostics::writeDlssgLatencySnapshot, "DLSS-G snapshot saved")))
+            .tooltip("Writes DLSS-G latency diagnostics.\nOutput: DLSS-G snapshot file.");
     }
 
     private void populateDlssgLatency(ContentPanelWidget panel, RadianceUnifiedScreen screen) {
@@ -238,7 +244,9 @@ public class DebugPopulator implements ContentPopulator {
             button("GPU 120 Samples", () -> {
                 DebugRuntimeSampler.startGpuProfileCapture(120, mc);
                 screen.refreshContent();
-            })).tooltip("Captures GPU timing samples to correlate with DLSS-G waits.");
+            })).tooltipEach(
+                "Captures 30 GPU timing samples to correlate with DLSS-G waits.",
+                "Captures 120 GPU timing samples to correlate with DLSS-G waits.");
     }
 
     private void populateResources(ContentPanelWidget panel) {
@@ -250,7 +258,7 @@ public class DebugPopulator implements ContentPopulator {
         textures.addInfo("Texture CSV Exists", String.valueOf(Files.exists(DebugRuntimeDiagnostics.TEXTURE_FULL_CSV)));
         textures.addButton(button("Write Texture Reload Snapshot", () -> runFileAction(mc,
             DebugRuntimeDiagnostics::writeTextureReloadSnapshot, "Texture reload snapshot saved")))
-            .tooltip("Writes texture reload diagnostics and asks native to dump the full texture-system CSV.");
+            .tooltip("Writes texture reload diagnostics and asks native to dump texture CSV.\nOutput: texture reload snapshot and CSV.");
 
         SettingsSection paths = panel.addSection("Copy Paths").setLinear();
         paths.tooltip("Copies diagnostic file paths to the clipboard for easy access.");
@@ -273,7 +281,9 @@ public class DebugPopulator implements ContentPopulator {
         renderer.addTwoWidgets(
             button("Reset Accumulation", () -> DebugRuntimeDiagnostics.resetAccumulation(mc)),
             button("Rebuild Chunks", () -> DebugRuntimeDiagnostics.rebuildChunks(mc)))
-            .tooltip("Reloads Minecraft chunk meshes and requests native BLAS rebuild.");
+            .tooltipEach(
+                "Clears temporal/offline accumulation history without rebuilding chunks.",
+                "Reloads Minecraft chunk meshes and requests native BLAS rebuild.");
 
         SettingsSection world = panel.addSection("World Actions").setLinear();
         world.tooltip("Clear Weather clears weather in the integrated single-player server. Set Noon sets world time to noon. Disabled when not available.");
@@ -283,7 +293,9 @@ public class DebugPopulator implements ContentPopulator {
         ButtonWidget noon = button("Set Noon", () -> DebugRuntimeDiagnostics.setNoon(mc));
         noon.active = server;
         world.addTwoWidgets(clearWeather, noon)
-            .tooltip("Clear Weather clears weather in the integrated single-player server. Set Noon sets world time to noon. Disabled when not available.");
+            .tooltipEach(
+                "Clear Weather clears weather in the integrated single-player server. Disabled when unavailable.",
+                "Set Noon sets world time to noon in the integrated single-player server. Disabled when unavailable.");
     }
 
     @Override

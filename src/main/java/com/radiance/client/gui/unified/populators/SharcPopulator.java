@@ -38,7 +38,9 @@ public class SharcPopulator implements ContentPopulator {
             Options.sharcDownscale - 1,
             value -> Options.setSharcDownscale(value + 1, true));
         section.addTwoWidgets(sharcEnabled.createWidget(gameOptions), sharcDownscale);
-        section.tooltip("SHARC Enabled enables SHARC radiance cache for indirect lighting. Improves reuse of bounced lighting at a memory and update cost. Downscale reduces SHARC update resolution. Higher downscale is cheaper but less detailed.");
+        section.tooltipEach(
+            "SHARC Enabled: caches indirect lighting in a hash grid. Faster, but can lag behind scene changes.",
+            "SHARC Downscale: updates the cache at a lower screen rate. Higher values are faster but less responsive.");
 
         if (Options.sharcEnabled) {
             SelectionDropdownWidget sharcQueryMode = new SelectionDropdownWidget(
@@ -47,7 +49,7 @@ public class SharcPopulator implements ContentPopulator {
                 Options.sharcQueryMode,
                 value -> Options.setSharcQueryMode(value, true));
             section.addTwoWidgets(sharcQueryMode, null);
-            section.tooltip("Query controls the isolated SHARC lookup pass. Observe gathers counters without changing pixels; Active applies the result.");
+            section.tooltip("Observe reports cache hit counters only.\nActive uses SHARC in the image and is experimental.");
 
             // ── Row 2: Quality Preset slider (full width) ──
             // 0=Low, 1=Medium, 2=High, 3=Ultra, 4=Overkill, 5=Custom
@@ -93,7 +95,9 @@ public class SharcPopulator implements ContentPopulator {
             paramSliders.add(sceneScale);
             paramSliders.add(roughness);
             section.addTwoSliders(sceneScale, roughness);
-            section.tooltip("Scene Scale controls SHARC hash-grid cell size. Larger values are coarser; smaller values are more detailed. Roughness Threshold: only surfaces above this roughness use SHARC. Lower values apply the cache to more surfaces.");
+            section.tooltipEach(
+                "Scene Scale: controls SHARC hash-grid cell size. Larger values are coarser; smaller values are more stable.",
+                "Roughness Threshold: only surfaces above this roughness use SHARC. Lower values apply the cache to more surfaces.");
 
             // Accumulation Frames + Stale Frames
             ResettableSliderWidget accumFrames = new ResettableSliderWidget(
@@ -115,7 +119,9 @@ public class SharcPopulator implements ContentPopulator {
             paramSliders.add(accumFrames);
             paramSliders.add(staleFrames);
             section.addTwoSliders(accumFrames, staleFrames);
-            section.tooltip("Accumulation Frames is the number of frames blended for cache stability. Higher values are steadier but slower to react. Stale Frames is the number of frames before unused cache entries can be treated as stale.");
+            section.tooltipEach(
+                "Accumulation Frames: blends cache samples over time. Higher values are steadier but slower to react.",
+                "Stale Frames: controls when unused cache entries can be replaced. Lower values adapt faster.");
 
             // Update Block Size + Update Bounces
             ResettableSliderWidget blockSize = new ResettableSliderWidget(
@@ -137,7 +143,9 @@ public class SharcPopulator implements ContentPopulator {
             paramSliders.add(blockSize);
             paramSliders.add(bounces);
             section.addTwoSliders(blockSize, bounces);
-            section.tooltip("Update Block Size is the NxN pixel block size for sparse updates. Lower values cover more pixels per frame at higher cost. Update Bounces is the ray depth used when updating SHARC cache entries.");
+            section.tooltipEach(
+                "Update Block Size: smaller blocks update more screen area per frame at higher cost.",
+                "Update Bounces: ray depth used when refreshing the SHARC cache.");
 
             // Cache Capacity (exponent: 18-24 -> display 2^N entries + VRAM)
             ResettableSliderWidget capacity = new ResettableSliderWidget(

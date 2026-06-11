@@ -11,6 +11,7 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.Element;
 import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.screen.narration.NarrationMessageBuilder;
+import net.minecraft.text.OrderedText;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.MathHelper;
 
@@ -193,13 +194,21 @@ public class ContentPanelWidget extends ClickableWidget {
     }
 
     /** Draw a tooltip box at the cursor position. */
-    private void renderTooltipPopup(DrawContext ctx, String text, int mx, int my) {
+    private void renderTooltipPopup(DrawContext ctx, Text text, int mx, int my) {
         TextRenderer renderer = MinecraftClient.getInstance().textRenderer;
-        int textW = renderer.getWidth(text);
         int padH = 6;
         int padV = 4;
+        int maxTextW = Math.max(120, Math.min(320, getWidth() - 24));
+        List<OrderedText> lines = wrapTooltipLines(renderer, text, maxTextW);
+        if (lines.isEmpty()) return;
+
+        int textW = 0;
+        for (OrderedText line : lines) {
+            textW = Math.max(textW, renderer.getWidth(line));
+        }
+        int lineH = renderer.fontHeight + 2;
         int boxW = textW + padH * 2;
-        int boxH = 12 + padV * 2;
+        int boxH = lines.size() * lineH - 2 + padV * 2;
 
         // Position above cursor, clamped to screen
         int bx = mx - boxW / 2;
@@ -214,8 +223,24 @@ public class ContentPanelWidget extends ClickableWidget {
         ctx.fill(bx, by, bx + boxW, by + boxH, RadianceTheme.withAlpha(0x1A1A22, 0.95f));
 
         // Text
-        ctx.drawText(renderer, Text.literal(text),
-            bx + padH, by + padV, 0xFFE0E0E0, false);
+        int ty = by + padV;
+        for (OrderedText line : lines) {
+            ctx.drawText(renderer, line, bx + padH, ty, 0xFFE0E0E0, false);
+            ty += lineH;
+        }
+    }
+
+    private List<OrderedText> wrapTooltipLines(TextRenderer renderer, Text text, int maxWidth) {
+        List<OrderedText> lines = new ArrayList<>();
+        String[] paragraphs = text.getString().split("\\R", -1);
+        for (String paragraph : paragraphs) {
+            if (paragraph.isBlank()) {
+                lines.add(OrderedText.EMPTY);
+                continue;
+            }
+            lines.addAll(renderer.wrapLines(Text.literal(paragraph), maxWidth));
+        }
+        return lines;
     }
 
     // ── Input handling ──

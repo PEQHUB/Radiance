@@ -43,7 +43,7 @@
   "options.video.shader_pack.status.missing": "Missing; native fallback will use Vanilla PT",
   "options.video.shader_pack.status.invalid": "Invalid path; native fallback will use Vanilla PT",
   "options.video.output_scale_2x": "4xSSAA",
-  "options.video.output_scale_2x.tooltip": "Renders at 2x resolution for better visuals, then downscales via Lanczos 3. May cause artifacts with certain DLSS upscale ratios (Performance/UltraPerformance). Use Quality or Native mode for best results.",
+  "options.video.output_scale_2x.tooltip": "Renders at 2x width and height, then downsamples. Costs 4x pixels; best with Native or Quality upscaling.",
   "options.video.chunk_building_batch_size": "Amount of chunks to build in a single submit",
   "options.video.chunk_building_total_batches": "Amount of building chunk batches",
   "options.video.chunk_cull_distance": "Chunk Cull Distance",

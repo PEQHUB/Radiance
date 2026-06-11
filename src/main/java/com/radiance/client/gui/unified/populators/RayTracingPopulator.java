@@ -43,7 +43,9 @@ public class RayTracingPopulator implements ContentPopulator {
             Options.diffuseModel == Options.DIFFUSE_MODEL_VMF ? 1 : 0,
             value -> Options.setDiffuseModel(value == 1 ? Options.DIFFUSE_MODEL_VMF : Options.DIFFUSE_MODEL_EON, true));
         section.addTwoWidgets(multiScatterGGX.createWidget(gameOptions), diffuseModel)
-              .tooltip("Multi-Scatter GGX adds energy-conserving multiple scattering in the GGX microfacet BRDF. Diffuse selects the rough diffuse model. EON is the default; VMF is experimental.");
+              .tooltipEach(
+                  "Multi-Scatter GGX: preserves rough-surface energy in the GGX BRDF. More accurate, with a small cost.",
+                  "Diffuse: selects the rough diffuse BRDF. EON is the default; VMF is experimental.");
 
         // SER (Shader Execution Reordering)
         SimpleOption<Boolean> serEnabled = SimpleOption.ofBoolean(
@@ -58,10 +60,12 @@ public class RayTracingPopulator implements ContentPopulator {
                 "options.video.ser_hints", Options.serHintsEnabled,
                 value -> Options.setSERHintsEnabled(value, true));
             section.addTwoWidgets(serEnabled.createWidget(gameOptions), serHints.createWidget(gameOptions))
-                  .tooltip("Shader Execution Reordering reorders shader invocations for better GPU occupancy on supported hardware. Hints adds explicit coherence hints to guide SER reordering.");
+                  .tooltipEach(
+                      "SER: reorders shader work on supported NVIDIA GPUs. Improves occupancy in some scenes.",
+                      "SER Hints: adds grouping hints for the reorder pass. Disable if profiling shows no gain.");
         } else {
             section.addToggle(serEnabled.createWidget(gameOptions))
-                  .tooltip("Shader Execution Reordering reorders shader invocations for better GPU occupancy on supported hardware.");
+                  .tooltip("SER: reorders shader work on supported NVIDIA GPUs. Improves occupancy in some scenes.");
         }
 
     }

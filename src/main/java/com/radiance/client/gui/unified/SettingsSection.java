@@ -53,7 +53,7 @@ public class SettingsSection {
     private int expandedContentHeight = 0;
 
     // ── Tooltip state (shared across all sections, read by ContentPanelWidget) ──
-    static String hoveredTooltip;
+    static Text hoveredTooltip;
     static int hoveredTooltipX;
     static int hoveredTooltipY;
 
@@ -103,8 +103,46 @@ public class SettingsSection {
 
     /** Attach a tooltip to the most recently added row. Shows a tiny "?" icon on hover. */
     public SettingsSection tooltip(String text) {
+        return tooltip(Text.literal(text));
+    }
+
+    /** Attach a localized tooltip to the most recently added row. */
+    public SettingsSection tooltipKey(String translationKey) {
+        return tooltip(Text.translatable(translationKey));
+    }
+
+    /** Attach a tooltip to the most recently added row. Shows a tiny "?" icon on hover. */
+    public SettingsSection tooltip(Text text) {
         for (SettingsRow row : lastAddedRows) {
             row.tooltip = text;
+        }
+        return this;
+    }
+
+    /** Attach one tooltip per recently added row, useful for grid-paired controls. */
+    public SettingsSection tooltipEach(String... texts) {
+        Text[] tooltips = new Text[texts.length];
+        for (int i = 0; i < texts.length; i++) {
+            tooltips[i] = Text.literal(texts[i]);
+        }
+        return tooltipEach(tooltips);
+    }
+
+    /** Attach one tooltip per recently added row, useful for grid-paired controls. */
+    public SettingsSection tooltipEach(Text... texts) {
+        if (texts.length == 0) return this;
+        if (lastAddedRows.size() <= 1) {
+            StringBuilder joined = new StringBuilder();
+            for (Text text : texts) {
+                if (text == null) continue;
+                if (joined.length() > 0) joined.append('\n');
+                joined.append(text.getString());
+            }
+            return tooltip(Text.literal(joined.toString()));
+        }
+        int count = Math.min(lastAddedRows.size(), texts.length);
+        for (int i = 0; i < count; i++) {
+            lastAddedRows.get(i).tooltip = texts[i];
         }
         return this;
     }
