@@ -166,6 +166,15 @@ public class TextureTracker {
         spriteTierSize[spriteId] = tierSize;
     }
 
+    public static void setSpriteV4PhysicalLocation(int spriteId, int tierIndex,
+                                                   int nativePage, int nativeLayer,
+                                                   int tierSize) {
+        int packedPage = com.radiance.client.texture.v4.TexturePageHandle.packPage(
+            com.radiance.client.texture.v4.TexturePageHandle.NS_VANILLA,
+            tierIndex, nativePage);
+        setSpriteTierLocation(spriteId, packedPage, nativeLayer, tierSize);
+    }
+
     public static int tierPageForSpriteSize(int width, int height) {
         int target = Math.max(1, Math.max(width, height));
         for (int i = 0; i < VANILLA_TIER_SIZES.length; i++) {

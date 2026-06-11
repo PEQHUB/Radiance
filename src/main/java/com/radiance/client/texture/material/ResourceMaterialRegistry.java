@@ -43,11 +43,14 @@ public final class ResourceMaterialRegistry {
     public static final int MATERIAL_FLAG_HAS_NORMAL = 1 << 7;
     public static final int MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE = 1 << 8;
     public static final int MATERIAL_FLAG_CUTOUT_DISPLACEMENT_BLOCKED = 1 << 9;
-    public static final int MATERIAL_TEXTURE_PAGE_MAX = 64;
-    public static final int MATERIAL_PAGE_NAMESPACE_MASK = 0xF0000000;
-    public static final int MATERIAL_PAGE_INDEX_MASK = 0x0FFFFFFF;
+    public static final int MATERIAL_FLAG_V4_PAGE_ADDRESS = 1 << 10;
+    public static final int MATERIAL_TEXTURE_PAGE_MAX = 128;
+    public static final int MATERIAL_PAGE_NAMESPACE_MASK = TexturePageHandle.PACKED_NAMESPACE_MASK;
+    public static final int MATERIAL_PAGE_TIER_MASK = TexturePageHandle.PACKED_TIER_MASK;
+    public static final int MATERIAL_PAGE_INDEX_MASK = TexturePageHandle.PACKED_PAGE_MASK;
     public static final int MATERIAL_PAGE_NAMESPACE_MATERIAL = 0x00000000;
-    public static final int MATERIAL_PAGE_NAMESPACE_VANILLA_TIER = 0x80000000;
+    public static final int MATERIAL_PAGE_NAMESPACE_VANILLA_TIER = TexturePageHandle.PACKED_VANILLA_NAMESPACE;
+    public static final int MATERIAL_PAGE_NAMESPACE_CTM = TexturePageHandle.PACKED_CTM_NAMESPACE;
 
     private static final AtomicReference<Snapshot> ACTIVE =
         new AtomicReference<>(Snapshot.empty());
@@ -326,9 +329,10 @@ public final class ResourceMaterialRegistry {
             Identifier id = spriteIds.get(i);
             AutoPbrTextureCatalog.DisplacementEligibility displacement =
                 AutoPbrTextureCatalog.displacementEligibility(i);
-            int flags = MATERIAL_FLAG_VALID | MATERIAL_FLAG_VANILLA_SPRITE | MATERIAL_FLAG_GPU_RESIDENT;
+            int flags = MATERIAL_FLAG_VALID | MATERIAL_FLAG_VANILLA_SPRITE
+                | MATERIAL_FLAG_GPU_RESIDENT | MATERIAL_FLAG_V4_PAGE_ADDRESS;
             if (AutoPbrTextureCatalog.hasSpecularTexture(i)) flags |= MATERIAL_FLAG_HAS_SPECULAR;
-            if (AutoPbrTextureCatalog.hasNormalTexture(i)) flags |= MATERIAL_FLAG_HAS_NORMAL;
+            flags |= MATERIAL_FLAG_HAS_NORMAL;
             if (displacement.eligible()) flags |= MATERIAL_FLAG_DISPLACEMENT_ELIGIBLE;
             MaterialRecord record = new MaterialRecord(
                 i,
@@ -505,11 +509,7 @@ public final class ResourceMaterialRegistry {
     }
 
     private static int extractTierIndex(int page) {
-        if ((page & MATERIAL_PAGE_NAMESPACE_MASK) == MATERIAL_PAGE_NAMESPACE_VANILLA_TIER) {
-            int tierPage = page & MATERIAL_PAGE_INDEX_MASK;
-            return Math.max(0, Math.min(6, tierPage - TextureTracker.VANILLA_TIER_FIRST_PAGE));
-        }
-        return 0; // CTM tier index from handle
+        return (page & MATERIAL_PAGE_TIER_MASK) >>> TexturePageHandle.PACKED_TIER_SHIFT;
     }
 
     private static int extractPageIndex(int page) {
@@ -532,11 +532,15 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
     }
 
     private static int vanillaTierPageHandle(int page) {
+        if ((page & MATERIAL_PAGE_NAMESPACE_MASK) != 0) {
+            return page;
+        }
         if (page < TextureTracker.VANILLA_TIER_FIRST_PAGE
             || page >= TextureTracker.FIRST_COMPAT_MATERIAL_PAGE) {
             return MATERIAL_PAGE_NAMESPACE_MATERIAL;
         }
-        return MATERIAL_PAGE_NAMESPACE_VANILLA_TIER | (page & MATERIAL_PAGE_INDEX_MASK);
+        return TexturePageHandle.packPage(TexturePageHandle.NS_VANILLA,
+            page - TextureTracker.VANILLA_TIER_FIRST_PAGE, 0);
     }
 
     private static int vanillaTierLayer(int spriteId, int[] layers, int fallbackLayer) {
@@ -550,6 +554,7 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
         int flags = record.flags();
         if (handle != null) {
             flags |= MATERIAL_FLAG_GPU_RESIDENT | MATERIAL_FLAG_HAS_NORMAL;
+            flags |= MATERIAL_FLAG_V4_PAGE_ADDRESS;
             flags &= ~MATERIAL_FLAG_PENDING_RESIDENCY;
             flags &= ~MATERIAL_FLAG_FALLBACK;
             if (handle.hasSpecular()) {
@@ -705,7 +710,9 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
         public static ResidencyHandle sameLayer(int page, int layer, int layerSize,
             boolean hasSpecular, boolean displacementEligible, boolean displacementBlocked,
             int heightRangePacked) {
-            return new ResidencyHandle(page, layer, page, layer, page, layer, page, layer,
+            int tierIndex = tierIndexForLayerSize(layerSize);
+            int packedPage = TexturePageHandle.packPage(TexturePageHandle.NS_CTM, tierIndex, page);
+            return new ResidencyHandle(packedPage, layer, packedPage, layer, packedPage, layer, packedPage, layer,
                 layerSize, hasSpecular, displacementEligible, displacementBlocked,
                 heightRangePacked);
         }
@@ -727,6 +734,16 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
             json.addProperty("heightRangePacked", heightRangePacked);
             return json;
         }
+    }
+
+    private static int tierIndexForLayerSize(int layerSize) {
+        if (layerSize <= 16) return 0;
+        if (layerSize <= 32) return 1;
+        if (layerSize <= 64) return 2;
+        if (layerSize <= 128) return 3;
+        if (layerSize <= 256) return 4;
+        if (layerSize <= 512) return 5;
+        return 6;
     }
 
     public record ResidencyMergeStats(String reason,
