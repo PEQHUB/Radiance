@@ -6,15 +6,14 @@ package com.radiance.client.proxy.vulkan;
  * Replaces the old fixed-layer TextureArrayBridge methods with
  * generation-scoped, tiered, async upload APIs.
  *
- * ABI version 5: exact placement only, no -1 sentinel, no fixed-layer bulk sprite upload, no timeout readiness,
- * no vkDeviceWaitIdle during normal load.
+ * ABI version 6: adds transaction-scoped fallback-resource, texture-rule, and frame-resource status exports.
  */
 public final class TextureArrayBridgeV4 {
 
     private TextureArrayBridgeV4() {}
 
     /** ABI version — must match native side build_info::kTextureLoaderAbiVersion. */
-    public static final int ABI_VERSION = 5;
+    public static final int ABI_VERSION = 6;
 
     /** Cache schema version — must match native side build_info::kCacheSchemaVersion. */
     public static final int CACHE_SCHEMA_VERSION = 5;
@@ -35,6 +34,8 @@ public final class TextureArrayBridgeV4 {
 
     /** Begin a v4 texture load generation. Native allocates page pools. */
     public static native boolean nativeBeginTextureLoaderV4(long generation, long manifestPtr, int manifestBytes);
+
+    public static native boolean nativeEnsureV4ShaderFallbackResources(long generation);
 
     /**
      * Upload a tiered texture page with explicit per-field arguments.
@@ -73,6 +74,8 @@ public final class TextureArrayBridgeV4 {
     /** Sparse sprite registry update — only changed entries. */
     public static native boolean nativeUpdateSpriteRegistrySparseV4(long generation, long entriesPtr, int entryCount);
 
+    public static native boolean nativeUpdateTextureRulesV4(long generation, long entriesPtr, int entryCount);
+
     // ---- Status JSON (for DebugBridge validation) ----
 
     /** Full texture loader v4 status. */
@@ -86,6 +89,8 @@ public final class TextureArrayBridgeV4 {
 
     /** Material page pool status. */
     public static native String nativeMaterialPagePoolStatusJsonV4();
+
+    public static native String nativeV4FrameResourceStatusJson();
 
     /** First-frame native readiness for a generation. */
     public static native String nativeFirstFrameNativeReadinessJsonV4(long generation);

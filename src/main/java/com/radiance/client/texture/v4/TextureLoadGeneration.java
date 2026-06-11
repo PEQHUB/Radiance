@@ -38,9 +38,17 @@ public final class TextureLoadGeneration {
     /** Cancel the current active generation. Notifies native side. */
     public static void cancelActive() {
         long active = ACTIVE.get();
-        CANCELLED_THROUGH.accumulateAndGet(active, Math::max);
+        cancel(active, 1);
+    }
+
+    /** Cancel a specific generation. Notifies native side. */
+    public static void cancel(long generation, int reasonCode) {
+        if (generation <= 0L) {
+            return;
+        }
+        CANCELLED_THROUGH.accumulateAndGet(generation, Math::max);
         try {
-            com.radiance.client.proxy.vulkan.TextureArrayBridgeV4.nativeCancelTextureLoaderV4(active, 1);
+            com.radiance.client.proxy.vulkan.TextureArrayBridgeV4.nativeCancelTextureLoaderV4(generation, reasonCode);
         } catch (Throwable ignored) {
             // Native may not be loaded yet
         }

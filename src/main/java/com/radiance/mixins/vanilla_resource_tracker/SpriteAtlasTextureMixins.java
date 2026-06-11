@@ -2,6 +2,7 @@ package com.radiance.mixins.vanilla_resource_tracker;
 
 import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.autopbr.AutoPbrRuntime;
+import com.radiance.client.autopbr.AutoPbrTextureRules;
 import com.radiance.client.build.BuildInfo;
 import com.radiance.client.debug.TextureReloadTimeline;
 import com.radiance.client.option.Options;
@@ -103,28 +104,38 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     if (!uploadV4SpriteRegistry(sorted, regions.size(), generation)) {
                         throw new IllegalStateException("nativeUpdateSpriteRegistrySparseV4 rejected generation " + generation);
                     }
-                    if (!TextureLoadScheduler.commitGeneration(generation)) {
-                        throw new IllegalStateException("nativeCommitTextureLoaderV4 rejected generation " + generation);
-                    }
                     MinecraftClient mc = MinecraftClient.getInstance();
                     ResourcePackRuntimeMaterialBootstrap.BootstrapResult runtimeMaterialBootstrap =
                         ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(
                             mc == null ? null : mc.getResourceManager(), generation);
                     boolean materialTableUploaded = runtimeMaterialBootstrap.tableUploaded();
                     if (!materialTableUploaded) {
-                        materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative();
+                        materialTableUploaded = ResourceMaterialRegistry.uploadActiveTableToNative(generation);
+                    }
+                    if (!materialTableUploaded) {
+                        throw new IllegalStateException("nativeUpdateMaterialTableSparseV4 rejected generation " + generation);
+                    }
+                    AutoPbrTextureRules.clear();
+                    boolean textureRulesUploaded = TextureArrayBridge.lastTextureRuleUploadSucceeded();
+                    if (!textureRulesUploaded) {
+                        throw new IllegalStateException("nativeUpdateTextureRulesV4 rejected generation " + generation);
+                    }
+                    if (!TextureLoadScheduler.commitGeneration(generation)) {
+                        throw new IllegalStateException("nativeCommitTextureLoaderV4 rejected generation " + generation);
                     }
                     TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
-                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={} pages={} layers={} bytes={} cacheHits={} cacheMisses={} cacheWrites={} materialTableUploaded={} bootstrap={}",
+                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={} pages={} layers={} bytes={} cacheHits={} cacheMisses={} cacheWrites={} materialTableUploaded={} textureRulesUploaded={} defaultRuleSeeds={} bootstrap={}",
                         generation, regions.size(), tierUploadReport.uploadedPages(), tierUploadReport.uploadedLayers(),
                         tierUploadReport.bytesUploaded(), tierUploadReport.cacheHits(), tierUploadReport.cacheMisses(),
-                        tierUploadReport.cacheWrites(), materialTableUploaded, runtimeMaterialBootstrap.toJson());
+                        tierUploadReport.cacheWrites(), materialTableUploaded, textureRulesUploaded,
+                        AutoPbrTextureRules.defaultSeedCount(), runtimeMaterialBootstrap.toJson());
                     // V4 succeeded — skip legacy extraction
                     TextureTracker.endVanillaBlockAtlasUploadBypass();
                     ci.cancel();
                     return;
                 } catch (Throwable t) {
-                    TextureLoadGeneration.cancelActive();
+                    TextureLoadGeneration.cancel(generation, 1);
+                    TextureLoadScheduler.cancelGeneration(generation);
                     LOGGER.error("[TextureLoaderV4] Block atlas v4 extraction failed", t);
                     LOGGER.error("[TextureLoaderV4] v4 failed closed; legacy fixed block extractor disabled");
                     TextureTracker.endVanillaBlockAtlasUploadBypass();

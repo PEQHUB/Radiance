@@ -54,8 +54,14 @@ public final class TextureLoadScheduler {
                 schedule.fail("nativeBeginTextureLoaderV4 returned false");
                 return schedule.future;
             }
+            boolean fallbackResourcesReady =
+                TextureArrayBridgeV4.nativeEnsureV4ShaderFallbackResources(generation);
+            if (!fallbackResourcesReady) {
+                schedule.fail("nativeEnsureV4ShaderFallbackResources returned false");
+                return schedule.future;
+            }
         } catch (Throwable t) {
-            schedule.fail("nativeBeginTextureLoaderV4 threw: " + t.getMessage());
+            schedule.fail("native V4 transaction setup threw: " + t.getMessage());
             return schedule.future;
         }
 
@@ -414,7 +420,7 @@ public final class TextureLoadScheduler {
                 future.complete(false);
                 TOTAL_FAILED.incrementAndGet();
                 ACTIVE_SCHEDULES.remove(this);
-                TextureLoadGeneration.cancelActive();
+                TextureLoadGeneration.cancel(generation, 1);
             }
         }
 

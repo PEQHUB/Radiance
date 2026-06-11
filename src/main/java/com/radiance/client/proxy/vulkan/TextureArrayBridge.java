@@ -5,9 +5,11 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import net.minecraft.client.texture.MissingSprite;
 import net.minecraft.util.Identifier;
 import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.v4.TextureLoaderV4Options;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +24,7 @@ public final class TextureArrayBridge {
     private static volatile int missingSpriteFallbackId = -1;
     private static volatile Identifier missingSpriteFallbackSprite = null;
     private static volatile int renderableSpriteCapacity = TextureTracker.MAX_SPRITES;
+    private static final AtomicBoolean LAST_TEXTURE_RULE_UPLOAD_SUCCEEDED = new AtomicBoolean(false);
     private static final List<Identifier> MISSING_SPRITE_FALLBACKS = List.of(
         Identifier.ofVanilla("block/dirt"),
         Identifier.ofVanilla("block/stone"),
@@ -235,7 +238,27 @@ public final class TextureArrayBridge {
         int heightRangePacked, long generation);
     public static native boolean nativeReceiveSparseAuxBatch(long updatePtr, int updateCount,
         long pixelPtr, int pixelBytes, long metadataPtr, int metadataCount, long generation);
-    public static native boolean nativeReceiveTextureRules(long dataPtr, int count, long generation);
+    public static boolean nativeReceiveTextureRules(long dataPtr, int count, long generation) {
+        try {
+            boolean uploaded;
+            if (TextureLoaderV4Options.enabled()) {
+                uploaded = TextureArrayBridgeV4.nativeUpdateTextureRulesV4(generation, dataPtr, count);
+            } else {
+                uploaded = nativeReceiveTextureRulesLegacy(dataPtr, count, generation);
+            }
+            LAST_TEXTURE_RULE_UPLOAD_SUCCEEDED.set(uploaded);
+            return uploaded;
+        } catch (Throwable t) {
+            LAST_TEXTURE_RULE_UPLOAD_SUCCEEDED.set(false);
+            throw t;
+        }
+    }
+
+    public static boolean lastTextureRuleUploadSucceeded() {
+        return LAST_TEXTURE_RULE_UPLOAD_SUCCEEDED.get();
+    }
+
+    private static native boolean nativeReceiveTextureRulesLegacy(long dataPtr, int count, long generation);
 
     public static void updateAnimatedSprites(int animTick) {
         nativeTickAnimation(animTick, getActiveTextureGeneration());

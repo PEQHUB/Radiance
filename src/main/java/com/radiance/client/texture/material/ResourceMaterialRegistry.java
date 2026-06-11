@@ -266,6 +266,10 @@ public final class ResourceMaterialRegistry {
     }
 
     public static boolean uploadActiveTableToNative() {
+        return uploadActiveTableToNative(ACTIVE.get().generation());
+    }
+
+    public static boolean uploadActiveTableToNative(long generation) {
         Snapshot snapshot = ACTIVE.get();
         if (snapshot.records().isEmpty()) {
             return false;
@@ -281,7 +285,7 @@ public final class ResourceMaterialRegistry {
             NativeUploadGuards.assertDirectCapacity(buffer, (long) count * MATERIAL_ENTRY_SIZE,
                 "uploadActiveTableToNative");
             return TextureArrayBridgeV4.nativeUpdateMaterialTableSparseV4(
-                snapshot.generation(), org.lwjgl.system.MemoryUtil.memAddress(buffer), count);
+                generation, org.lwjgl.system.MemoryUtil.memAddress(buffer), count);
         } catch (UnsatisfiedLinkError e) {
             return false;
         }
