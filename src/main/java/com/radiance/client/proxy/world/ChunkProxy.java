@@ -64,7 +64,7 @@ public class ChunkProxy {
         Math.max(2, Math.min(Runtime.getRuntime().availableProcessors() - 4, 6));
     private static final int numImportantChunkRebuildThreads = 2;
     private static final int maxChunkTasksPerFrame = 64;
-    private static final int maxImportantTasksPerFrame = 1;
+    private static final int maxImportantTasksPerFrame = 2;
     private static final long importantChunkWaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(4);
     private static final double importantDistanceSq = 768.0;
     private static final AtomicLong rebuildGeneration = new AtomicLong();
@@ -288,11 +288,14 @@ public class ChunkProxy {
 
     public static String chunkIngestStatusJson() {
         int nativeInputQueueSize;
+        int nativeReadyChunkCount;
         String nativeInputQueueError = "";
         try {
             nativeInputQueueSize = nativeGetInputQueueSize();
+            nativeReadyChunkCount = nativeGetReadyChunkCount();
         } catch (Throwable t) {
             nativeInputQueueSize = -1;
+            nativeReadyChunkCount = -1;
             nativeInputQueueError = t.getClass().getSimpleName() + ": " + t.getMessage();
         }
         return "{"
@@ -300,6 +303,8 @@ public class ChunkProxy {
             + "\"javaRebuildQueueSize\":" + rebuildQueue.size() + ","
             + "\"pendingImportantTasks\":" + rebuildTasks.size() + ","
             + "\"nativeInputQueueSize\":" + nativeInputQueueSize + ","
+            + "\"nativeReadyChunkCount\":" + nativeReadyChunkCount + ","
+            + "\"tlasReadyChunkCount\":" + nativeReadyChunkCount + ","
             + "\"nativeInputQueueError\":\"" + escapeJson(nativeInputQueueError) + "\","
             + "\"importantChunkWait\":" + importantChunkWaitStatusJson()
             + "}";
@@ -530,4 +535,5 @@ public class ChunkProxy {
     public static native void invalidateSingle(long index);
 
     public static native int nativeGetInputQueueSize();
+    public static native int nativeGetReadyChunkCount();
 }

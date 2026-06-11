@@ -667,6 +667,15 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         int nativePageFailures = intProperty(upload, "nativePageFailures");
         int nativePageFailedMaterials = intProperty(upload, "nativePageFailedMaterials");
         int materialTableUploadFailures = intProperty(upload, "materialTableUploadFailures");
+        int materialTableUploadSuccesses = intProperty(upload, "materialTableUploadSuccesses");
+        boolean materialTableUploaded = boolProperty(upload, "materialTableUploadedFinal")
+            || materialTableUploadSuccesses > 0;
+        JsonObject visibleResidency = ResourceMaterialResidencyDemand.summaryJson(generation);
+        int visibleFallbackMaterialCount = intProperty(visibleResidency, "visibleFallbackMaterialCount");
+        boolean descriptorResidencyReady = semanticResidencyUploaded
+            && uploadedMaterials > 0
+            && materialTableUploaded
+            && visibleFallbackMaterialCount == 0;
         JsonObject statusEvent = new JsonObject();
         statusEvent.addProperty("semanticResidencyUploaded", semanticResidencyUploaded);
         statusEvent.addProperty("uploadedMaterials", uploadedMaterials);
@@ -674,18 +683,27 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         statusEvent.addProperty("nativePageFailures", nativePageFailures);
         statusEvent.addProperty("nativePageFailedMaterials", nativePageFailedMaterials);
         statusEvent.addProperty("materialTableUploadFailures", materialTableUploadFailures);
-        if (!semanticResidencyUploaded) {
+        statusEvent.addProperty("materialTableUploadSuccesses", materialTableUploadSuccesses);
+        statusEvent.addProperty("materialTableUploaded", materialTableUploaded);
+        statusEvent.addProperty("visibleFallbackMaterialCount", visibleFallbackMaterialCount);
+        statusEvent.add("visibleResidency", visibleResidency);
+        if (!descriptorResidencyReady) {
             statusEvent.addProperty("geometryAffectingMaterialChange", true);
             statusEvent.addProperty("chunkRefreshScheduled", false);
-            statusEvent.addProperty("reason", uploadedMaterials <= 0
+            String reason = uploadedMaterials <= 0
                 ? "no_native_material_pages_uploaded"
-                : "native_material_page_or_table_failure");
+                : !materialTableUploaded || materialTableUploadFailures > 0
+                    ? "native_material_table_upload_failure"
+                    : visibleFallbackMaterialCount > 0
+                        ? "visible_material_residency_still_pending"
+                        : "native_material_page_failure";
+            statusEvent.addProperty("reason", reason);
             ResourceMaterialRuntimeStatus.write("residencyDescriptorOnlyUpdateBlocked", generation, statusEvent);
             LOGGER.warn("[MaterialCompat] Residency descriptor-only success blocked for generation {}: "
                     + "uploadedMaterials={}, nativePageFailures={}, nativePageFailedMaterials={}, "
-                    + "materialTableUploadFailures={}",
+                    + "materialTableUploadFailures={}, visibleFallbacks={}",
                 generation, uploadedMaterials, nativePageFailures, nativePageFailedMaterials,
-                materialTableUploadFailures);
+                materialTableUploadFailures, visibleFallbackMaterialCount);
             return;
         }
         statusEvent.addProperty("geometryAffectingMaterialChange", false);

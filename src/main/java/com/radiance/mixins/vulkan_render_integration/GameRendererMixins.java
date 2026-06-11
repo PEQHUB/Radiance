@@ -4,9 +4,10 @@ import com.llamalad7.mixinextras.sugar.Local;
 import com.radiance.client.proxy.vulkan.BufferProxy;
 import com.radiance.client.proxy.vulkan.RendererProxy;
 import com.radiance.client.proxy.world.EntityProxy;
-import com.radiance.client.texture.material.FirstFrameTextureReadiness;
+import com.radiance.client.texture.v4.FirstFrameTextureReadiness;
 import com.radiance.v2.bridge.EngineBridge;
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IGameRendererExt;
+import com.google.gson.JsonObject;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gl.Framebuffer;
 import net.minecraft.client.gl.ShaderLoader;
@@ -184,10 +185,26 @@ public class GameRendererMixins implements IGameRendererExt {
             // The tick flag controls game logic (20 TPS), not rendering.
             // Gating on tick limited RT output to ~10 FPS on 240 Hz.
             boolean worldPresent = client.world != null;
-            boolean firstFrameTextureReady = FirstFrameTextureReadiness.readyOrTimedOut(worldPresent);
+            JsonObject firstFrameTextureStatus = FirstFrameTextureReadiness.statusJson(worldPresent);
+            boolean firstFrameTextureReady = firstFrameTextureStatus.get("ready").getAsBoolean();
+            boolean firstFrameProgressFrame = radser$allowV4TextureProgressFrame(firstFrameTextureStatus);
             RendererProxy.shouldRenderWorld(
-                !this.client.skipGameRender && finishedLoading && worldPresent && firstFrameTextureReady);
+                !this.client.skipGameRender && finishedLoading && worldPresent
+                    && (firstFrameTextureReady || firstFrameProgressFrame));
         }
+    }
+
+    @Unique
+    private static boolean radser$allowV4TextureProgressFrame(JsonObject readiness) {
+        if (readiness == null || !readiness.has("reason") || !readiness.get("reason").isJsonPrimitive()) {
+            return false;
+        }
+        String reason = readiness.get("reason").getAsString();
+        return "waiting_for_visible_gpu_uploads".equals(reason)
+            || "waiting_for_native_generation_idle".equals(reason)
+            || "waiting_for_visible_mips".equals(reason)
+            || "waiting_for_native_page_ready".equals(reason)
+            || "waiting_for_material_table".equals(reason);
     }
 
     @Override

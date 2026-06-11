@@ -40,21 +40,25 @@ public record TextureResidencySnapshot(
     /** Publish the visible material plan for a generation. */
     public static void publishVisiblePlan(long generation, Set<Integer> materialIds) {
         VISIBLE.clear();
-        RESIDENT.clear();
-        FAILED.clear();
         if (materialIds != null) VISIBLE.addAll(materialIds);
         publish(generation, 0L);
     }
 
     /** Mark materials as resident. */
     public static void markResident(long generation, Set<Integer> materialIds, long pendingBytes) {
-        if (materialIds != null) RESIDENT.addAll(materialIds);
+        if (materialIds != null) {
+            RESIDENT.addAll(materialIds);
+            FAILED.removeAll(materialIds);
+        }
         publish(generation, pendingBytes);
     }
 
     /** Mark materials as failed. */
     public static void markFailed(long generation, Set<Integer> materialIds, long pendingBytes) {
-        if (materialIds != null) FAILED.addAll(materialIds);
+        if (materialIds != null) {
+            FAILED.addAll(materialIds);
+            RESIDENT.removeAll(materialIds);
+        }
         publish(generation, pendingBytes);
     }
 

@@ -19,6 +19,7 @@ public final class FirstFrameMaterialPlanner {
 
     private static volatile boolean planned = false;
     private static volatile long plannedGeneration = 0L;
+    private static volatile int plannedVisibleCount = -1;
     private static volatile boolean emptyPlanAllowed = false;
     private static volatile String emptyPlanReason = "none";
     private static final Set<Integer> VISIBLE_MATERIALS = ConcurrentHashMap.newKeySet();
@@ -30,14 +31,15 @@ public final class FirstFrameMaterialPlanner {
      * Called when the world is first loaded or after a resource reload.
      */
     public static void plan(long generation) {
-        if (planned && plannedGeneration == generation) return;
+        int visibleCount = VISIBLE_MATERIALS.size();
+        if (planned && plannedGeneration == generation && plannedVisibleCount == visibleCount) return;
 
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.world == null) return;
 
         int visibleChunkCount = mc.worldRenderer != null ? (int) mc.worldRenderer.getChunkCount() : 0;
 
-        Set<Integer> visible = Collections.unmodifiableSet(VISIBLE_MATERIALS);
+        Set<Integer> visible = Collections.unmodifiableSet(Set.copyOf(VISIBLE_MATERIALS));
 
         if (visibleChunkCount > 0 && visible.isEmpty()) {
             emptyPlanAllowed = false;
@@ -51,17 +53,21 @@ public final class FirstFrameMaterialPlanner {
 
         planned = true;
         plannedGeneration = generation;
+        plannedVisibleCount = visible.size();
     }
 
     /** Add a material to the visible set. */
     public static void addVisibleMaterial(int materialId) {
-        VISIBLE_MATERIALS.add(materialId);
+        if (VISIBLE_MATERIALS.add(materialId)) {
+            planned = false;
+        }
     }
 
     /** Reset for a new generation. */
     public static void reset(long generation) {
         planned = false;
         plannedGeneration = 0L;
+        plannedVisibleCount = -1;
         emptyPlanAllowed = false;
         emptyPlanReason = "none";
         VISIBLE_MATERIALS.clear();

@@ -2,7 +2,9 @@ package com.radiance.client.texture.material;
 
 import com.google.gson.JsonObject;
 import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
+import com.radiance.client.texture.v4.TextureResidencySnapshot;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -57,6 +59,7 @@ public final class ResourceMaterialResidencyDemand {
             prewarmUniqueRequests.set(0L);
             visiblePriorityCandidates.set(0L);
             visibleResidentEvents.set(0L);
+            TextureResidencySnapshot.resetForGeneration(generation);
         }
     }
 
@@ -134,8 +137,10 @@ public final class ResourceMaterialResidencyDemand {
             return;
         }
         int added = 0;
+        Set<Integer> snapshotIds = new HashSet<>();
         for (Integer materialId : materialIds) {
             if (materialId != null) {
+                snapshotIds.add(materialId);
                 requestedMaterials.remove(materialId);
                 plannedFirstFrameMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
@@ -150,6 +155,9 @@ public final class ResourceMaterialResidencyDemand {
         if (added > 0) {
             visibleResidentEvents.addAndGet(added);
         }
+        if (!snapshotIds.isEmpty()) {
+            TextureResidencySnapshot.markResident(generation, snapshotIds, 0L);
+        }
     }
 
     public static void recordFailed(long generation, Collection<Integer> materialIds) {
@@ -160,8 +168,10 @@ public final class ResourceMaterialResidencyDemand {
         if (generation != activeGeneration || materialIds == null || materialIds.isEmpty()) {
             return;
         }
+        Set<Integer> snapshotIds = new HashSet<>();
         for (Integer materialId : materialIds) {
             if (materialId != null && materialId >= 0) {
+                snapshotIds.add(materialId);
                 requestedMaterials.remove(materialId);
                 plannedFirstFrameMaterials.remove(materialId);
                 prewarmMaterials.remove(materialId);
@@ -169,17 +179,25 @@ public final class ResourceMaterialResidencyDemand {
                 permanentFailedMaterials.add(materialId);
             }
         }
+        if (!snapshotIds.isEmpty()) {
+            TextureResidencySnapshot.markFailed(generation, snapshotIds, 0L);
+        }
     }
 
     public static void recordRetryableFailed(long generation, Collection<Integer> materialIds) {
         if (generation != activeGeneration || materialIds == null || materialIds.isEmpty()) {
             return;
         }
+        Set<Integer> snapshotIds = new HashSet<>();
         for (Integer materialId : materialIds) {
             if (materialId != null && materialId >= 0 && !permanentFailedMaterials.contains(materialId)) {
+                snapshotIds.add(materialId);
                 requestedMaterials.add(materialId);
                 retryableFailedMaterials.add(materialId);
             }
+        }
+        if (!snapshotIds.isEmpty()) {
+            TextureResidencySnapshot.markFailed(generation, snapshotIds, 0L);
         }
     }
 
