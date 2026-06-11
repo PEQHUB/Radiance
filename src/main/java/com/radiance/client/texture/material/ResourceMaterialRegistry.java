@@ -715,7 +715,10 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
             boolean hasSpecular, boolean displacementEligible, boolean displacementBlocked,
             int heightRangePacked) {
             int tierIndex = tierIndexForLayerSize(layerSize);
-            int packedPage = TexturePageHandle.packPage(TexturePageHandle.NS_CTM, tierIndex, page);
+            int nativePage = page >= TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
+                ? page - TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
+                : page;
+            int packedPage = TexturePageHandle.packPage(TexturePageHandle.NS_CTM, tierIndex, nativePage);
             return new ResidencyHandle(packedPage, layer, packedPage, layer, packedPage, layer, packedPage, layer,
                 layerSize, hasSpecular, displacementEligible, displacementBlocked,
                 heightRangePacked);

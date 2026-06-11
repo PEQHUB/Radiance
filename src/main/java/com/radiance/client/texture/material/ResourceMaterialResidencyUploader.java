@@ -118,7 +118,7 @@ public final class ResourceMaterialResidencyUploader {
         if (budgetedMaterialCount < items.size()) {
             items = new ArrayList<>(items.subList(0, budgetedMaterialCount));
         }
-        int pageCapacity = pageCapacity(bytesPerLayer);
+        int pageCapacity = pageCapacity(layerSize, bytesPerLayer);
         int materialCapacity = pageCapacity * PAGE_BUDGET;
         int pagesRequired = pagesRequired(items.size(), pageCapacity);
         int ctmUnaddressableMaterials = Math.max(0, queuedMaterialCount - materialCapacity);
@@ -974,12 +974,26 @@ public final class ResourceMaterialResidencyUploader {
         NativeUploadGuards.assertRange(buffer, offset, bytes, label);
     }
 
-    private static int pageCapacity(int bytesPerLayer) {
+    private static int pageCapacity(int layerSize, int bytesPerLayer) {
+        int tierCapacity = nativePageCapacityForLayerSize(layerSize);
+        if (tierCapacity > 0) {
+            return tierCapacity;
+        }
         if (bytesPerLayer <= 0) {
             return 1;
         }
         long capacity = Math.max(1L, MAX_PAGE_BYTES / (bytesPerLayer * 4L));
         return (int) Math.max(1L, Math.min(TARGET_PAGE_CAPACITY, capacity));
+    }
+
+    private static int nativePageCapacityForLayerSize(int layerSize) {
+        try {
+            return TextureArrayBridgeV4.nativePageLayerCapacityForTier(tierIndexForLayerSize(layerSize));
+        } catch (UnsatisfiedLinkError ignored) {
+            return 0;
+        } catch (Throwable t) {
+            return 0;
+        }
     }
 
     private static long elapsedNanos(long startedNanos) {
