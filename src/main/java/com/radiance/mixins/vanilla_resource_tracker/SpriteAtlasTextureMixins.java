@@ -922,7 +922,8 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 }
                 if (!uploaded) {
                     pageUploaded = false;
-                    LOGGER.warn("[TextureSystem] Vanilla tier page upload failed: page={} size={} start={} layers={}/{}",
+                    LOGGER.warn("[TextureSystem] Vanilla tier page upload failed: generation={} namespace={} tier={} page={} size={} start={} layers={}/{}",
+                        generation, 1, page - TextureTracker.VANILLA_TIER_FIRST_PAGE,
                         page, tierSize, startLayer, chunkLayers, layerCapacity);
                     break;
                 }

@@ -26,6 +26,7 @@ public final class TextureLoadScheduler {
     private static final AtomicLong TOTAL_SCHEDULED = new AtomicLong(0L);
     private static final AtomicLong TOTAL_COMPLETED = new AtomicLong(0L);
     private static final AtomicLong TOTAL_FAILED = new AtomicLong(0L);
+    private static final int NAMESPACE_VANILLA = 1;
 
     /** Per-tier upload statistics for the current generation. */
     private static volatile TierUploadStats currentTierStats;
@@ -108,9 +109,32 @@ public final class TextureLoadScheduler {
                                           ByteBuffer albedo, ByteBuffer specular,
                                           ByteBuffer normal, ByteBuffer flag,
                                           boolean visible) {
-        if (!TextureLoadGeneration.isActive(generation)) return false;
-        if (albedo == null || layerCount <= 0 || tierSize <= 0) return false;
-        if (!albedo.isDirect()) return false;
+        long bytesPerLayer = computeBytesPerLayer(tierSize);
+        long totalBytes = computeTotalBytes(bytesPerLayer, layerCount);
+        if (!TextureLoadGeneration.isActive(generation)) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "inactive generation", null);
+            return false;
+        }
+        if (albedo == null) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "null albedo buffer", null);
+            return false;
+        }
+        if (layerCount <= 0 || tierSize <= 0) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "invalid layer count or tier size", null);
+            return false;
+        }
+        if (!albedo.isDirect()) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "non-direct albedo buffer", null);
+            return false;
+        }
 
         int channelMask = TextureArrayBridgeV4.CHANNEL_ALBEDO;
         long specPtr = 0, normPtr = 0, flagPtr = 0;
@@ -128,11 +152,12 @@ public final class TextureLoadScheduler {
         }
 
         long albedoPtr = org.lwjgl.system.MemoryUtil.memAddress(albedo);
-        long bytesPerLayer = (long) tierSize * tierSize * 4;
-        if (bytesPerLayer <= 0L || layerCount > Long.MAX_VALUE / bytesPerLayer) {
+        if (bytesPerLayer <= 0L || totalBytes < 0L) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "bytesPerLayer overflow", null);
             return false;
         }
-        long totalBytes = bytesPerLayer * layerCount;
         try {
             NativeUploadGuards.assertDirectCapacity(albedo, totalBytes, "nativeUploadTexturePageV4/albedo");
             if (specular != null) {
@@ -145,13 +170,16 @@ public final class TextureLoadScheduler {
                 NativeUploadGuards.assertDirectCapacity(flag, totalBytes, "nativeUploadTexturePageV4/flag");
             }
         } catch (IllegalArgumentException guardFailure) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "NativeUploadGuards failure: " + guardFailure.getMessage(), guardFailure);
             return false;
         }
 
         try {
             boolean ok = TextureArrayBridgeV4.nativeUploadTexturePageV4(
                 generation,
-                1, // NAMESPACE_VANILLA
+                NAMESPACE_VANILLA,
                 tierIndex,
                 javaPage,
                 javaStartLayer,
@@ -173,12 +201,82 @@ public final class TextureLoadScheduler {
                 if (stats != null) {
                     stats.addLayers(tierIndex, layerCount, bytesPerLayer * layerCount);
                 }
+            } else {
+                logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                    layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                    "nativeUploadTexturePageV4 returned false", null);
             }
 
             return ok;
         } catch (Throwable t) {
+            logUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag,
+                "nativeUploadTexturePageV4 threw: " + t.getClass().getSimpleName() + ": " + t.getMessage(), t);
             return false;
         }
+    }
+
+    private static long computeBytesPerLayer(int tierSize) {
+        if (tierSize <= 0) {
+            return -1L;
+        }
+        long pixels = (long) tierSize * (long) tierSize;
+        if (pixels > Long.MAX_VALUE / 4L) {
+            return -1L;
+        }
+        return pixels * 4L;
+    }
+
+    private static long computeTotalBytes(long bytesPerLayer, int layerCount) {
+        if (bytesPerLayer <= 0L || layerCount <= 0) {
+            return -1L;
+        }
+        return layerCount > Long.MAX_VALUE / bytesPerLayer ? -1L : bytesPerLayer * layerCount;
+    }
+
+    private static void logUploadFailure(long generation, int tierIndex, int javaPage,
+                                         int javaStartLayer, int layerCount, int layerCapacity, int tierSize,
+                                         long bytesPerLayer, long totalBytes,
+                                         ByteBuffer albedo, ByteBuffer specular, ByteBuffer normal, ByteBuffer flag,
+                                         String reason, Throwable throwable) {
+        TierUploadStats stats = currentTierStats;
+        if (stats != null) {
+            stats.logFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag, reason, throwable);
+            return;
+        }
+        System.err.println(formatUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+            layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag, reason));
+        if (throwable != null) {
+            throwable.printStackTrace(System.err);
+        }
+    }
+
+    private static String formatUploadFailure(long generation, int tierIndex, int javaPage,
+                                              int javaStartLayer, int layerCount, int layerCapacity, int tierSize,
+                                              long bytesPerLayer, long totalBytes,
+                                              ByteBuffer albedo, ByteBuffer specular, ByteBuffer normal, ByteBuffer flag,
+                                              String reason) {
+        return "[TextureLoaderV4] Vanilla tier page upload failed"
+            + " reason=\"" + reason + "\""
+            + " generation=" + generation
+            + " namespace=" + NAMESPACE_VANILLA
+            + " tier=" + tierIndex
+            + " page=" + javaPage
+            + " startLayer=" + javaStartLayer
+            + " layerCount=" + layerCount
+            + " layerCapacity=" + layerCapacity
+            + " tierSize=" + tierSize
+            + " bytesPerLayer=" + bytesPerLayer
+            + " totalBytes=" + totalBytes
+            + " albedoCapacity=" + directCapacity(albedo)
+            + " specularCapacity=" + directCapacity(specular)
+            + " normalCapacity=" + directCapacity(normal)
+            + " flagCapacity=" + directCapacity(flag);
+    }
+
+    private static long directCapacity(ByteBuffer buffer) {
+        return buffer != null && buffer.isDirect() ? buffer.capacity() : -1L;
     }
 
     /** Get and reset the current tier upload stats (for logging). */
@@ -235,8 +333,11 @@ public final class TextureLoadScheduler {
 
     /** Per-tier upload statistics. */
     public static final class TierUploadStats {
+        private static final int MAX_FAILURE_LOGS = 16;
         private final long[] layerCounts = new long[7];
         private final long[] byteCounts = new long[7];
+        private int failureLogs;
+        private int suppressedFailureLogs;
 
         void addLayers(int tierIndex, int layers, long bytes) {
             if (tierIndex >= 0 && tierIndex < 7) {
@@ -253,6 +354,24 @@ public final class TextureLoadScheduler {
             return tierIndex >= 0 && tierIndex < 7 ? byteCounts[tierIndex] : 0;
         }
 
+        void logFailure(long generation, int tierIndex, int javaPage,
+                        int javaStartLayer, int layerCount, int layerCapacity, int tierSize,
+                        long bytesPerLayer, long totalBytes,
+                        ByteBuffer albedo, ByteBuffer specular, ByteBuffer normal, ByteBuffer flag,
+                        String reason, Throwable throwable) {
+            if (failureLogs >= MAX_FAILURE_LOGS) {
+                suppressedFailureLogs++;
+                return;
+            }
+            failureLogs++;
+            System.err.println(formatUploadFailure(generation, tierIndex, javaPage, javaStartLayer, layerCount,
+                layerCapacity, tierSize, bytesPerLayer, totalBytes, albedo, specular, normal, flag, reason)
+                + " failureLog=" + failureLogs + "/" + MAX_FAILURE_LOGS);
+            if (throwable != null) {
+                throwable.printStackTrace(System.err);
+            }
+        }
+
         public void logSummary(long generation) {
             String[] tierNames = {"T16", "T32", "T64", "T128", "T256", "T512", "T1024"};
             StringBuilder sb = new StringBuilder();
@@ -263,6 +382,9 @@ public final class TextureLoadScheduler {
                       .append(" layers=").append(layerCounts[i])
                       .append(" bytes=").append(byteCounts[i]).append("\n");
                 }
+            }
+            if (suppressedFailureLogs > 0) {
+                sb.append("  suppressedFailureLogs=").append(suppressedFailureLogs).append("\n");
             }
             System.out.println(sb.toString());
         }
