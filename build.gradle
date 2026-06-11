@@ -143,7 +143,7 @@ def gitBranch = resolveGitBranch()
 def gitDirty = resolveGitDirty()
 def buildTimestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
 
-// --- Generate BuildInfo.java (V4 pipeline, ABI 5 contract) ---
+// --- Generate BuildInfo.java (V4 pipeline, ABI 6 contract) ---
 tasks.register('generateBuildInfo') {
     def outputDir = layout.buildDirectory.dir("generated/sources/buildInfo/java/main/com/radiance/client/build")
     outputs.dir outputDir
@@ -154,7 +154,7 @@ tasks.register('generateBuildInfo') {
  * Build identity for Radiance mod.
  *
  * Generated at build time by gradle task generateBuildInfo.
- * V4 pipeline, ABI 5 contract. Runtime artifact hashes are computed from loaded files.
+ * V4 pipeline, ABI 6 contract. Runtime artifact hashes are computed from loaded files.
  */
 public final class BuildInfo {
 
@@ -171,7 +171,7 @@ public final class BuildInfo {
     public static final String BUILD_TIMESTAMP = "${buildTimestamp}";
 
     /** Texture loader ABI version — must match native side. */
-    public static final int TEXTURE_LOADER_ABI_VERSION = 5;
+    public static final int TEXTURE_LOADER_ABI_VERSION = 6;
 
     /** Cache schema version — must match native side. */
     public static final int CACHE_SCHEMA_VERSION = 5;
