@@ -2,6 +2,7 @@ package com.radiance.client.debug;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.radiance.client.build.BuildInfo;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
@@ -39,7 +40,13 @@ public final class RadianceBuildInfo {
         json.addProperty("minecraftVersion", property("minecraftVersion"));
         json.addProperty("loaderVersion", property("loaderVersion"));
         json.addProperty("platform", property("platform"));
-        json.addProperty("commit", property("commit"));
+        json.addProperty("commit", BuildInfo.REPO_COMMIT);
+        json.addProperty("branch", BuildInfo.BRANCH);
+        json.addProperty("dirty", BuildInfo.DIRTY);
+        json.addProperty("buildTimestamp", BuildInfo.BUILD_TIMESTAMP);
+        json.addProperty("textureLoaderAbiVersion", BuildInfo.TEXTURE_LOADER_ABI_VERSION);
+        json.addProperty("cacheSchemaVersion", BuildInfo.CACHE_SCHEMA_VERSION);
+        json.addProperty("resourceCommit", property("commit"));
         json.addProperty("jarPath", identity.path());
         json.addProperty("jarSha256", identity.sha256());
         json.addProperty("jarSizeBytes", identity.sizeBytes());

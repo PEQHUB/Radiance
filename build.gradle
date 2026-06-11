@@ -22,6 +22,7 @@ sourceSets {
     main {
         java {
             srcDir 'src/generated/java'
+            srcDir "${buildDir}/generated/sources/buildInfo/java/main"
         }
     }
 }
@@ -142,9 +143,9 @@ def gitBranch = resolveGitBranch()
 def gitDirty = resolveGitDirty()
 def buildTimestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
 
-// --- Generate BuildInfo.java (Phase 0: Texture Loader v5 contract) ---
+// --- Generate BuildInfo.java (V4 pipeline, ABI 5 contract) ---
 tasks.register('generateBuildInfo') {
-    def outputDir = file("${projectDir}/src/main/java/com/radiance/client/build")
+    def outputDir = layout.buildDirectory.dir("generated/sources/buildInfo/java/main/com/radiance/client/build")
     outputs.dir outputDir
     doLast {
         def content = """package com.radiance.client.build;
@@ -153,7 +154,7 @@ tasks.register('generateBuildInfo') {
  * Build identity for Radiance mod.
  *
  * Generated at build time by gradle task generateBuildInfo.
- * Every runtime log and DebugBridge buildInfo command must print these fields.
+ * V4 pipeline, ABI 5 contract. Runtime artifact hashes are computed from loaded files.
  */
 public final class BuildInfo {
 
@@ -168,9 +169,6 @@ public final class BuildInfo {
 
     /** ISO-8601 timestamp of the build. */
     public static final String BUILD_TIMESTAMP = "${buildTimestamp}";
-
-    /** SHA-256 of the deployed JAR, or "unknown" if not yet computed. */
-    public static final String JAR_SHA256 = "unknown";
 
     /** Texture loader ABI version — must match native side. */
     public static final int TEXTURE_LOADER_ABI_VERSION = 5;
@@ -189,14 +187,11 @@ public final class BuildInfo {
             + " built=" + BUILD_TIMESTAMP;
     }
 
-    /** True if the deployed JAR hash matches the expected repo head. */
-    public static boolean jarHashVerified() {
-        return !"unknown".equals(JAR_SHA256) && !JAR_SHA256.isBlank();
-    }
 }
 """
-        outputDir.mkdirs()
-        new File(outputDir, 'BuildInfo.java').text = content
+        def dir = outputDir.get().asFile
+        dir.mkdirs()
+        new File(dir, 'BuildInfo.java').text = content
     }
 }
 
