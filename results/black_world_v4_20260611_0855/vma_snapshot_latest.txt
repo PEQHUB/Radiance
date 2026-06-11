@@ -1,0 +1,4 @@
+Radiance VMA Snapshot
+=====================
+capturedAt=2026-06-11 08:55:34.368 CDT
+data=totalAllocMB:6779.1,usedMB:6050.8,budgetMB:38698.8,budgetUsageMB:6779.1,allocations:3467,blocks:173

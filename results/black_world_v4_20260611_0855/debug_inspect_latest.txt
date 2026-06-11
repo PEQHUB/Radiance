@@ -1,0 +1,184 @@
+Radiance Debug Inspect
+======================
+capturedAt=2026-06-11 08:55:17.457 CDT
+minecraftVersion=1.21.4
+radianceDir=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance
+textureFullCsv=C:\RadSER\texture_system_full.csv
+
+Player And Camera
+-----------------
+playerBlockPos=711, 105, 250
+playerPos=711.011197,105.000000,250.042564
+cameraPos=711.011197,106.620000,250.042564
+yaw=-88.071625
+pitch=33.553204
+dimension=minecraft:overworld
+
+Global Material Displacement
+----------------------------
+displacementEnabled=true
+depthCapBlocks=0.500000
+quality=4 (Ultra)
+proxyGeometry=disabled
+shaderSmoothTrace=enabled_when_renderer_variant_allows
+fadeDistanceBlocks=64
+heightSource=direct_labpbr_normal_alpha
+displacementPath=shader_smooth_height_field
+generatedDisplacement=removed
+lastSidecarRehydrate=RehydrateReport[discovered=0, applied=0, skipped=0, failed=0]
+spriteProvenanceCounts=sprites=1810 specular[pack=0,generated=1810,user=0,flat=0] normal[pack=0,generated=1810,user=0,flat=0] flags=0 authoredHeight=0 visibleHeightRange=0 aoDetectable=0 emissionDetectable=0 textureRules=0
+textureRuleSource=Material Lab recipes and default texture rules
+
+Renderer Diagnostics
+--------------------
+gpuProfile=unavailable
+featureTruth=rendererUsable:1,gpuProfilerEnabled:0,rayBounces:16,simplifiedIndirectOption:0,serDevice:1,serOption:0,serHintsOption:1,serActive:0,rtDebugFlags:0,rayTracingModule:1,offlineAccumulating:0,sharcOption:1,sharcCompiled:1,rayTracingBackend:native,shaderPackRequestedPath:shaders/world/ray_tracing/vanilla-pt.zip,shaderPackSelectedPath:shaders/world/ray_tracing/vanilla-pt.zip,shaderPackPath:shaders/world/ray_tracing/vanilla-pt.zip,shaderPackRuntimeValid:1,shaderPackRuntimeStatus:validated,shaderPackBackendEnabled:1,shaderPackBackendStatus:executor_ready,shaderPackAdapterMode:pack_executor_pending_full_frame,shaderPackRuntimeResourceSetIndex:5,shaderPackExecutionSetIndex:6,shaderPackIntermediatesGenerated:0,shaderPackExecutorReady:1,shaderPackFullScreenPassDispatches:0,shaderPackComputePassDispatches:0,shaderPackRayTracingPassDispatches:0,shaderPackPassDispatch_trans_lut:0,shaderPackPassDispatch_sky_cube:0,shaderPackPassDispatch_world:0,shaderPackPassDispatch_volumetric_cloud_temporal:0,shaderPackPassDispatch_volumetric_cloud_apply:0,shaderPackRuntimeResourcesDeclared:1,shaderPackRuntimeResourcesReady:1,shaderPackVisualAssetsReady:1,shaderPackWorldQuerySharcDeclared:1,shaderPackSet4ReservedForForkVisualSettings:1,shaderPackSkyCubeDeclared:1,shaderPackSkyCubeReady:1,shaderPackSkyCubeIsCube:1,shaderPackSkyCubeWidth:128,shaderPackSkyCubeHeight:128,shaderPackSkyCubeLayers:6,shaderPackSkyCubeSampledBinding:2,shaderPackSkyCubeSampledViewIndex:7,shaderPackTransLutDeclared:1,shaderPackTransLutReady:1,shaderPackTransLutWidth:256,shaderPackTransLutHeight:64,shaderPackTransLutSampledBinding:0,shaderPackTransLutStorageBinding:1,shaderPackFirstFrameAttempted:0,shaderPackFallbackReason:none,shaderPackGraphPasses:0,shaderPackGraphUnsupportedPasses:0,shaderPackGraphWorldPasses:0,shaderPackFallbackActive:0,shaderPackSelectedVanillaPt:1,sbtGeometryTotal:95,sbtGeometryShadow:33,sbtGeometrySolid:11,sbtGeometryTransparent:50,sbtGeometryOther:1,alphaModeExpectedOpaqueGeometry:11,alphaModeExpectedTransparentGeometry:50,shaderPackCloudMode:off,shaderPackCloudModeEffective:0,shaderPackCloudSelectivePortActive:0,shaderPackCloudBackend:off,shaderPackCloudShadowsEnabled:0,shaderPackWaterSurfaceMode:realistic,shaderPackWaterSurfaceModeEffective:1,shaderPackFftWaterSurfaceActive:1,shaderPackWaterBackend:shader_pack,shaderPackWaterCausticsEnabled:1,shaderPackWaterCausticsActive:1,shaderPackVolumetricLightMode:vanilla,shaderPackVolumetricLightModeEffective:0,shaderPackVolumetricLightSelectivePortActive:0,shaderPackVolumetricLightBackend:shader_pack,shaderPackCloudTemporalAccumulation:false,shaderPackCloudIndirectCapture:false,shaderPackVisualSettingsSetIndex:4,shaderPackCloudBottomHeight:3000,shaderPackCloudTopHeight:11000,shaderPackCloudBaseScale:0.3,shaderPackCloudDetailScale:0.6,shaderPackCloudCoverage:0.5,shaderPackCloudDensity:1,shaderPackCloudViewSteps:64,shaderPackCloudLightSteps:12,shaderPackCloudAmbientSteps:8,shaderPackCloudShadowSoftness:0.5,shaderPackCloudAmbientStrength:1,shaderPackCloudPowderStrength:1,shaderPackCloudWeatherScale:0.02,shaderPackVolumetricLightSamples:16,shaderPackVolumetricLightScatteringStrength:2.75,shaderPackVolumetricLightMaxDistance:128,shaderPackVolumetricLightNearStepSize:1.75,shaderPackVolumetricLightFarStepSize:5,shaderPackVolumetricLightLuminanceLimit:4,forkNativeCloudModuleRegistered:0,rtOutputContractExpected:29,rtOutputResourceFamiliesReady:29,rtOutputContractComplete:1,dlssGuideInputContractExpected:24,dlssGuideOptionalFamiliesExpected:15,dlssGuideOptionalFamiliesReady:15,dlssGuideOptionalContractComplete:1,vanillaPtDeclaredOutImages:15,vanillaPtExtraOutImages:2,vanillaPtForkOutputProducer:not_ready,vanillaPtDlssGuideProducer:not_ready,vanillaPtMissingForkOutImages:0,vanillaPtMissingDlssGuideImages:0,vanillaPtRequiresSynthesizedDefaults:0,vanillaPtMissingDlssGuideList:diffuse_ray_dir_hit_dist|specular_ray_dir_hit_dist|reflection_mv|animated_tex_mask|particle_mask|bias_mask|rt_hit_dist|motion_vectors_3d|gbuffer_metallic|gbuffer_shading_model_id|gbuffer_material_id|position_view_space|transparency_layer|transparency_layer_opacity|transparency_layer_mvecs,vanillaPtExtraOutImageList:fog_image|first_hit_refraction,sharcBuffersCompiled:0,sharcUpdateCompiled:0,sharcResolveCompiled:0,sharcQueryPassCompiled:0,sharcMainTraceCompiled:0,sharcQueryMode:0,sharcMainTraceQueryMode:1,sharcBuffersAllocated:0,sharcBuffersInitialized:0,sharcResizePending:0,sharcUpdatePipeline:0,sharcResolvePipeline:0,sharcQueryPipeline:0,sharcMainTraceQueryPossible:0,sharcMainTraceQueryActive:0,sharcQueryPassPossible:0,sharcMainTraceWarmupFrames:8,sharcUpdateResolvePossible:0,sharcUpdateSbtReady:0,sharcUpdateSbtTotal:0,sharcRequestedCapacityExponent:21,sharcEffectiveCapacityExponent:21,sharcRequestedUpdateBounces:4,sharcEffectiveUpdateBounces:4,sharcStreamStableFrames:0,sharcDispatchReady:0,sharcCapacity:2097152,sharcFrameIndex:0,sharcCandidates:0,sharcActiveTerminated:0,sharcQueryAttempts:0,sharcQueryHits:0,sharcQueryMisses:0,sharcQueryInvalid:0,sharcQueryVoxelSkips:0,sharcQueryWrites:0,entityBatch:21,entityPostBatch:0,entityNonPrebuilt:21,entityPrebuilt:0,entityGeometries:30,entityVertices:5592,entityIndices:8676,entityFlag_world_count:19,entityFlag_world_nonPrebuilt:19,entityFlag_world_geometries:26,entityFlag_world_vertices:4928,entityFlag_world_indices:7680,entityFlag_player_count:1,entityFlag_player_nonPrebuilt:1,entityFlag_player_geometries:2,entityFlag_player_vertices:308,entityFlag_player_indices:462,entityFlag_playerHead_count:1,entityFlag_playerHead_nonPrebuilt:1,entityFlag_playerHead_geometries:2,entityFlag_playerHead_vertices:356,entityFlag_playerHead_indices:534
+vmaStats=totalAllocMB:6779.1,usedMB:6018.2,budgetMB:38698.8,budgetUsageMB:6779.1,allocations:3188,blocks:173
+overlayDiag=compositor=null,frameGenEnabled=0,decoupledPresent=0
+
+Native Texture Diagnostic
+-------------------------
+nativeGetTextureReloadDiagnostics=finalized:0,generation:0,sprites:0,atlasWidth:0,atlasHeight:0,layerSize:0,animated:0,materials:0,materialPages:0,materialPageRevision:1,albedoArray:4294967295,specularArray:4294967295,normalArray:4294967295,flagArray:4294967295,textureDebugDumped:1,chunkTotal:1944,chunksWithBlas:12,chunksMatchingGeneration:12,chunksStaleGeneration:0,chunksWithoutBlas:1932,chunkInputQueue:0,chunkGen_0:1944
+fullCsvExists=true
+
+Target Block
+------------
+block=minecraft:tall_grass
+state=Block{minecraft:tall_grass}[half=lower]
+pos=713, 105, 250
+hitSide=west
+hitPos=713.000000,105.300279,250.109707
+insideBlock=false
+renderType=MODEL
+renderLayer=RenderType[cutout:CompositeState[[texture[Optional[minecraft:textures/atlas/blocks.png](blur=FALSE, mipmap=false)], shader[Optional[minecraft:core/rendertype_cutout (VertexFormat[Position, Color, UV0, UV2, Normal])]], no_transparency, depth_test[<=], cull[true], lightmap[true], overlay[false], no_layering, main_target, default_texturing, write_mask_state[writeColor=true, writeDepth=true], no_color_logic, line_width[1.0]], outlineProperty=affects_outline]]
+opaqueFullCube=false
+solidBlock=false
+fluidState=net.minecraft.class_3576@2375a976
+biome=minecraft:meadow
+
+Material Lab
+------------
+ruleIdentity=texture_sprite
+categoryMaterials=removed
+authoredPbrPriority=_s/_n/_f_first
+generatedHeightDisplacement=removed
+materialSetBindingPolicy=global_material_id_table_v1
+materialSetShaderLookupKey=pbr_texture_id_material_id
+nativeMaterialSetTablePresent=true
+materialSetAliasesResolvedSprite=true
+
+Model Quads
+-----------
+faceBucket=down count=0
+faceBucket=up count=0
+faceBucket=north count=0
+faceBucket=south count=0
+faceBucket=west count=0 TARGET_SIDE
+faceBucket=east count=0
+faceBucket=unculled count=8
+  quad cullFace=unculled face=west tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/tall_grass_bottom
+    spriteIndex=978
+    quadUv=[0.968765,0.718765 -> 0.999985,0.749985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=978 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=978 baseSpriteId=978 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=east tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/tall_grass_bottom
+    spriteIndex=978
+    quadUv=[0.968765,0.718765 -> 0.999985,0.749985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=978 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=978 baseSpriteId=978 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=south tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/tall_grass_bottom
+    spriteIndex=978
+    quadUv=[0.968765,0.718765 -> 0.999985,0.749985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=978 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=978 baseSpriteId=978 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=north tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/tall_grass_bottom
+    spriteIndex=978
+    quadUv=[0.968765,0.718765 -> 0.999985,0.749985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=978 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=978 baseSpriteId=978 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=west tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/grass
+    spriteIndex=460
+    quadUv=[0.751966,0.468765 -> 0.779284,0.499985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=460 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=460 baseSpriteId=460 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=east tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/grass
+    spriteIndex=460
+    quadUv=[0.751966,0.468765 -> 0.779284,0.499985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=460 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=460 baseSpriteId=460 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=south tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/grass
+    spriteIndex=460
+    quadUv=[0.751966,0.468765 -> 0.779284,0.499985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=460 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=460 baseSpriteId=460 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+  quad cullFace=unculled face=north tintIndex=0 hasTint=true shade=false
+    sprite=minecraft:block/grass
+    spriteIndex=460
+    quadUv=[0.751966,0.468765 -> 0.779284,0.499985]
+    javaAux normalSource=generated specularSource=generated
+    javaSpriteProvenance=spriteId=460 valid=true specular=false:Generated normal=false:Generated flags=false authoredHeight=false heightAlphaRange=none ao=none:no_normal_layer emission=none:no_specular_layer
+    javaSpriteSourceFlags=0x0
+    javaMaterialSet id=460 baseSpriteId=460 policy=global_material_id_table_v1 shaderLookupKey=pbr_texture_id_material_id nativeTable=true aliasesResolvedSprite=true
+    autoPbrTextureRule=flags=0x0 none
+    javaDisplacementEligibility=eligible=false reason=no_normal_layer heightSource=direct_labpbr_normal_alpha normalSource=Generated normalLayer=false authoredHeight=false visibleHeightRange=false alphaRange=none
+    nativeSpriteEntry=missing
+    inferredShaderHeightSource=flat:java_no_normal_layer
+    shaderDisplacementGates=global=true depthCapBlocks=0.500000 renderType=MODEL fluid=false java=no_normal_layer native=no_sprite_entry remainingShaderOnlyGates=renderer_variant,use_texture,block_geometry,coordinate_mode_0,not_hand,not_thin_cutout,uv_basis,uv_inside,view_angle,fade_distance
+totalQuads=8
+

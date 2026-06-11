@@ -1,0 +1,4 @@
+Radiance Overlay Snapshot
+=========================
+capturedAt=2026-06-11 08:55:35.875 CDT
+data=compositor=null,frameGenEnabled=0,decoupledPresent=0

@@ -1,0 +1,22 @@
+Radiance GPU Profile
+====================
+samplesRequested=120
+samplesValid=119
+capturedAt=2026-06-11T13:55:30.815004Z
+
+RayTracing=3.1120 ms
+RT.Atmosphere=0.1720 ms
+RT.BLAS_TLAS=2.9399 ms
+RT.WP.InputBarrier=0.0272 ms
+RT.WP.EntityBLAS=2.8804 ms
+RT.WP.BLASBuildBarrier=0.0000 ms
+RT.WP.TLASUpdate=0.0128 ms
+RT.WP.ASReadBarrier=0.0000 ms
+RT.WP.SBTSetup=0.0000 ms
+RT.WP.MetadataUpload=0.0130 ms
+RT.TexturePublish=0.0000 ms
+DLSS-RR=3.0048 ms
+ToneMapping=0.0931 ms
+PostRender=0.0725 ms
+TOTAL=6.2785 ms
+RT.WP.TLASBuild=0.0063 ms

@@ -1,0 +1,67 @@
+Radiance Runtime Snapshot
+=========================
+capturedAt=2026-06-11 08:55:15.530 CDT
+minecraftVersion=1.21.4
+radianceDir=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance
+runDirectory=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft
+
+World
+-----
+hasWorld=true
+dimension=minecraft:overworld
+timeOfDay=252538
+hasIntegratedServer=true
+playerBlockPos=711, 105, 250
+yaw=-88.071625
+pitch=33.553204
+
+Renderer
+--------
+gpuProfile=unavailable
+featureTruth=rendererUsable:1,gpuProfilerEnabled:0,rayBounces:16,simplifiedIndirectOption:0,serDevice:1,serOption:0,serHintsOption:1,serActive:0,rtDebugFlags:0,rayTracingModule:1,offlineAccumulating:0,sharcOption:1,sharcCompiled:1,rayTracingBackend:native,shaderPackRequestedPath:shaders/world/ray_tracing/vanilla-pt.zip,shaderPackSelectedPath:shaders/world/ray_tracing/vanilla-pt.zip,shaderPackPath:shaders/world/ray_tracing/vanilla-pt.zip,shaderPackRuntimeValid:1,shaderPackRuntimeStatus:validated,shaderPackBackendEnabled:1,shaderPackBackendStatus:executor_ready,shaderPackAdapterMode:pack_executor_pending_full_frame,shaderPackRuntimeResourceSetIndex:5,shaderPackExecutionSetIndex:6,shaderPackIntermediatesGenerated:0,shaderPackExecutorReady:1,shaderPackFullScreenPassDispatches:0,shaderPackComputePassDispatches:0,shaderPackRayTracingPassDispatches:0,shaderPackPassDispatch_trans_lut:0,shaderPackPassDispatch_sky_cube:0,shaderPackPassDispatch_world:0,shaderPackPassDispatch_volumetric_cloud_temporal:0,shaderPackPassDispatch_volumetric_cloud_apply:0,shaderPackRuntimeResourcesDeclared:1,shaderPackRuntimeResourcesReady:1,shaderPackVisualAssetsReady:1,shaderPackWorldQuerySharcDeclared:1,shaderPackSet4ReservedForForkVisualSettings:1,shaderPackSkyCubeDeclared:1,shaderPackSkyCubeReady:1,shaderPackSkyCubeIsCube:1,shaderPackSkyCubeWidth:128,shaderPackSkyCubeHeight:128,shaderPackSkyCubeLayers:6,shaderPackSkyCubeSampledBinding:2,shaderPackSkyCubeSampledViewIndex:7,shaderPackTransLutDeclared:1,shaderPackTransLutReady:1,shaderPackTransLutWidth:256,shaderPackTransLutHeight:64,shaderPackTransLutSampledBinding:0,shaderPackTransLutStorageBinding:1,shaderPackFirstFrameAttempted:0,shaderPackFallbackReason:none,shaderPackGraphPasses:0,shaderPackGraphUnsupportedPasses:0,shaderPackGraphWorldPasses:0,shaderPackFallbackActive:0,shaderPackSelectedVanillaPt:1,sbtGeometryTotal:95,sbtGeometryShadow:33,sbtGeometrySolid:11,sbtGeometryTransparent:50,sbtGeometryOther:1,alphaModeExpectedOpaqueGeometry:11,alphaModeExpectedTransparentGeometry:50,shaderPackCloudMode:off,shaderPackCloudModeEffective:0,shaderPackCloudSelectivePortActive:0,shaderPackCloudBackend:off,shaderPackCloudShadowsEnabled:0,shaderPackWaterSurfaceMode:realistic,shaderPackWaterSurfaceModeEffective:1,shaderPackFftWaterSurfaceActive:1,shaderPackWaterBackend:shader_pack,shaderPackWaterCausticsEnabled:1,shaderPackWaterCausticsActive:1,shaderPackVolumetricLightMode:vanilla,shaderPackVolumetricLightModeEffective:0,shaderPackVolumetricLightSelectivePortActive:0,shaderPackVolumetricLightBackend:shader_pack,shaderPackCloudTemporalAccumulation:false,shaderPackCloudIndirectCapture:false,shaderPackVisualSettingsSetIndex:4,shaderPackCloudBottomHeight:3000,shaderPackCloudTopHeight:11000,shaderPackCloudBaseScale:0.3,shaderPackCloudDetailScale:0.6,shaderPackCloudCoverage:0.5,shaderPackCloudDensity:1,shaderPackCloudViewSteps:64,shaderPackCloudLightSteps:12,shaderPackCloudAmbientSteps:8,shaderPackCloudShadowSoftness:0.5,shaderPackCloudAmbientStrength:1,shaderPackCloudPowderStrength:1,shaderPackCloudWeatherScale:0.02,shaderPackVolumetricLightSamples:16,shaderPackVolumetricLightScatteringStrength:2.75,shaderPackVolumetricLightMaxDistance:128,shaderPackVolumetricLightNearStepSize:1.75,shaderPackVolumetricLightFarStepSize:5,shaderPackVolumetricLightLuminanceLimit:4,forkNativeCloudModuleRegistered:0,rtOutputContractExpected:29,rtOutputResourceFamiliesReady:29,rtOutputContractComplete:1,dlssGuideInputContractExpected:24,dlssGuideOptionalFamiliesExpected:15,dlssGuideOptionalFamiliesReady:15,dlssGuideOptionalContractComplete:1,vanillaPtDeclaredOutImages:15,vanillaPtExtraOutImages:2,vanillaPtForkOutputProducer:not_ready,vanillaPtDlssGuideProducer:not_ready,vanillaPtMissingForkOutImages:0,vanillaPtMissingDlssGuideImages:0,vanillaPtRequiresSynthesizedDefaults:0,vanillaPtMissingDlssGuideList:diffuse_ray_dir_hit_dist|specular_ray_dir_hit_dist|reflection_mv|animated_tex_mask|particle_mask|bias_mask|rt_hit_dist|motion_vectors_3d|gbuffer_metallic|gbuffer_shading_model_id|gbuffer_material_id|position_view_space|transparency_layer|transparency_layer_opacity|transparency_layer_mvecs,vanillaPtExtraOutImageList:fog_image|first_hit_refraction,sharcBuffersCompiled:0,sharcUpdateCompiled:0,sharcResolveCompiled:0,sharcQueryPassCompiled:0,sharcMainTraceCompiled:0,sharcQueryMode:0,sharcMainTraceQueryMode:1,sharcBuffersAllocated:0,sharcBuffersInitialized:0,sharcResizePending:0,sharcUpdatePipeline:0,sharcResolvePipeline:0,sharcQueryPipeline:0,sharcMainTraceQueryPossible:0,sharcMainTraceQueryActive:0,sharcQueryPassPossible:0,sharcMainTraceWarmupFrames:8,sharcUpdateResolvePossible:0,sharcUpdateSbtReady:0,sharcUpdateSbtTotal:0,sharcRequestedCapacityExponent:21,sharcEffectiveCapacityExponent:21,sharcRequestedUpdateBounces:4,sharcEffectiveUpdateBounces:4,sharcStreamStableFrames:0,sharcDispatchReady:0,sharcCapacity:2097152,sharcFrameIndex:0,sharcCandidates:0,sharcActiveTerminated:0,sharcQueryAttempts:0,sharcQueryHits:0,sharcQueryMisses:0,sharcQueryInvalid:0,sharcQueryVoxelSkips:0,sharcQueryWrites:0,entityBatch:21,entityPostBatch:0,entityNonPrebuilt:21,entityPrebuilt:0,entityGeometries:30,entityVertices:5592,entityIndices:8676,entityFlag_world_count:19,entityFlag_world_nonPrebuilt:19,entityFlag_world_geometries:26,entityFlag_world_vertices:4928,entityFlag_world_indices:7680,entityFlag_player_count:1,entityFlag_player_nonPrebuilt:1,entityFlag_player_geometries:2,entityFlag_player_vertices:308,entityFlag_player_indices:462,entityFlag_playerHead_count:1,entityFlag_playerHead_nonPrebuilt:1,entityFlag_playerHead_geometries:2,entityFlag_playerHead_vertices:356,entityFlag_playerHead_indices:534
+colorPipeline=rendererUsable:1,hdrOption:0,hdrScrgbRequested:0,swapchainHdr:0,swapchainHdr10:0,swapchainScRgb:0,swapchainFormat:37,swapchainColorSpace:0,swapchainTransferSrc:1,sdrTonemapMode:1,sdrWorkingSpace:BT709,sdrFinalGamutMap:none,sdrHardClamp:1,sdrPsychoWorkingSpace:BT709,hdrTonemapMode:0,saturation:1.3,saturationAdaptive:0,sdrTransferFunction:1,paperWhiteNits:203,peakNits:1000,sharpenerMode:0
+dlssgLatency=dlssgSupported:1,initialized:1,featureLoaded:0,active:0,frameGenMode:0,optionMode:0,optionEnabled:0,optionMultiplier:1,maxFrames:5,queueMode:default,recreateInProgress:0,recreateGeneration:2,completionCaptures:0,completionFailures:0,completionNullFence:0,completionZeroValue:0,validSlots:0,lastStatus:0,lastMinWidth:0,lastMaxFrames:0,lastPresented:0,lastCaptureSlot:4294967295,lastSource:none,lastFence:0x0,lastFenceValue:0,waitCalls:9231,waitSuccess:0,waitFailures:0,waitTimeouts:0,waitNoops:9231,waitTotalUs:0,waitAvgUs:0,waitMaxUs:0,lastWaitUs:0,lastWaitSlot:0,lastWaitPresentSerial:0,lastWaitVkResult:0,globalWaitCalls:2,pendingSerialAge:0,lastTagCount:0,depthTagged:0,depthSize:0x0,depthFormat:0,mvTagged:0,mvSize:0x0,mvFormat:0,hudlessTagged:0,hudlessSize:0x0,hudlessFormat:0
+vmaStats=totalAllocMB:6779.1,usedMB:6014.5,budgetMB:38698.8,budgetUsageMB:6779.1,allocations:3182,blocks:173
+overlayDiag=compositor=null,frameGenEnabled=0,decoupledPresent=0
+textureReload=finalized:0,generation:0,sprites:0,atlasWidth:0,atlasHeight:0,layerSize:0,animated:0,materials:0,materialPages:0,materialPageRevision:1,albedoArray:4294967295,specularArray:4294967295,normalArray:4294967295,flagArray:4294967295,textureDebugDumped:1,chunkTotal:1944,chunksWithBlas:12,chunksMatchingGeneration:12,chunksStaleGeneration:0,chunksWithoutBlas:1932,chunkInputQueue:0,chunkGen_0:1944
+javaTextureGeneration=1
+javaSpriteCount=1810
+
+Material Lab
+------------
+lastRecipeRehydrate=RehydrateReport[discovered=0, applied=0, skipped=0, failed=0]
+lastRecipeRehydrateAtMillis=0
+spriteProvenanceCounts=sprites=1810 specular[pack=0,generated=1810,user=0,flat=0] normal[pack=0,generated=1810,user=0,flat=0] flags=0 authoredHeight=0 visibleHeightRange=0 aoDetectable=0 emissionDetectable=0 textureRules=0
+textureRuleDiagnostics=lastRehydrate=RehydrateReport[discovered=0, applied=0, skipped=0, failed=0] lastRehydrateAtMillis=0 defaultSeeds=0 spriteCounts{sprites=1810 specular[pack=0,generated=1810,user=0,flat=0] normal[pack=0,generated=1810,user=0,flat=0] flags=0 authoredHeight=0 visibleHeightRange=0 aoDetectable=0 emissionDetectable=0 textureRules=0}
+materialCompatFlags=enabled=true ctm=true random=true natural=true colors=true overlays=true legacyMcPatcher=true physicalEmissive=true ctmAtlasAdmissionLimit=0
+materialCompatRenderingConsumesCompatibility=true
+pbrMissingSpriteFallback=minecraft:block/dirt
+displacementHeightSource=direct_labpbr_normal_alpha
+generatedHeightDisplacement=not_supported
+displacementKnownBlockers=global_disabled,zero_depth,renderer_variant_no_height,non_block_geometry,hand_geometry,fluid_geometry,thin_cutout_plant,missing_native_sprite_entry,missing_normal_layer,no_height_flag,normal_source_generated_or_flat,uniform_normal_alpha,fade_distance,invalid_uv_basis,grazing_view
+
+Options
+-------
+loggingEnabled=true
+gpuDebugLabels=true
+displacementEnabled=true
+displacementQuality=Ultra
+displacementHeightSource=direct_labpbr_normal_alpha
+displacementProxyGeometry=disabled
+displacementPath=shader_smooth_height_field
+upscalerMode=0
+frameGenMode=1
+frameGenMultiplier=5
+dlssgQueueParallelism=false
+reflexEnabled=true
+rayBounces=4
+sharcEnabled=false
+
+Paths
+-----
+latestRuntimeSnapshot=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\logs\runtime_snapshot_latest.txt
+latestTargetInspect=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\logs\debug_inspect_latest.txt
+latestDebugBundle=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\logs\debug_bundle_latest.zip
+textureManifest=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\logs\texture_manifest.json
+materialCompatReport=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\logs\radser-pack-index.json
+textureFullCsv=C:\RadSER\texture_system_full.csv

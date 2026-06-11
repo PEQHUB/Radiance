@@ -1,0 +1,30 @@
+=== Radiance Crash Context ===
+Time: 2026-06-11 08:55:39.626
+Type: Clean shutdown (crash ring has no failed Vulkan results)
+
+Pipeline: pipeline_fork.yaml
+
+--- Recent Settings Changes (newest last) ---
+  (none recorded)
+
+--- Global Settings ---
+autoPBREnabled=true
+rayBounces=4
+upscalerResOverride=33
+displacementEnabled=true
+displacementDepthCapPercent=50
+displacementQuality=4 (Ultra)
+displacementSteps=96
+displacementRefinement=6
+displacementFadeDistance=64
+sharcQualityPreset=5
+sharcCapacityExponent=24
+reflexEnabled=true
+vrrMode=false
+chunkBuildingBatchSize=1
+chunkBuildingTotalBatches=32
+
+--- Material Lab ---
+  mode=texture-primary
+
+=== End ===
