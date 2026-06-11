@@ -243,6 +243,10 @@ public class MinecraftClientMixins {
     // region <close>
     @Inject(method = "close()V", at = @At(value = "HEAD"))
     public void closeNativeRenderer(CallbackInfo ci) {
+        // Texture residency threads must stop issuing JNI uploads before the
+        // native device is destroyed; otherwise they corrupt texture-system
+        // state mid-teardown (exit AV in core.dll static destructors).
+        com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap.shutdownForClientClose();
         CloudTileManager.shutdown();
         if (EngineBridge.nativeIsInitialized()) {
             EngineBridge.nativeShutdown();

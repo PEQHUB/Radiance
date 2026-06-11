@@ -54,6 +54,42 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static final AtomicLong FIRST_FRAME_DRAIN_REQUESTS = new AtomicLong(0L);
     private static final AtomicLong PARKED_GENERATION = new AtomicLong(-1L);
     private static volatile String lastBlockedReasonKey = "";
+    private static final AtomicBoolean SHUTTING_DOWN = new AtomicBoolean(false);
+
+    public static boolean isShuttingDown() {
+        return SHUTTING_DOWN.get();
+    }
+
+    /**
+     * Quiesce texture residency before the native renderer is destroyed.
+     * The residency daemon thread was still issuing JNI uploads while
+     * MinecraftClient.close() tore down the Vulkan device, corrupting native
+     * texture-system state (access violation in core.dll static destructors
+     * on every exit). Order: stop accepting work, cancel the active texture
+     * generation (native rejects stale uploads), then wait bounded for the
+     * in-flight batch to drain.
+     */
+    public static void shutdownForClientClose() {
+        if (!SHUTTING_DOWN.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            com.radiance.client.texture.v4.TextureLoadGeneration.cancelActive();
+        } catch (Throwable ignored) {
+        }
+        RESIDENCY_SCHEDULER.shutdownNow();
+        long deadlineNanos = System.nanoTime() + 1_500_000_000L;
+        while (RESIDENCY_RUNNING.get() && System.nanoTime() < deadlineNanos) {
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        LOGGER.info("[MaterialCompat] Residency quiesced for client close (uploadStillRunning={})",
+            RESIDENCY_RUNNING.get());
+    }
     private static final ScheduledExecutorService RESIDENCY_SCHEDULER =
         Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "RadSER Material Residency Scheduler");
@@ -552,7 +588,8 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     }
 
     private static void scheduleResidencyUpload(long generation, long delayMs) {
-        if (generation != activeResidencyGeneration || shouldDeferResidency(generation)) {
+        if (SHUTTING_DOWN.get() || generation != activeResidencyGeneration
+            || shouldDeferResidency(generation)) {
             return;
         }
         PARKED_GENERATION.set(-1L);
@@ -582,7 +619,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
 
     private static boolean startResidencyUpload(JsonObject root, ResourceMaterialRegistry.Snapshot snapshot,
         long generation, String cacheKey) {
-        if (shouldDeferResidency(generation)) {
+        if (SHUTTING_DOWN.get() || shouldDeferResidency(generation)) {
             return false;
         }
         if (!RESIDENCY_RUNNING.compareAndSet(false, true)) {

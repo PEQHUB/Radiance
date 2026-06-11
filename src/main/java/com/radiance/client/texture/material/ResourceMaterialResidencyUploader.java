@@ -198,6 +198,11 @@ public final class ResourceMaterialResidencyUploader {
         ExecutorService layerExecutor = newLayerExecutor(layerDecodeThreads);
         try {
             while (nextItem < items.size()) {
+                if (com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap.isShuttingDown()) {
+                    json.addProperty("cancelled", true);
+                    json.addProperty("cancelReason", "client_shutdown");
+                    break;
+                }
                 if (!generationMatches(generation)) {
                     json.addProperty("cancelled", true);
                     json.addProperty("cancelReason", "stale_generation_before_page");
