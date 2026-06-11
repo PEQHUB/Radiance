@@ -91,8 +91,8 @@ public final class TextureLoadScheduler {
      *
      * @param generation active texture load generation
      * @param tierIndex  tier index (0=T16, 1=T32, ... 6=T1024)
-     * @param pageHint   page hint (-1 for native allocation)
-     * @param startLayerHint start layer hint (-1 for native allocation)
+     * @param javaPage   absolute Java tier page (VANILLA_TIER_FIRST_PAGE + sequential index)
+     * @param javaStartLayer start layer within the full Java tier page
      * @param layerCount number of layers in this upload
      * @param layerCapacity total layers in the Java-planned tier page
      * @param tierSize   pixel dimension of the tier (16, 32, 64, ...)
@@ -103,8 +103,8 @@ public final class TextureLoadScheduler {
      * @param visible    whether this upload is visible (affects first-frame priority)
      * @return true if the upload was accepted by native
      */
-    public static boolean uploadTierPage(long generation, int tierIndex, int pageHint,
-                                          int startLayerHint, int layerCount, int layerCapacity, int tierSize,
+    public static boolean uploadTierPage(long generation, int tierIndex, int javaPage,
+                                          int javaStartLayer, int layerCount, int layerCapacity, int tierSize,
                                           ByteBuffer albedo, ByteBuffer specular,
                                           ByteBuffer normal, ByteBuffer flag,
                                           boolean visible) {
@@ -153,8 +153,8 @@ public final class TextureLoadScheduler {
                 generation,
                 1, // NAMESPACE_VANILLA
                 tierIndex,
-                pageHint,
-                startLayerHint,
+                javaPage,
+                javaStartLayer,
                 layerCount,
                 layerCapacity,
                 tierSize,

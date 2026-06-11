@@ -9,7 +9,7 @@ package com.radiance.client.build;
 public final class BuildInfo {
 
     /** Git commit hash (full 40-char hex). */
-    public static final String REPO_COMMIT = "1307c4af4d539665cc396ae0d026095a3d599ba2";
+    public static final String REPO_COMMIT = "db15f0491d4bd3d8532fbd9490b180aef9b8efa8";
 
     /** Git branch name. */
     public static final String BRANCH = "rehab/texture-loader-v4-finish-single-path";
@@ -18,7 +18,7 @@ public final class BuildInfo {
     public static final boolean DIRTY = true;
 
     /** ISO-8601 timestamp of the build. */
-    public static final String BUILD_TIMESTAMP = "2026-06-10T08:28:26Z";
+    public static final String BUILD_TIMESTAMP = "2026-06-10T12:00:00Z";
 
     /** SHA-256 of the deployed JAR, or "unknown" if not yet computed. */
     public static final String JAR_SHA256 = "unknown";
