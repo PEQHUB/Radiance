@@ -286,6 +286,32 @@ public class ChunkProxy {
             + "}";
     }
 
+    public static String chunkIngestStatusJson() {
+        int nativeInputQueueSize;
+        String nativeInputQueueError = "";
+        try {
+            nativeInputQueueSize = nativeGetInputQueueSize();
+        } catch (Throwable t) {
+            nativeInputQueueSize = -1;
+            nativeInputQueueError = t.getClass().getSimpleName() + ": " + t.getMessage();
+        }
+        return "{"
+            + "\"schema\":\"radser_chunk_ingest_status_v1\","
+            + "\"javaRebuildQueueSize\":" + rebuildQueue.size() + ","
+            + "\"pendingImportantTasks\":" + rebuildTasks.size() + ","
+            + "\"nativeInputQueueSize\":" + nativeInputQueueSize + ","
+            + "\"nativeInputQueueError\":\"" + escapeJson(nativeInputQueueError) + "\","
+            + "\"importantChunkWait\":" + importantChunkWaitStatusJson()
+            + "}";
+    }
+
+    private static String escapeJson(String value) {
+        if (value == null || value.isEmpty()) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
     private static void rebuildSingle(ChunkBuilder.BuiltChunk builtChunk, boolean important,
         long generation) {
         if (generation != rebuildGeneration.get()) {
@@ -502,4 +528,6 @@ public class ChunkProxy {
     }
 
     public static native void invalidateSingle(long index);
+
+    public static native int nativeGetInputQueueSize();
 }
