@@ -7,26 +7,102 @@ import com.radiance.client.proxy.vulkan.TextureArrayBridgeV4;
 import net.minecraft.client.MinecraftClient;
 
 /**
- * Strict first-frame texture readiness — no timeout success path.
+ * Bounded first-frame texture readiness with a release latch.
  *
- * Replaces the old FirstFrameTextureReadiness which could return
- * ready=true via timeout_release. In v4, timeout can only produce
- * ready=false with reason="timeout_failure", never ready=true.
- *
- * Readiness requires ALL of:
+ * Strict readiness requires ALL of:
  *   - world present
  *   - generation > 0
  *   - visible material set known
- *   - zero visible fallback materials
- *   - zero failed visible materials
+ *   - zero visible fallback materials (failed materials do NOT block:
+ *     failure is a terminal state that renders the permanent fallback,
+ *     so waiting on it can never succeed)
  *   - zero pending visible upload bytes
  *   - zero pending native mip pages
  *   - zero unready allocated native pages
  *   - zero pending visible material table updates
+ *
+ * The gate is bounded: once a world is present for the active generation,
+ * strict readiness has {@code radser.textureLoader.firstFrameDeadlineMs}
+ * (default 3000 ms) to converge. At the deadline the gate releases with
+ * fallback materials visible instead of withholding the world pass.
+ * Either form of release latches for the generation — after the first
+ * release the world pass is never withheld again, even if new chunks add
+ * fallback materials later. A texture-generation mismatch must never make
+ * valid geometry invisible; stale/fallback materials are preferred over
+ * dropped frames.
  */
 public final class FirstFrameTextureReadiness {
 
+    private static final long DEADLINE_DEFAULT_MS = 3000L;
+    private static final long DEADLINE_MIN_MS = 250L;
+    private static final long DEADLINE_MAX_MS = 30000L;
+    private static final org.slf4j.Logger LOGGER =
+        org.slf4j.LoggerFactory.getLogger("RadSER Texture Readiness");
+
+    private static final Object GATE_LOCK = new Object();
+    private static long gateGeneration = -1L;
+    private static long firstWorldEvalNanos = 0L;
+    private static boolean released = false;
+    private static boolean releasedByDeadline = false;
+
     private FirstFrameTextureReadiness() {}
+
+    private static long deadlineMs() {
+        long value = DEADLINE_DEFAULT_MS;
+        String property = System.getProperty("radser.textureLoader.firstFrameDeadlineMs", "");
+        if (!property.isBlank()) {
+            try {
+                value = Long.parseLong(property.trim());
+            } catch (NumberFormatException ignored) {
+                value = DEADLINE_DEFAULT_MS;
+            }
+        }
+        return Math.max(DEADLINE_MIN_MS, Math.min(DEADLINE_MAX_MS, value));
+    }
+
+    /**
+     * Apply the bounded-release latch to a strict readiness result.
+     * Returns the effective readiness and records release transitions.
+     */
+    private static GateDecision applyReleaseLatch(boolean worldPresent, long generation,
+                                                  boolean strictReady, JsonObject strictStatus) {
+        synchronized (GATE_LOCK) {
+            if (generation != gateGeneration) {
+                gateGeneration = generation;
+                firstWorldEvalNanos = 0L;
+                released = false;
+                releasedByDeadline = false;
+            }
+            if (!worldPresent || generation <= 0L) {
+                // No world: the deadline clock does not run, but a previous
+                // release for this generation stays latched.
+                return new GateDecision(released, releasedByDeadline, 0L);
+            }
+            if (strictReady && !released) {
+                released = true;
+                releasedByDeadline = false;
+            }
+            long elapsedMs = 0L;
+            if (!released) {
+                if (firstWorldEvalNanos == 0L) {
+                    firstWorldEvalNanos = System.nanoTime();
+                }
+                elapsedMs = (System.nanoTime() - firstWorldEvalNanos) / 1_000_000L;
+                if (elapsedMs >= deadlineMs()) {
+                    released = true;
+                    releasedByDeadline = true;
+                    LOGGER.warn("[TextureReadiness] First-frame gate released at deadline ({} ms) for generation {} "
+                            + "with fallback materials visible; blocking status: {}",
+                        deadlineMs(), generation, strictStatus);
+                }
+            } else if (firstWorldEvalNanos != 0L) {
+                elapsedMs = (System.nanoTime() - firstWorldEvalNanos) / 1_000_000L;
+            }
+            return new GateDecision(released, releasedByDeadline, elapsedMs);
+        }
+    }
+
+    private record GateDecision(boolean released, boolean byDeadline, long elapsedMs) {}
 
     /** Quick boolean check. */
     public static boolean ready(boolean worldPresent) {
@@ -63,12 +139,11 @@ public final class FirstFrameTextureReadiness {
 
         boolean nativeIdle = boolProp(nativeJson, "generationIdle", false);
 
-        boolean ready = worldPresent
+        boolean strictReady = worldPresent
             && generation > 0L
             && visibleKnown
             && (visibleMaterialCount > 0 || emptyPlanAllowed)
             && visibleFallbacks == 0
-            && failedVisible == 0
             && pendingVisibleBytes == 0L
             && nativeIdle
             && pendingMipPages == 0
@@ -79,14 +154,26 @@ public final class FirstFrameTextureReadiness {
         json.addProperty("schema", "radser_first_frame_texture_readiness_v4");
         json.addProperty("worldPresent", worldPresent);
         json.addProperty("generation", generation);
-        json.addProperty("ready", ready);
-        json.addProperty("timedOut", false);
+        json.addProperty("strictReady", strictReady);
         json.addProperty("readinessBackend", "v4");
         json.addProperty("legacyFallbackUsed", false);
-        json.addProperty("reason", ready ? "texture_material_ready"
+        String strictReason = strictReady ? "texture_material_ready"
             : reason(worldPresent, generation, visibleKnown, visibleFallbacks,
                      failedVisible, pendingVisibleBytes, nativeIdle, pendingMipPages,
-                     unreadyPages, pendingTableUpdates));
+                     unreadyPages, pendingTableUpdates);
+        json.addProperty("ready", strictReady);
+        json.addProperty("reason", strictReason);
+
+        GateDecision decision = applyReleaseLatch(worldPresent, generation, strictReady, json);
+        boolean ready = strictReady || decision.released();
+        json.addProperty("ready", ready);
+        json.addProperty("reason", ready && !strictReady
+            ? "deadline_release_fallback_visible"
+            : strictReason);
+        json.addProperty("timedOut", decision.byDeadline());
+        json.addProperty("releaseLatched", decision.released());
+        json.addProperty("gateDeadlineMs", deadlineMs());
+        json.addProperty("gateElapsedMs", decision.elapsedMs());
         json.addProperty("visibleMaterialSetKnown", visibleKnown);
         json.addProperty("visibleMaterialCount", visibleMaterialCount);
         json.addProperty("emptyPlanAllowed", emptyPlanAllowed);
@@ -114,7 +201,8 @@ public final class FirstFrameTextureReadiness {
         if (residency.visibleMaterialCount() == 0 && !FirstFrameMaterialPlanner.isEmptyPlanAllowed()) {
             return FirstFrameMaterialPlanner.emptyPlanReason();
         }
-        if (failedVisible > 0) return "failed_visible_materials";
+        // failedVisible is intentionally not a blocking reason: failed materials
+        // are terminal and render the permanent fallback.
         if (visibleFallbacks > 0) return "waiting_for_visible_material_residency";
         if (pendingVisibleBytes > 0L) return "waiting_for_visible_gpu_uploads";
         if (!nativeIdle) return "waiting_for_native_generation_idle";
