@@ -52,6 +52,8 @@ public final class ResourcePackRuntimeMaterialBootstrap {
     private static final AtomicLong RESIDENCY_UPLOAD_EVENTS = new AtomicLong(0L);
     private static final AtomicLong FIRST_FRAME_PLAN_REQUESTS = new AtomicLong(0L);
     private static final AtomicLong FIRST_FRAME_DRAIN_REQUESTS = new AtomicLong(0L);
+    private static final AtomicLong PARKED_GENERATION = new AtomicLong(-1L);
+    private static volatile String lastBlockedReasonKey = "";
     private static final ScheduledExecutorService RESIDENCY_SCHEDULER =
         Executors.newSingleThreadScheduledExecutor(runnable -> {
             Thread thread = new Thread(runnable, "RadSER Material Residency Scheduler");
@@ -553,6 +555,7 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         if (generation != activeResidencyGeneration || shouldDeferResidency(generation)) {
             return;
         }
+        PARKED_GENERATION.set(-1L);
         if (!RESIDENCY_SCHEDULED.compareAndSet(false, true)) {
             return;
         }
@@ -589,13 +592,17 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         RESIDENCY_UPLOAD_EVENTS.incrementAndGet();
         Thread thread = new Thread(() -> {
             long startedNanos = System.nanoTime();
+            long epochAtStart = ResourceMaterialResidencyDemand.demandEpoch(generation);
+            final int[] uploadedHolder = {0};
             try {
                 JsonObject upload =
                     ResourceMaterialResidencyUploader.uploadFromCompatReport(root, snapshot, true,
                         Options.ctmDemandResidency && !Options.materialCompatFullPreloadDiagnostic,
                         cacheKey);
-                boolean tableUploaded = boolProperty(upload, "materialTableUploadedFinal");
+                boolean tableUploaded = boolProperty(upload, "materialTableUploadedFinal")
+                    || intProperty(upload, "materialTableUploadSuccesses") > 0;
                 int uploadedMaterials = intProperty(upload, "uploadedMaterials");
+                uploadedHolder[0] = uploadedMaterials;
                 boolean semanticResidencyUploaded = boolProperty(upload, "semanticResidencyUploaded");
                 int nativePageFailures = intProperty(upload, "nativePageFailures");
                 LAST_RESIDENCY_BATCH_SIZE.set(uploadedMaterials);
@@ -613,10 +620,15 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                     !Options.ctmDemandResidency || Options.materialCompatFullPreloadDiagnostic);
                 statusEvent.addProperty("totalMs", millis(startedNanos));
                 ResourceMaterialRuntimeStatus.write("residencyComplete", generation, statusEvent);
-                LOGGER.info("[MaterialCompat] Runtime material residency complete for generation {}: "
-                        + "{} materials resident, semanticUploaded={}, tableUploaded={}, nativePageFailures={}, totalMs={}",
-                    generation, uploadedMaterials, semanticResidencyUploaded, tableUploaded, nativePageFailures,
-                    String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
+                if (uploadedMaterials > 0 || nativePageFailures > 0) {
+                    LOGGER.info("[MaterialCompat] Runtime material residency complete for generation {}: "
+                            + "{} materials resident, semanticUploaded={}, tableUploaded={}, nativePageFailures={}, totalMs={}",
+                        generation, uploadedMaterials, semanticResidencyUploaded, tableUploaded, nativePageFailures,
+                        String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
+                } else {
+                    LOGGER.debug("[MaterialCompat] Runtime material residency no-op for generation {} ({} ms)",
+                        generation, String.format(Locale.ROOT, "%.2f", millis(startedNanos)));
+                }
                 LAST_RESIDENCY_VISIBLE_COUNT.set(
                     ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size());
                 recordResidencyDescriptorOnlyUpdate(generation, upload);
@@ -629,11 +641,25 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             } finally {
                 RESIDENCY_RUNNING.set(false);
                 if (generation == activeResidencyGeneration) {
-                    if (!ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty()) {
+                    boolean pendingDemand =
+                        !ResourceMaterialResidencyDemand.residencyMaterialIds(generation).isEmpty();
+                    boolean newDemand =
+                        ResourceMaterialResidencyDemand.demandEpoch(generation) != epochAtStart;
+                    boolean progressed = uploadedHolder[0] > 0;
+                    if (pendingDemand && (newDemand || progressed)) {
+                        // More work and a reason to believe it can advance.
                         scheduleResidencyUpload(generation, 50L);
                     } else if (ResourceMaterialResidencyDemand.visibleMaterialIds(generation).size()
                         > LAST_RESIDENCY_VISIBLE_COUNT.get()) {
                         scheduleResidencyUpload(generation, 150L);
+                    } else if (pendingDemand && PARKED_GENERATION.getAndSet(generation) != generation) {
+                        // Remaining demand cannot currently advance (e.g. retryable
+                        // failures with no new input). Park until new demand arrives
+                        // via the enqueue hooks instead of respinning.
+                        LOGGER.info("[MaterialCompat] Residency parked for generation {} with {} "
+                                + "unsatisfied requests; will wake on new demand",
+                            generation,
+                            ResourceMaterialResidencyDemand.residencyMaterialIds(generation).size());
                     }
                 }
             }
@@ -699,11 +725,19 @@ public final class ResourcePackRuntimeMaterialBootstrap {
                         : "native_material_page_failure";
             statusEvent.addProperty("reason", reason);
             ResourceMaterialRuntimeStatus.write("residencyDescriptorOnlyUpdateBlocked", generation, statusEvent);
-            LOGGER.warn("[MaterialCompat] Residency descriptor-only success blocked for generation {}: "
-                    + "uploadedMaterials={}, nativePageFailures={}, nativePageFailedMaterials={}, "
-                    + "materialTableUploadFailures={}, visibleFallbacks={}",
-                generation, uploadedMaterials, nativePageFailures, nativePageFailedMaterials,
-                materialTableUploadFailures, visibleFallbackMaterialCount);
+            String reasonKey = generation + ":" + reason;
+            if (!reasonKey.equals(lastBlockedReasonKey)) {
+                lastBlockedReasonKey = reasonKey;
+                LOGGER.warn("[MaterialCompat] Residency descriptor-only success blocked for generation {}: "
+                        + "reason={}, uploadedMaterials={}, nativePageFailures={}, nativePageFailedMaterials={}, "
+                        + "materialTableUploadFailures={}, visibleFallbacks={} (further identical blocks logged at debug)",
+                    generation, reason, uploadedMaterials, nativePageFailures, nativePageFailedMaterials,
+                    materialTableUploadFailures, visibleFallbackMaterialCount);
+            } else {
+                LOGGER.debug("[MaterialCompat] Residency descriptor-only success blocked for generation {}: "
+                        + "reason={}, uploadedMaterials={}, visibleFallbacks={}",
+                    generation, reason, uploadedMaterials, visibleFallbackMaterialCount);
+            }
             return;
         }
         statusEvent.addProperty("geometryAffectingMaterialChange", false);

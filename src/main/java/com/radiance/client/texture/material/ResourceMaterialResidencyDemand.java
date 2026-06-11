@@ -34,8 +34,21 @@ public final class ResourceMaterialResidencyDemand {
     private static final AtomicLong prewarmUniqueRequests = new AtomicLong();
     private static final AtomicLong visiblePriorityCandidates = new AtomicLong();
     private static final AtomicLong visibleResidentEvents = new AtomicLong();
+    private static final AtomicLong demandEpoch = new AtomicLong();
 
     private ResourceMaterialResidencyDemand() {
+    }
+
+    /**
+     * Monotonic counter bumped whenever demand gains a member it did not have
+     * (new visible/prewarm/planned id, or a retryable failure re-queued).
+     * The residency scheduler compares epochs across a batch to decide whether
+     * re-running can make progress; unchanged epoch + zero uploads means the
+     * remaining demand is currently unsatisfiable and the scheduler must idle
+     * instead of spinning.
+     */
+    public static long demandEpoch(long generation) {
+        return generation == activeGeneration ? demandEpoch.get() : -1L;
     }
 
     public static void resetForGeneration(long generation) {
@@ -68,7 +81,9 @@ public final class ResourceMaterialResidencyDemand {
             return;
         }
         ensureGeneration(generation);
-        if (generation != activeGeneration) {
+        if (generation != activeGeneration || permanentFailedMaterials.contains(materialId)) {
+            // Permanent failures are terminal fallback: demand must never re-enter,
+            // or chunk rebuilds re-enqueue the same unsatisfiable ids forever.
             return;
         }
         plannedFirstFrameRequestEvents.incrementAndGet();
@@ -76,6 +91,7 @@ public final class ResourceMaterialResidencyDemand {
             plannedFirstFrameUniqueRequests.incrementAndGet();
             prewarmMaterials.add(materialId);
             requestedMaterials.add(materialId);
+            demandEpoch.incrementAndGet();
             ResourcePackRuntimeMaterialBootstrap.onPlannedFirstFrameMaterialDemand(generation);
         }
     }
@@ -85,13 +101,14 @@ public final class ResourceMaterialResidencyDemand {
             return;
         }
         ensureGeneration(generation);
-        if (generation != activeGeneration) {
+        if (generation != activeGeneration || permanentFailedMaterials.contains(materialId)) {
             return;
         }
         prewarmRequestEvents.incrementAndGet();
         if (prewarmMaterials.add(materialId)) {
             prewarmUniqueRequests.incrementAndGet();
             requestedMaterials.add(materialId);
+            demandEpoch.incrementAndGet();
             ResourcePackRuntimeMaterialBootstrap.onPrewarmMaterialDemand(generation);
         }
     }
@@ -104,10 +121,17 @@ public final class ResourceMaterialResidencyDemand {
         if (generation != activeGeneration) {
             return;
         }
+        if (permanentFailedMaterials.contains(materialId)) {
+            // Keep the id in visibleMaterials (fallback accounting) but never
+            // re-admit it to the requested/demand sets.
+            visibleMaterials.add(materialId);
+            return;
+        }
         visibleRequestEvents.incrementAndGet();
         if (visibleMaterials.add(materialId)) {
             visibleUniqueRequests.incrementAndGet();
             requestedMaterials.add(materialId);
+            demandEpoch.incrementAndGet();
             ResourcePackRuntimeMaterialBootstrap.onVisibleMaterialDemand(generation);
         }
     }
@@ -192,7 +216,9 @@ public final class ResourceMaterialResidencyDemand {
         for (Integer materialId : materialIds) {
             if (materialId != null && materialId >= 0 && !permanentFailedMaterials.contains(materialId)) {
                 snapshotIds.add(materialId);
-                requestedMaterials.add(materialId);
+                if (requestedMaterials.add(materialId)) {
+                    demandEpoch.incrementAndGet();
+                }
                 retryableFailedMaterials.add(materialId);
             }
         }

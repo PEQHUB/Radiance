@@ -104,7 +104,11 @@ public final class ResourceMaterialResidencyUploader {
         }
 
         long generation = snapshot.generation();
-        List<UploadItem> items = collectUploadItems(root, generation, visibleOnly);
+        DependencyScan scan = collectUploadItems(root, generation, visibleOnly);
+        List<UploadItem> items = scan.items();
+        if (visibleOnly) {
+            drainUnsatisfiableDemand(generation, scan, json);
+        }
         if (visibleOnly && items.isEmpty()) {
             json.addProperty("attempted", false);
             json.addProperty("reason", "no_visible_material_demand");
@@ -600,25 +604,33 @@ public final class ResourceMaterialResidencyUploader {
         ResourceMaterialRuntimeStatus.write(status, generation, event);
     }
 
-    private static List<UploadItem> collectUploadItems(JsonObject root, long generation, boolean visibleOnly) {
+    private record DependencyScan(List<UploadItem> items,
+                                  Set<Integer> knownMaterialIds,
+                                  Set<Integer> presentMaterialIds) {}
+
+    private static DependencyScan collectUploadItems(JsonObject root, long generation, boolean visibleOnly) {
         JsonArray dependencies = array(object(root, "activeCtmAtlasDependencies"), "dependencies");
         Set<Integer> requestedMaterialIds = visibleOnly
             ? ResourceMaterialResidencyDemand.residencyMaterialIds(generation)
             : Set.of();
         ArrayList<UploadItem> items = new ArrayList<>();
+        java.util.HashSet<Integer> known = new java.util.HashSet<>();
+        java.util.HashSet<Integer> present = new java.util.HashSet<>();
         for (JsonElement element : dependencies) {
             if (!element.isJsonObject()) {
                 continue;
             }
             JsonObject dependency = element.getAsJsonObject();
-            if (!boolProperty(dependency, "present")) {
-                continue;
-            }
             String path = stringProperty(dependency, "path");
             int materialId = ResourceMaterialRegistry.materialIdForCompatCtmAssetPathExact(path);
             if (materialId < 0) {
                 continue;
             }
+            known.add(materialId);
+            if (!boolProperty(dependency, "present")) {
+                continue;
+            }
+            present.add(materialId);
             if (visibleOnly && (!requestedMaterialIds.contains(materialId)
                 || ResourceMaterialResidencyDemand.isVisibleResident(generation, materialId))) {
                 continue;
@@ -633,7 +645,85 @@ public final class ResourceMaterialResidencyUploader {
                 boolProperty(dependency, "normalPresent"),
                 boolProperty(dependency, "flagPresent")));
         }
-        return items;
+        return new DependencyScan(items, known, present);
+    }
+
+    /**
+     * Demand ids that no present CTM dependency can ever satisfy are terminal:
+     * mark them permanently failed (fallback-forever, excluded from readiness
+     * blocking) and drain them from the demand set so the scheduler can idle.
+     * Without this, unsatisfiable visible materials kept the fallback count
+     * above zero and the residency loop respinning indefinitely.
+     */
+    private static void drainUnsatisfiableDemand(long generation, DependencyScan scan, JsonObject json) {
+        Set<Integer> requested = ResourceMaterialResidencyDemand.residencyMaterialIds(generation);
+        if (requested.isEmpty()) {
+            return;
+        }
+        List<Integer> missingResource = new ArrayList<>();
+        List<Integer> unknownToCtmRoot = new ArrayList<>();
+        for (Integer materialId : requested) {
+            if (materialId == null || scan.presentMaterialIds().contains(materialId)) {
+                continue;
+            }
+            if (scan.knownMaterialIds().contains(materialId)) {
+                missingResource.add(materialId);
+            } else {
+                unknownToCtmRoot.add(materialId);
+            }
+        }
+        if (missingResource.isEmpty() && unknownToCtmRoot.isEmpty()) {
+            return;
+        }
+        ResourceMaterialResidencyDemand.recordPermanentFailed(generation, missingResource);
+        ResourceMaterialResidencyDemand.recordPermanentFailed(generation, unknownToCtmRoot);
+        json.addProperty("unsatisfiableMissingResource", missingResource.size());
+        json.addProperty("unsatisfiableUnknownMaterial", unknownToCtmRoot.size());
+        long total;
+        boolean firstForGeneration;
+        synchronized (DRAIN_LOG_LOCK) {
+            if (drainLogGeneration != generation) {
+                drainLogGeneration = generation;
+                drainedTotal = 0L;
+                firstForGeneration = true;
+            } else {
+                firstForGeneration = false;
+            }
+            drainedTotal += missingResource.size() + unknownToCtmRoot.size();
+            total = drainedTotal;
+        }
+        JsonObject event = new JsonObject();
+        event.addProperty("missingResourceCount", missingResource.size());
+        event.addProperty("unknownMaterialCount", unknownToCtmRoot.size());
+        event.addProperty("drainedTotalThisGeneration", total);
+        event.addProperty("missingResourceSample", sampleIds(missingResource));
+        event.addProperty("unknownMaterialSample", sampleIds(unknownToCtmRoot));
+        ResourceMaterialRuntimeStatus.write("residencyUnsatisfiableDemandDrained", generation, event);
+        if (firstForGeneration) {
+            LOGGER.warn("[MaterialCompat] Draining unsatisfiable residency demand for generation {}: "
+                    + "{} missing tile resources, {} unknown to the CTM root (permanent fallback; "
+                    + "further drains logged at debug with running total)",
+                generation, missingResource.size(), unknownToCtmRoot.size());
+        } else {
+            LOGGER.debug("[MaterialCompat] Drained unsatisfiable residency demand for generation {}: "
+                    + "+{} missing, +{} unknown, total {}",
+                generation, missingResource.size(), unknownToCtmRoot.size(), total);
+        }
+    }
+
+    private static final Object DRAIN_LOG_LOCK = new Object();
+    private static long drainLogGeneration = -1L;
+    private static long drainedTotal = 0L;
+
+    private static String sampleIds(List<Integer> ids) {
+        int limit = Math.min(8, ids.size());
+        StringBuilder sample = new StringBuilder();
+        for (int i = 0; i < limit; i++) {
+            if (i > 0) sample.append(',');
+            sample.append(ids.get(i));
+        }
+        if (ids.size() > limit) sample.append(",…");
+        return sample.toString();
     }
 
     private static int promoteVisibleItems(List<UploadItem> items, int startIndex, long generation) {
