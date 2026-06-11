@@ -142,7 +142,7 @@ def gitBranch = resolveGitBranch()
 def gitDirty = resolveGitDirty()
 def buildTimestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
 
-// --- Generate BuildInfo.java (Phase 0: Texture Loader v4) ---
+// --- Generate BuildInfo.java (Phase 0: Texture Loader v5 contract) ---
 tasks.register('generateBuildInfo') {
     def outputDir = file("${projectDir}/src/main/java/com/radiance/client/build")
     outputs.dir outputDir
@@ -173,10 +173,10 @@ public final class BuildInfo {
     public static final String JAR_SHA256 = "unknown";
 
     /** Texture loader ABI version — must match native side. */
-    public static final int TEXTURE_LOADER_ABI_VERSION = 4;
+    public static final int TEXTURE_LOADER_ABI_VERSION = 5;
 
     /** Cache schema version — must match native side. */
-    public static final int CACHE_SCHEMA_VERSION = 4;
+    public static final int CACHE_SCHEMA_VERSION = 5;
 
     private BuildInfo() {}
 

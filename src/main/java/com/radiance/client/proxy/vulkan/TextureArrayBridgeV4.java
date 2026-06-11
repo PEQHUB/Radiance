@@ -6,7 +6,7 @@ package com.radiance.client.proxy.vulkan;
  * Replaces the old fixed-layer TextureArrayBridge methods with
  * generation-scoped, tiered, async upload APIs.
  *
- * ABI version 4: no fixed-layer bulk sprite upload, no timeout readiness,
+ * ABI version 5: exact placement only, no -1 sentinel, no fixed-layer bulk sprite upload, no timeout readiness,
  * no vkDeviceWaitIdle during normal load.
  */
 public final class TextureArrayBridgeV4 {
@@ -14,10 +14,10 @@ public final class TextureArrayBridgeV4 {
     private TextureArrayBridgeV4() {}
 
     /** ABI version — must match native side build_info::kTextureLoaderAbiVersion. */
-    public static final int ABI_VERSION = 4;
+    public static final int ABI_VERSION = 5;
 
     /** Cache schema version — must match native side build_info::kCacheSchemaVersion. */
-    public static final int CACHE_SCHEMA_VERSION = 4;
+    public static final int CACHE_SCHEMA_VERSION = 5;
 
     /** Channel mask: albedo plane present. */
     public static final int CHANNEL_ALBEDO   = 1 << 0;

@@ -24,10 +24,10 @@ public final class BuildInfo {
     public static final String JAR_SHA256 = "unknown";
 
     /** Texture loader ABI version — must match native side. */
-    public static final int TEXTURE_LOADER_ABI_VERSION = 4;
+    public static final int TEXTURE_LOADER_ABI_VERSION = 5;
 
     /** Cache schema version — must match native side. */
-    public static final int CACHE_SCHEMA_VERSION = 4;
+    public static final int CACHE_SCHEMA_VERSION = 5;
 
     private BuildInfo() {}
 
