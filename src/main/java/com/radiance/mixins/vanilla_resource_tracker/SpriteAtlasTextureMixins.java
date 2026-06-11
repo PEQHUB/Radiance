@@ -88,6 +88,7 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     TextureManifestV4 manifest = TextureManifestV4.fromBlockAtlas(
                         generation, self.getId(), sorted,
                         stitchResult.width(), stitchResult.height());
+                    TextureTracker.currentSpriteLayerSize = manifest.dominantLayerSize();
                     TextureLoadGraph graph = TextureLoadGraph.build(
                         MinecraftClient.getInstance().getResourceManager(), manifest, generation);
                     var schedule = TextureLoadScheduler.start(graph);
@@ -766,22 +767,41 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
         int[] spritePage = new int[uploadCount];
         int[] spriteLayer = new int[uploadCount];
         int[] spriteTierSize = new int[uploadCount];
+        int[] spriteFrameCount = new int[uploadCount];
         int[] pageLayerCounts = new int[ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX];
         Arrays.fill(spriteLayer, -1);
+        Arrays.fill(spriteFrameCount, 1);
 
         for (int i = 0; i < uploadCount; i++) {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
+            NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
             int page = TextureTracker.tierPageForSpriteSize(contents.getWidth(), contents.getHeight());
             int tierSize = TextureTracker.tierSizeForPage(page);
             if (page <= 0 || page >= pageLayerCounts.length || tierSize <= 0) {
                 continue;
             }
+            int frameCount = spriteFrameCount(img, contents.getHeight());
             spritePage[i] = page;
-            spriteLayer[i] = pageLayerCounts[page]++;
             spriteTierSize[i] = tierSize;
             int tierIndex = page - TextureTracker.VANILLA_TIER_FIRST_PAGE;
             int nativePageCapacity = TextureArrayBridgeV4.nativePageLayerCapacityForTier(tierIndex);
+            int nextLayer = pageLayerCounts[page];
+            if (nativePageCapacity > 0) {
+                if (frameCount > nativePageCapacity) {
+                    LOGGER.warn("[TextureSystem] Sprite {} has {} frames but tier {} native page holds {}; clamping v4 animation frames",
+                        sorted.get(i).getKey(), frameCount, tierSize, nativePageCapacity);
+                    frameCount = nativePageCapacity;
+                }
+                int pageOffset = nextLayer % nativePageCapacity;
+                if (pageOffset > 0 && pageOffset + frameCount > nativePageCapacity) {
+                    nextLayer += nativePageCapacity - pageOffset;
+                }
+            }
+            spriteLayer[i] = nextLayer;
+            spriteFrameCount[i] = frameCount;
+            TextureTracker.spriteFrameCountV4[i] = frameCount;
+            pageLayerCounts[page] = nextLayer + frameCount;
             int physicalPage = nativePageCapacity > 0 ? spriteLayer[i] / nativePageCapacity : 0;
             int physicalLayer = nativePageCapacity > 0 ? spriteLayer[i] % nativePageCapacity : spriteLayer[i];
             TextureTracker.setSpriteV4PhysicalLocation(i, tierIndex, physicalPage, physicalLayer, tierSize);
@@ -829,12 +849,13 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                 fillDefaultNormal(normalBuf, chunkLayers, tierSize);
 
                 for (int i = 0; i < uploadCount; i++) {
-                    if (spritePage[i] != page || spriteLayer[i] < startLayer
-                        || spriteLayer[i] >= startLayer + chunkLayers) {
+                    int frameCount = spriteFrameCount[i];
+                    int spriteStartLayer = spriteLayer[i];
+                    int spriteEndLayer = spriteStartLayer + frameCount;
+                    if (spritePage[i] != page || spriteEndLayer <= startLayer
+                        || spriteStartLayer >= startLayer + chunkLayers) {
                         continue;
                     }
-                    int localLayer = spriteLayer[i] - startLayer;
-                    long dstBase = (long) localLayer * bytesPerLayer;
                     Sprite sprite = sorted.get(i).getValue();
                     SpriteContents contents = sprite.getContents();
                     NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
@@ -843,39 +864,52 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     }
                     int w = contents.getWidth();
                     int h = contents.getHeight();
-                    long albedoPtr = memAddress(albedoBuf) + dstBase;
-                    writeSpriteFramePixels(img, w, h, 0, tierSize, albedoPtr);
-
                     INativeImageExt auxExt = (INativeImageExt) (Object) img;
                     NativeImage specImg = auxExt.neoVoxelRT$getSpecularNativeImage();
-                    if (specImg != null) {
-                        int specH = Math.min(specImg.getHeight(), Math.max(1, h));
-                        TextureTracker.spriteSpecularCache.put(i,
-                            copySpriteImage(specImg, specImg.getWidth(), specH, tierSize));
-                        TextureTracker.spriteBaselineSpecularCache.put(i,
-                            copySpriteImage(specImg, specImg.getWidth(), specH, tierSize));
-                        writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, tierSize,
-                            memAddress(specularBuf) + dstBase);
-                    }
-
                     NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
-                    if (normalImg != null) {
-                        int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
-                        TextureTracker.spriteNormalCache.put(i,
-                            copySpriteImage(normalImg, normalImg.getWidth(), normalH, tierSize));
-                        TextureTracker.spriteBaselineNormalCache.put(i,
-                            copySpriteImage(normalImg, normalImg.getWidth(), normalH, tierSize));
-                        writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, tierSize,
-                            memAddress(normalBuf) + dstBase);
-                    }
-
                     NativeImage flagImg = auxExt.neoVoxelRT$getFlagNativeImage();
-                    if (flagImg != null) {
-                        int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
-                        TextureTracker.spriteFlagCache.put(i,
-                            copySpriteImage(flagImg, flagImg.getWidth(), flagH, tierSize));
-                        writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, tierSize,
-                            memAddress(flagBuf) + dstBase);
+                    for (int frame = 0; frame < frameCount; frame++) {
+                        int absoluteLayer = spriteStartLayer + frame;
+                        if (absoluteLayer < startLayer || absoluteLayer >= startLayer + chunkLayers) {
+                            continue;
+                        }
+                        int localLayer = absoluteLayer - startLayer;
+                        long dstBase = (long) localLayer * bytesPerLayer;
+                        writeSpriteFramePixels(img, w, h, frame, tierSize, memAddress(albedoBuf) + dstBase);
+
+                        if (specImg != null) {
+                            int specH = Math.min(specImg.getHeight(), Math.max(1, h));
+                            if (frame == 0) {
+                                TextureTracker.spriteSpecularCache.put(i,
+                                    copySpriteImage(specImg, specImg.getWidth(), specH, tierSize));
+                                TextureTracker.spriteBaselineSpecularCache.put(i,
+                                    copySpriteImage(specImg, specImg.getWidth(), specH, tierSize));
+                            }
+                            writeSpriteFramePixels(specImg, specImg.getWidth(), specH, 0, tierSize,
+                                memAddress(specularBuf) + dstBase);
+                        }
+
+                        if (normalImg != null) {
+                            int normalH = Math.min(normalImg.getHeight(), Math.max(1, h));
+                            if (frame == 0) {
+                                TextureTracker.spriteNormalCache.put(i,
+                                    copySpriteImage(normalImg, normalImg.getWidth(), normalH, tierSize));
+                                TextureTracker.spriteBaselineNormalCache.put(i,
+                                    copySpriteImage(normalImg, normalImg.getWidth(), normalH, tierSize));
+                            }
+                            writeSpriteFramePixels(normalImg, normalImg.getWidth(), normalH, 0, tierSize,
+                                memAddress(normalBuf) + dstBase);
+                        }
+
+                        if (flagImg != null) {
+                            int flagH = Math.min(flagImg.getHeight(), Math.max(1, h));
+                            if (frame == 0) {
+                                TextureTracker.spriteFlagCache.put(i,
+                                    copySpriteImage(flagImg, flagImg.getWidth(), flagH, tierSize));
+                            }
+                            writeSpriteFramePixels(flagImg, flagImg.getWidth(), flagH, 0, tierSize,
+                                memAddress(flagBuf) + dstBase);
+                        }
                     }
                 }
 
@@ -987,6 +1021,14 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             memPutByte(off + 2, (byte) 255);
             memPutByte(off + 3, (byte) 255);
         }
+    }
+
+    private static int spriteFrameCount(NativeImage img, int frameHeight) {
+        if (img == null) {
+            return 1;
+        }
+        int height = Math.max(1, frameHeight);
+        return Math.max(1, img.getHeight() / height);
     }
 
     private static byte[] copyPlane(long ptr, int bytes) {
@@ -1222,13 +1264,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
             Sprite sprite = sorted.get(i).getValue();
             SpriteContents contents = sprite.getContents();
             NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
-            int frameCount = 1;
+            int frameCount = Math.max(1, TextureTracker.spriteFrameCountV4[i]);
             int flags = TextureTracker.encodeSpriteSourceFlags(
                 TextureTracker.spriteSpecularSource[i],
                 TextureTracker.spriteNormalSource[i]);
             if (img != null) {
-                int frameHeight = Math.max(1, contents.getHeight());
-                frameCount = Math.max(1, img.getHeight() / frameHeight);
                 INativeImageExt auxExt = (INativeImageExt) (Object) img;
                 if (auxExt.neoVoxelRT$getSpecularNativeImage() != null) {
                     flags |= TextureTracker.SPRITE_FLAG_HAS_SPECULAR;

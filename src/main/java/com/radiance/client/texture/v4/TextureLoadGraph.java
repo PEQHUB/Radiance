@@ -1,5 +1,7 @@
 package com.radiance.client.texture.v4;
 
+import com.radiance.client.texture.TextureTracker;
+import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,8 +61,19 @@ public final class TextureLoadGraph {
             ));
         }
 
-        // CTM material work items will be added in Phase 5
-        // when the CTM dependency graph is resolved
+        TextureTier ctmTier = TextureTier.forDimensions(
+            TextureTracker.currentSpriteLayerSize, TextureTracker.currentSpriteLayerSize);
+        for (ResourcePackRuntimeMaterialBootstrap.CtmWorkItem ctm :
+            ResourcePackRuntimeMaterialBootstrap.ctmWorkItemsForResourceManager(resourceManager, generation)) {
+            items.add(new WorkItem(
+                WorkItem.Kind.CTM_MATERIAL,
+                ctm.graphId(),
+                ctmTier,
+                1,
+                ctm.present(),
+                ctm.visible()
+            ));
+        }
 
         return new TextureLoadGraph(generation, manifest, items, warnings);
     }

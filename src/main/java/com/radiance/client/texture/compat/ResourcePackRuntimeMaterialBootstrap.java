@@ -11,6 +11,7 @@ import com.radiance.client.texture.material.ResourceMaterialResidencyUploader;
 import com.radiance.client.texture.material.ResourceMaterialRuntimeStatus;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -246,6 +247,34 @@ public final class ResourcePackRuntimeMaterialBootstrap {
             json.add(entry.getKey(), entry.getValue());
         }
         return json;
+    }
+
+    public static List<CtmWorkItem> ctmWorkItemsForResourceManager(ResourceManager resourceManager,
+                                                                   long generation) {
+        if (!Options.materialCompatEnabled || !Options.materialCompatCtmEnabled || resourceManager == null) {
+            return List.of();
+        }
+        try {
+            RuntimeRoot root = buildRoot(resourceManager, generation);
+            JsonObject activeCtm = root.root().getAsJsonObject("activeCtmAtlasDependencies");
+            if (activeCtm == null || !activeCtm.has("dependencies")
+                || !activeCtm.get("dependencies").isJsonArray()) {
+                return List.of();
+            }
+            JsonArray dependencies = activeCtm.getAsJsonArray("dependencies");
+            ArrayList<CtmWorkItem> items = new ArrayList<>(dependencies.size());
+            for (int i = 0; i < dependencies.size(); i++) {
+                JsonObject dependency = dependencies.get(i).getAsJsonObject();
+                String path = stringProperty(dependency, "path");
+                boolean present = boolProperty(dependency, "present");
+                boolean visible = present && !boolProperty(dependency, "atlasAdmissionRequired");
+                items.add(new CtmWorkItem(i, path, present, visible));
+            }
+            return List.copyOf(items);
+        } catch (Throwable t) {
+            LOGGER.debug("[MaterialCompat] CTM graph work item scan failed", t);
+            return List.of();
+        }
     }
 
     private static RuntimeRoot buildRoot(ResourceManager resourceManager, long generation) {
@@ -646,6 +675,15 @@ public final class ResourcePackRuntimeMaterialBootstrap {
         }
     }
 
+    private static String stringProperty(JsonObject json, String key) {
+        if (json == null || !json.has(key) || json.get(key).isJsonNull()) return "";
+        try {
+            return json.get(key).getAsString();
+        } catch (Exception ignored) {
+            return "";
+        }
+    }
+
     private static int intProperty(JsonObject json, String key) {
         if (json == null || !json.has(key) || json.get(key).isJsonNull()) return 0;
         try {
@@ -661,6 +699,12 @@ public final class ResourcePackRuntimeMaterialBootstrap {
 
     private static double millis(long startedNanos) {
         return Math.max(0.0, (System.nanoTime() - startedNanos) / 1_000_000.0);
+    }
+
+    public record CtmWorkItem(int graphId,
+                              String path,
+                              boolean present,
+                              boolean visible) {
     }
 
     private record RuntimeRoot(JsonObject root, int dependencyCount, int presentDependencyCount,

@@ -112,6 +112,7 @@ public class TextureTracker {
     public static int[] spriteFlagPage = new int[MAX_TEXTURES];
     public static int[] spriteFlagLayer = new int[MAX_TEXTURES];
     public static int[] spriteTierSize = new int[MAX_TEXTURES];
+    public static int[] spriteFrameCountV4 = new int[MAX_TEXTURES];
     // Auxiliary texture provenance keyed by auxiliary GLID. This survives the legacy upload
     // path and lets the texture-array stitch preserve authored LabPBR channels.
     public static Set<Integer> packProvidedSpecularGLIDs = ConcurrentHashMap.newKeySet();
@@ -149,6 +150,7 @@ public class TextureTracker {
         Arrays.fill(spriteFlagPage, 0, count, 0);
         Arrays.fill(spriteFlagLayer, 0, count, -1);
         Arrays.fill(spriteTierSize, 0, count, 0);
+        Arrays.fill(spriteFrameCountV4, 0, count, 1);
     }
 
     public static void setSpriteTierLocation(int spriteId, int page, int layer, int tierSize) {

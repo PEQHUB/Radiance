@@ -16,7 +16,8 @@ import net.minecraft.util.Identifier;
  *
  * Replaces VanillaTextureManifest's fixedLayerSize with per-tier buckets.
  * Each sprite is assigned to the smallest tier that fits its dimensions,
- * and receives a tierLocalLayer index within that tier's bucket.
+ * and receives a tierLocalLayer base index within that tier's bucket. Animated
+ * sprites reserve one consecutive layer per frame.
  */
 public record TextureManifestV4(
     long generation,
@@ -58,6 +59,19 @@ public record TextureManifestV4(
         return total;
     }
 
+    public int dominantLayerSize() {
+        long bestScore = -1L;
+        int bestSize = 0;
+        for (TierBucket bucket : buckets.values()) {
+            long score = (long) bucket.layerCount() * bucket.tier().bytesPerLayerRgba8();
+            if (score > bestScore || (score == bestScore && bucket.tier().size > bestSize)) {
+                bestScore = score;
+                bestSize = bucket.tier().size;
+            }
+        }
+        return bestSize;
+    }
+
     /** True if no errors were recorded. */
     public boolean isValid() {
         return errors.isEmpty();
@@ -85,19 +99,23 @@ public record TextureManifestV4(
             errors.add("block atlas has no sprites");
         }
 
-        // Count sprites per tier
+        // Count frames per tier
         Map<TextureTier, Integer> tierCounts = new LinkedHashMap<>();
         for (TextureTier tier : TextureTier.values()) {
             tierCounts.put(tier, 0);
         }
 
-        // First pass: assign tiers and count
+        // First pass: assign tiers and count reserved frame layers
         TextureTier[] spriteTiers = new TextureTier[sortedSprites.size()];
         for (int i = 0; i < sortedSprites.size(); i++) {
             SpriteContents contents = sortedSprites.get(i).getValue().getContents();
+            NativeImage image = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
             TextureTier tier = TextureTier.forDimensions(contents.getWidth(), contents.getHeight());
+            int height = Math.max(1, contents.getHeight());
+            int imageHeight = image != null ? image.getHeight() : height;
+            int frameCount = Math.max(1, imageHeight / height);
             spriteTiers[i] = tier;
-            tierCounts.put(tier, tierCounts.get(tier) + 1);
+            tierCounts.put(tier, tierCounts.get(tier) + frameCount);
         }
 
         // Second pass: assign tier-local layer indices
@@ -121,7 +139,7 @@ public record TextureManifestV4(
 
             TextureTier tier = spriteTiers[i];
             int tierLocalLayer = tierNextLayer.get(tier);
-            tierNextLayer.put(tier, tierLocalLayer + 1);
+            tierNextLayer.put(tier, tierLocalLayer + frameCount);
 
             if (width != height) {
                 warnings.add("sprite " + i + " is not square: " + mapEntry.getKey()
