@@ -99,6 +99,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     if (tierUploadReport.uploadedPages() <= 0 && !regions.isEmpty()) {
                         throw new IllegalStateException("v4 tier staging produced no uploaded pages");
                     }
+                    if (!uploadV4SpriteRegistry(sorted, regions.size(), generation)) {
+                        throw new IllegalStateException("nativeUpdateSpriteRegistrySparseV4 rejected generation " + generation);
+                    }
                     if (!TextureLoadScheduler.commitGeneration(generation)) {
                         throw new IllegalStateException("nativeCommitTextureLoaderV4 rejected generation " + generation);
                     }
@@ -1206,6 +1209,65 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
     }
 
     
+    private static boolean uploadV4SpriteRegistry(List<Map.Entry<Identifier, Sprite>> sorted,
+                                                  int uploadCount,
+                                                  long generation) {
+        if (uploadCount <= 0) {
+            return true;
+        }
+        final int ENTRY_SIZE = 32;
+        int count = Math.min(uploadCount, TextureTracker.MAX_TEXTURES);
+        ByteBuffer entries = ByteBuffer.allocateDirect(count * ENTRY_SIZE).order(ByteOrder.nativeOrder());
+        for (int i = 0; i < count; i++) {
+            Sprite sprite = sorted.get(i).getValue();
+            SpriteContents contents = sprite.getContents();
+            NativeImage img = ((ISpriteContentsExt) contents).neoVoxelRT$getImage();
+            int frameCount = 1;
+            int flags = TextureTracker.encodeSpriteSourceFlags(
+                TextureTracker.spriteSpecularSource[i],
+                TextureTracker.spriteNormalSource[i]);
+            if (img != null) {
+                int frameHeight = Math.max(1, contents.getHeight());
+                frameCount = Math.max(1, img.getHeight() / frameHeight);
+                INativeImageExt auxExt = (INativeImageExt) (Object) img;
+                if (auxExt.neoVoxelRT$getSpecularNativeImage() != null) {
+                    flags |= TextureTracker.SPRITE_FLAG_HAS_SPECULAR;
+                }
+                NativeImage normalImg = auxExt.neoVoxelRT$getNormalNativeImage();
+                if (normalImg != null) {
+                    flags |= TextureTracker.SPRITE_FLAG_HAS_NORMAL;
+                    byte normalSource = TextureTracker.spriteNormalSource[i];
+                    boolean authoredHeight = normalSource == TextureTracker.SOURCE_PACK_AUTHORED
+                        || normalSource == TextureTracker.SOURCE_USER_CUSTOM;
+                    if (authoredHeight && AuxiliaryTextures.hasVisibleHeightAlphaRange(normalImg, img)) {
+                        flags |= TextureTracker.SPRITE_FLAG_HAS_HEIGHT;
+                    }
+                }
+            }
+            int layer = Math.max(0, TextureTracker.spriteAlbedoLayer[i]);
+            int normalLayer = Math.max(0, TextureTracker.spriteNormalLayer[i]);
+            int off = i * ENTRY_SIZE;
+            entries.putInt(off, layer);
+            entries.putInt(off + 4, frameCount);
+            entries.putInt(off + 8, 1);
+            entries.putInt(off + 12, flags);
+            entries.putInt(off + 16,
+                (flags & TextureTracker.SPRITE_FLAG_HAS_SPECULAR) != 0 ? layer : -1);
+            entries.putInt(off + 20,
+                (flags & TextureTracker.SPRITE_FLAG_HAS_NORMAL) != 0 ? normalLayer : -1);
+            entries.putInt(off + 24, -1);
+            entries.putInt(off + 28, -1);
+        }
+        try {
+            NativeUploadGuards.assertDirectCapacity(entries, (long) count * ENTRY_SIZE,
+                "nativeUpdateSpriteRegistrySparseV4");
+            return TextureArrayBridgeV4.nativeUpdateSpriteRegistrySparseV4(
+                generation, memAddress(entries), count);
+        } catch (UnsatisfiedLinkError ignored) {
+            return false;
+        }
+    }
+
     private static List<Map.Entry<Identifier, Sprite>> sortedEntries(Map<Identifier, Sprite> regions) {
         if (regions == null) return List.of();
         List<Map.Entry<Identifier, Sprite>> sorted = new ArrayList<>(regions.entrySet());
