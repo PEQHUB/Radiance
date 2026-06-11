@@ -1,0 +1,26 @@
+﻿Material residency skip count: 924
+
+[All Java frame timing rebuildQueue samples from latest.log]
+293:[11:43:46] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.05 entities=1.73 blockEntities=0.15 particles=0.01 weather=0.01 chunkRebuild=0.21 other=0.67 TOTAL=2.83 rebuildQueue=387
+384:[11:43:47] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.75 blockEntities=0.03 particles=0.01 weather=0.00 chunkRebuild=0.02 other=0.21 TOTAL=1.05 rebuildQueue=96
+542:[11:43:48] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.68 blockEntities=0.02 particles=0.01 weather=0.00 chunkRebuild=0.02 other=0.23 TOTAL=0.99 rebuildQueue=96
+709:[11:43:49] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.56 blockEntities=0.01 particles=0.00 weather=0.00 chunkRebuild=0.02 other=0.20 TOTAL=0.85 rebuildQueue=96
+919:[11:43:51] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.52 blockEntities=0.01 particles=0.00 weather=0.00 chunkRebuild=0.02 other=0.21 TOTAL=0.79 rebuildQueue=96
+1132:[11:43:52] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.53 blockEntities=0.01 particles=0.00 weather=0.00 chunkRebuild=0.02 other=0.19 TOTAL=0.79 rebuildQueue=96
+1304:[11:43:54] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.02 entities=0.51 blockEntities=0.01 particles=0.00 weather=0.00 chunkRebuild=0.02 other=0.18 TOTAL=0.75 rebuildQueue=96
+1522:[11:43:55] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.02 entities=0.70 blockEntities=0.01 particles=0.00 weather=0.00 chunkRebuild=0.02 other=0.18 TOTAL=0.94 rebuildQueue=96
+1730:[11:43:57] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.67 blockEntities=0.02 particles=0.00 weather=0.00 chunkRebuild=0.02 other=0.23 TOTAL=0.97 rebuildQueue=96
+1948:[11:44:00] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.98 blockEntities=0.02 particles=0.10 weather=0.00 chunkRebuild=0.03 other=0.21 TOTAL=1.37 rebuildQueue=66
+2141:[11:44:02] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.63 blockEntities=0.02 particles=0.24 weather=0.00 chunkRebuild=0.02 other=0.17 TOTAL=1.11 rebuildQueue=48
+2412:[11:44:04] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.64 blockEntities=0.02 particles=0.22 weather=0.00 chunkRebuild=0.02 other=0.17 TOTAL=1.10 rebuildQueue=48
+2614:[11:44:07] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.70 blockEntities=0.02 particles=0.21 weather=0.00 chunkRebuild=0.02 other=0.19 TOTAL=1.18 rebuildQueue=56
+2907:[11:44:09] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.04 entities=0.61 blockEntities=0.03 particles=0.07 weather=0.00 chunkRebuild=0.02 other=0.19 TOTAL=0.96 rebuildQueue=51
+3154:[11:44:11] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.52 blockEntities=0.02 particles=0.05 weather=0.00 chunkRebuild=0.02 other=0.18 TOTAL=0.82 rebuildQueue=57
+3407:[11:44:14] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.02 entities=0.54 blockEntities=0.03 particles=0.03 weather=0.00 chunkRebuild=0.01 other=0.18 TOTAL=0.82 rebuildQueue=48
+3666:[11:44:16] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.02 entities=0.49 blockEntities=0.02 particles=0.02 weather=0.00 chunkRebuild=0.01 other=0.16 TOTAL=0.74 rebuildQueue=48
+3944:[11:44:19] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.52 blockEntities=0.03 particles=0.01 weather=0.00 chunkRebuild=0.01 other=0.18 TOTAL=0.79 rebuildQueue=48
+
+[Key V4 upload/material markers]
+126:[11:43:14] [Render thread/INFO]: [STDOUT]: [TextureLoaderV4] Vanilla tier upload generation=1
+134:[11:43:14] [Render thread/INFO]: [TextureLoaderV4] Block atlas v4 extraction: gen=1 sprites=1810 pages=6 layers=2228 bytes=384966656 cacheHits=0 cacheMisses=0 cacheWrites=0 materialTableUploaded=true textureRulesUploaded=true defaultRuleSeeds=48 bootstrap={"attempted":true,"published":true,"generation":1,"dependencyCount":9357,"presentDependencyCount":8040,"propertyCount":1190,"reason":"published","elapsedMs":143.2358,"tableUploaded":true}
+179:[11:43:44] [Thread-19/INFO]: [MaterialCompat] Variant resolver compiled 1190 block texture rules

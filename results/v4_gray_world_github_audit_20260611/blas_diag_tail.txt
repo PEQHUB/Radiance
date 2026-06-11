@@ -1,0 +1,225 @@
+﻿BLAS_DIAG_START timelineInit=0 maxInFlight=12 path=C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\logs\blas_diag.log
+73196885480 BUILD_SUBMIT iter=282 tv=1 vk=0 chunks=1 inFlight=0
+73196886741 COMPLETE iter=284 tv=1 type=build chunks=1 inFlight=1 gpuVal=1
+73197803001 BUILD_SUBMIT iter=454 tv=2 vk=0 chunks=1 inFlight=0
+73197805743 COMPLETE iter=457 tv=2 type=build chunks=1 inFlight=1 gpuVal=2
+73198488718 BUILD_SUBMIT iter=582 tv=3 vk=0 chunks=1 inFlight=0
+73198489984 COMPLETE iter=584 tv=3 type=build chunks=1 inFlight=1 gpuVal=3
+73199702307 BUILD_SUBMIT iter=809 tv=4 vk=0 chunks=1 inFlight=0
+73199704341 COMPLETE iter=811 tv=4 type=build chunks=1 inFlight=1 gpuVal=4
+73200414062 BUILD_SUBMIT iter=942 tv=5 vk=0 chunks=1 inFlight=0
+73200416697 COMPLETE iter=945 tv=5 type=build chunks=1 inFlight=1 gpuVal=5
+73200420571 BUILD_SUBMIT iter=946 tv=6 vk=0 chunks=1 inFlight=0
+73200421696 COMPLETE iter=948 tv=6 type=build chunks=1 inFlight=1 gpuVal=6
+73201036128 BUILD_SUBMIT iter=1062 tv=7 vk=0 chunks=1 inFlight=0
+73201040253 COMPLETE iter=1066 tv=7 type=build chunks=1 inFlight=1 gpuVal=7
+73201274698 BUILD_SUBMIT iter=1106 tv=8 vk=0 chunks=1 inFlight=0
+73201277475 COMPLETE iter=1109 tv=8 type=build chunks=1 inFlight=1 gpuVal=8
+73202242160 BUILD_SUBMIT iter=1285 tv=9 vk=0 chunks=1 inFlight=0
+73202244824 COMPLETE iter=1288 tv=9 type=build chunks=1 inFlight=1 gpuVal=9
+73202430569 BUILD_SUBMIT iter=1323 tv=10 vk=0 chunks=1 inFlight=0
+73202434991 COMPLETE iter=1327 tv=10 type=build chunks=1 inFlight=1 gpuVal=10
+73203519108 BUILD_SUBMIT iter=1523 tv=11 vk=0 chunks=1 inFlight=0
+73203523401 COMPLETE iter=1527 tv=11 type=build chunks=1 inFlight=1 gpuVal=11
+73204221628 BUILD_SUBMIT iter=1657 tv=12 vk=0 chunks=1 inFlight=0
+73204223162 COMPLETE iter=1659 tv=12 type=build chunks=1 inFlight=1 gpuVal=12
+73204836552 BUILD_SUBMIT iter=1766 tv=13 vk=0 chunks=1 inFlight=0
+73204842224 COMPLETE iter=1771 tv=13 type=build chunks=1 inFlight=1 gpuVal=13
+73205577699 BUILD_SUBMIT iter=1905 tv=14 vk=0 chunks=1 inFlight=0
+73205579143 COMPLETE iter=1907 tv=14 type=build chunks=1 inFlight=1 gpuVal=14
+73205800486 BUILD_SUBMIT iter=1945 tv=15 vk=0 chunks=1 inFlight=0
+73205806334 COMPLETE iter=1950 tv=15 type=build chunks=1 inFlight=1 gpuVal=15
+73206394288 BUILD_SUBMIT iter=2054 tv=16 vk=0 chunks=1 inFlight=0
+73206399829 COMPLETE iter=2059 tv=16 type=build chunks=1 inFlight=1 gpuVal=16
+73206881616 BUILD_SUBMIT iter=2147 tv=17 vk=0 chunks=1 inFlight=0
+73206883276 COMPLETE iter=2149 tv=17 type=build chunks=1 inFlight=1 gpuVal=17
+73207613778 BUILD_SUBMIT iter=2286 tv=18 vk=0 chunks=1 inFlight=0
+73207621082 COMPLETE iter=2292 tv=18 type=build chunks=1 inFlight=1 gpuVal=18
+73207650794 BUILD_SUBMIT iter=2293 tv=19 vk=0 chunks=1 inFlight=0
+73207658111 COMPLETE iter=2299 tv=19 type=build chunks=1 inFlight=1 gpuVal=19
+73208327751 BUILD_SUBMIT iter=2420 tv=20 vk=0 chunks=1 inFlight=0
+73208327880 BUILD_SUBMIT iter=2421 tv=21 vk=0 chunks=1 inFlight=1
+73208331991 COMPLETE iter=2425 tv=20 type=build chunks=1 inFlight=2 gpuVal=21
+73208332021 COMPLETE iter=2425 tv=21 type=build chunks=1 inFlight=1 gpuVal=21
+73208521557 BUILD_SUBMIT iter=2457 tv=22 vk=0 chunks=1 inFlight=0
+73208529206 COMPLETE iter=2463 tv=22 type=build chunks=1 inFlight=1 gpuVal=22
+73209249091 BUILD_SUBMIT iter=2596 tv=23 vk=0 chunks=1 inFlight=0
+73209256305 COMPLETE iter=2602 tv=23 type=build chunks=1 inFlight=1 gpuVal=23
+73209555620 BUILD_SUBMIT iter=2657 tv=24 vk=0 chunks=1 inFlight=0
+73209562750 COMPLETE iter=2663 tv=24 type=build chunks=1 inFlight=1 gpuVal=24
+73209783445 BUILD_SUBMIT iter=2697 tv=25 vk=0 chunks=1 inFlight=0
+73209786425 COMPLETE iter=2700 tv=25 type=build chunks=1 inFlight=1 gpuVal=25
+73210250780 BUILD_SUBMIT iter=2775 tv=26 vk=0 chunks=1 inFlight=0
+73210257909 COMPLETE iter=2781 tv=26 type=build chunks=1 inFlight=1 gpuVal=26
+73210445219 BUILD_SUBMIT iter=2810 tv=27 vk=0 chunks=1 inFlight=0
+73210451054 COMPLETE iter=2815 tv=27 type=build chunks=1 inFlight=1 gpuVal=27
+73211062680 BUILD_SUBMIT iter=2927 tv=28 vk=0 chunks=1 inFlight=0
+73211068583 COMPLETE iter=2932 tv=28 type=build chunks=1 inFlight=1 gpuVal=28
+73211291425 BUILD_SUBMIT iter=2969 tv=29 vk=0 chunks=1 inFlight=0
+73211299378 COMPLETE iter=2975 tv=29 type=build chunks=1 inFlight=1 gpuVal=29
+73211488419 BUILD_SUBMIT iter=3005 tv=30 vk=0 chunks=1 inFlight=0
+73211494613 COMPLETE iter=3010 tv=30 type=build chunks=1 inFlight=1 gpuVal=30
+73211509212 BUILD_SUBMIT iter=3013 tv=31 vk=0 chunks=1 inFlight=0
+73211510634 COMPLETE iter=3015 tv=31 type=build chunks=1 inFlight=1 gpuVal=31
+73211748636 BUILD_SUBMIT iter=3053 tv=32 vk=0 chunks=1 inFlight=0
+73211751340 COMPLETE iter=3056 tv=32 type=build chunks=1 inFlight=1 gpuVal=32
+73211921469 BUILD_SUBMIT iter=3082 tv=33 vk=0 chunks=1 inFlight=0
+73211924999 COMPLETE iter=3085 tv=33 type=build chunks=1 inFlight=1 gpuVal=33
+73211988181 BUILD_SUBMIT iter=3097 tv=34 vk=0 chunks=1 inFlight=0
+73211993145 COMPLETE iter=3101 tv=34 type=build chunks=1 inFlight=1 gpuVal=34
+73212355786 BUILD_SUBMIT iter=3163 tv=35 vk=0 chunks=1 inFlight=0
+73212358692 COMPLETE iter=3166 tv=35 type=build chunks=1 inFlight=1 gpuVal=35
+73212548308 BUILD_SUBMIT iter=3195 tv=36 vk=0 chunks=1 inFlight=0
+73212555380 COMPLETE iter=3201 tv=36 type=build chunks=1 inFlight=1 gpuVal=36
+73212663414 BUILD_SUBMIT iter=3215 tv=37 vk=0 chunks=1 inFlight=0
+73212663475 BUILD_SUBMIT iter=3216 tv=38 vk=0 chunks=1 inFlight=1
+73212666979 COMPLETE iter=3219 tv=37 type=build chunks=1 inFlight=2 gpuVal=38
+73212667004 COMPLETE iter=3219 tv=38 type=build chunks=1 inFlight=1 gpuVal=38
+73212937588 BUILD_SUBMIT iter=3266 tv=39 vk=0 chunks=1 inFlight=0
+73212944763 COMPLETE iter=3272 tv=39 type=build chunks=1 inFlight=1 gpuVal=39
+73212964788 BUILD_SUBMIT iter=3276 tv=40 vk=0 chunks=1 inFlight=0
+73212966284 COMPLETE iter=3278 tv=40 type=build chunks=1 inFlight=1 gpuVal=40
+73213243378 BUILD_SUBMIT iter=3325 tv=41 vk=0 chunks=1 inFlight=0
+73213245988 COMPLETE iter=3328 tv=41 type=build chunks=1 inFlight=1 gpuVal=41
+73213494691 BUILD_SUBMIT iter=3370 tv=42 vk=0 chunks=1 inFlight=0
+73213497727 COMPLETE iter=3373 tv=42 type=build chunks=1 inFlight=1 gpuVal=42
+73213709109 BUILD_SUBMIT iter=3408 tv=43 vk=0 chunks=1 inFlight=0
+73213715131 COMPLETE iter=3413 tv=43 type=build chunks=1 inFlight=1 gpuVal=43
+73213799388 BUILD_SUBMIT iter=3428 tv=44 vk=0 chunks=1 inFlight=0
+73213806692 COMPLETE iter=3434 tv=44 type=build chunks=1 inFlight=1 gpuVal=44
+73213869444 BUILD_SUBMIT iter=3441 tv=45 vk=0 chunks=1 inFlight=0
+73213872271 COMPLETE iter=3444 tv=45 type=build chunks=1 inFlight=1 gpuVal=45
+73214552340 BUILD_SUBMIT iter=3570 tv=46 vk=0 chunks=1 inFlight=0
+73214556417 COMPLETE iter=3574 tv=46 type=build chunks=1 inFlight=1 gpuVal=46
+73215249821 BUILD_SUBMIT iter=3697 tv=47 vk=0 chunks=1 inFlight=0
+73215255582 COMPLETE iter=3702 tv=47 type=build chunks=1 inFlight=1 gpuVal=47
+73215304204 BUILD_SUBMIT iter=3707 tv=48 vk=0 chunks=1 inFlight=0
+73215308620 COMPLETE iter=3711 tv=48 type=build chunks=1 inFlight=1 gpuVal=48
+73215484727 BUILD_SUBMIT iter=3738 tv=49 vk=0 chunks=1 inFlight=0
+73215487390 COMPLETE iter=3741 tv=49 type=build chunks=1 inFlight=1 gpuVal=49
+73216047774 BUILD_SUBMIT iter=3842 tv=50 vk=0 chunks=1 inFlight=0
+73216052244 COMPLETE iter=3846 tv=50 type=build chunks=1 inFlight=1 gpuVal=50
+73216052951 BUILD_SUBMIT iter=3847 tv=51 vk=0 chunks=1 inFlight=0
+73216055746 COMPLETE iter=3850 tv=51 type=build chunks=1 inFlight=1 gpuVal=51
+73216097781 BUILD_SUBMIT iter=3858 tv=52 vk=0 chunks=1 inFlight=0
+73216099296 COMPLETE iter=3860 tv=52 type=build chunks=1 inFlight=1 gpuVal=52
+73216104214 BUILD_SUBMIT iter=3861 tv=53 vk=0 chunks=1 inFlight=0
+73216108296 COMPLETE iter=3865 tv=53 type=build chunks=1 inFlight=1 gpuVal=53
+73216138326 BUILD_SUBMIT iter=3867 tv=54 vk=0 chunks=1 inFlight=0
+73216141318 COMPLETE iter=3870 tv=54 type=build chunks=1 inFlight=1 gpuVal=54
+73216146660 BUILD_SUBMIT iter=3871 tv=55 vk=0 chunks=1 inFlight=0
+73216147827 COMPLETE iter=3873 tv=55 type=build chunks=1 inFlight=1 gpuVal=55
+73217065853 BUILD_SUBMIT iter=4037 tv=56 vk=0 chunks=1 inFlight=0
+73217065934 BUILD_SUBMIT iter=4038 tv=57 vk=0 chunks=1 inFlight=1
+73217073411 COMPLETE iter=4044 tv=56 type=build chunks=1 inFlight=2 gpuVal=57
+73217073442 COMPLETE iter=4044 tv=57 type=build chunks=1 inFlight=1 gpuVal=57
+73217082642 BUILD_SUBMIT iter=4046 tv=58 vk=0 chunks=1 inFlight=0
+73217083919 COMPLETE iter=4048 tv=58 type=build chunks=1 inFlight=1 gpuVal=58
+73217085979 BUILD_SUBMIT iter=4049 tv=59 vk=0 chunks=1 inFlight=0
+73217087517 COMPLETE iter=4051 tv=59 type=build chunks=1 inFlight=1 gpuVal=59
+73217229069 BUILD_SUBMIT iter=4072 tv=60 vk=0 chunks=1 inFlight=0
+73217229224 BUILD_SUBMIT iter=4073 tv=61 vk=0 chunks=2 inFlight=1
+73217232064 COMPLETE iter=4076 tv=60 type=build chunks=1 inFlight=2 gpuVal=61
+73217232089 COMPLETE iter=4076 tv=61 type=build chunks=2 inFlight=1 gpuVal=61
+73217356086 BUILD_SUBMIT iter=4094 tv=62 vk=0 chunks=1 inFlight=0
+73217361714 COMPLETE iter=4099 tv=62 type=build chunks=1 inFlight=1 gpuVal=62
+73217413010 BUILD_SUBMIT iter=4104 tv=63 vk=0 chunks=1 inFlight=0
+73217418776 COMPLETE iter=4109 tv=63 type=build chunks=1 inFlight=1 gpuVal=63
+73217541045 BUILD_SUBMIT iter=4127 tv=64 vk=0 chunks=1 inFlight=0
+73217543895 COMPLETE iter=4130 tv=64 type=build chunks=1 inFlight=1 gpuVal=64
+73217700775 BUILD_SUBMIT iter=4154 tv=65 vk=0 chunks=1 inFlight=0
+73217703517 COMPLETE iter=4157 tv=65 type=build chunks=1 inFlight=1 gpuVal=65
+73217846090 BUILD_SUBMIT iter=4183 tv=66 vk=0 chunks=1 inFlight=0
+73217853666 COMPLETE iter=4189 tv=66 type=build chunks=1 inFlight=1 gpuVal=66
+73217965237 BUILD_SUBMIT iter=4203 tv=67 vk=0 chunks=1 inFlight=0
+73217965347 BUILD_SUBMIT iter=4204 tv=68 vk=0 chunks=1 inFlight=1
+73217966768 COMPLETE iter=4206 tv=67 type=build chunks=1 inFlight=2 gpuVal=68
+73217966790 COMPLETE iter=4206 tv=68 type=build chunks=1 inFlight=1 gpuVal=68
+73218025564 BUILD_SUBMIT iter=4216 tv=69 vk=0 chunks=1 inFlight=0
+73218031331 COMPLETE iter=4221 tv=69 type=build chunks=1 inFlight=1 gpuVal=69
+73218206448 BUILD_SUBMIT iter=4253 tv=70 vk=0 chunks=1 inFlight=0
+73218212245 COMPLETE iter=4258 tv=70 type=build chunks=1 inFlight=1 gpuVal=70
+73218245017 BUILD_SUBMIT iter=4259 tv=71 vk=0 chunks=1 inFlight=0
+73218252291 COMPLETE iter=4265 tv=71 type=build chunks=1 inFlight=1 gpuVal=71
+73218616087 BUILD_SUBMIT iter=4331 tv=72 vk=0 chunks=1 inFlight=0
+73218621873 COMPLETE iter=4336 tv=72 type=build chunks=1 inFlight=1 gpuVal=72
+73219125749 BUILD_SUBMIT iter=4424 tv=73 vk=0 chunks=1 inFlight=0
+73219131698 COMPLETE iter=4429 tv=73 type=build chunks=1 inFlight=1 gpuVal=73
+73219242262 BUILD_SUBMIT iter=4443 tv=74 vk=0 chunks=1 inFlight=0
+73219245223 COMPLETE iter=4446 tv=74 type=build chunks=1 inFlight=1 gpuVal=74
+73219767423 BUILD_SUBMIT iter=4534 tv=75 vk=0 chunks=1 inFlight=0
+73219770227 COMPLETE iter=4537 tv=75 type=build chunks=1 inFlight=1 gpuVal=75
+73220382254 BUILD_SUBMIT iter=4644 tv=76 vk=0 chunks=1 inFlight=0
+73220390977 COMPLETE iter=4651 tv=76 type=build chunks=1 inFlight=1 gpuVal=76
+73221068854 BUILD_SUBMIT iter=4772 tv=77 vk=0 chunks=1 inFlight=0
+73221076083 COMPLETE iter=4778 tv=77 type=build chunks=1 inFlight=1 gpuVal=77
+73221469225 BUILD_SUBMIT iter=4851 tv=78 vk=0 chunks=1 inFlight=0
+73221474259 COMPLETE iter=4855 tv=78 type=build chunks=1 inFlight=1 gpuVal=78
+73221727470 BUILD_SUBMIT iter=4896 tv=79 vk=0 chunks=1 inFlight=0
+73221733476 COMPLETE iter=4901 tv=79 type=build chunks=1 inFlight=1 gpuVal=79
+73221786784 BUILD_SUBMIT iter=4911 tv=80 vk=0 chunks=1 inFlight=0
+73221792556 COMPLETE iter=4916 tv=80 type=build chunks=1 inFlight=1 gpuVal=80
+73222388479 BUILD_SUBMIT iter=5020 tv=81 vk=0 chunks=1 inFlight=0
+73222388581 BUILD_SUBMIT iter=5021 tv=82 vk=0 chunks=1 inFlight=1
+73222394895 COMPLETE iter=5026 tv=81 type=build chunks=1 inFlight=2 gpuVal=82
+73222394940 COMPLETE iter=5026 tv=82 type=build chunks=1 inFlight=1 gpuVal=82
+73223271185 BUILD_SUBMIT iter=5189 tv=83 vk=0 chunks=1 inFlight=0
+73223275574 COMPLETE iter=5193 tv=83 type=build chunks=1 inFlight=1 gpuVal=83
+73224001836 BUILD_SUBMIT iter=5327 tv=84 vk=0 chunks=1 inFlight=0
+73224006733 COMPLETE iter=5331 tv=84 type=build chunks=1 inFlight=1 gpuVal=84
+73224175373 BUILD_SUBMIT iter=5357 tv=85 vk=0 chunks=1 inFlight=0
+73224175467 BUILD_SUBMIT iter=5358 tv=86 vk=0 chunks=1 inFlight=1
+73224182881 COMPLETE iter=5364 tv=85 type=build chunks=1 inFlight=2 gpuVal=86
+73224182908 COMPLETE iter=5364 tv=86 type=build chunks=1 inFlight=1 gpuVal=86
+73224236194 BUILD_SUBMIT iter=5374 tv=87 vk=0 chunks=1 inFlight=0
+73224240441 COMPLETE iter=5378 tv=87 type=build chunks=1 inFlight=1 gpuVal=87
+73224431713 BUILD_SUBMIT iter=5408 tv=88 vk=0 chunks=1 inFlight=0
+73224438124 COMPLETE iter=5413 tv=88 type=build chunks=1 inFlight=1 gpuVal=88
+73224906200 BUILD_SUBMIT iter=5494 tv=89 vk=0 chunks=1 inFlight=0
+73224912129 COMPLETE iter=5499 tv=89 type=build chunks=1 inFlight=1 gpuVal=89
+73224926760 BUILD_SUBMIT iter=5501 tv=90 vk=0 chunks=1 inFlight=0
+73224931655 COMPLETE iter=5505 tv=90 type=build chunks=1 inFlight=1 gpuVal=90
+73225324971 BUILD_SUBMIT iter=5578 tv=91 vk=0 chunks=1 inFlight=0
+73225330721 COMPLETE iter=5583 tv=91 type=build chunks=1 inFlight=1 gpuVal=91
+73225559641 BUILD_SUBMIT iter=5620 tv=92 vk=0 chunks=1 inFlight=0
+73225565488 COMPLETE iter=5625 tv=92 type=build chunks=1 inFlight=1 gpuVal=92
+73226248444 BUILD_SUBMIT iter=5744 tv=93 vk=0 chunks=1 inFlight=0
+73226251398 COMPLETE iter=5747 tv=93 type=build chunks=1 inFlight=1 gpuVal=93
+73226492349 BUILD_SUBMIT iter=5792 tv=94 vk=0 chunks=1 inFlight=0
+73226493685 COMPLETE iter=5794 tv=94 type=build chunks=1 inFlight=1 gpuVal=94
+73226770750 BUILD_SUBMIT iter=5840 tv=95 vk=0 chunks=1 inFlight=0
+73226775432 COMPLETE iter=5844 tv=95 type=build chunks=1 inFlight=1 gpuVal=95
+73226833169 BUILD_SUBMIT iter=5855 tv=96 vk=0 chunks=1 inFlight=0
+73226836007 COMPLETE iter=5858 tv=96 type=build chunks=1 inFlight=1 gpuVal=96
+73227225587 BUILD_SUBMIT iter=5926 tv=97 vk=0 chunks=1 inFlight=0
+73227228206 COMPLETE iter=5929 tv=97 type=build chunks=1 inFlight=1 gpuVal=97
+73227247290 BUILD_SUBMIT iter=5933 tv=98 vk=0 chunks=1 inFlight=0
+73227250268 BUILD_SUBMIT iter=5936 tv=99 vk=0 chunks=1 inFlight=1
+73227251736 COMPLETE iter=5938 tv=98 type=build chunks=1 inFlight=2 gpuVal=99
+73227251756 COMPLETE iter=5938 tv=99 type=build chunks=1 inFlight=1 gpuVal=99
+73227542854 BUILD_SUBMIT iter=5988 tv=100 vk=0 chunks=1 inFlight=0
+73227549981 COMPLETE iter=5994 tv=100 type=build chunks=1 inFlight=1 gpuVal=100
+73227766788 BUILD_SUBMIT iter=6028 tv=101 vk=0 chunks=1 inFlight=0
+73227772665 COMPLETE iter=6033 tv=101 type=build chunks=1 inFlight=1 gpuVal=101
+73227809080 BUILD_SUBMIT iter=6041 tv=102 vk=0 chunks=1 inFlight=0
+73227813775 COMPLETE iter=6045 tv=102 type=build chunks=1 inFlight=1 gpuVal=102
+73227945789 BUILD_SUBMIT iter=6063 tv=103 vk=0 chunks=1 inFlight=0
+73227945876 BUILD_SUBMIT iter=6064 tv=104 vk=0 chunks=1 inFlight=1
+73227947485 BUILD_SUBMIT iter=6066 tv=105 vk=0 chunks=1 inFlight=2
+73227953891 COMPLETE iter=6071 tv=103 type=build chunks=1 inFlight=3 gpuVal=105
+73227953919 COMPLETE iter=6071 tv=104 type=build chunks=1 inFlight=2 gpuVal=105
+73227953928 COMPLETE iter=6071 tv=105 type=build chunks=1 inFlight=1 gpuVal=105
+73228974426 BUILD_SUBMIT iter=6255 tv=106 vk=0 chunks=1 inFlight=0
+73228980118 COMPLETE iter=6260 tv=106 type=build chunks=1 inFlight=1 gpuVal=106
+73229861633 BUILD_SUBMIT iter=6418 tv=107 vk=0 chunks=1 inFlight=0
+73229868981 COMPLETE iter=6424 tv=107 type=build chunks=1 inFlight=1 gpuVal=107
+73230745721 BUILD_SUBMIT iter=6584 tv=108 vk=0 chunks=1 inFlight=0
+73230782889 BUILD_SUBMIT iter=6589 tv=109 vk=0 chunks=1 inFlight=1
+73230782912 COMPLETE iter=6590 tv=108 type=build chunks=1 inFlight=2 gpuVal=108
+73230783012 BUILD_SUBMIT iter=6590 tv=110 vk=0 chunks=2 inFlight=1
+73230790394 COMPLETE iter=6596 tv=109 type=build chunks=1 inFlight=2 gpuVal=110
+73230790420 COMPLETE iter=6596 tv=110 type=build chunks=2 inFlight=1 gpuVal=110
+73231293635 BUILD_SUBMIT iter=6686 tv=111 vk=0 chunks=1 inFlight=0
+73231300892 COMPLETE iter=6692 tv=111 type=build chunks=1 inFlight=1 gpuVal=111
+73231844559 BUILD_SUBMIT iter=6793 tv=112 vk=0 chunks=1 inFlight=0
+73231851557 COMPLETE iter=6798 tv=112 type=build chunks=1 inFlight=1 gpuVal=112

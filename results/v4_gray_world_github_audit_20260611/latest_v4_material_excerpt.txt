@@ -1,0 +1,260 @@
+﻿124-[11:43:14] [Render thread/INFO]: [MaterialCompat] Runtime material bootstrap published 9357 CTM materials from 1190 property files for generation 1 in 143.24 ms (tableUploaded=true)
+125-[11:43:14] [Render thread/INFO]: [MaterialCompat] CTM residency deferred for generation 1: no visible material demand
+126:[11:43:14] [Render thread/INFO]: [STDOUT]: [TextureLoaderV4] Vanilla tier upload generation=1
+127-  T16 layers=910 bytes=931840
+128-  T32 layers=101 bytes=413696
+--
+132-  T512 layers=1 bytes=1048576
+133-
+134:[11:43:14] [Render thread/INFO]: [TextureLoaderV4] Block atlas v4 extraction: gen=1 sprites=1810 pages=6 layers=2228 bytes=384966656 cacheHits=0 cacheMisses=0 cacheWrites=0 materialTableUploaded=true textureRulesUploaded=true defaultRuleSeeds=48 bootstrap={"attempted":true,"published":true,"generation":1,"dependencyCount":9357,"presentDependencyCount":8040,"propertyCount":1190,"reason":"published","elapsedMs":143.2358,"tableUploaded":true}
+135-[11:43:14] [Render thread/INFO]: Created: 1024x512x4 minecraft:textures/atlas/signs.png-atlas
+136-[11:43:15] [Render thread/INFO]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+--
+177-[11:43:44] [Render thread/INFO]: [STDOUT]: [DebugBridge] SCREEN class_434 -> InGame
+178-[11:43:44] [Thread-19/INFO]: [MaterialCompat] Color resolver compiled 0 fixed block tints from 0 flat palettes and 0 fixed colormaps; 1 biome palettes pending
+179:[11:43:44] [Thread-19/INFO]: [MaterialCompat] Variant resolver compiled 1190 block texture rules
+180-[11:43:44] [Thread-19/INFO]: [MaterialCompat] Block layer resolver compiled 1 block.properties entries from C:\Users\Administrator\AppData\Roaming\PrismLauncher\instances\1.21.4\minecraft\radiance\shaders\world\ray_tracing\vanilla-pt.zip|rm=1175339477|tex=1
+181-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 1 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+--
+183-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+184-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=77.47
+185:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+186-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 7 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+187-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 7 layers
+188-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+189-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=33.56
+190:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+191-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 22 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+192-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 22 layers
+193-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+194-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=44.25
+195:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+196-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 12 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+197-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 12 layers
+198-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+199-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=35.78
+200:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+201-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 9 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+202-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 9 layers
+203-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+204-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=33.68
+205:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+206-[11:43:44] [Render thread/INFO]: [STDOUT]: [DebugBridge] SPIKE 646.0ms (avg 72.1ms, 9.0x)
+207-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 10 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+--
+209-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+210-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=26.66
+211:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+212-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 10 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+213-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 10 layers
+214-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+215-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=28.90
+216:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+217-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 8 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+218-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 8 layers
+219-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+220-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=22.33
+221:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+222-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 13 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+223-[11:43:44] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 13 layers
+224-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+225-[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=20.80
+226:[11:43:44] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+227-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 15 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+228-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 15 layers
+229-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+230-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=24.48
+231:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+232-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 2 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+233-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 2 layers
+234-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+235-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=19.11
+236:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+237-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 23 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+238-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 23 layers
+239-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+240-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=25.52
+241:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+242-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 26 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+243-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 26 layers
+244-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+245-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=26.62
+246:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+247-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 4 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+248-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 4 layers
+249-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+250-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.83
+251:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+252-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 10 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+253-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 10 layers
+254-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+255-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=20.79
+256:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+257-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 58 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+258-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 58 layers
+259-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+260-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=36.05
+261:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+262-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 45 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+263-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 45 layers
+264-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+265-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=31.07
+266:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+267-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 31 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+268-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 31 layers
+269-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+270-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=30.24
+271:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+272-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 21 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+273-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 21 layers
+274-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+275-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=22.07
+276:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+277-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 2 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+278-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 2 layers
+279-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+280-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=15.73
+281:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+282-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 8 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+283-[11:43:45] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 8 layers
+284-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+285-[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.07
+286:[11:43:45] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+287-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 28 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+288-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 28 layers
+289-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+290-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=27.02
+291:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+292-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 36 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+293:[11:43:46] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.05 entities=1.73 blockEntities=0.15 particles=0.01 weather=0.01 chunkRebuild=0.21 other=0.67 TOTAL=2.83 rebuildQueue=387
+294-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 36 layers
+295-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+296-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=38.10
+297:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+298-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 4 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+299-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 4 layers
+300-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+301-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.85
+302:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+303-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 10 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+304-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 10 layers
+305-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+306-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.92
+307:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+308-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 14 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+309-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 14 layers
+310-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+311-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=31.85
+312:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+313-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 8 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+314-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 8 layers
+315-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+316-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.60
+317:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+318-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 14 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+319-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 14 layers
+320-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+321-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.67
+322:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+323-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 47 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+324-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 47 layers
+325-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+326-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=20.83
+327:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+328-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 20 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+329-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 8 upload failed: 14 layers
+--
+331-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+332-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=21.90
+333:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+334-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 23 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+335-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 23 layers
+336-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+337-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=19.59
+338:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+339-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 36 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+340-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 36 layers
+341-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+342-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.71
+343:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+344-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 13 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+345-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 13 layers
+346-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+347-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.29
+348:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+349-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 16 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+350-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 16 layers
+351-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+352-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.64
+353:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+354-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 18 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+355-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 18 layers
+356-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+357-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=16.93
+358:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+359-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 18 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+360-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 18 layers
+361-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+362-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=16.70
+363:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+364-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 10 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+365-[11:43:46] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 10 layers
+366-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+367-[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=16.91
+368:[11:43:46] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+369-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 23 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+370-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 23 layers
+371-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+372-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.72
+373:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+374-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 12 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+375-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 12 layers
+376-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+377-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.53
+378:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+379-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 17 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+380-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 17 layers
+381-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+382-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=20.84
+383:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+384:[11:43:47] [Render thread/INFO]: [STDOUT]: [JAVA] setupTerrain=0.03 entities=0.75 blockEntities=0.03 particles=0.01 weather=0.00 chunkRebuild=0.02 other=0.21 TOTAL=1.05 rebuildQueue=96
+385-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 7 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+386-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 7 layers
+387-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+388-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=19.18
+389:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+390-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 24 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+391-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 24 layers
+392-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+393-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.99
+394:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+395-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 22 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+396-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 22 layers
+397-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+398-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=29.56
+399:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+400-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 8 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+401-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 8 layers
+402-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+403-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=18.23
+404:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+405-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 20 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+406-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 20 layers
+407-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+408-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=19.14
+409:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+410-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 5 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+411-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 5 layers
+412-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+413-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.08
+414:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+415-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 14 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+416-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 14 layers
+417-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+418-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=17.95
+419:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1
+420-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload starting: 4 candidate materials, layerSize=128, pageCapacity=512, pageBudget=120, decodeThreads=4, generation=1, visibleOnly=true
+421-[11:43:47] [RadSER Material Residency Upload/WARN]: [MaterialCompat] Material page 9 upload failed: 4 layers
+422-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Material page upload: 0 materials across 0 pages, 0 deferred
+423-[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Runtime material residency complete for generation 1: 0 materials resident, tableUploaded=false, totalMs=13.99
+424:[11:43:47] [RadSER Material Residency Upload/INFO]: [MaterialCompat] Residency updated descriptor/material-table state only; chunk rebuild skipped for generation 1

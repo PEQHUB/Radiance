@@ -1,0 +1,442 @@
+﻿20459:11:43:44.106 WP chunk visibility total=1944 withBlas=0 missingBlas=1944 invalidMeta=0 invalidBuf=0 invalidGpu=0 missingBda=0 releasedStaging=0 placeholderGeo=0 staleTex=0 culled=0 visible=0 cullDist=384.0 cam=(711.0,106.6,250.0)
+20460:11:43:44.106 WP TLAS full build reason=firstBuild prevInstances=0 currInstances=32 genDiffs=32 firstGenDiff=0 blasDiffs=32 firstBlasDiff=0
+20463:11:43:44.107 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=10
+20464:11:43:44.650 RT textureFlush end
+20465:11:43:44.650 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":false,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096
+20466:11:43:44.650 RT descriptors end
+20471:11:43:44.653 ShaderPack SBT routing total=12 entity=12 chunk=0 entityWorldMask=6 entityNoHeight=6 chunkFallback=0 missingSource=0
+23791:11:43:48.854 WP TLAS full build reason=firstBuild prevInstances=0 currInstances=38 genDiffs=38 firstGenDiff=0 blasDiffs=38 firstBlasDiff=0
+23794:11:43:48.854 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23795:11:43:48.854 RT textureFlush end
+23796:11:43:48.854 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23797:11:43:48.854 RT descriptors end
+23822:11:43:48.866 WP TLAS full build reason=instanceCountChanged prevInstances=32 currInstances=38 genDiffs=6 firstGenDiff=32 blasDiffs=6 firstBlasDiff=32
+23823:11:43:48.866 WP TLAS composition prevEntity=5 currEntity=20 prevEntitySlots=32 currEntitySlots=32 prevChunk=0 currChunk=6 prevMega=0 currMega=0 sourceEntity=20 skippedNoBlas=0 skippedPrebuilt=0 flags world=18 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+23826:11:43:48.866 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23827:11:43:48.866 RT textureFlush end
+23828:11:43:48.866 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23829:11:43:48.866 RT descriptors end
+23854:11:43:48.875 WP TLAS full build reason=firstBuild prevInstances=0 currInstances=38 genDiffs=38 firstGenDiff=0 blasDiffs=38 firstBlasDiff=0
+23857:11:43:48.875 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23858:11:43:48.875 RT textureFlush end
+23859:11:43:48.875 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23860:11:43:48.875 RT descriptors end
+23887:11:43:48.885 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23888:11:43:48.885 RT textureFlush end
+23889:11:43:48.885 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23890:11:43:48.886 RT descriptors end
+23917:11:43:48.896 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23918:11:43:48.896 RT textureFlush end
+23919:11:43:48.896 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23920:11:43:48.896 RT descriptors end
+23947:11:43:48.905 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23948:11:43:48.905 RT textureFlush end
+23949:11:43:48.905 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23950:11:43:48.906 RT descriptors end
+23977:11:43:48.916 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+23978:11:43:48.916 RT textureFlush end
+23979:11:43:48.916 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+23980:11:43:48.916 RT descriptors end
+24007:11:43:48.928 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24008:11:43:48.928 RT textureFlush end
+24009:11:43:48.928 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24010:11:43:48.929 RT descriptors end
+24037:11:43:48.941 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24038:11:43:48.941 RT textureFlush end
+24039:11:43:48.941 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24040:11:43:48.941 RT descriptors end
+24067:11:43:48.954 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24068:11:43:48.954 RT textureFlush end
+24069:11:43:48.954 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24070:11:43:48.954 RT descriptors end
+24097:11:43:48.966 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24098:11:43:48.966 RT textureFlush end
+24099:11:43:48.966 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24100:11:43:48.966 RT descriptors end
+24127:11:43:48.979 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24128:11:43:48.979 RT textureFlush end
+24129:11:43:48.979 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24130:11:43:48.979 RT descriptors end
+24157:11:43:49.004 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24158:11:43:49.004 RT textureFlush end
+24159:11:43:49.004 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24160:11:43:49.004 RT descriptors end
+24187:11:43:49.016 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24188:11:43:49.016 RT textureFlush end
+24189:11:43:49.016 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24190:11:43:49.016 RT descriptors end
+24217:11:43:49.026 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24218:11:43:49.026 RT textureFlush end
+24219:11:43:49.026 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24220:11:43:49.026 RT descriptors end
+24247:11:43:49.037 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24248:11:43:49.037 RT textureFlush end
+24249:11:43:49.037 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24250:11:43:49.038 RT descriptors end
+24277:11:43:49.052 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24278:11:43:49.052 RT textureFlush end
+24279:11:43:49.052 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24280:11:43:49.052 RT descriptors end
+24307:11:43:49.064 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24308:11:43:49.064 RT textureFlush end
+24309:11:43:49.064 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24310:11:43:49.064 RT descriptors end
+24337:11:43:49.075 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24338:11:43:49.075 RT textureFlush end
+24339:11:43:49.075 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24340:11:43:49.076 RT descriptors end
+24367:11:43:49.086 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24368:11:43:49.086 RT textureFlush end
+24369:11:43:49.086 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24370:11:43:49.086 RT descriptors end
+24397:11:43:49.100 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24398:11:43:49.100 RT textureFlush end
+24399:11:43:49.100 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24400:11:43:49.100 RT descriptors end
+24427:11:43:49.111 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24428:11:43:49.111 RT textureFlush end
+24429:11:43:49.111 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24430:11:43:49.112 RT descriptors end
+24457:11:43:49.120 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24458:11:43:49.120 RT textureFlush end
+24459:11:43:49.120 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24460:11:43:49.120 RT descriptors end
+24487:11:43:49.134 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24488:11:43:49.134 RT textureFlush end
+24489:11:43:49.134 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24490:11:43:49.134 RT descriptors end
+24517:11:43:49.144 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24518:11:43:49.144 RT textureFlush end
+24519:11:43:49.144 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24520:11:43:49.145 RT descriptors end
+24547:11:43:49.157 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24548:11:43:49.157 RT textureFlush end
+24549:11:43:49.157 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24550:11:43:49.157 RT descriptors end
+24577:11:43:49.170 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24578:11:43:49.170 RT textureFlush end
+24579:11:43:49.170 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24580:11:43:49.170 RT descriptors end
+24607:11:43:49.181 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24608:11:43:49.181 RT textureFlush end
+24609:11:43:49.181 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24610:11:43:49.181 RT descriptors end
+24637:11:43:49.194 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24638:11:43:49.194 RT textureFlush end
+24639:11:43:49.194 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24640:11:43:49.194 RT descriptors end
+24667:11:43:49.207 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24668:11:43:49.207 RT textureFlush end
+24669:11:43:49.207 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24670:11:43:49.208 RT descriptors end
+24697:11:43:49.219 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24698:11:43:49.219 RT textureFlush end
+24699:11:43:49.220 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24700:11:43:49.220 RT descriptors end
+24727:11:43:49.232 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24728:11:43:49.232 RT textureFlush end
+24729:11:43:49.232 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24730:11:43:49.232 RT descriptors end
+24757:11:43:49.253 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24758:11:43:49.253 RT textureFlush end
+24759:11:43:49.253 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24760:11:43:49.253 RT descriptors end
+24787:11:43:49.263 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24788:11:43:49.263 RT textureFlush end
+24789:11:43:49.263 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24790:11:43:49.263 RT descriptors end
+24817:11:43:49.272 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24818:11:43:49.272 RT textureFlush end
+24819:11:43:49.273 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24820:11:43:49.273 RT descriptors end
+24847:11:43:49.284 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24848:11:43:49.284 RT textureFlush end
+24849:11:43:49.284 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24850:11:43:49.285 RT descriptors end
+24877:11:43:49.296 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24878:11:43:49.296 RT textureFlush end
+24879:11:43:49.296 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24880:11:43:49.297 RT descriptors end
+24907:11:43:49.309 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24908:11:43:49.309 RT textureFlush end
+24909:11:43:49.309 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24910:11:43:49.309 RT descriptors end
+24937:11:43:49.323 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24938:11:43:49.323 RT textureFlush end
+24939:11:43:49.323 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24940:11:43:49.323 RT descriptors end
+24967:11:43:49.335 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24968:11:43:49.335 RT textureFlush end
+24969:11:43:49.335 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+24970:11:43:49.335 RT descriptors end
+24997:11:43:49.347 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+24998:11:43:49.347 RT textureFlush end
+24999:11:43:49.347 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25000:11:43:49.347 RT descriptors end
+25025:11:43:49.359 WP TLAS full build reason=generationChanged prevInstances=38 currInstances=38 genDiffs=1 firstGenDiff=33 blasDiffs=1 firstBlasDiff=33
+25028:11:43:49.359 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25029:11:43:49.359 RT textureFlush end
+25030:11:43:49.359 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25031:11:43:49.359 RT descriptors end
+25056:11:43:49.370 WP TLAS full build reason=generationChanged prevInstances=38 currInstances=38 genDiffs=1 firstGenDiff=33 blasDiffs=1 firstBlasDiff=33
+25059:11:43:49.370 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25060:11:43:49.370 RT textureFlush end
+25061:11:43:49.370 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25062:11:43:49.370 RT descriptors end
+25087:11:43:49.383 WP TLAS full build reason=generationChanged prevInstances=38 currInstances=38 genDiffs=1 firstGenDiff=33 blasDiffs=1 firstBlasDiff=33
+25090:11:43:49.383 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25091:11:43:49.383 RT textureFlush end
+25092:11:43:49.383 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25093:11:43:49.383 RT descriptors end
+25120:11:43:49.397 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25121:11:43:49.397 RT textureFlush end
+25122:11:43:49.397 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25123:11:43:49.397 RT descriptors end
+25150:11:43:49.407 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25151:11:43:49.407 RT textureFlush end
+25152:11:43:49.407 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25153:11:43:49.408 RT descriptors end
+25180:11:43:49.421 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25181:11:43:49.421 RT textureFlush end
+25182:11:43:49.421 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25183:11:43:49.421 RT descriptors end
+25210:11:43:49.433 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25211:11:43:49.433 RT textureFlush end
+25212:11:43:49.433 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25213:11:43:49.433 RT descriptors end
+25240:11:43:49.445 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25241:11:43:49.445 RT textureFlush end
+25242:11:43:49.445 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25243:11:43:49.445 RT descriptors end
+25270:11:43:49.459 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25271:11:43:49.459 RT textureFlush end
+25272:11:43:49.459 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25273:11:43:49.459 RT descriptors end
+25300:11:43:49.470 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25301:11:43:49.470 RT textureFlush end
+25302:11:43:49.470 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+25303:11:43:49.470 RT descriptors end
+25330:11:43:49.483 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+25331:11:43:49.483 RT textureFlush end
+
+--- tail sample ---
+76854:11:44:19.225 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+76855:11:44:19.225 RT textureFlush end
+76856:11:44:19.225 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+76857:11:44:19.226 RT descriptors end
+76884:11:44:19.252 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+76885:11:44:19.252 RT textureFlush end
+76886:11:44:19.252 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+76887:11:44:19.252 RT descriptors end
+76914:11:44:19.266 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+76915:11:44:19.266 RT textureFlush end
+76916:11:44:19.266 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+76917:11:44:19.266 RT descriptors end
+76944:11:44:19.283 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+76945:11:44:19.283 RT textureFlush end
+76946:11:44:19.283 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+76947:11:44:19.284 RT descriptors end
+76974:11:44:19.305 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+76975:11:44:19.305 RT textureFlush end
+76976:11:44:19.305 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+76977:11:44:19.305 RT descriptors end
+77004:11:44:19.324 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77005:11:44:19.324 RT textureFlush end
+77006:11:44:19.324 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77007:11:44:19.324 RT descriptors end
+77034:11:44:19.346 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77035:11:44:19.346 RT textureFlush end
+77036:11:44:19.346 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77037:11:44:19.346 RT descriptors end
+77064:11:44:19.369 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77065:11:44:19.369 RT textureFlush end
+77066:11:44:19.369 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77067:11:44:19.369 RT descriptors end
+77094:11:44:19.386 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77095:11:44:19.386 RT textureFlush end
+77096:11:44:19.386 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77097:11:44:19.387 RT descriptors end
+77124:11:44:19.409 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77125:11:44:19.409 RT textureFlush end
+77126:11:44:19.409 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77127:11:44:19.409 RT descriptors end
+77154:11:44:19.429 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77155:11:44:19.429 RT textureFlush end
+77156:11:44:19.429 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77157:11:44:19.429 RT descriptors end
+77184:11:44:19.448 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77185:11:44:19.448 RT textureFlush end
+77186:11:44:19.448 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77187:11:44:19.449 RT descriptors end
+77214:11:44:19.468 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77215:11:44:19.468 RT textureFlush end
+77216:11:44:19.469 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77217:11:44:19.469 RT descriptors end
+77244:11:44:19.489 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77245:11:44:19.489 RT textureFlush end
+77246:11:44:19.489 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77247:11:44:19.489 RT descriptors end
+77274:11:44:19.508 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77275:11:44:19.508 RT textureFlush end
+77276:11:44:19.508 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77277:11:44:19.508 RT descriptors end
+77304:11:44:19.532 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77305:11:44:19.532 RT textureFlush end
+77306:11:44:19.532 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77307:11:44:19.532 RT descriptors end
+77334:11:44:19.550 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77335:11:44:19.550 RT textureFlush end
+77336:11:44:19.550 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77337:11:44:19.550 RT descriptors end
+77364:11:44:19.572 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77365:11:44:19.572 RT textureFlush end
+77366:11:44:19.572 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77367:11:44:19.572 RT descriptors end
+77397:11:44:19.611 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77398:11:44:19.611 RT textureFlush end
+77399:11:44:19.611 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77400:11:44:19.611 RT descriptors end
+77425:11:44:19.631 WP TLAS full build reason=instanceCountChanged prevInstances=129 currInstances=130 genDiffs=4 firstGenDiff=113 blasDiffs=18 firstBlasDiff=112
+77426:11:44:19.631 WP TLAS composition prevEntity=19 currEntity=19 prevEntitySlots=32 currEntitySlots=32 prevChunk=97 currChunk=98 prevMega=0 currMega=0 sourceEntity=19 skippedNoBlas=0 skippedPrebuilt=0 flags world=17 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+77429:11:44:19.632 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77430:11:44:19.632 RT textureFlush end
+77431:11:44:19.632 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77432:11:44:19.632 RT descriptors end
+77457:11:44:19.635 WP TLAS full build reason=instanceCountChanged prevInstances=129 currInstances=130 genDiffs=4 firstGenDiff=113 blasDiffs=18 firstBlasDiff=112
+77458:11:44:19.635 WP TLAS composition prevEntity=19 currEntity=19 prevEntitySlots=32 currEntitySlots=32 prevChunk=97 currChunk=98 prevMega=0 currMega=0 sourceEntity=19 skippedNoBlas=0 skippedPrebuilt=0 flags world=17 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+77461:11:44:19.635 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77462:11:44:19.635 RT textureFlush end
+77463:11:44:19.635 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77464:11:44:19.635 RT descriptors end
+77489:11:44:19.654 WP TLAS full build reason=instanceCountChanged prevInstances=129 currInstances=130 genDiffs=4 firstGenDiff=113 blasDiffs=18 firstBlasDiff=112
+77490:11:44:19.654 WP TLAS composition prevEntity=19 currEntity=19 prevEntitySlots=32 currEntitySlots=32 prevChunk=97 currChunk=98 prevMega=0 currMega=0 sourceEntity=19 skippedNoBlas=0 skippedPrebuilt=0 flags world=17 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+77493:11:44:19.654 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77494:11:44:19.654 RT textureFlush end
+77495:11:44:19.654 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77496:11:44:19.654 RT descriptors end
+77523:11:44:19.674 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77524:11:44:19.674 RT textureFlush end
+77525:11:44:19.674 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77526:11:44:19.674 RT descriptors end
+77553:11:44:19.693 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77554:11:44:19.693 RT textureFlush end
+77555:11:44:19.693 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77556:11:44:19.693 RT descriptors end
+77583:11:44:19.713 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77584:11:44:19.713 RT textureFlush end
+77585:11:44:19.713 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77586:11:44:19.713 RT descriptors end
+77613:11:44:19.732 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77614:11:44:19.732 RT textureFlush end
+77615:11:44:19.732 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77616:11:44:19.733 RT descriptors end
+77643:11:44:19.754 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77644:11:44:19.754 RT textureFlush end
+77645:11:44:19.754 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77646:11:44:19.755 RT descriptors end
+77673:11:44:19.785 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77674:11:44:19.785 RT textureFlush end
+77675:11:44:19.785 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77676:11:44:19.785 RT descriptors end
+77703:11:44:19.794 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77704:11:44:19.794 RT textureFlush end
+77705:11:44:19.794 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77706:11:44:19.794 RT descriptors end
+77733:11:44:19.817 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77734:11:44:19.817 RT textureFlush end
+77735:11:44:19.817 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77736:11:44:19.817 RT descriptors end
+77763:11:44:19.835 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77764:11:44:19.835 RT textureFlush end
+77765:11:44:19.835 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77766:11:44:19.835 RT descriptors end
+77793:11:44:19.856 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77794:11:44:19.856 RT textureFlush end
+77795:11:44:19.856 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77796:11:44:19.857 RT descriptors end
+77823:11:44:19.880 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77824:11:44:19.880 RT textureFlush end
+77825:11:44:19.880 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77826:11:44:19.880 RT descriptors end
+77853:11:44:19.930 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77854:11:44:19.930 RT textureFlush end
+77855:11:44:19.930 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77856:11:44:19.930 RT descriptors end
+77883:11:44:19.934 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77884:11:44:19.934 RT textureFlush end
+77885:11:44:19.934 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77886:11:44:19.934 RT descriptors end
+77913:11:44:19.937 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77914:11:44:19.937 RT textureFlush end
+77915:11:44:19.937 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77916:11:44:19.937 RT descriptors end
+77943:11:44:19.957 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77944:11:44:19.957 RT textureFlush end
+77945:11:44:19.957 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77946:11:44:19.957 RT descriptors end
+77973:11:44:19.979 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+77974:11:44:19.979 RT textureFlush end
+77975:11:44:19.979 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+77976:11:44:19.979 RT descriptors end
+78003:11:44:19.998 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78004:11:44:19.998 RT textureFlush end
+78005:11:44:19.998 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78006:11:44:19.998 RT descriptors end
+78033:11:44:20.021 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78034:11:44:20.021 RT textureFlush end
+78035:11:44:20.021 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78036:11:44:20.021 RT descriptors end
+78063:11:44:20.039 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78064:11:44:20.039 RT textureFlush end
+78065:11:44:20.039 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78066:11:44:20.039 RT descriptors end
+78093:11:44:20.059 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78094:11:44:20.059 RT textureFlush end
+78095:11:44:20.059 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78096:11:44:20.059 RT descriptors end
+78123:11:44:20.081 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78124:11:44:20.081 RT textureFlush end
+78125:11:44:20.081 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78126:11:44:20.082 RT descriptors end
+78153:11:44:20.098 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78154:11:44:20.098 RT textureFlush end
+78155:11:44:20.098 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78156:11:44:20.098 RT descriptors end
+78183:11:44:20.121 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78184:11:44:20.121 RT textureFlush end
+78185:11:44:20.121 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78186:11:44:20.121 RT descriptors end
+78213:11:44:20.140 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78214:11:44:20.140 RT textureFlush end
+78215:11:44:20.140 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78216:11:44:20.140 RT descriptors end
+78243:11:44:20.162 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78244:11:44:20.162 RT textureFlush end
+78245:11:44:20.162 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78246:11:44:20.163 RT descriptors end
+78271:11:44:20.185 WP TLAS full build reason=instanceCountChanged prevInstances=130 currInstances=131 genDiffs=1 firstGenDiff=130 blasDiffs=4 firstBlasDiff=127
+78272:11:44:20.185 WP TLAS composition prevEntity=19 currEntity=19 prevEntitySlots=32 currEntitySlots=32 prevChunk=98 currChunk=99 prevMega=0 currMega=0 sourceEntity=19 skippedNoBlas=0 skippedPrebuilt=0 flags world=17 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+78275:11:44:20.189 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78276:11:44:20.189 RT textureFlush end
+78277:11:44:20.189 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78278:11:44:20.190 RT descriptors end
+78303:11:44:20.204 WP TLAS full build reason=instanceCountChanged prevInstances=130 currInstances=131 genDiffs=1 firstGenDiff=130 blasDiffs=4 firstBlasDiff=127
+78304:11:44:20.204 WP TLAS composition prevEntity=19 currEntity=19 prevEntitySlots=32 currEntitySlots=32 prevChunk=98 currChunk=99 prevMega=0 currMega=0 sourceEntity=19 skippedNoBlas=0 skippedPrebuilt=0 flags world=17 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+78307:11:44:20.204 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78308:11:44:20.204 RT textureFlush end
+78309:11:44:20.204 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78310:11:44:20.205 RT descriptors end
+78335:11:44:20.227 WP TLAS full build reason=instanceCountChanged prevInstances=130 currInstances=131 genDiffs=1 firstGenDiff=130 blasDiffs=4 firstBlasDiff=127
+78336:11:44:20.227 WP TLAS composition prevEntity=19 currEntity=19 prevEntitySlots=32 currEntitySlots=32 prevChunk=98 currChunk=99 prevMega=0 currMega=0 sourceEntity=19 skippedNoBlas=0 skippedPrebuilt=0 flags world=17 player=1 playerHead=1 hand=0 weather=0 particle=0 cloud=0 boatWater=0 other=0
+78339:11:44:20.228 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78340:11:44:20.228 RT textureFlush end
+78341:11:44:20.228 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78342:11:44:20.229 RT descriptors end
+78369:11:44:20.249 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78370:11:44:20.249 RT textureFlush end
+78371:11:44:20.249 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78372:11:44:20.249 RT descriptors end
+78399:11:44:20.301 RT textureFlush begin finalized=0 v4Active=1 allocatedMaterialPages=1 pendingMipPages=0
+78400:11:44:20.301 RT textureFlush end
+78401:11:44:20.301 RT v4 frame contract finalized=0 v4Ready=1 fallbackReady=1 ensuredFallback=1 readyMaterialPages=10 pendingMaterialMipPages=0 spriteReg=1 spriteFallback=0 materialReg=1 materialFallback=0 rules=1 rulesFallback=0 rulesReady=1 ruleRevision=2 status={"schema":"radser_v4_frame_resource_status_v1","generation":1,"finalized":false,"descriptorFallbackArraysReady":true,"spriteRegistry":{"schema":"radser_sprite_registry_status_v1","hasBuffer":true,"usingFallback":false,"spriteCount":1810,"paddedSpriteCapacity":4096,
+78402:11:44:20.301 RT descriptors end

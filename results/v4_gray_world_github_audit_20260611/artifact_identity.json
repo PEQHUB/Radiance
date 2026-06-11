@@ -1,0 +1,116 @@
+﻿{
+    "createdLocal":  "2026-06-11T11:54:16.9699023-05:00",
+    "symptom":  "Black screen fixed; screenshot shows lit geometry but clay-gray/no textures; user reports extremely slow loading and chunk loading.",
+    "githubAuditInstruction":  "GPT 5.5 Pro has GitHub only. Use private remotes/branches and the repo-relative evidence paths listed here.",
+    "screenshot":  {
+                       "localPath":  "C:\\Users\\Administrator\\AppData\\Roaming\\PrismLauncher\\instances\\1.21.4\\minecraft\\screenshots\\2026-06-11_11.44.14.png",
+                       "repoPath":  "results/v4_gray_world_github_audit_20260611/2026-06-11_11.44.14_gray_world.png",
+                       "sha256":  "BA0AA8C548732A2922946966A6901A0DCD13BB22C204E0E2A468B9DD22DAEA08",
+                       "bytes":  12103648
+                   },
+    "evidenceFiles":  [
+                          "results/v4_gray_world_github_audit_20260611/2026-06-11_11.44.14_gray_world.png",
+                          "results/v4_gray_world_github_audit_20260611/latest_v4_material_excerpt.txt",
+                          "results/v4_gray_world_github_audit_20260611/render_diag_rt_chunk_excerpt.txt",
+                          "results/v4_gray_world_github_audit_20260611/crash_ring_tail.txt",
+                          "results/v4_gray_world_github_audit_20260611/blas_diag_tail.txt",
+                          "results/v4_gray_world_github_audit_20260611/process_state.txt",
+                          "results/v4_gray_world_github_audit_20260611/debugbridge_ping_after_session.txt",
+                          "results/v4_gray_world_github_audit_20260611/artifact_identity.json",
+                          "results/v4_gray_world_github_audit_20260611/source_pointers_from_current_checkout.txt",
+                          "results/v4_gray_world_github_audit_20260611/latest_chunk_rebuild_queue_excerpt.txt"
+                      ],
+    "logs":  {
+                 "latest":  {
+                                "localPath":  "C:\\Users\\Administrator\\AppData\\Roaming\\PrismLauncher\\instances\\1.21.4\\minecraft\\logs\\latest.log",
+                                "sha256":  "D81FC1F6115F5316C125E39708406643E7A179FFF0D956D6B314DC0FE6B94938",
+                                "bytes":  772533,
+                                "lastWrite":  "2026-06-11T11:44:28.7449441-05:00"
+                            },
+                 "renderDiag":  {
+                                    "localPath":  "C:\\Users\\Administrator\\AppData\\Roaming\\PrismLauncher\\instances\\1.21.4\\minecraft\\radiance\\logs\\render_diag.log",
+                                    "sha256":  "E989AAABB8FBB8D9874E76F23619A1C0AE09AD414B0F5F47E762584EF49074E7",
+                                    "bytes":  4524525,
+                                    "lastWrite":  "2026-06-11T11:44:20.3032817-05:00"
+                                },
+                 "crashRing":  {
+                                   "localPath":  "C:\\Users\\Administrator\\AppData\\Roaming\\PrismLauncher\\instances\\1.21.4\\minecraft\\radiance\\logs\\crash_ring.txt",
+                                   "sha256":  "5A8D611F774846EF9BB7A00A6D5C27A21CD6611B04D22AF3D973875ED6AD32D4",
+                                   "bytes":  31394,
+                                   "lastWrite":  "2026-06-11T11:44:18.6058241-05:00"
+                               },
+                 "blasDiag":  {
+                                  "localPath":  "C:\\Users\\Administrator\\AppData\\Roaming\\PrismLauncher\\instances\\1.21.4\\minecraft\\radiance\\logs\\blas_diag.log",
+                                  "sha256":  "715F1B0FDAC48CE72D153ADD7F9C0B62C19B96D9FE39E14DB0A3489A79AF2B74",
+                                  "bytes":  16512,
+                                  "lastWrite":  "2026-06-11T11:44:20.1669188-05:00"
+                              }
+             },
+    "repos":  {
+                  "radiance":  {
+                                   "privateGithub":  "https://github.com/PEQHUB/radser-radiance",
+                                   "branch":  "rehab/texture-loader-v4-finish-single-path",
+                                   "head":  "f5405a567cbffd1dd94251a187c511f27534ea99",
+                                   "remotes":  {
+                                                   "origin":  {
+                                                                  "fetch":  "https://github.com/PEQHUB/Radiance.git",
+                                                                  "push":  "https://github.com/PEQHUB/Radiance.git"
+                                                              },
+                                                   "private":  {
+                                                                   "fetch":  "https://github.com/PEQHUB/radser-radiance.git",
+                                                                   "push":  "https://github.com/PEQHUB/radser-radiance.git"
+                                                               }
+                                               }
+                               },
+                  "mcvr":  {
+                               "privateGithub":  "https://github.com/PEQHUB/radser-mcvr",
+                               "branch":  "fix/texture-loader-v4-critical-correctness",
+                               "head":  "bf02af7814b93a07c1235235dbb37213f5f2d3e3",
+                               "remotes":  {
+                                               "nvidia":  {
+                                                              "fetch":  "https://github.com/NVIDIA-RTX/Streamline.git",
+                                                              "push":  "https://github.com/NVIDIA-RTX/Streamline.git"
+                                                          },
+                                               "origin":  {
+                                                              "fetch":  "https://github.com/PEQHUB/MCVR.git",
+                                                              "push":  "https://github.com/PEQHUB/MCVR.git"
+                                                          },
+                                               "private":  {
+                                                               "fetch":  "https://github.com/PEQHUB/radser-mcvr.git",
+                                                               "push":  "https://github.com/PEQHUB/radser-mcvr.git"
+                                                           }
+                                           }
+                           },
+                  "debugBridge":  {
+                                      "privateGithub":  "https://github.com/PEQHUB/radser-debugbridge",
+                                      "branch":  "rehab/texture-loader-v4-finish-single-path",
+                                      "head":  "e864c77644a0f913dbd26be37ebc83eb4a0fc59c",
+                                      "remotes":  {
+                                                      "private":  {
+                                                                      "fetch":  "https://github.com/PEQHUB/radser-debugbridge.git",
+                                                                      "push":  "https://github.com/PEQHUB/radser-debugbridge.git"
+                                                                  }
+                                                  }
+                                  }
+              },
+    "artifacts":  {
+                      "latestBuiltJar":  {
+                                             "localPath":  "C:\\RadSER\\Radiance\\build\\libs\\Radiance-0.1.3-alpha-fabric-1.21.4-windows.jar",
+                                             "sha256":  "3ADF4670B1DAE8C6DCFBD14D30FB8384C48509ED0B7D02F3D66FE02C53E1B81A",
+                                             "bytes":  36148458,
+                                             "lastWrite":  "2026-06-11T11:35:06.1169803-05:00"
+                                         },
+                      "deployedJar":  {
+                                          "localPath":  "C:\\Users\\Administrator\\AppData\\Roaming\\PrismLauncher\\instances\\1.21.4\\minecraft\\mods\\Radiance-0.1.3-alpha-fabric-1.21.4-windows.jar",
+                                          "sha256":  "3ADF4670B1DAE8C6DCFBD14D30FB8384C48509ED0B7D02F3D66FE02C53E1B81A",
+                                          "bytes":  36148458,
+                                          "lastWrite":  "2026-06-11T11:35:06.1169803-05:00"
+                                      },
+                      "packagedCoreDll":  {
+                                              "localPath":  "C:\\RadSER\\Radiance\\src\\main\\resources\\core.dll",
+                                              "sha256":  "ACF7AA20AD4425156A9A90D4AFFE06A7C2E9543478F3CF622F21B817468D4713",
+                                              "bytes":  8520192,
+                                              "lastWrite":  "2026-06-11T11:34:06.2850268-05:00"
+                                          }
+                  }
+}

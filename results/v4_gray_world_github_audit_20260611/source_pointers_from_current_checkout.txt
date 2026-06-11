@@ -1,0 +1,245 @@
+﻿Source pointers from current local checkout. GPT 5.5 Pro should verify against GitHub branches before patching.
+
+[Radiance: material residency / skipped chunk rebuild marker]
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:61:    private static final Map<Integer, ChunkBuilder.BuiltChunk> rebuildQueue = new ConcurrentHashMap<>();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:62:    private static final List<Future<?>> rebuildTasks = new ArrayList<>();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:70:    private static final AtomicLong rebuildGeneration = new AtomicLong();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:112:        rebuildGeneration.incrementAndGet();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:113:        rebuildQueue.clear();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:114:        for (Future<?> rebuildTask : rebuildTasks) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:115:            rebuildTask.cancel(true);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:117:        rebuildTasks.clear();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:129:        rebuildQueue.put(chunk.index, chunk);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:133:        return rebuildQueue.size();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:136:    public static void rebuild(Camera camera) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:146:        java.util.Iterator<ChunkBuilder.BuiltChunk> iter = rebuildQueue.values().iterator();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:194:            long generation = rebuildGeneration.get();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:197:                Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:198:                    rebuildSingle(builtChunk, true, generation);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:200:                rebuildTasks.add(rebuildTask);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:204:                    rebuildSingle(builtChunk, false, generation);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:208:            rebuildQueue.remove(builtChunk.index);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:217:        if (rebuildTasks.isEmpty()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:227:        int startedTasks = rebuildTasks.size();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:231:        for (int i = 0; i < rebuildTasks.size(); i++) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:232:            Future<?> rebuildTask = rebuildTasks.get(i);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:233:            if (rebuildTask == null) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:237:                if (rebuildTask.isDone()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:238:                    rebuildTask.get();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:244:                    deferredTasks.add(rebuildTask);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:247:                rebuildTask.get(remaining, TimeUnit.NANOSECONDS);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:252:                deferredTasks.add(rebuildTask);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:258:        rebuildTasks.clear();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:259:        rebuildTasks.addAll(deferredTasks);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:276:            + "\"schema\":\"radser_chunk_rebuild_wait_status_v1\","
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:278:            + "\"pendingImportantTasks\":" + rebuildTasks.size() + ","
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:289:    private static void rebuildSingle(ChunkBuilder.BuiltChunk builtChunk, boolean important,
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:291:        if (generation != rebuildGeneration.get()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:304:                if (generation != rebuildGeneration.get()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:313:            rebuildSingle(chunkRendererRegion, chunkBuilder, chunkBuilderExt, builtChunk, storage,
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:320:    private static void rebuildSingle(ChunkRendererRegion chunkRendererRegion,
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:327:        if (generation != rebuildGeneration.get()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:347:        if (generation != rebuildGeneration.get()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:461:                rebuildSingle(builtChunk.getOrigin().getX(),
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:485:    private static native void rebuildSingle(int originX,
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\compat\ResourcePackRuntimeMaterialBootstrap.java:661:        LOGGER.info("[MaterialCompat] Residency updated descriptor/material-table state only; "
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\compat\ResourcePackRuntimeMaterialBootstrap.java:662:            + "chunk rebuild skipped for generation {}", generation);
+
+[Radiance: V4 atlas/cache/scheduler markers]
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\cache\TextureCacheV4.java:26:public final class TextureCacheV4 {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\cache\TextureCacheV4.java:40:    private TextureCacheV4() {}
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\vulkan\TextureArrayBridge.java:12:import com.radiance.client.texture.v4.TextureLoaderV4Options;
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\vulkan\TextureArrayBridge.java:244:            if (TextureLoaderV4Options.enabled()) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\vulkan\TextureArrayBridgeV4.java:36:    public static native boolean nativeBeginTextureLoaderV4(long generation, long manifestPtr, int manifestBytes);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\vulkan\TextureArrayBridgeV4.java:64:    public static native boolean nativeCommitTextureLoaderV4(long generation);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\vulkan\TextureArrayBridgeV4.java:67:    public static native boolean nativeCancelTextureLoaderV4(long generation, int reasonCode);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\vulkan\TextureArrayBridgeV4.java:82:    public static native String nativeTextureLoaderV4StatusJson();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoaderV4Options.java:12:public final class TextureLoaderV4Options {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoaderV4Options.java:14:    private TextureLoaderV4Options() {}
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadGeneration.java:51:            com.radiance.client.proxy.vulkan.TextureArrayBridgeV4.nativeCancelTextureLoaderV4(generation, reasonCode);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:16: *   1. Serialize manifest to native via nativeBeginTextureLoaderV4
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:18: *   3. Commit via nativeCommitTextureLoaderV4
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:51:            boolean began = TextureArrayBridgeV4.nativeBeginTextureLoaderV4(
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:54:                schedule.fail("nativeBeginTextureLoaderV4 returned false");
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:75:                    boolean committed = TextureArrayBridgeV4.nativeCommitTextureLoaderV4(generation);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:84:                    schedule.fail("nativeCommitTextureLoaderV4 returned false");
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:87:                    schedule.fail("nativeCommitTextureLoaderV4 threw: " + t.getMessage());
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:266:        return "[TextureLoaderV4] Vanilla tier page upload failed"
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:322:                boolean committed = TextureArrayBridgeV4.nativeCommitTextureLoaderV4(generation);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:330:                    schedule.fail("nativeCommitTextureLoaderV4 returned false");
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\v4\TextureLoadScheduler.java:384:            sb.append("[TextureLoaderV4] Vanilla tier upload generation=").append(generation).append("\n");
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\compat\ResourcePackRuntimeMaterialBootstrap.java:7:import com.radiance.client.texture.cache.TextureCacheV4;
+C:\RadSER\Radiance\src\main\java\com\radiance\client\texture\compat\ResourcePackRuntimeMaterialBootstrap.java:244:        JsonObject v4 = TextureCacheV4.statusJson();
+
+[MCVR: V4 RT resource contract/material generation markers]
+C:\RadSER\MCVR\src\shader\util\sprite_fetch.glsl:168:vec2 materialRegistryUv(uint materialId, vec2 uv) {
+C:\RadSER\MCVR\src\shader\util\sprite_fetch.glsl:176:    vec2 materialUv = materialRegistryUv(materialId, uv);
+C:\RadSER\MCVR\src\core\render\chunks.hpp:39:    uint64_t textureGeneration = 0;
+C:\RadSER\MCVR\src\core\render\chunks.hpp:54:    uint64_t textureGeneration = 0;
+C:\RadSER\MCVR\src\core\render\chunks.hpp:109:    uint64_t textureGeneration = 0;
+C:\RadSER\MCVR\src\core\render\chunks.hpp:273:    uint64_t textureGeneration = 0;
+C:\RadSER\MCVR\src\core\middleware\com_radiance_client_proxy_vulkan_RendererProxy.cpp:796:    const uint64_t textureGeneration = Renderer::textureSystem.generation();
+C:\RadSER\MCVR\src\core\middleware\com_radiance_client_proxy_vulkan_RendererProxy.cpp:819:            generationHistogram[chunk->textureGeneration]++;
+C:\RadSER\MCVR\src\core\middleware\com_radiance_client_proxy_vulkan_RendererProxy.cpp:825:            if (textureGeneration == 0 || chunk->textureGeneration == textureGeneration) {
+C:\RadSER\MCVR\src\core\middleware\com_radiance_client_proxy_vulkan_TextureArrayBridge.cpp:95:        << "\"textureGeneration\":" << ts.generation() << ","
+C:\RadSER\MCVR\src\core\middleware\com_radiance_client_proxy_world_ChunkProxy.cpp:54:                                                                                     jlong textureGeneration) {
+C:\RadSER\MCVR\src\core\middleware\com_radiance_client_proxy_world_ChunkProxy.cpp:70:                .textureGeneration = static_cast<uint64_t>(textureGeneration),
+C:\RadSER\MCVR\src\core\render\texture_system.hpp:246:    std::shared_ptr<vk::DeviceLocalBuffer> spriteRegistryBufferOrFallback() const;
+C:\RadSER\MCVR\src\core\render\texture_system.hpp:247:    std::shared_ptr<vk::DeviceLocalBuffer> materialRegistryBufferOrFallback() const;
+C:\RadSER\MCVR\src\core\render\texture_system.hpp:249:    bool spriteRegistryUsingFallback() const;
+C:\RadSER\MCVR\src\core\render\texture_system.hpp:250:    bool materialRegistryUsingFallback() const;
+C:\RadSER\MCVR\src\core\render\texture_system.hpp:253:    uint64_t spriteRegistryRevision() const;
+C:\RadSER\MCVR\src\core\render\texture_system.hpp:254:    uint64_t materialRegistryRevision() const;
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1262:    const uint64_t textureGeneration = generation_.load(std::memory_order_acquire);
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1264:    if (generation != 0 && generation != textureGeneration) {
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1271:                  << " textureGeneration=" << textureGeneration
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1486:        << "\"spriteRegistry\":" << registry_.statusJson() << ","
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1487:        << "\"materialRegistry\":" << materials_.statusJson() << ","
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1493:std::shared_ptr<vk::DeviceLocalBuffer> TextureSystem::spriteRegistryBufferOrFallback() const {
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1497:std::shared_ptr<vk::DeviceLocalBuffer> TextureSystem::materialRegistryBufferOrFallback() const {
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1505:bool TextureSystem::spriteRegistryUsingFallback() const {
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1509:bool TextureSystem::materialRegistryUsingFallback() const {
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1521:uint64_t TextureSystem::spriteRegistryRevision() const {
+C:\RadSER\MCVR\src\core\render\texture_system.cpp:1525:uint64_t TextureSystem::materialRegistryRevision() const {
+C:\RadSER\MCVR\src\core\render\texture_loader_v4.cpp:241:        << "\"spriteRegistrySparseUpdates\":true,"
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3761:    const auto spriteRegBuffer =
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3763:            if constexpr (requires { system.spriteRegistryBufferOrFallback(); }) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3764:                return system.spriteRegistryBufferOrFallback();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3769:    const auto materialRegBuffer =
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3771:            if constexpr (requires { system.materialRegistryBufferOrFallback(); }) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3772:                return system.materialRegistryBufferOrFallback();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3785:    const VkBuffer spriteRegistryBuffer = spriteRegBuffer ? spriteRegBuffer->vkBuffer() : VK_NULL_HANDLE;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3786:    const VkBuffer materialRegistryBuffer = materialRegBuffer ? materialRegBuffer->vkBuffer() : VK_NULL_HANDLE;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3788:    const bool spriteRegistryUsingFallback =
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3790:            if constexpr (requires { system.spriteRegistryUsingFallback(); }) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3791:                return system.spriteRegistryUsingFallback();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3796:    const bool materialRegistryUsingFallback =
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3798:            if constexpr (requires { system.materialRegistryUsingFallback(); }) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3799:                return system.materialRegistryUsingFallback();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3812:    const uint64_t spriteRegistryRevision =
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3814:            if constexpr (requires { system.spriteRegistryRevision(); }) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3815:                return system.spriteRegistryRevision();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3820:    const uint64_t materialRegistryRevision =
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3822:            if constexpr (requires { system.materialRegistryRevision(); }) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3823:                return system.materialRegistryRevision();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3876:    if (spriteRegBuffer) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3877:        bufferBindings.push_back({spriteRegBuffer, 1, 13});
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3879:    if (materialRegBuffer) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3880:        bufferBindings.push_back({materialRegBuffer, 1, 14});
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3907:    const uint64_t textureGeneration = texSystem.generation();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3910:        std::to_string(textureGeneration) + " frame=" + std::to_string(context->frameIndex);
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3922:        renderDiag("RT textureFlush begin finalized=%d v4Active=%d allocatedMaterialPages=%d pendingMipPages=%u",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3932:        renderDiag("RT textureFlush end");
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3951:    const uint32_t readyMaterialPages = texSystem.readyMaterialTexturePageCount();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3960:    if (!v4ArraysReady || !spriteRegBuffer || !materialRegBuffer || !textureRuleBuffer) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3961:        renderDiag("RT v4 frame contract finalized=%d v4Ready=%d fallbackReady=%d ensuredFallback=%d readyMaterialPages=%u pendingMaterialMipPages=%u spriteReg=%d spriteFallback=%d materialReg=%d materialFallback=%d rules=%d rulesFallback=%d rulesReady=%d ruleRevision=%llu status=missing-required-fallback; skipping RT",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3966:                   readyMaterialPages,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3968:                   spriteRegBuffer ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3969:                   spriteRegistryUsingFallback ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3970:                   materialRegBuffer ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3971:                   materialRegistryUsingFallback ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3981:    renderDiag("RT v4 frame contract finalized=%d v4Ready=%d fallbackReady=%d ensuredFallback=%d readyMaterialPages=%u pendingMaterialMipPages=%u spriteReg=%d spriteFallback=%d materialReg=%d materialFallback=%d rules=1 rulesFallback=%d rulesReady=%d ruleRevision=%llu status=%s",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3986:               readyMaterialPages,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3988:               spriteRegBuffer ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3989:               spriteRegistryUsingFallback ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3990:               materialRegBuffer ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:3991:               materialRegistryUsingFallback ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4019:        if (!table || !spriteRegBuffer) return;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4020:        table->bindBuffer(spriteRegBuffer, 1, 13);
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4023:        if (!table || !materialRegBuffer) return;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4024:        table->bindBuffer(materialRegBuffer, 1, 14);
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4036:        textureGeneration != descriptorSlotState.generation ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4042:        spriteRegistryBuffer != descriptorSlotState.spriteRegistryBuffer ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4043:        materialRegistryBuffer != descriptorSlotState.materialRegistryBuffer ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4045:        spriteRegistryRevision != descriptorSlotState.spriteRegistryRevision ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4046:        materialRegistryRevision != descriptorSlotState.materialRegistryRevision ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4048:        spriteRegistryUsingFallback != descriptorSlotState.spriteRegistryUsingFallback ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4049:        materialRegistryUsingFallback != descriptorSlotState.materialRegistryUsingFallback ||
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4080:            "v4Ready=%d fallbackReady=%d readyMaterialPages=%u pendingMaterialMipPages=%u "
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4083:            "spriteRegistry=0x%llx spriteFallback=%d spriteRevision=%llu "
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4084:            "materialRegistry=0x%llx materialFallback=%d materialRevision=%llu "
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4085:            "textureRules=0x%llx rulesFallback=%d rulesReady=%d ruleRevision=%llu materialPageRevision=%llu",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4086:            static_cast<unsigned long long>(textureGeneration),
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4102:            readyMaterialPages,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4112:            static_cast<unsigned long long>(vk::DebugUtils::objectHandle(spriteRegistryBuffer)),
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4113:            spriteRegistryUsingFallback ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4114:            static_cast<unsigned long long>(spriteRegistryRevision),
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4115:            static_cast<unsigned long long>(vk::DebugUtils::objectHandle(materialRegistryBuffer)),
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4116:            materialRegistryUsingFallback ? 1 : 0,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4117:            static_cast<unsigned long long>(materialRegistryRevision),
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4123:        descriptorSlotState.generation = textureGeneration;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4129:        descriptorSlotState.spriteRegistryBuffer = spriteRegistryBuffer;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4130:        descriptorSlotState.materialRegistryBuffer = materialRegistryBuffer;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4132:        descriptorSlotState.spriteRegistryRevision = spriteRegistryRevision;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4133:        descriptorSlotState.materialRegistryRevision = materialRegistryRevision;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4135:        descriptorSlotState.spriteRegistryUsingFallback = spriteRegistryUsingFallback;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:4136:        descriptorSlotState.materialRegistryUsingFallback = materialRegistryUsingFallback;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:654:        uint64_t textureGeneration = Renderer::textureSystem.generation();
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:655:        uint32_t staleTextureChunks = 0;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:761:                        if (textureGeneration != 0 && chunk1->textureGeneration != textureGeneration) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:762:                            staleTextureChunks++;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:809:        if (staleTextureChunks > 0) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:810:            static uint32_t staleTextureLogCounter = 0;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:811:            staleTextureLogCounter++;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:812:            if (staleTextureLogCounter <= 5 || staleTextureLogCounter % 120 == 0) {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:814:                           staleTextureChunks,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:815:                           static_cast<unsigned long long>(textureGeneration));
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:824:                    renderDiag("WP chunk visibility total=%u withBlas=%u missingBlas=%u invalidMeta=%u invalidBuf=%u invalidGpu=%u missingBda=%u releasedStaging=%u placeholderGeo=%u staleTex=%u culled=%u visible=%u cullDist=%.1f cam=(%.1f,%.1f,%.1f)",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:827:                               chunksMissingStaging, placeholderGeometries, staleTextureChunks, chunksCulled,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:986:                    chunkHash ^= chunk1s[idx]->textureGeneration + 0x9e3779b97f4a7c15ull + (chunkHash << 6) + (chunkHash >> 2);
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:232:        VkBuffer spriteRegistryBuffer = VK_NULL_HANDLE;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:233:        VkBuffer materialRegistryBuffer = VK_NULL_HANDLE;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:236:        uint64_t spriteRegistryRevision = UINT64_MAX;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:237:        uint64_t materialRegistryRevision = UINT64_MAX;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:239:        bool spriteRegistryUsingFallback = false;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:240:        bool materialRegistryUsingFallback = false;
+
+[Chunk loading / build choke points]
+C:\RadSER\MCVR\src\core\render\chunks.hpp:130:    void prepareCPU(bool allowMicromapBake, bool skipOMM, glm::vec3 cameraPos);
+C:\RadSER\MCVR\src\core\render\chunks.hpp:131:    void uploadGPU();
+C:\RadSER\MCVR\src\core\render\chunks.cpp:125:    prepareCPU(allowMicromapBake, skipOMM, cameraPos);
+C:\RadSER\MCVR\src\core\render\chunks.cpp:126:    uploadGPU();
+C:\RadSER\MCVR\src\core\render\chunks.cpp:131:void ChunkBuildData::prepareCPU(bool allowMicromapBake, bool skipOMM, glm::vec3 cameraPos) {
+C:\RadSER\MCVR\src\core\render\chunks.cpp:163:    // Results stored in ommCpuResults[], consumed by uploadGPU().
+C:\RadSER\MCVR\src\core\render\chunks.cpp:825:                // Buffer creation deferred to uploadGPU()
+C:\RadSER\MCVR\src\core\render\chunks.cpp:836:void ChunkBuildData::uploadGPU() {
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1125:    // prepareCPU() has zero Vulkan/VMA calls — safe for concurrent execution.
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1126:    // uploadGPU() does all VMA allocation + staging uploads on the render thread.
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1136:    // prepareCPU() has zero Vulkan/VMA calls — safe for concurrent execution.
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1139:        batchData[i]->prepareCPU(true, false, cameraPos);
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1143:        batchData[i]->uploadGPU();
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1462:                    batch[i]->prepareCPU(true, false, cameraPos);
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1465:                for (auto &cbd : batch) cbd->uploadGPU();
+C:\RadSER\MCVR\src\core\render\chunks.cpp:1783:    // Note: WorldPrepareContext caches (cachedChunks_, prevBlasSnapshot_, TLAS) are
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.hpp:17:struct WorldPrepareContext;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.hpp:22:    friend WorldPrepareContext;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.hpp:35:    std::vector<std::shared_ptr<WorldPrepareContext>> contexts_;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.hpp:38:struct WorldPrepareContext : public SharedObject<WorldPrepareContext> {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.hpp:149:    WorldPrepareContext(std::shared_ptr<FrameworkContext> frameworkContext, std::shared_ptr<WorldPrepare> worldprepare);
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:26:class WorldPrepareContext;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:171:                                            const std::shared_ptr<WorldPrepareContext> &worldPrepareContext,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.hpp:408:    std::shared_ptr<WorldPrepareContext> worldPrepareContext;
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:125:        contexts_[i] = WorldPrepareContext::create(framework->contexts()[i], shared_from_this());
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:129:WorldPrepareContext::WorldPrepareContext(std::shared_ptr<FrameworkContext> frameworkContext,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:133:void WorldPrepareContext::uploadBuffer(std::vector<uint32_t> &blasOffsets,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:225:void WorldPrepareContext::render() {
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:824:                    renderDiag("WP chunk visibility total=%u withBlas=%u missingBlas=%u invalidMeta=%u invalidBuf=%u invalidGpu=%u missingBda=%u releasedStaging=%u placeholderGeo=%u staleTex=%u culled=%u visible=%u cullDist=%.1f cam=(%.1f,%.1f,%.1f)",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\submodules\world_prepare.cpp:1358:            renderDiag("WP TLAS composition prevEntity=%u currEntity=%u prevEntitySlots=%u currEntitySlots=%u prevChunk=%u currChunk=%u prevMega=%u currMega=%u sourceEntity=%u skippedNoBlas=%u skippedPrebuilt=%u flags world=%u player=%u playerHead=%u hand=%u weather=%u particle=%u cloud=%u boatWater=%u other=%u",
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:1639:    const std::shared_ptr<WorldPrepareContext> &worldPrepareContext,
+C:\RadSER\MCVR\src\core\render\modules\world\ray_tracing\ray_tracing_module.cpp:1766:                    ? geometrySources[i] == WorldPrepareContext::SBT_SOURCE_ENTITY
+C:\RadSER\Radiance\src\main\java\com\radiance\mixins\vulkan_render_integration\MinecraftClientMixins.java:200:            ChunkProxy.waitImportantChunkRebuild();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:61:    private static final Map<Integer, ChunkBuilder.BuiltChunk> rebuildQueue = new ConcurrentHashMap<>();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:68:    private static final long importantChunkWaitBudgetNanos = TimeUnit.MILLISECONDS.toNanos(4);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:78:    private static final ExecutorService importantChunkRebuildExecutor =
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:113:        rebuildQueue.clear();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:129:        rebuildQueue.put(chunk.index, chunk);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:133:        return rebuildQueue.size();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:146:        java.util.Iterator<ChunkBuilder.BuiltChunk> iter = rebuildQueue.values().iterator();
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:197:                Future<?> rebuildTask = importantChunkRebuildExecutor.submit(() -> {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:208:            rebuildQueue.remove(builtChunk.index);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:212:    public static void waitImportantChunkRebuild() {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:213:        waitImportantChunkRebuild(importantChunkWaitBudgetNanos);
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:216:    public static void waitImportantChunkRebuild(long budgetNanos) {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:271:    public static String importantChunkWaitStatusJson() {
+C:\RadSER\Radiance\src\main\java\com\radiance\client\proxy\world\ChunkProxy.java:277:            + "\"budgetMs\":" + (importantChunkWaitBudgetNanos / 1_000_000.0) + ","
+C:\RadSER\Radiance\src\main\java\com\radiance\mixins\vulkan_render_integration\WorldRendererMixins.java:84:            "[JAVA] setupTerrain=%.2f entities=%.2f blockEntities=%.2f particles=%.2f weather=%.2f chunkRebuild=%.2f other=%.2f TOTAL=%.2f rebuildQueue=%d",
