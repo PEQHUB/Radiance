@@ -287,6 +287,17 @@ public final class MaterialInspectReporter {
         requested.add("pageLayer");
         requested.add("displacementEligible");
         requested.add("displacementHeight");
+        requested.add("rawAlbedo");
+        requested.add("tintedAlbedo");
+        requested.add("bsdfAlbedo");
+        requested.add("metallic");
+        requested.add("roughness");
+        requested.add("fogTransmittance");
+        requested.add("fogAdditive");
+        requested.add("firstHitDirect");
+        requested.add("firstHitIndirect");
+        requested.add("finalRadiance");
+        requested.add("colorLayer");
         json.add("requestedModes", requested);
         json.addProperty("shaderModeSurface", "DebugBridge materialDebugMode command, RT debug flags bits 24-27");
         json.addProperty("inspectorProvidesEquivalentFields", true);

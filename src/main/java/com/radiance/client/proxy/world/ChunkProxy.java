@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -344,8 +345,27 @@ public class ChunkProxy {
             rebuildSingle(chunkRendererRegion, chunkBuilder, chunkBuilderExt, builtChunk, storage,
                 important, generation);
         } catch (Exception e) {
+            if (generation != rebuildGeneration.get() || isClosedResourceException(e)) {
+                return;
+            }
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean isClosedResourceException(Throwable throwable) {
+        while (throwable != null) {
+            String message = throwable.getMessage();
+            if (message != null) {
+                String normalized = message.toLowerCase(Locale.ROOT);
+                if (normalized.contains("zip file closed")
+                    || normalized.contains("zipfile closed")
+                    || normalized.contains("zip file is closed")) {
+                    return true;
+                }
+            }
+            throwable = throwable.getCause();
+        }
+        return false;
     }
 
     private static void rebuildSingle(ChunkRendererRegion chunkRendererRegion,

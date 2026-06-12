@@ -116,6 +116,7 @@ public class PBRVertexConsumer implements VertexConsumer {
     private float pendingSpriteMinV = 0.0f;
     private float pendingSpriteMaxV = 1.0f;
     private NaturalTransform pendingNaturalUvTransform = NaturalTransform.identity();
+    private boolean pendingColorLayerEnabled = true;
     @Nullable
     private RepeatTextureBasis pendingRepeatTextureBasis = null;
     private int blockGeometryContextDepth = 0;
@@ -476,13 +477,16 @@ public class PBRVertexConsumer implements VertexConsumer {
 
     @Override
     public VertexConsumer color(int red, int green, int blue, int alpha) {
-        orFlag(PBR_FLAG_USE_COLOR_LAYER);
+        boolean useColorLayer = this.blockGeometryContextDepth <= 0 || this.pendingColorLayerEnabled;
+        if (useColorLayer) {
+            orFlag(PBR_FLAG_USE_COLOR_LAYER);
+        }
 
         long p = beginElement(PBR_COLOR_LAYER);
         if (p != -1L) {
-            MemoryUtil.memPutFloat(p, red / 255.0f);
-            MemoryUtil.memPutFloat(p + 4L, green / 255.0f);
-            MemoryUtil.memPutFloat(p + 8L, blue / 255.0f);
+            MemoryUtil.memPutFloat(p, useColorLayer ? red / 255.0f : 1.0f);
+            MemoryUtil.memPutFloat(p + 4L, useColorLayer ? green / 255.0f : 1.0f);
+            MemoryUtil.memPutFloat(p + 8L, useColorLayer ? blue / 255.0f : 1.0f);
             MemoryUtil.memPutFloat(p + 12L, alpha / 255.0f);
         }
         return this;
@@ -846,6 +850,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         NaturalTransform previousNaturalUvTransform = this.pendingNaturalUvTransform;
         RepeatTextureBasis previousRepeatTextureBasis = this.pendingRepeatTextureBasis;
         float previousPendingEmission = this.pendingEmission;
+        boolean previousColorLayerEnabled = this.pendingColorLayerEnabled;
         try {
             Sprite blockSprite = null;
             BlockOverlaySprite[] blockOverlaySprites = new BlockOverlaySprite[0];
@@ -855,6 +860,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             float baseGreen = green;
             float baseBlue = blue;
             boolean baseUseQuadColorData = useQuadColorData;
+            boolean baseColorLayerEnabled = quad.hasTint();
             boolean baseQuadRendered = false;
             if (this.blockGeometryContextDepth > 0) {
                 blockSprite = quad.getSprite();
@@ -882,6 +888,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                         baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
                         baseBlue = (tintRgb & 0xFF) / 255.0F;
                         baseUseQuadColorData = false;
+                        baseColorLayerEnabled = true;
                     } else {
                         int vanillaRgb = rgbFromFloats(baseRed, baseGreen, baseBlue);
                         int compatRgb = ResourcePackColorPropertiesResolver.resolveBlockColor(
@@ -895,6 +902,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                             baseGreen = ((compatRgb >> 8) & 0xFF) / 255.0F;
                             baseBlue = (compatRgb & 0xFF) / 255.0F;
                             baseUseQuadColorData = false;
+                            baseColorLayerEnabled = true;
                         }
                     }
                     int alphaMode = compactQuadrants.alphaMode() >= 0
@@ -913,7 +921,8 @@ public class PBRVertexConsumer implements VertexConsumer {
                         baseUseQuadColorData,
                         blockSprite,
                         compactQuadrants,
-                        alphaMode);
+                        alphaMode,
+                        baseColorLayerEnabled);
                 }
                 if (!baseQuadRendered) {
                     ResolvedBlockSprite resolved =
@@ -926,6 +935,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                         baseGreen = ((tintRgb >> 8) & 0xFF) / 255.0F;
                         baseBlue = (tintRgb & 0xFF) / 255.0F;
                         baseUseQuadColorData = false;
+                        baseColorLayerEnabled = true;
                     } else {
                         int vanillaRgb = rgbFromFloats(baseRed, baseGreen, baseBlue);
                         int compatRgb = ResourcePackColorPropertiesResolver.resolveBlockColor(
@@ -939,6 +949,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                             baseGreen = ((compatRgb >> 8) & 0xFF) / 255.0F;
                             baseBlue = (compatRgb & 0xFF) / 255.0F;
                             baseUseQuadColorData = false;
+                            baseColorLayerEnabled = true;
                         }
                     }
                     blockOverlayUvTransform = this.pendingNaturalUvTransform;
@@ -954,6 +965,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                     this.pendingRepeatTextureBasis);
             }
             if (!baseQuadRendered) {
+                this.pendingColorLayerEnabled = baseColorLayerEnabled;
                 VertexConsumer.super.quad(matrixEntry,
                     quad,
                     brightnesses,
@@ -988,6 +1000,7 @@ public class PBRVertexConsumer implements VertexConsumer {
                     setPendingAlphaMode(blockOverlay.alphaMode() >= 0
                         ? blockOverlay.alphaMode()
                         : PBR_ALPHA_MODE_CUTOUT);
+                    this.pendingColorLayerEnabled = true;
                     VertexConsumer.super.quad(matrixEntry,
                         quad,
                         brightnesses,
@@ -1011,6 +1024,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingNaturalUvTransform = previousNaturalUvTransform;
             this.pendingRepeatTextureBasis = previousRepeatTextureBasis;
             this.pendingEmission = previousPendingEmission;
+            this.pendingColorLayerEnabled = previousColorLayerEnabled;
         }
     }
 
@@ -1032,6 +1046,7 @@ public class PBRVertexConsumer implements VertexConsumer {
         float previousSpriteMaxV = this.pendingSpriteMaxV;
         NaturalTransform previousNaturalUvTransform = this.pendingNaturalUvTransform;
         float previousPendingEmission = this.pendingEmission;
+        boolean previousColorLayerEnabled = this.pendingColorLayerEnabled;
         try {
             setPendingTextureSpriteIdWithSourceUv(
                 overlaySpriteId,
@@ -1041,6 +1056,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             setPendingOverlayAlphaMask(false);
             setPendingAlphaMode(PBR_ALPHA_MODE_TRANSPARENT);
             setPendingEmission(EMISSIVE_OVERLAY_REFERENCE_NITS);
+            this.pendingColorLayerEnabled = true;
             VertexConsumer.super.quad(matrixEntry,
                 quad,
                 brightnesses,
@@ -1061,6 +1077,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             this.pendingSpriteMaxV = previousSpriteMaxV;
             this.pendingNaturalUvTransform = previousNaturalUvTransform;
             this.pendingEmission = previousPendingEmission;
+            this.pendingColorLayerEnabled = previousColorLayerEnabled;
         }
     }
 
@@ -1076,7 +1093,8 @@ public class PBRVertexConsumer implements VertexConsumer {
         boolean useQuadColorData,
         Sprite sourceSprite,
         CompactCtmQuadrants quadrants,
-        int alphaMode) {
+        int alphaMode,
+        boolean colorLayerEnabled) {
         int[][] splitData = new int[4][];
         for (int quadrant = 0; quadrant < 4; quadrant++) {
             splitData[quadrant] = compactCtmSubQuadData(quad.getVertexData(), sourceSprite, quadrant);
@@ -1093,6 +1111,7 @@ public class PBRVertexConsumer implements VertexConsumer {
             if (alphaMode >= 0) {
                 setPendingAlphaMode(alphaMode);
             }
+            this.pendingColorLayerEnabled = colorLayerEnabled;
             BakedQuad splitQuad = new BakedQuad(
                 splitData[quadrant],
                 quad.getTintIndex(),
