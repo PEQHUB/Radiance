@@ -24,6 +24,7 @@ import com.radiance.client.texture.compat.ResourcePackEmissiveTextureResolver;
 import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
 import com.radiance.client.texture.compat.TextureLoaderDiskCache;
 import com.radiance.client.texture.material.ResourceMaterialRegistry;
+import com.radiance.client.texture.packindex.PackStackSnapshot;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.INativeImageExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteContentsExt;
 import com.radiance.mixin_related.extensions.vanilla_resource_tracker.ISpriteExt;
@@ -96,6 +97,9 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     if (schedule.isDone() && !Boolean.TRUE.equals(schedule.getNow(Boolean.FALSE))) {
                         throw new IllegalStateException("nativeBeginTextureLoaderV4 rejected generation " + generation);
                     }
+                    MinecraftClient mc = MinecraftClient.getInstance();
+                    var packIndexSnapshot = PackStackSnapshot.captureAndPublish(
+                        mc == null ? null : mc.getResourceManager(), generation);
                     TierUploadReport tierUploadReport =
                         stageVanillaTieredMaterialPages(sorted, regions.size(), generation);
                     if (tierUploadReport.uploadedPages() <= 0 && !regions.isEmpty()) {
@@ -104,7 +108,6 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                     if (!uploadV4SpriteRegistry(sorted, regions.size(), generation)) {
                         throw new IllegalStateException("nativeUpdateSpriteRegistrySparseV4 rejected generation " + generation);
                     }
-                    MinecraftClient mc = MinecraftClient.getInstance();
                     ResourcePackRuntimeMaterialBootstrap.BootstrapResult runtimeMaterialBootstrap =
                         ResourcePackRuntimeMaterialBootstrap.publishFromRuntimeResourceManager(
                             mc == null ? null : mc.getResourceManager(), generation);
@@ -124,11 +127,11 @@ public abstract class SpriteAtlasTextureMixins extends AbstractTextureMixins {
                         throw new IllegalStateException("nativeCommitTextureLoaderV4 rejected generation " + generation);
                     }
                     TextureTracker.recordVanillaBlockAtlasUploadBypass(regions == null ? 0L : regions.size());
-                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={} pages={} layers={} bytes={} cacheHits={} cacheMisses={} cacheWrites={} materialTableUploaded={} textureRulesUploaded={} defaultRuleSeeds={} bootstrap={}",
+                    LOGGER.info("[TextureLoaderV4] Block atlas v4 extraction: gen={} sprites={} pages={} layers={} bytes={} cacheHits={} cacheMisses={} cacheWrites={} materialTableUploaded={} textureRulesUploaded={} defaultRuleSeeds={} packIndex={} bootstrap={}",
                         generation, regions.size(), tierUploadReport.uploadedPages(), tierUploadReport.uploadedLayers(),
                         tierUploadReport.bytesUploaded(), tierUploadReport.cacheHits(), tierUploadReport.cacheMisses(),
                         tierUploadReport.cacheWrites(), materialTableUploaded, textureRulesUploaded,
-                        AutoPbrTextureRules.defaultSeedCount(), runtimeMaterialBootstrap.toJson());
+                        AutoPbrTextureRules.defaultSeedCount(), packIndexSnapshot, runtimeMaterialBootstrap.toJson());
                     // V4 succeeded — skip legacy extraction
                     TextureTracker.endVanillaBlockAtlasUploadBypass();
                     ci.cancel();

@@ -92,6 +92,12 @@ public final class TextureArrayBridgeV4 {
 
     public static native String nativeV4FrameResourceStatusJson();
 
+    public static native boolean nativeSubmitPackStackSnapshotV1(long generation, String snapshotJson,
+        int packCount, int resourceCount, int ruleFileCount, int sidecarCount,
+        String packStackHash, long javaCaptureMillis);
+
+    public static native String nativePackIndexStatusJson();
+
     /** First-frame native readiness for a generation. */
     public static native String nativeFirstFrameNativeReadinessJsonV4(long generation);
 
