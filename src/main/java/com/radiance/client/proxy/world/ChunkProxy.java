@@ -12,6 +12,7 @@ import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBui
 import com.radiance.mixin_related.extensions.vulkan_render_integration.IChunkBuilderExt;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -61,7 +62,8 @@ public class ChunkProxy {
     };
 
     private static final Map<Integer, ChunkBuilder.BuiltChunk> rebuildQueue = new ConcurrentHashMap<>();
-    private static final List<Future<?>> rebuildTasks = new ArrayList<>();
+    private static final List<Future<?>> rebuildTasks =
+        Collections.synchronizedList(new ArrayList<>());
     private static final int numNormalChunkRebuildThreads =
         Math.max(2, Math.min(Runtime.getRuntime().availableProcessors() - 4, 6));
     private static final int numImportantChunkRebuildThreads = 2;
@@ -113,10 +115,12 @@ public class ChunkProxy {
     public static void clear() {
         rebuildGeneration.incrementAndGet();
         rebuildQueue.clear();
-        for (Future<?> rebuildTask : rebuildTasks) {
-            rebuildTask.cancel(true);
+        synchronized (rebuildTasks) {
+            for (Future<?> rebuildTask : rebuildTasks) {
+                rebuildTask.cancel(true);
+            }
+            rebuildTasks.clear();
         }
-        rebuildTasks.clear();
 
         backgroundChunkRebuildExecutor.shutdownNow();
         try {
@@ -216,58 +220,60 @@ public class ChunkProxy {
     }
 
     public static void waitImportantChunkRebuild(long budgetNanos) {
-        if (rebuildTasks.isEmpty()) {
-            lastImportantWaitNanos = 0;
-            lastImportantWaitStarted = 0;
-            lastImportantWaitCompleted = 0;
-            lastImportantWaitDeferred = 0;
-            return;
-        }
-
-        long started = System.nanoTime();
-        long deadline = started + Math.max(0, budgetNanos);
-        int startedTasks = rebuildTasks.size();
-        int completedTasks = 0;
-        ArrayList<Future<?>> deferredTasks = new ArrayList<>();
-
-        for (int i = 0; i < rebuildTasks.size(); i++) {
-            Future<?> rebuildTask = rebuildTasks.get(i);
-            if (rebuildTask == null) {
-                continue;
+        synchronized (rebuildTasks) {
+            if (rebuildTasks.isEmpty()) {
+                lastImportantWaitNanos = 0;
+                lastImportantWaitStarted = 0;
+                lastImportantWaitCompleted = 0;
+                lastImportantWaitDeferred = 0;
+                return;
             }
-            try {
-                if (rebuildTask.isDone()) {
-                    rebuildTask.get();
+
+            long started = System.nanoTime();
+            long deadline = started + Math.max(0, budgetNanos);
+            int startedTasks = rebuildTasks.size();
+            int completedTasks = 0;
+            ArrayList<Future<?>> deferredTasks = new ArrayList<>();
+
+            for (int i = 0; i < rebuildTasks.size(); i++) {
+                Future<?> rebuildTask = rebuildTasks.get(i);
+                if (rebuildTask == null) {
+                    continue;
+                }
+                try {
+                    if (rebuildTask.isDone()) {
+                        rebuildTask.get();
+                        completedTasks++;
+                        continue;
+                    }
+                    long remaining = deadline - System.nanoTime();
+                    if (remaining <= 0) {
+                        deferredTasks.add(rebuildTask);
+                        continue;
+                    }
+                    rebuildTask.get(remaining, TimeUnit.NANOSECONDS);
                     completedTasks++;
-                    continue;
-                }
-                long remaining = deadline - System.nanoTime();
-                if (remaining <= 0) {
+                } catch (CancellationException ignored) {
+                    completedTasks++;
+                } catch (TimeoutException ignored) {
                     deferredTasks.add(rebuildTask);
-                    continue;
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
                 }
-                rebuildTask.get(remaining, TimeUnit.NANOSECONDS);
-                completedTasks++;
-            } catch (CancellationException ignored) {
-                completedTasks++;
-            } catch (TimeoutException ignored) {
-                deferredTasks.add(rebuildTask);
-            } catch (InterruptedException | ExecutionException e) {
-                throw new RuntimeException(e);
             }
+
+            rebuildTasks.clear();
+            rebuildTasks.addAll(deferredTasks);
+
+            long elapsed = System.nanoTime() - started;
+            lastImportantWaitNanos = elapsed;
+            lastImportantWaitStarted = startedTasks;
+            lastImportantWaitCompleted = completedTasks;
+            lastImportantWaitDeferred = deferredTasks.size();
+            totalImportantWaitCalls.incrementAndGet();
+            totalImportantWaitNanos.addAndGet(elapsed);
+            maxImportantWaitNanos.accumulateAndGet(elapsed, Math::max);
         }
-
-        rebuildTasks.clear();
-        rebuildTasks.addAll(deferredTasks);
-
-        long elapsed = System.nanoTime() - started;
-        lastImportantWaitNanos = elapsed;
-        lastImportantWaitStarted = startedTasks;
-        lastImportantWaitCompleted = completedTasks;
-        lastImportantWaitDeferred = deferredTasks.size();
-        totalImportantWaitCalls.incrementAndGet();
-        totalImportantWaitNanos.addAndGet(elapsed);
-        maxImportantWaitNanos.accumulateAndGet(elapsed, Math::max);
     }
 
     public static String importantChunkWaitStatusJson() {
@@ -334,6 +340,87 @@ public class ChunkProxy {
             + "\"pendingImportantTasks\":" + pendingImportant + ","
             + "\"javaRebuildQueueSize\":" + rebuildQueue.size()
             + "}";
+    }
+
+    public static String cancelQueuedRebuildWorkAndWaitJson(long timeoutMillis) {
+        long started = System.currentTimeMillis();
+        long deadline = started + Math.max(0, timeoutMillis);
+        long generation = rebuildGeneration.incrementAndGet();
+        int javaQueueBefore = rebuildQueue.size();
+        rebuildQueue.clear();
+
+        int normalQueuedBefore = executorQueueSize(backgroundChunkRebuildExecutor);
+        if (backgroundChunkRebuildExecutor instanceof ThreadPoolExecutor pool) {
+            pool.getQueue().clear();
+            pool.purge();
+        }
+
+        int importantTasksBefore;
+        synchronized (rebuildTasks) {
+            importantTasksBefore = rebuildTasks.size();
+            for (int i = 0; i < rebuildTasks.size(); i++) {
+                Future<?> task = rebuildTasks.get(i);
+                if (task != null) {
+                    task.cancel(true);
+                }
+            }
+        }
+
+        boolean idle = false;
+        while (System.currentTimeMillis() <= deadline) {
+            dropCompletedImportantTasks();
+            if (rebuildWorkersIdle()) {
+                idle = true;
+                break;
+            }
+            try {
+                Thread.sleep(25);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        dropCompletedImportantTasks();
+
+        int normalActiveAfter = executorActiveCount(backgroundChunkRebuildExecutor);
+        int normalQueuedAfter = executorQueueSize(backgroundChunkRebuildExecutor);
+        int importantActiveAfter = executorActiveCount(importantChunkRebuildExecutor);
+        int importantQueuedAfter = executorQueueSize(importantChunkRebuildExecutor);
+        int pendingImportantAfter = rebuildTasks.size();
+        return "{"
+            + "\"schema\":\"radser_chunk_rebuild_cancel_status_v1\","
+            + "\"generation\":" + generation + ","
+            + "\"completed\":" + idle + ","
+            + "\"timeoutMs\":" + timeoutMillis + ","
+            + "\"elapsedMs\":" + (System.currentTimeMillis() - started) + ","
+            + "\"javaRebuildQueueBefore\":" + javaQueueBefore + ","
+            + "\"normalQueuedBefore\":" + normalQueuedBefore + ","
+            + "\"importantTasksBefore\":" + importantTasksBefore + ","
+            + "\"normalActiveAfter\":" + normalActiveAfter + ","
+            + "\"normalQueuedAfter\":" + normalQueuedAfter + ","
+            + "\"importantActiveAfter\":" + importantActiveAfter + ","
+            + "\"importantQueuedAfter\":" + importantQueuedAfter + ","
+            + "\"pendingImportantAfter\":" + pendingImportantAfter
+            + "}";
+    }
+
+    private static boolean rebuildWorkersIdle() {
+        return executorActiveCount(backgroundChunkRebuildExecutor) == 0
+            && executorQueueSize(backgroundChunkRebuildExecutor) == 0
+            && executorActiveCount(importantChunkRebuildExecutor) == 0
+            && executorQueueSize(importantChunkRebuildExecutor) == 0
+            && rebuildTasks.isEmpty();
+    }
+
+    private static void dropCompletedImportantTasks() {
+        synchronized (rebuildTasks) {
+            for (int i = rebuildTasks.size() - 1; i >= 0; i--) {
+                Future<?> task = rebuildTasks.get(i);
+                if (task == null || task.isDone() || task.isCancelled()) {
+                    rebuildTasks.remove(i);
+                }
+            }
+        }
     }
 
     private static int executorActiveCount(ExecutorService executor) {
