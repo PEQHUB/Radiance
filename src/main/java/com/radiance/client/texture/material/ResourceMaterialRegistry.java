@@ -370,6 +370,7 @@ public final class ResourceMaterialRegistry {
         JsonObject ctm = object(root, "activeCtmAtlasDependencies");
         JsonArray dependencies = array(ctm, "dependencies");
         int emittedCompat = 0;
+        int vanillaFallbackCompat = 0;
         for (JsonElement element : dependencies) {
             if (records.size() >= MATERIAL_MAX_ENTRIES) {
                 break;
@@ -394,12 +395,24 @@ public final class ResourceMaterialRegistry {
             if (present) flags |= MATERIAL_FLAG_PENDING_RESIDENCY;
             if (hasSpecular) flags |= MATERIAL_FLAG_HAS_SPECULAR;
             if (hasNormal) flags |= MATERIAL_FLAG_HAS_NORMAL;
+            // The shader fallback chain samples fallbackMaterialId whenever this
+            // material is not yet resident (materialCanSample fails on
+            // PENDING_RESIDENCY). Vanilla material ids equal sprite ids, so the
+            // resolved base sprite IS the correct vanilla fallback material:
+            // non-resident CTM must render the block's vanilla texture, not the
+            // white missing-sprite placeholder.
+            int fallbackMaterialId = baseSpriteId >= 0 && baseSpriteId < vanilla.vanillaMaterialCount()
+                ? baseSpriteId
+                : fallback;
+            if (fallbackMaterialId != fallback) {
+                vanillaFallbackCompat++;
+            }
             MaterialRecord record = new MaterialRecord(
                 materialId,
                 key,
                 path,
                 baseSpriteId,
-                fallback,
+                fallbackMaterialId,
                 flags,
                 "optifine_ctm_tile",
                 present ? "renderer_pool_pending" : "missing_asset",
@@ -416,6 +429,10 @@ public final class ResourceMaterialRegistry {
         }
         int declaredCompat = intProperty(object(root, "materialUniverse"), "virtualCompatMaterials");
         int presentCompat = intProperty(object(root, "materialUniverse"), "virtualCompatMaterialsPresent");
+        org.slf4j.LoggerFactory.getLogger("RadSER Material Compat").info(
+            "[MaterialCompat] Material universe built: {} CTM records, {} with resolved vanilla "
+                + "fallback sprite, {} falling back to missing-sprite placeholder",
+            emittedCompat, vanillaFallbackCompat, emittedCompat - vanillaFallbackCompat);
         return new Snapshot(generation, packStackHash, vanilla.vanillaMaterialCount(),
             Math.max(declaredCompat, emittedCompat), presentCompat, emittedCompat, records, keyLookup);
     }
