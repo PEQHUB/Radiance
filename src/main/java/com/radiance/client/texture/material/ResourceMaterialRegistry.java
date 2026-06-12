@@ -549,7 +549,14 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
         if (spriteId < 0 || spriteId >= pages.length) {
             return 0;
         }
-        return Math.max(0, pages[spriteId]);
+        int page = pages[spriteId];
+        // Packed page handles carry the namespace in the high nibble — the vanilla
+        // namespace bit (0x80000000) is the int sign bit, so a Math.max(0, ...) clamp
+        // would zero namespace, tier, AND index for every staged vanilla sprite.
+        if ((page & MATERIAL_PAGE_NAMESPACE_MASK) != 0) {
+            return page;
+        }
+        return Math.max(0, page);
     }
 
     private static int vanillaTierPageHandle(int page) {
