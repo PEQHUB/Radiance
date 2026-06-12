@@ -280,7 +280,7 @@ public final class ResourceMaterialResidencyUploader {
                         if (result.missingAlbedo()) {
                             skippedMissingAlbedo++;
                             ResourceMaterialResidencyDemand.recordPermanentFailed(generation,
-                                java.util.List.of(uploadResult.materialId()));
+                                java.util.List.of(uploadResult.materialId()), "missing_albedo_during_decode");
                         } else {
                             failedImages++;
                             ResourceMaterialResidencyDemand.recordRetryableFailed(generation,
@@ -682,8 +682,10 @@ public final class ResourceMaterialResidencyUploader {
         if (missingResource.isEmpty() && unknownToCtmRoot.isEmpty()) {
             return;
         }
-        ResourceMaterialResidencyDemand.recordPermanentFailed(generation, missingResource);
-        ResourceMaterialResidencyDemand.recordPermanentFailed(generation, unknownToCtmRoot);
+        ResourceMaterialResidencyDemand.recordPermanentFailed(generation, missingResource,
+            "known_ctm_dependency_missing_resource");
+        ResourceMaterialResidencyDemand.recordPermanentFailed(generation, unknownToCtmRoot,
+            "unknown_to_ctm_dependency_root");
         json.addProperty("unsatisfiableMissingResource", missingResource.size());
         json.addProperty("unsatisfiableUnknownMaterial", unknownToCtmRoot.size());
         long total;

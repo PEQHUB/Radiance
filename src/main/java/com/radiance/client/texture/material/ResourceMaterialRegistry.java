@@ -135,6 +135,19 @@ public final class ResourceMaterialRegistry {
         return record != null && (record.flags() & MATERIAL_FLAG_COMPAT_VIRTUAL) != 0;
     }
 
+    public static boolean hasRenderableMaterialSource(int materialId) {
+        Snapshot snapshot = ACTIVE.get();
+        MaterialRecord record = snapshot.recordByMaterialId(materialId);
+        if (record == null) {
+            return false;
+        }
+        int flags = effectiveFlags(record, ACTIVE_RESIDENCY.get().get(materialId));
+        if ((flags & MATERIAL_FLAG_COMPAT_VIRTUAL) == 0) {
+            return (flags & MATERIAL_FLAG_VALID) != 0;
+        }
+        return (flags & (MATERIAL_FLAG_PENDING_RESIDENCY | MATERIAL_FLAG_GPU_RESIDENT)) != 0;
+    }
+
     public static ResidencyMergeStats resetResidentMaterialHandlesForGeneration(
         Map<Integer, ResidencyHandle> handles, String reason) {
         int before = ACTIVE_RESIDENCY.get().size();

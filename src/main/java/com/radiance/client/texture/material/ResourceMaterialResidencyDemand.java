@@ -1,10 +1,12 @@
 package com.radiance.client.texture.material;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.radiance.client.texture.compat.ResourcePackRuntimeMaterialBootstrap;
 import com.radiance.client.texture.v4.TextureResidencySnapshot;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,6 +28,7 @@ public final class ResourceMaterialResidencyDemand {
     private static Set<Integer> requestedMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> retryableFailedMaterials = ConcurrentHashMap.newKeySet();
     private static Set<Integer> permanentFailedMaterials = ConcurrentHashMap.newKeySet();
+    private static Map<Integer, String> permanentFailedReasons = new ConcurrentHashMap<>();
     private static final AtomicLong visibleRequestEvents = new AtomicLong();
     private static final AtomicLong visibleUniqueRequests = new AtomicLong();
     private static final AtomicLong plannedFirstFrameRequestEvents = new AtomicLong();
@@ -64,6 +67,7 @@ public final class ResourceMaterialResidencyDemand {
             requestedMaterials = ConcurrentHashMap.newKeySet();
             retryableFailedMaterials = ConcurrentHashMap.newKeySet();
             permanentFailedMaterials = ConcurrentHashMap.newKeySet();
+            permanentFailedReasons = new ConcurrentHashMap<>();
             visibleRequestEvents.set(0L);
             visibleUniqueRequests.set(0L);
             plannedFirstFrameRequestEvents.set(0L);
@@ -170,6 +174,7 @@ public final class ResourceMaterialResidencyDemand {
                 prewarmMaterials.remove(materialId);
                 retryableFailedMaterials.remove(materialId);
                 permanentFailedMaterials.remove(materialId);
+                permanentFailedReasons.remove(materialId);
                 if (visibleMaterials.contains(materialId)
                     && residentVisibleMaterials.add(materialId)) {
                     added++;
@@ -189,9 +194,14 @@ public final class ResourceMaterialResidencyDemand {
     }
 
     public static void recordPermanentFailed(long generation, Collection<Integer> materialIds) {
+        recordPermanentFailed(generation, materialIds, "unspecified");
+    }
+
+    public static void recordPermanentFailed(long generation, Collection<Integer> materialIds, String reason) {
         if (generation != activeGeneration || materialIds == null || materialIds.isEmpty()) {
             return;
         }
+        String safeReason = reason == null || reason.isBlank() ? "unspecified" : reason;
         Set<Integer> snapshotIds = new HashSet<>();
         for (Integer materialId : materialIds) {
             if (materialId != null && materialId >= 0) {
@@ -201,6 +211,7 @@ public final class ResourceMaterialResidencyDemand {
                 prewarmMaterials.remove(materialId);
                 retryableFailedMaterials.remove(materialId);
                 permanentFailedMaterials.add(materialId);
+                permanentFailedReasons.put(materialId, safeReason);
             }
         }
         if (!snapshotIds.isEmpty()) {
@@ -255,12 +266,38 @@ public final class ResourceMaterialResidencyDemand {
             intersectionSize(retryableFailedMaterials, visibleMaterials));
         json.addProperty("permanentFailedVisibleMaterialCount",
             intersectionSize(permanentFailedMaterials, visibleMaterials));
+        json.add("permanentFailedVisibleSamples",
+            materialSamples(permanentFailedMaterials, visibleMaterials, permanentFailedReasons, 32));
         json.addProperty("visiblePriorityCandidateEvents", visiblePriorityCandidates.get());
         json.addProperty("visibleResidentMaterialCount", residentVisibleMaterials.size());
         json.addProperty("visibleFallbackMaterialCount",
             Math.max(0, visibleMaterials.size() - residentVisibleMaterials.size()));
         json.add("scheduler", ResourcePackRuntimeMaterialBootstrap.schedulerStatusJson(generation));
         return json;
+    }
+
+    private static JsonArray materialSamples(Set<Integer> source, Set<Integer> visibility, Map<Integer, String> reasons,
+        int limit) {
+        JsonArray samples = new JsonArray();
+        if (source.isEmpty() || limit <= 0) {
+            return samples;
+        }
+        int count = 0;
+        for (Integer materialId : source) {
+            if (materialId == null || (visibility != null && !visibility.contains(materialId))) {
+                continue;
+            }
+            JsonObject sample = new JsonObject();
+            sample.addProperty("materialId", materialId);
+            sample.addProperty("reason", reasons.getOrDefault(materialId, "unspecified"));
+            sample.add("materialRecord", ResourceMaterialRegistry.materialRecordJson(materialId));
+            samples.add(sample);
+            count++;
+            if (count >= limit) {
+                break;
+            }
+        }
+        return samples;
     }
 
     private static int intersectionSize(Set<Integer> left, Set<Integer> right) {

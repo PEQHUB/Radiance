@@ -2409,7 +2409,7 @@ public final class ResourcePackTextureVariantResolver {
                     return ResourceMaterialRegistry.materialIdForSpriteId(spriteId);
                 }
                 int materialId = ResourceMaterialRegistry.materialIdForCtmAssetPath(choice.assetPath(), -1);
-                if (materialId >= 0) {
+                if (materialId >= 0 && ResourceMaterialRegistry.hasRenderableMaterialSource(materialId)) {
                     return materialId;
                 }
             }
@@ -2426,7 +2426,10 @@ public final class ResourcePackTextureVariantResolver {
             if (spriteId >= 0) {
                 return ResourceMaterialRegistry.materialIdForSpriteId(spriteId);
             }
-            return ResourceMaterialRegistry.materialIdForCtmAssetPath(output.assetPath(), fallbackSpriteId);
+            int materialId = ResourceMaterialRegistry.materialIdForCtmAssetPath(output.assetPath(), fallbackSpriteId);
+            return materialId >= 0 && ResourceMaterialRegistry.hasRenderableMaterialSource(materialId)
+                ? materialId
+                : fallbackSpriteId;
         }
 
         private NeighborConnector neighborConnector(Identifier source, @Nullable BlockRenderView world,
