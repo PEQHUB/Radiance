@@ -98,6 +98,8 @@ public final class TextureArrayBridgeV4 {
 
     public static native String nativePackIndexStatusJson();
 
+    public static native String nativePackIndexDiffAgainstVanillaJson();
+
     /** First-frame native readiness for a generation. */
     public static native String nativeFirstFrameNativeReadinessJsonV4(long generation);
 

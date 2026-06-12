@@ -61,12 +61,13 @@ public final class PackStackSnapshot {
             sidecarCount, packStackHash, captureMillis);
         root.addProperty("nativeAccepted", nativeAccepted);
 
-        JsonObject diff = diffStatus(root, nativeAccepted);
+        JsonObject compact = compactSnapshot(root);
+        JsonObject diff = nativeAccepted ? nativeDiffStatus(root, nativeAccepted) : diffStatus(root, nativeAccepted);
         synchronized (LOCK) {
-            latestJson = root.toString();
+            latestJson = compact.toString();
             latestDiffJson = diff.toString();
         }
-        return root;
+        return compact;
     }
 
     public static String latestJson() {
@@ -103,6 +104,7 @@ public final class PackStackSnapshot {
 
         WinnerSummary winners = collectWinnerSummary(resourceManager);
         root.add("winnerSummary", winners.toJson());
+        root.add("vanillaTruth", winners.truthJson());
         root.add("packWinnerCounts", winnerCountsByPack(winners.winnerPackCounts));
 
         JsonObject totals = new JsonObject();
@@ -119,6 +121,37 @@ public final class PackStackSnapshot {
         return root;
     }
 
+    private static JsonObject compactSnapshot(JsonObject snapshot) {
+        JsonObject compact = new JsonObject();
+        compact.addProperty("ok", true);
+        compact.addProperty("schema", "radser_pack_stack_snapshot_status_v1");
+        compact.addProperty("generation", longProperty(snapshot, "generation"));
+        compact.addProperty("activeTextureGeneration", longProperty(snapshot, "activeTextureGeneration"));
+        compact.addProperty("resourceManagerClass", stringProperty(snapshot, "resourceManagerClass"));
+        compact.addProperty("runDirectory", stringProperty(snapshot, "runDirectory"));
+        compact.addProperty("packStackHash", stringProperty(snapshot, "packStackHash"));
+        compact.addProperty("captureMillis", longProperty(snapshot, "captureMillis"));
+        if (snapshot.has("nativeAccepted")) {
+            compact.addProperty("nativeAccepted", snapshot.get("nativeAccepted").getAsBoolean());
+        }
+        compact.add("activeSelection", snapshot.getAsJsonObject("activeSelection"));
+        compact.add("totals", snapshot.getAsJsonObject("totals"));
+        compact.add("packWinnerCounts", snapshot.getAsJsonObject("packWinnerCounts"));
+        JsonObject winners = snapshot.getAsJsonObject("winnerSummary");
+        if (winners != null) {
+            JsonObject winnerSummary = new JsonObject();
+            winnerSummary.addProperty("resourceCount", intProperty(winners, "resourceCount"));
+            winnerSummary.addProperty("pngCount", intProperty(winners, "pngCount"));
+            winnerSummary.addProperty("mcmetaCount", intProperty(winners, "mcmetaCount"));
+            winnerSummary.addProperty("sidecarCount", intProperty(winners, "sidecarCount"));
+            winnerSummary.addProperty("ruleFileCount", intProperty(winners, "ruleFileCount"));
+            winnerSummary.add("samples", winners.getAsJsonArray("samples"));
+            winnerSummary.add("errors", winners.getAsJsonArray("errors"));
+            compact.add("winnerSummary", winnerSummary);
+        }
+        return compact;
+    }
+
     private static WinnerSummary collectWinnerSummary(ResourceManager resourceManager) {
         WinnerSummary summary = new WinnerSummary();
         if (resourceManager == null) {
@@ -130,6 +163,8 @@ public final class PackStackSnapshot {
         collectRoot(resourceManager, "mcpatcher/ctm", summary, id -> id.getPath().endsWith(".properties"));
         collectRoot(resourceManager, "optifine", summary, id -> id.getPath().endsWith(".properties"));
         collectRoot(resourceManager, "mcpatcher", summary, id -> id.getPath().endsWith(".properties"));
+        summary.collectDerivedSidecars(resourceManager);
+        summary.collectDerivedMcmeta(resourceManager);
         return summary;
     }
 
@@ -260,6 +295,18 @@ public final class PackStackSnapshot {
         diff.addProperty("vanillaTruthCaptured", true);
         diff.add("vanillaTotals", snapshot.getAsJsonObject("totals"));
         return diff;
+    }
+
+    private static JsonObject nativeDiffStatus(JsonObject snapshot, boolean nativeAccepted) {
+        try {
+            String raw = TextureArrayBridgeV4.nativePackIndexDiffAgainstVanillaJson();
+            JsonElement parsed = JsonParser.parseString(raw == null ? "" : raw);
+            if (parsed.isJsonObject()) {
+                return parsed.getAsJsonObject();
+            }
+        } catch (RuntimeException ignored) {
+        }
+        return diffStatus(snapshot, nativeAccepted);
     }
 
     private static Path runDirectory() {
@@ -466,6 +513,9 @@ public final class PackStackSnapshot {
     private static final class WinnerSummary {
         private final Set<String> seen = new HashSet<>();
         private final Map<String, Integer> winnerPackCounts = new HashMap<>();
+        private final ArrayList<Identifier> baseTextureResources = new ArrayList<>();
+        private final ArrayList<Identifier> pngResources = new ArrayList<>();
+        private final JsonArray resources = new JsonArray();
         private final JsonArray samples = new JsonArray();
         private final JsonArray errors = new JsonArray();
         private String error = "";
@@ -486,8 +536,11 @@ public final class PackStackSnapshot {
             winnerPackCounts.merge(packId, 1, Integer::sum);
             if (path.endsWith(".png")) {
                 pngCount++;
+                pngResources.add(id);
                 if (isSidecarPath(path)) {
                     sidecarCount++;
+                } else {
+                    baseTextureResources.add(id);
                 }
             } else if (path.endsWith(".png.mcmeta")) {
                 mcmetaCount++;
@@ -495,12 +548,55 @@ public final class PackStackSnapshot {
                 ruleFileCount++;
             }
             if (samples.size() < SAMPLE_LIMIT) {
-                JsonObject sample = new JsonObject();
-                sample.addProperty("root", root);
-                sample.addProperty("resource", key);
-                sample.addProperty("winnerPackId", packId);
-                sample.addProperty("sidecar", isSidecarPath(path));
-                samples.add(sample);
+                samples.add(resourceJson(root, key, packId, path));
+            }
+            resources.add(resourceJson(root, key, packId, path));
+        }
+
+        void collectDerivedSidecars(ResourceManager resourceManager) {
+            if (resourceManager == null || baseTextureResources.isEmpty()) {
+                return;
+            }
+            ArrayList<Identifier> bases = new ArrayList<>(baseTextureResources);
+            for (Identifier base : bases) {
+                String path = base.getPath();
+                if (!path.endsWith(".png")) {
+                    continue;
+                }
+                String stem = path.substring(0, path.length() - ".png".length());
+                for (String suffix : SIDECAR_SUFFIXES) {
+                    Identifier sidecar = Identifier.tryParse(base.getNamespace() + ":" + stem + suffix + ".png");
+                    if (sidecar == null || seen.contains(sidecar.toString())) {
+                        continue;
+                    }
+                    try {
+                        resourceManager.getResource(sidecar)
+                            .ifPresent(resource -> add("derived_sidecar", sidecar, resource));
+                    } catch (RuntimeException e) {
+                        errors.add("derived_sidecar " + sidecar + ": "
+                            + e.getClass().getSimpleName() + ": " + e.getMessage());
+                    }
+                }
+            }
+        }
+
+        void collectDerivedMcmeta(ResourceManager resourceManager) {
+            if (resourceManager == null || pngResources.isEmpty()) {
+                return;
+            }
+            ArrayList<Identifier> pngs = new ArrayList<>(pngResources);
+            for (Identifier png : pngs) {
+                Identifier mcmeta = Identifier.tryParse(png.getNamespace() + ":" + png.getPath() + ".mcmeta");
+                if (mcmeta == null || seen.contains(mcmeta.toString())) {
+                    continue;
+                }
+                try {
+                    resourceManager.getResource(mcmeta)
+                        .ifPresent(resource -> add("derived_mcmeta", mcmeta, resource));
+                } catch (RuntimeException e) {
+                    errors.add("derived_mcmeta " + mcmeta + ": "
+                        + e.getClass().getSimpleName() + ": " + e.getMessage());
+                }
             }
         }
 
@@ -517,6 +613,24 @@ public final class PackStackSnapshot {
             json.add("samples", samples);
             json.add("errors", errors);
             return json;
+        }
+
+        JsonObject truthJson() {
+            JsonObject json = new JsonObject();
+            json.addProperty("schema", "radser_pack_index_vanilla_truth_v1");
+            json.addProperty("resourceCount", resourceCount);
+            json.add("resources", resources);
+            return json;
+        }
+
+        private static JsonObject resourceJson(String root, String key, String packId, String path) {
+            JsonObject resource = new JsonObject();
+            resource.addProperty("root", root);
+            resource.addProperty("resource", key);
+            resource.addProperty("winnerPackId", packId);
+            resource.addProperty("sidecar", isSidecarPath(path));
+            resource.addProperty("ruleFile", path.endsWith(".properties"));
+            return resource;
         }
 
         private static boolean isSidecarPath(String path) {
@@ -552,5 +666,16 @@ public final class PackStackSnapshot {
                 return "unknown";
             }
         }
+
+        private static final String[] SIDECAR_SUFFIXES = {
+            "_n", "_normal", "_norm",
+            "_s", "_spec", "_specular",
+            "_e", "_emissive",
+            "_f",
+            "_roughness", "_rough",
+            "_metallic", "_metalness",
+            "_height", "_displacement", "_disp",
+            "_ao", "_ambientocclusion", "_ambient_occlusion"
+        };
     }
 }
