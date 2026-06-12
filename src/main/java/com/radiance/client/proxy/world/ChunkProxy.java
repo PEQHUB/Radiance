@@ -22,6 +22,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -303,12 +304,50 @@ public class ChunkProxy {
             + "\"schema\":\"radser_chunk_ingest_status_v1\","
             + "\"javaRebuildQueueSize\":" + rebuildQueue.size() + ","
             + "\"pendingImportantTasks\":" + rebuildTasks.size() + ","
+            + "\"javaRebuildWork\":" + rebuildWorkStatusJson() + ","
             + "\"nativeInputQueueSize\":" + nativeInputQueueSize + ","
             + "\"nativeReadyChunkCount\":" + nativeReadyChunkCount + ","
             + "\"tlasReadyChunkCount\":" + nativeReadyChunkCount + ","
             + "\"nativeInputQueueError\":\"" + escapeJson(nativeInputQueueError) + "\","
             + "\"importantChunkWait\":" + importantChunkWaitStatusJson()
             + "}";
+    }
+
+    public static String rebuildWorkStatusJson() {
+        int normalActive = executorActiveCount(backgroundChunkRebuildExecutor);
+        int normalQueued = executorQueueSize(backgroundChunkRebuildExecutor);
+        int importantActive = executorActiveCount(importantChunkRebuildExecutor);
+        int importantQueued = executorQueueSize(importantChunkRebuildExecutor);
+        int pendingImportant = rebuildTasks.size();
+        boolean idle = normalActive == 0
+            && normalQueued == 0
+            && importantActive == 0
+            && importantQueued == 0
+            && pendingImportant == 0;
+        return "{"
+            + "\"schema\":\"radser_chunk_rebuild_work_status_v1\","
+            + "\"idle\":" + idle + ","
+            + "\"normalActiveTasks\":" + normalActive + ","
+            + "\"normalQueuedTasks\":" + normalQueued + ","
+            + "\"importantActiveTasks\":" + importantActive + ","
+            + "\"importantQueuedTasks\":" + importantQueued + ","
+            + "\"pendingImportantTasks\":" + pendingImportant + ","
+            + "\"javaRebuildQueueSize\":" + rebuildQueue.size()
+            + "}";
+    }
+
+    private static int executorActiveCount(ExecutorService executor) {
+        if (executor instanceof ThreadPoolExecutor pool) {
+            return pool.getActiveCount();
+        }
+        return -1;
+    }
+
+    private static int executorQueueSize(ExecutorService executor) {
+        if (executor instanceof ThreadPoolExecutor pool) {
+            return pool.getQueue().size();
+        }
+        return -1;
     }
 
     private static String escapeJson(String value) {
