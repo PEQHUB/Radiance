@@ -44,7 +44,9 @@ import org.slf4j.LoggerFactory;
 public final class ResourceMaterialResidencyUploader {
     private static final Logger LOGGER = LoggerFactory.getLogger("RadSER Material Compat");
     private static final int FIRST_COMPAT_PAGE = TextureTracker.FIRST_COMPAT_MATERIAL_PAGE;
-    private static final int PAGE_BUDGET = ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX - FIRST_COMPAT_PAGE;
+    private static final int COMPAT_PAGE_LIMIT = Math.min(ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX,
+        TextureTracker.COMPAT_MATERIAL_PAGE_LIMIT);
+    private static final int PAGE_BUDGET = Math.max(0, COMPAT_PAGE_LIMIT - FIRST_COMPAT_PAGE);
     private static final int TARGET_PAGE_CAPACITY = 512;
     private static final int DEFAULT_LAYER_DECODE_THREADS = 4;
     private static final int MAX_LAYER_DECODE_THREADS = 8;
@@ -443,14 +445,14 @@ public final class ResourceMaterialResidencyUploader {
                 nextAllocatorPage = FIRST_COMPAT_PAGE;
                 nextAllocatorLayer = 0;
             }
-            if (nextAllocatorPage >= ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX) {
+            if (nextAllocatorPage >= COMPAT_PAGE_LIMIT) {
                 return PageAllocation.empty();
             }
             if (nextAllocatorLayer >= pageCapacity) {
                 nextAllocatorPage++;
                 nextAllocatorLayer = 0;
             }
-            if (nextAllocatorPage >= ResourceMaterialRegistry.MATERIAL_TEXTURE_PAGE_MAX) {
+            if (nextAllocatorPage >= COMPAT_PAGE_LIMIT) {
                 return PageAllocation.empty();
             }
             int available = pageCapacity - nextAllocatorLayer;

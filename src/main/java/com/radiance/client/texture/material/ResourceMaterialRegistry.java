@@ -739,11 +739,15 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
             boolean hasSpecular, boolean displacementEligible, boolean displacementBlocked,
             int heightRangePacked) {
             int tierIndex = tierIndexForLayerSize(layerSize);
-            int nativePage = page >= TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
+            int baseNativePage = page >= TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
                 ? page - TextureTracker.FIRST_COMPAT_MATERIAL_PAGE
                 : page;
+            int nativeCapacity = nativePageLayerCapacity(tierIndex);
+            int nativePage = baseNativePage + Math.max(0, layer) / nativeCapacity;
+            int nativeLayer = Math.floorMod(layer, nativeCapacity);
             int packedPage = TexturePageHandle.packPage(TexturePageHandle.NS_CTM, tierIndex, nativePage);
-            return new ResidencyHandle(packedPage, layer, packedPage, layer, packedPage, layer, packedPage, layer,
+            return new ResidencyHandle(packedPage, nativeLayer, packedPage, nativeLayer, packedPage, nativeLayer,
+                packedPage, nativeLayer,
                 layerSize, hasSpecular, displacementEligible, displacementBlocked,
                 heightRangePacked);
         }
@@ -775,6 +779,18 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
         if (layerSize <= 256) return 4;
         if (layerSize <= 512) return 5;
         return 6;
+    }
+
+    private static int nativePageLayerCapacity(int tierIndex) {
+        return switch (tierIndex) {
+            case 0 -> 2048;
+            case 1 -> 1024;
+            case 2 -> 512;
+            case 3 -> 256;
+            case 4 -> 128;
+            case 5 -> 64;
+            default -> 32;
+        };
     }
 
     public record ResidencyMergeStats(String reason,
@@ -867,7 +883,8 @@ private static int vanillaTierPage(int spriteId, int[] pages) {
             json.addProperty("vanillaTierPageCount", TextureTracker.VANILLA_TIER_SIZES.length);
             json.addProperty("ctmFirstMaterialPage", TextureTracker.FIRST_COMPAT_MATERIAL_PAGE);
             json.addProperty("ctmMaterialPageBudget",
-                Math.max(0, MATERIAL_TEXTURE_PAGE_MAX - TextureTracker.FIRST_COMPAT_MATERIAL_PAGE));
+                Math.max(0, Math.min(MATERIAL_TEXTURE_PAGE_MAX, TextureTracker.COMPAT_MATERIAL_PAGE_LIMIT)
+                    - TextureTracker.FIRST_COMPAT_MATERIAL_PAGE));
             json.addProperty("vanillaMaterialCount", vanillaMaterialCount);
             json.addProperty("declaredCompatMaterialCount", declaredCompatMaterialCount);
             json.addProperty("declaredPresentCompatMaterialCount", declaredPresentCompatMaterialCount);

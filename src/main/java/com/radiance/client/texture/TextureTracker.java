@@ -29,6 +29,9 @@ public class TextureTracker {
     public static final int[] VANILLA_TIER_SIZES = {16, 32, 64, 128, 256, 512, 1024};
     public static final int FIRST_COMPAT_MATERIAL_PAGE =
         VANILLA_TIER_FIRST_PAGE + VANILLA_TIER_SIZES.length;
+    public static final int COMPAT_MATERIAL_DESCRIPTOR_PAGE_COUNT = 64;
+    public static final int COMPAT_MATERIAL_PAGE_LIMIT =
+        FIRST_COMPAT_MATERIAL_PAGE + COMPAT_MATERIAL_DESCRIPTOR_PAGE_COUNT;
     public static volatile boolean textureArrayAnimationUpdatesEnabled = false;
     public static volatile boolean vanillaBlockAtlasUploadBypassActive = false;
     public static volatile boolean lastVanillaBlockAtlasBypass = false;
